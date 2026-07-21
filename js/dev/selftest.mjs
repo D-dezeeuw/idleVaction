@@ -9,6 +9,10 @@ import * as M from '../math.js';
 import * as P from '../prestige.js';
 import { validateDestinations } from '../data/destinations.js';
 import { fmt, fmtTime, rng } from '../util.js';
+// E11 harness-invariance guard ([62] below): importing runCurve does NOT auto-run the
+// harness's own report() — that's guarded behind `process.argv[1].endsWith('harness.mjs')`,
+// which is false when node's entry point is THIS file.
+import { runCurve } from './harness.mjs';
 
 let fails = 0;
 const ok = (cond, msg) => { if (!cond) { console.error('  ✗ FAIL:', msg); fails++; } else console.log('  ✓', msg); };
@@ -1754,6 +1758,415 @@ console.log('\n[52] E10 anti-clicker: sustained tapping stays a modest, floor-do
   ok(idleCash > 0, `baseline idle income accrued over the run (€${fmt(idleCash)})`);
   const ratio = tapCash / idleCash;
   ok(ratio < 0.35, `sustained max-rate tapping (€${fmt(tapCash)}) stays under 35% of idle income (€${fmt(idleCash)}, ratio ${ratio.toFixed(2)}) — the idle rate is always the honest floor`);
+}
+
+// ---------- 53. E11 CONCIERGE config + state.concierge schema (OFF by default,
+// E11-S1-T1/T6, S4-T2). ----------
+console.log('\n[53] E11 CONCIERGE config + state.concierge schema (OFF by default)');
+{
+  ok(C.CONCIERGE && typeof C.CONCIERGE.budgetFrac === 'number', 'CONCIERGE config block exists');
+  ok(C.CONCIERGE.defaultOn === false, 'CONCIERGE.defaultOn is false — the concierge must never default on');
+  ok(Array.isArray(C.CONCIERGE.whitelist) && C.CONCIERGE.whitelist.length === 1 && C.CONCIERGE.whitelist[0] === 'amenity',
+    "CONCIERGE.whitelist defaults to ['amenity'] only — the conservative default (E11-S4-T2)");
+  ok(Array.isArray(C.CONCIERGE.categories) && ['amenity', 'generator', 'upgrade'].every(cat => C.CONCIERGE.categories.includes(cat)),
+    'CONCIERGE.categories declares all 3 purchasable categories the whitelist UI/engine share');
+
+  const fresh = ST.newGame();
+  ok(fresh.concierge && fresh.concierge.on === false, 'a fresh game starts with the concierge OFF');
+  ok(fresh.concierge.budgetFrac === C.CONCIERGE.budgetFrac, 'fresh concierge.budgetFrac is seeded from config');
+  ok(fresh.concierge.reserveFloor === C.CONCIERGE.reserveFloor, 'fresh concierge.reserveFloor is seeded from config');
+  ok(Array.isArray(fresh.concierge.whitelist) && fresh.concierge.whitelist.join(',') === C.CONCIERGE.whitelist.join(','),
+    'fresh concierge.whitelist matches the config default');
+  ok(fresh.concierge.whitelist !== C.CONCIERGE.whitelist, 'the state whitelist array is a distinct copy, not aliased to config');
+  ok(Array.isArray(fresh.concierge.lastActions) && fresh.concierge.lastActions.length === 0, 'fresh concierge.lastActions starts empty');
+  ok(fresh.concierge.totalBought === 0 && fresh.concierge.totalSpent === 0, 'fresh concierge totals start at zero');
+}
+
+// ---------- 54. E11 suite amenity cluster: data validation + tier 9/10 gate bracketing
+// (E11-S1-T2, S5-T1/T3/T4/T5/T6/T7). ----------
+console.log('\n[54] E11 suite amenity cluster: data validation + tier 9/10 gate bracketing');
+{
+  const suite = DATA.amenities.filter(a => a.tag === 'suite');
+  ok(suite.length === 6, `the suite cluster has exactly 6 items (got ${suite.length})`);
+  const expectedIds = ['turndown_service', 'pillow_menu', 'minibar', 'bathrobe', 'rainfall_shower', 'butler_call_button'];
+  ok(expectedIds.every(id => suite.some(a => a.id === id)), 'the suite cluster ships all 6 epic-named items');
+
+  const seen = new Set();
+  for (const a of suite) {
+    ok(!seen.has(a.id), `suite amenity id is unique: ${a.id}`);
+    seen.add(a.id);
+    ok(a.costBase > 0, `${a.id}: costBase > 0`);
+    ok(a.comfort > 0, `${a.id}: comfort > 0`);
+    ok(typeof a.xMult === 'number' && a.xMult > 0, `${a.id}: xMult declared (small, dormant per house convention)`);
+    const g = a.costGrowth || C.AMENITY.growthDefault;
+    ok(Math.abs(g - 1.5) < 1e-9, `${a.id}: costGrowth is the default 1.5 (no override) — matches the epic's own 'costGrowth:1.5'`);
+    ok(a.costBase > 1.92e7, `${a.id}: costBase (${a.costBase}) sits above the Wellness Wing's own top (gym_altitude_room @ 1.92e7)`);
+  }
+
+  // strictly increasing costBase/comfort/unlockComfort, and costBase doubles per item
+  // (~2x, per the epic's own "ramping ~2x per step", E11-S5-T1).
+  let prevCost = 0, prevComfort = 0, prevUnlock = 0;
+  for (const a of suite) {
+    ok(a.costBase > prevCost, `${a.id}: costBase strictly increases`);
+    ok(a.comfort > prevComfort, `${a.id}: comfort strictly increases`);
+    ok(a.unlockComfort > prevUnlock, `${a.id}: unlockComfort strictly increases`);
+    if (prevCost > 0) ok(approx(a.costBase / prevCost, 2), `${a.id}: costBase is exactly 2x the previous item`);
+    prevCost = a.costBase; prevComfort = a.comfort; prevUnlock = a.unlockComfort;
+  }
+
+  // brackets BOTH new tiers' Comfort gates (same bracket-the-gate convention as
+  // onestar/breakfast/wellness).
+  const gate9 = M.accUnlockComfort(9), gate10 = M.accUnlockComfort(10);
+  ok(suite.some(a => a.unlockComfort < gate9), 'at least one suite item unlocks BEFORE the tier-9 (5-Star Hotel) gate');
+  ok(suite.some(a => a.unlockComfort > gate9 && a.unlockComfort < gate10), 'at least one suite item unlocks BETWEEN the tier-9 and tier-10 gates');
+  ok(suite.some(a => a.unlockComfort > gate10), 'at least one suite item unlocks AFTER the tier-10 (5-Star Suite) gate');
+
+  // no dedicated card was added — the suite items surface via the SAME 'suite' tag
+  // through the general Amenities panel's generic tag-grouping (E11-S5-T8, additive UI).
+  ok(!['pool', 'beach', 'service', 'tan', 'gym', 'wellness', 'spa'].includes(suite[0].tag),
+    "suite items use their OWN 'suite' tag, not an existing dedicated-card tag");
+
+  // guardrail: no existing amenity was modified by this epic (spot-check a few).
+  const priv = DATA.amenities.find(a => a.id === 'private_spa');
+  ok(priv && priv.costBase === 1.2e6 && priv.comfort === 380, 'private_spa (pre-existing) is untouched by this epic');
+  const gym = DATA.amenities.find(a => a.id === 'gym_altitude_room');
+  ok(gym && gym.costBase === 1.92e7, 'gym_altitude_room (pre-existing, E10) is untouched by this epic');
+}
+
+// helper: a crafted state with a real (non-zero) cashRate, cheap enough to buy several
+// cheap amenities, at a LOW Comfort baseline (so early-motel-tier amenities read as
+// clearly ROI-positive) — reused by several concierge tests below. cash is set AFTER
+// the generator purchase so the generator buy itself always succeeds regardless of the
+// test's intended starting cash.
+function conciergeTestState(cash) {
+  const s = ST.newGame();
+  s.resources.cash = 1e9;
+  E.buyGenerator(s, 0, 30);
+  s._comfortCache = 500;
+  s.resources.cash = cash;
+  s.concierge.on = true;
+  return s;
+}
+
+// ---------- 55. E11 conciergeCandidates: whitelist filter + ROI ranking + the
+// never-buy-a-cosmetic-amenity guardrail (E11-S2-T1/T2/T4/T6, S10-T1). ----------
+console.log('\n[55] E11 conciergeCandidates: whitelist filter + ROI ranking + never a cosmetic amenity');
+{
+  // whitelist filter: the default (['amenity']) never yields a generator/upgrade
+  // candidate, even when both are unlocked and cheaply affordable.
+  const wl = conciergeTestState(1e6);
+  const onlyAmenity = E.conciergeCandidates(wl);
+  ok(onlyAmenity.length > 0, 'the default whitelist does yield some amenity candidates in this crafted state');
+  ok(onlyAmenity.every(c => c.category === 'amenity'), "default whitelist (['amenity']) never yields a generator/upgrade candidate");
+
+  wl.concierge.whitelist = ['amenity', 'generator', 'upgrade'];
+  const allCats = E.conciergeCandidates(wl);
+  ok(allCats.some(c => c.category === 'generator'), 'whitelisting generator makes generator candidates appear');
+  ok(allCats.some(c => c.category === 'upgrade'), 'whitelisting upgrade makes upgrade candidates appear');
+
+  wl.concierge.whitelist = ['generator'];
+  const genOnly = E.conciergeCandidates(wl);
+  ok(genOnly.length > 0 && genOnly.every(c => c.category === 'generator'), 'de-whitelisting amenity/upgrade leaves only generator candidates');
+
+  // ROI ranking: every candidate's own roi matches marginal-gain/cost exactly (the
+  // SAME harness-style payback formula, replicated here from public config constants
+  // only — no private engine internals reached into), and the list sorts descending.
+  const rk = conciergeTestState(1e9);
+  const cashRate = M.tierProd(rk, 0) + M.savvyPassive(rk);
+  const expectedGain = a => {
+    const ascBonus = 1 + 0.25 * rk.ascension.count;
+    const dComf = a.comfort * C.COMFORT.wAmen * ascBonus;
+    const comf = rk._comfortCache;
+    const L = 1 + C.COMFORT.MULT * Math.log10(1 + comf / C.COMFORT.C0);
+    const Lafter = 1 + C.COMFORT.MULT * Math.log10(1 + (comf + dComf) / C.COMFORT.C0);
+    return cashRate * (Lafter - L) / L;
+  };
+  const list = E.conciergeCandidates(rk);
+  ok(list.length > 1, 'at least two amenity candidates exist at this crafted comfort level');
+  let sorted = true, formulaMatches = true;
+  for (let i = 0; i < list.length; i++) {
+    const a = DATA.amenities.find(x => x.id === list[i].id);
+    const expected = expectedGain(a) / E.amenityCost(rk, a.id);
+    if (!approx(list[i].roi, expected, 1e-6)) formulaMatches = false;
+    if (i > 0 && list[i].roi > list[i - 1].roi + 1e-12) sorted = false;
+  }
+  ok(formulaMatches, "each amenity candidate's roi matches marginal-gain/cost exactly (the harness-style payback formula)");
+  ok(sorted, 'conciergeCandidates is sorted by roi strictly descending');
+  ok(list[0].id === 'bug_spray', 'the true highest-ROI affordable candidate (the cheapest, earliest amenity) sorts first');
+
+  // the never-buy-a-cosmetic-amenity guardrail: infinity_pool (costBase 5e7) is
+  // UNLOCKED and AFFORDABLE at this cashRate/comfort, yet its marginal Comfort bump is
+  // cosmically tiny relative to its cost (2200 Comfort against a 600K+ existing total)
+  // — it must NEVER be a candidate, exactly the leak the ROI harness itself was built
+  // to fix. (A separate, LOWER-comfort state above — `rk`, comfort 500 — already shows
+  // a real positive-inclusion case: bug_spray legitimately tops that ranking. At THIS
+  // much higher comfort baseline, even bug_spray's own tiny Comfort bump has become
+  // relatively cosmetic too — which is the expected, correct shape of the log softcap,
+  // not a bug: nothing this cheap is worth auto-buying once Comfort has scaled orders
+  // of magnitude past it.)
+  const cosmetic = conciergeTestState(1e15);
+  cosmetic._comfortCache = 6e5; // clears infinity_pool's own unlockComfort (5e5)
+  ok(E.amenityUnlocked(cosmetic, 'infinity_pool'), 'infinity_pool is unlocked at this Comfort');
+  ok(E.amenityCost(cosmetic, 'infinity_pool') <= cosmetic.resources.cash, 'infinity_pool is affordable at this cash');
+  const cosmeticList = E.conciergeCandidates(cosmetic);
+  ok(!cosmeticList.some(c => c.id === 'infinity_pool'),
+    'infinity_pool — unlocked AND affordable — is NEVER a concierge candidate: its ROI fails the payback-horizon test, exactly the leak the ROI harness itself was built to fix');
+}
+
+// ---------- 56. E11 conciergeTick: budget bound, reserve floor, and the tip/fee sink
+// (E11-S2-T3/T7, S4-T7, S10-T2/T4). ----------
+console.log('\n[56] E11 conciergeTick: budget bound + reserve floor + tip sink');
+{
+  // budget bound: a tick never spends more than budgetFrac·cash, regardless of how
+  // many affordable deals exist (S10-T2).
+  const bud = conciergeTestState(100000);
+  const cashStart = bud.resources.cash;
+  E.conciergeTick(bud, C.CONCIERGE.intervalSec);
+  const spent = cashStart - bud.resources.cash;
+  ok(bud.concierge.totalBought > 0, 'the concierge actually bought something this interval');
+  ok(spent <= C.CONCIERGE.budgetFrac * cashStart + 1e-6, `spend (€${fmt(spent)}) never exceeds budgetFrac·cash (€${fmt(C.CONCIERGE.budgetFrac * cashStart)})`);
+
+  // reserve floor: spending stops before crossing it, even mid-shopping-list, with
+  // plenty of BUDGET still remaining (S10-T4 — the floor, not the budget, is what binds).
+  const rf = conciergeTestState(100000);
+  rf.concierge.reserveFloor = 99950;
+  E.conciergeTick(rf, C.CONCIERGE.intervalSec);
+  ok(rf.resources.cash >= rf.concierge.reserveFloor - 1e-6, 'cash never drops below the reserve floor');
+  ok(rf.concierge.totalBought === 1, 'only the ONE purchase the floor headroom allows is made, not more');
+
+  // tip/fee sink: with a tight budget that fits exactly one purchase, the total
+  // deducted is EXACTLY the raw cost times (1 + tipFrac) — a real, measurable drag
+  // (E11-S4-T7), not a no-op.
+  const tip = conciergeTestState(85); // budget = 21.25, just enough for bug_spray (cost 20)
+  const top = E.conciergeCandidates(tip)[0];
+  const cashBefore = tip.resources.cash;
+  E.conciergeTick(tip, C.CONCIERGE.intervalSec);
+  const tipSpent = cashBefore - tip.resources.cash;
+  ok(tip.concierge.totalBought === 1, 'exactly one purchase happens under this tight budget');
+  ok(approx(tipSpent, top.cost * (1 + C.CONCIERGE.tipFrac), 1e-6),
+    'the tip/fee sink adds exactly CONCIERGE.tipFrac on top of the raw purchase cost');
+
+  // zero-cash no-op: nothing happens (and nothing logs) below the cheapest affordable
+  // item (S10-T7).
+  const zero = ST.newGame();
+  zero.concierge.on = true;
+  zero.resources.cash = 0;
+  E.conciergeTick(zero, C.CONCIERGE.intervalSec);
+  ok(zero.concierge.totalBought === 0, 'zero cash: the concierge buys nothing');
+  ok(zero.concierge.lastActions.length === 0, 'zero cash: no log entry is created');
+}
+
+// ---------- 57. E11 conciergeTick: whitelist takes effect immediately, and rapid
+// on/off/on toggling never double-spends or leaves a stuck timer (E11-S2-T4, S4-T10,
+// S10-T3/T6). ----------
+console.log('\n[57] E11 conciergeTick: whitelist takes effect immediately + rapid toggling is safe');
+{
+  const wl2 = conciergeTestState(1e5);
+  wl2.concierge.whitelist = [];
+  E.conciergeTick(wl2, C.CONCIERGE.intervalSec);
+  ok(wl2.concierge.totalBought === 0, 'an empty whitelist buys nothing, even with cash and ROI-positive candidates available');
+
+  wl2.concierge.whitelist = ['amenity'];
+  E.conciergeTick(wl2, C.CONCIERGE.intervalSec);
+  ok(wl2.concierge.totalBought > 0, 're-whitelisting amenity makes the very next interval buy again — takes effect immediately');
+
+  // rapid toggling: turning OFF freezes the accumulator (no backlog builds up), and
+  // resuming continues from where it left off — never a stuck timer, never a double-
+  // fire, never a duplicated log entry.
+  const rt = conciergeTestState(1e5);
+  rt.concierge.on = false;
+  E.conciergeTick(rt, 3);
+  ok(rt.concierge.tickAccum === 0, 'the accumulator never advances while OFF');
+
+  rt.concierge.on = true;
+  E.conciergeTick(rt, 3);
+  ok(approx(rt.concierge.tickAccum, 3), 'ticking for less than intervalSec just accumulates — no purchase yet');
+  ok(rt.concierge.totalBought === 0, 'no purchase yet (the interval has not elapsed)');
+
+  rt.concierge.on = false;
+  E.conciergeTick(rt, 100); // a huge dt while OFF must be completely ignored
+  ok(approx(rt.concierge.tickAccum, 3), 'toggling OFF freezes the accumulator — no backlog builds up from time spent off, even a huge dt');
+
+  rt.concierge.on = true;
+  E.conciergeTick(rt, 2); // 3 + 2 = 5s = exactly one intervalSec
+  ok(rt.concierge.totalBought > 0, 'resuming and reaching the interval threshold does shop again');
+  ok(approx(rt.concierge.tickAccum, 0), 'the accumulator resets to (near) 0 after exactly one interval elapses — not a backlog catch-up burst');
+  ok(rt.concierge.lastActions.length === 1, 'exactly ONE shopping pass (one batched log entry) fires — no duplicate entries from the toggling');
+
+  // hammer on/off across 20 quarter-second ticks (5s of ON+OFF time total, half OFF) —
+  // never more than one interval's worth of purchases should land, never a crash.
+  const hammer = conciergeTestState(1e5);
+  for (let i = 0; i < 20; i++) { hammer.concierge.on = (i % 2 === 0); E.conciergeTick(hammer, 0.25); }
+  ok(Number.isFinite(hammer.resources.cash), 'rapid on/off toggling never corrupts cash (stays finite)');
+  ok(hammer.concierge.totalBought <= 1, 'rapid on/off toggling accrues at most ONE interval of ON-time worth of purchases here — no double-spend');
+}
+
+// ---------- 58. E11 forbidden actions: the concierge never buys accommodation, never
+// ascends, never answers a story choice — under ANY whitelist config, even with
+// effectively unlimited cash (E11-S4-T6, S10-T10 regression). ----------
+console.log('\n[58] E11 forbidden actions: never accommodation, never ascension, never a story choice');
+{
+  const forb = conciergeTestState(1e30);
+  forb.concierge.whitelist = ['amenity', 'generator', 'upgrade'];
+  const tierBefore = forb.accommodation.tier;
+  const ascBefore = forb.ascension.count;
+  const branchBefore = forb.story.branch;
+  for (let i = 0; i < 50; i++) E.conciergeTick(forb, C.CONCIERGE.intervalSec);
+  ok(forb.concierge.totalBought > 0, 'the concierge did buy a lot, under a huge budget and every category whitelisted (sanity: the policy is actually running)');
+  ok(forb.accommodation.tier === tierBefore, 'the concierge NEVER buys accommodation, even with effectively unlimited cash');
+  ok(forb.ascension.count === ascBefore, 'the concierge NEVER ascends');
+  ok(forb.story.branch === branchBefore, 'the concierge NEVER answers a story choice');
+}
+
+// ---------- 59. E11 offline determinism: applyOffline runs the EXACT same tick()/
+// conciergeTick() pipeline as a manual macro-step loop — no separate offline-only
+// concierge logic, no unpoliced free spending (E11-S9-T4/T5/T7, S10-T5). ----------
+console.log('\n[59] E11 offline determinism: applyOffline mirrors a manual tick() loop bit-for-bit');
+{
+  const seed = () => {
+    const s = ST.newGame();
+    s.resources.cash = 1e9;   // ample cash so the generator buy below actually succeeds
+    E.buyGenerator(s, 0, 20);
+    s.resources.cash = 1e6;   // then set the ACTUAL starting cash for the away-time test
+    s.concierge.on = true;
+    s.settings.offlineEnabled = true;
+    return s;
+  };
+  const manual = seed();
+  const viaOffline = ST.migrate(JSON.parse(JSON.stringify(seed())));
+
+  const elapsedMs = 3600 * 1000; // 1h away
+  const capH = C.OFFLINE_CAP_H + 2 * (manual.ascension.tree.iron_const || 0);
+  const total = Math.min(elapsedMs, capH * 3600 * 1000) / 1000;
+  const step = total / C.OFFLINE_STEPS;
+  for (let i = 0; i < C.OFFLINE_STEPS; i++) E.tick(manual, step);
+
+  const rep = E.applyOffline(viaOffline, elapsedMs);
+  ok(rep && rep.seconds > 0, 'applyOffline returns a report for a real elapsed gap');
+  ok(approx(manual.resources.cash, viaOffline.resources.cash, 1e-6), 'manual macro-step loop and applyOffline produce IDENTICAL cash for identical elapsed time');
+  ok(manual.concierge.totalBought === viaOffline.concierge.totalBought, 'manual macro-step loop and applyOffline produce the IDENTICAL number of concierge purchases');
+  ok(approx(manual.concierge.totalSpent, viaOffline.concierge.totalSpent, 1e-6), 'manual macro-step loop and applyOffline produce IDENTICAL concierge spend');
+  ok(manual.concierge.totalBought > 0, 'the concierge really did buy something while "away" (this test is not vacuous)');
+  ok(rep.conciergeBought === viaOffline.concierge.totalBought, 'the offline report\'s conciergeBought count matches the running total exactly');
+  ok(approx(rep.conciergeSpent, viaOffline.concierge.totalSpent, 1e-6), 'the offline report\'s conciergeSpent matches the running total exactly');
+}
+
+// ---------- 60. E11 tier 9/10 arrival: celebratory flashes, beat 13 (Five-Star Frame
+// of Mind), and the Concierge Desk reveal (E11-S1-T7/T9, S3-T7, S6-T4/T5/T6/T7/T10).
+// ----------
+console.log('\n[60] E11 tier 9/10 arrival: celebrate flashes, beat 13, and the Concierge Desk reveal');
+{
+  // beat 13 requires beat 12 first (narrative monotonicity) and its own accTier:9 gate.
+  const b13 = ST.newGame();
+  b13._comfortCache = 1e9;
+  b13.skills.charisma.level = 5;
+  b13.skills.body.level = 8;
+  b13.accommodation.tier = 8;
+  E.checkStory(b13);
+  ok(!b13.story.seen.includes(13), 'beat 13 does NOT fire before accTier 9, even with every other gate already met');
+  ok(!E.conciergeUnlocked(b13), 'the Concierge Desk stays locked at tier 8 (no beat 13 either)');
+
+  b13.accommodation.tier = 9;
+  E.checkStory(b13);
+  ok(b13.story.seen.includes(12), 'beat 12 fires first');
+  ok(b13.story.seen.includes(13), 'beat 13 (Five-Star Frame of Mind) fires once accTier reaches 9');
+  ok(b13.story.seen.filter(x => x === 13).length === 1, 'beat 13 is recorded exactly once');
+  E.checkStory(b13); E.checkStory(b13);
+  ok(b13.story.seen.filter(x => x === 13).length === 1, 'repeated checkStory calls do not re-fire beat 13');
+  ok(E.conciergeUnlocked(b13), 'the concierge unlocks the same moment beat 13 fires (tier 9)');
+
+  // one-shot Concierge Desk reveal flash (mirrors checkWellnessReveal's pattern).
+  E.checkConciergeReveal(b13);
+  ok(b13.story.flags.conciergeRevealed, 'checkConciergeReveal fires once tier 9 / beat 13 is reached');
+  const revealNotifs = E.drainNotifications(b13);
+  ok(revealNotifs.some(n => n.type === 'unlock' && /Concierge Desk/.test(n.text)), 'the reveal fires a distinct unlock notification');
+  E.checkConciergeReveal(b13);
+  ok(!E.drainNotifications(b13).length, 'checkConciergeReveal does not re-fire on a subsequent check');
+
+  // tier-9 and tier-10 celebratory flashes (E11-S6-T6, mirrors the tier-4..8 flashes).
+  const arr9 = ST.newGame();
+  arr9.accommodation.tier = 8; arr9.accommodation.owned = [0, 1, 2, 3, 4, 5, 6, 7, 8];
+  arr9._comfortCache = M.accUnlockComfort(9);
+  arr9.resources.cash = E.accCost(arr9);
+  ok(E.buyAccommodation(arr9), 'buyAccommodation succeeds into tier 9 (5-Star Hotel)');
+  ok(E.drainNotifications(arr9).some(n => n.type === 'celebrate' && /5-Star Hotel/.test(n.text)),
+    'the tier-9 arrival fires a distinct celebratory notification');
+
+  const arr10 = ST.newGame();
+  arr10.accommodation.tier = 9; arr10.accommodation.owned = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+  arr10._comfortCache = M.accUnlockComfort(10);
+  arr10.resources.cash = E.accCost(arr10);
+  ok(E.buyAccommodation(arr10), 'buyAccommodation succeeds into tier 10 (5-Star Signature Suite)');
+  ok(E.drainNotifications(arr10).some(n => n.type === 'celebrate' && /Suite/.test(n.text)),
+    'the tier-10 arrival fires a distinct celebratory notification');
+
+  // UI reveal gating mirrors engine.conciergeUnlocked exactly (E11-S3-T7/T9).
+  const fresh = ST.newGame();
+  ok(!E.conciergeUnlocked(fresh), 'a fresh game (tier 0) keeps the Concierge Desk locked');
+
+  const reloadedB13 = ST.migrate(JSON.parse(JSON.stringify(b13)));
+  ok(reloadedB13.story.seen.includes(13), 'beat 13 survives a save/reload round-trip');
+  ok(reloadedB13.story.flags.conciergeRevealed, 'the concierge reveal flag survives a save/reload round-trip');
+}
+
+// ---------- 61. E11 migration backfill: state.concierge + suite amenity ids for a
+// pre-E11 save (E11-S9-T1/T2/T3/T8/T9/T10, mirrors [41]/[51]'s pattern). ----------
+console.log('\n[61] E11 migration backfill: state.concierge + suite amenity ids');
+{
+  const suiteIds = ['turndown_service', 'pillow_menu', 'minibar', 'bathrobe', 'rainfall_shower', 'butler_call_button'];
+  const oldSave = ST.newGame();
+  delete oldSave.concierge;
+  for (const id of suiteIds) delete oldSave.amenities[id];
+  const migrated = ST.migrate(JSON.parse(JSON.stringify(oldSave)));
+
+  ok(migrated.concierge && migrated.concierge.on === false, 'migration backfills state.concierge OFF for a pre-E11 save');
+  ok(migrated.concierge.budgetFrac === C.CONCIERGE.budgetFrac, "migration backfills concierge.budgetFrac from config");
+  ok(Array.isArray(migrated.concierge.whitelist) && migrated.concierge.whitelist.includes('amenity'), 'migration backfills the amenities-only whitelist default');
+  ok(suiteIds.every(id => migrated.amenities[id] && migrated.amenities[id].level === 0),
+    'migration backfills every new suite amenity id at level 0 for a save that predates them');
+
+  E.tick(migrated, 1);
+  ok(Number.isFinite(migrated.resources.cash), 'ticking a migrated pre-E11 save does not crash and cash stays finite');
+  ok(!migrated.concierge.on, 'the concierge stays OFF after ticking a migrated old save — no surprise spending on return (E11-S9-T9)');
+  ok(approx(migrated._comfortCache, M.computeComfort(migrated, DATA)), 'a reloaded save recomputes Comfort identically — no drift from the new suite cluster');
+
+  // export/import round-trip (E11-S9-T8): the same base64 JSON blob as every other
+  // field, no special-casing needed.
+  const withConcierge = ST.newGame();
+  withConcierge.concierge.on = true;
+  withConcierge.concierge.budgetFrac = 0.4;
+  withConcierge.concierge.whitelist = ['amenity', 'generator'];
+  const roundTripped = ST.importSave(ST.exportSave(withConcierge));
+  ok(roundTripped && roundTripped.concierge.on === true && roundTripped.concierge.budgetFrac === 0.4
+    && roundTripped.concierge.whitelist.join(',') === 'amenity,generator',
+    'export/import round-trips the full concierge config exactly');
+}
+
+// ---------- 62. E11 harness invariance: the concierge is OFF in the default
+// newGame()/harness state, so the fitted golden island time is UNCHANGED by this epic
+// (the critical guardrail — see docs/coverage.md E11 notes). ----------
+console.log('\n[62] E11 harness invariance: concierge OFF by default never moves the fitted island');
+{
+  const fresh = ST.newGame();
+  ok(fresh.concierge.on === false, 'a fresh newGame() (exactly what the harness constructs) has the concierge OFF');
+
+  // conciergeTick is a true no-op while off, at any dt — 50 ticks (small and large dt)
+  // never advance the accumulator or buy anything.
+  const off = ST.newGame();
+  off.resources.cash = 1e6;
+  E.buyGenerator(off, 0, 20);
+  for (let i = 0; i < 50; i++) E.tick(off, 0.1);
+  ok(off.concierge.totalBought === 0, 'concierge.totalBought stays 0 across 50 ticks while OFF');
+  ok(off.concierge.tickAccum === 0, 'concierge.tickAccum never advances while OFF');
+
+  // the REAL regression guard: actually run the balance harness's own greedy-optimal
+  // runCurve() (dev/harness.mjs) — which constructs ST.newGame() and never touches
+  // state.concierge — and confirm the reported island time matches this epic's
+  // baseline (~8h26m55s = 30415s) exactly, not just "some plausible number".
+  const { islandAt, peakLog } = runCurve({ dt: 5, maxHours: 40 });
+  ok(islandAt !== null, 'the harness still reaches the island (tier 20) within the cap');
+  ok(Math.abs(islandAt - 30415) < 1, `harness island time is UNCHANGED by E11 (got ${fmtTime(islandAt)}, expected ~8h26m55s / 30415s)`);
+  ok(peakLog < 290, `peak log10(cash) (${peakLog.toFixed(1)}) stays far under the double-overflow ceiling (~308)`);
 }
 
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);

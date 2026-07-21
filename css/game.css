@@ -168,6 +168,14 @@ body { background: var(--iv-bg); color: var(--iv-ink); font-family: system-ui, s
 .iv-energy-inline.iv-energy-pulse { animation: energypulse .5s ease 1; }
 @media (prefers-reduced-motion: reduce) { .iv-energy-inline.iv-energy-pulse { animation: none; } }
 
+/* Concierge Desk (E11 "Five-Star Frame of Mind"): the recent-purchases log gets a brief
+   brightness pulse when a new auto-buy batch lands (E11-S10-T8 "juice the auto-buy"),
+   mirroring .iv-skill-flash/.iv-energy-pulse's convention exactly — reduced-motion gated. */
+.iv-concierge-log { display: flex; flex-direction: column; gap: 2px; }
+.iv-concierge-flash { animation: conciergepulse .9s ease 1; }
+@keyframes conciergepulse { 0%, 100% { filter: brightness(1); } 30% { filter: brightness(1.6); } }
+@media (prefers-reduced-motion: reduce) { .iv-concierge-flash { animation: none; } }
+
 /* "While you were away" summary (E02-S9-T5): dismissible, mobile-friendly overlay. */
 .iv-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex;
   align-items: center; justify-content: center; z-index: 20; padding: 16px; }

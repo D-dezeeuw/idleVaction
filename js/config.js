@@ -48,6 +48,40 @@ export const CONFIG = {
   // ---- amenities (the small-wins engine) ----
   AMENITY: { growthDefault: 1.5, comfortWeight: 1.0 },
 
+  // ---- concierge: the first automation seed (E11 "Five-Star Frame of Mind") ----
+  // A bounded, OFF-BY-DEFAULT auto-purchaser (state.concierge.on, backfilled false for
+  // every save) that spends through the SAME cost/unlock functions a manual click uses
+  // (engine.buyAmenity/buyGenerator/buyGenUpgrade — see engine.conciergeTick/
+  // conciergeCandidates), never bespoke purchase logic. It only ever considers a
+  // whitelisted category, ranks candidates by marginal-gain/cost (mirroring dev/
+  // harness.mjs's own ROI-aware amenity payback test for the 'amenity' category — see
+  // engine.conciergeCandidates' payback-horizon gate — so it can never buy a cosmetic/
+  // dominated amenity, the exact leak the ROI harness itself was built to fix), and
+  // spends at most budgetFrac·cash per intervalSec-paced tick, never crossing reserveFloor.
+  //   budgetFrac    — fraction of CURRENT cash it may spend, per interval (a 0-50% dial).
+  //   intervalSec   — cadence of the policy tick (cheap + legible, not every frame).
+  //   reserveFloor  — a cash floor state.concierge.reserveFloor defaults to; never crossed.
+  //   tipFrac       — a tiny extra fee taken on top of each auto-buy (payroll-lite sink,
+  //                   foreshadowing staff wages in E19's butler, docs/epics/epic-19.md).
+  //   defaultOn     — MUST stay false: a fresh newGame() (and the harness, which never
+  //                   flips it on) must be completely unaffected, so the fitted ~8h26m
+  //                   island time can never move — see docs/coverage.md E11 notes.
+  //   whitelist     — the player's STARTING category selection (state.concierge.whitelist
+  //                   is seeded from this — amenities only, the conservative default).
+  //   categories    — every category the concierge (and its UI checkboxes) may ever
+  //                   touch; deliberately excludes accommodation/ascension/story choices
+  //                   (E11-S4-T6: those stay hardcoded off-limits in engine.js, never
+  //                   data/config-driven, so no config change could ever re-enable them).
+  CONCIERGE: {
+    budgetFrac: 0.25,
+    intervalSec: 5,
+    reserveFloor: 0,
+    tipFrac: 0.01,
+    defaultOn: false,
+    whitelist: ['amenity'],
+    categories: ['amenity', 'generator', 'upgrade'],
+  },
+
   // ---- optional tap (E01-S5) ----
   // Tapping is purely additive, never a gate. maxPerSec caps how many taps register cash
   // within any rolling 1-second window (see engine.click), so an autoclicker can't

@@ -32,6 +32,7 @@ export function render(state) {
   renderPoolside(state);
   renderBeachfront(state);
   renderWellness(state);
+  renderConcierge(state);
   renderSkills(state);
   renderPaths(state);
   renderAscension(state);
@@ -82,6 +83,10 @@ function renderNotifications(s) {
     // a bar-flash trigger + an aria-live announcement, on top of the toast every notif
     // type already gets below.
     if (item.type === 'levelup') { noteSkillLevelUp(item.text); announceSkill(item.text); }
+    // concierge auto-buys (E11-S3-T8 "announce quietly"): route to the muted aria-live
+    // line + a brief log-pulse ONLY — no toast, so a busy concierge never spams the
+    // notification corner the way a manual purchase never would either.
+    if (item.type === 'concierge') { announceConcierge(item.text); pulseConcierge(); continue; }
     const d = document.createElement('div');
     d.className = 'iv-notif iv-' + item.type;
     d.textContent = item.text;
@@ -505,6 +510,63 @@ function renderWellness(s) {
   el('wellness').innerHTML = html;
 }
 
+// ---------- Concierge Desk (E11 "Five-Star Frame of Mind" — the first automation seed) ----------
+// Reveals the moment tier 9 (5-Star Hotel) is owned, or Beat 13 has fired — mirrors
+// engine.conciergeUnlocked exactly (E11-S3-T7/T9: disabled/hidden until then, "reach the
+// Suite to unlock").
+function conciergeRevealed(s) { return E.conciergeUnlocked(s); }
+
+const CONCIERGE_CATEGORY_LABEL = { amenity: 'Amenities', generator: 'Generators', upgrade: 'Upgrades' };
+const CONCIERGE_BUDGET_PRESETS = [0.05, 0.10, 0.25, 0.50];
+
+// subtle activity indicator (E11-S4-T8 "signature card", S10-T8 "juice"): a brief pulse
+// on the recent-purchases log when a batch lands, gated by prefers-reduced-motion in CSS
+// (mirrors energyPulseUntil/skillFlash's convention exactly).
+let conciergePulseUntil = 0;
+function pulseConcierge() { conciergePulseUntil = Date.now() + 900; }
+function announceConcierge(text) {
+  const live = el('conciergeAnnounce');
+  if (live) live.textContent = text;
+}
+
+function renderConcierge(s) {
+  const card = el('conciergeCard');
+  const reveal = conciergeRevealed(s);
+  if (card) card.hidden = !reveal;
+  if (!reveal) { if (el('concierge')) el('concierge').innerHTML = ''; return; }
+
+  const cfg = s.concierge;
+  const budgetCash = s.resources.cash * cfg.budgetFrac;
+  const pulsing = Date.now() < conciergePulseUntil;
+
+  let html = `<div class="iv-sub" title="ROI transparency: buys the best cash-per-second-per-cost deal it's allowed to, every ${C.CONCIERGE.intervalSec}s — never accommodation, never ascension, never a story choice.">
+    🛎️ <b>${cfg.on ? 'Concierge is shopping' : 'Concierge is resting'}</b>
+    ${btn('concierge-toggle', '', cfg.on ? 'Pause' : 'Start shopping', true, cfg.on ? 'btn-primary' : '')}
+  </div>`;
+  html += `<div class="iv-sub">Budget: up to <b>${fmt(budgetCash)}</b> (${(cfg.budgetFrac * 100).toFixed(0)}% of cash) every ${C.CONCIERGE.intervalSec}s —
+    ${CONCIERGE_BUDGET_PRESETS.map(f => `<button class="btn btn-sm ${Math.abs(cfg.budgetFrac - f) < 1e-9 ? 'btn-primary' : ''}" data-action="concierge-budget" data-arg="${f}">${(f * 100).toFixed(0)}%</button>`).join(' ')}
+  </div>`;
+  html += `<div class="iv-sub">Reserve floor (never spend below): <b>${fmt(cfg.reserveFloor)}</b>
+    <input id="conciergeReserveInput" type="number" min="0" step="1" value="${cfg.reserveFloor}" style="width:100px">
+    ${btn('concierge-reserve', '', 'Set reserve')}
+  </div>`;
+  html += `<div class="iv-sub">Shops for: ${C.CONCIERGE.categories.map(cat =>
+    btn('concierge-category', cat, `${cfg.whitelist.includes(cat) ? '✅' : '⬜'} ${CONCIERGE_CATEGORY_LABEL[cat]}`,
+      true, cfg.whitelist.includes(cat) ? 'btn-primary' : '')).join(' ')}</div>`;
+
+  if (cfg.lastActions.length) {
+    html += `<div class="iv-tag">recent purchases <small>(${cfg.totalBought} total, ${fmt(cfg.totalSpent)} spent)</small></div>
+      <div class="iv-concierge-log${pulsing ? ' iv-concierge-flash' : ''}">`;
+    for (const a of cfg.lastActions) {
+      html += `<div class="iv-sub">${fmtTime(a.t)} — ${a.items.map(i => i.name).join(', ')} <small>(${fmt(a.cost)})</small></div>`;
+    }
+    html += '</div>';
+  } else {
+    html += '<div class="iv-sub"><em>No purchases yet — turn the concierge on and it will start shopping within its whitelist.</em></div>';
+  }
+  el('concierge').innerHTML = html;
+}
+
 // live footer energy readout, "near the tap button" (E10-S4-T8): #energyMini is a
 // persistent node created once by renderControls's template (like the aria-live
 // regions above) and refreshed here on every render() cycle, since renderControls
@@ -785,6 +847,19 @@ function handle(action, arg, btnEl) {
       break;
     }
     case 'buy-path': E.buyPathFocus(S, arg); break;
+    case 'concierge-toggle': S.concierge.on = !S.concierge.on; break;
+    case 'concierge-budget': S.concierge.budgetFrac = Number(arg); break;
+    case 'concierge-reserve': {
+      const v = Number(document.getElementById('conciergeReserveInput')?.value);
+      if (Number.isFinite(v) && v >= 0) S.concierge.reserveFloor = v;
+      break;
+    }
+    case 'concierge-category': {
+      const wl = S.concierge.whitelist;
+      const i = wl.indexOf(arg);
+      if (i >= 0) wl.splice(i, 1); else wl.push(arg);
+      break;
+    }
     case 'buy-acc': E.buyAccommodation(S); break;
     case 'buy-dest': E.buyDestination(S, arg); break;
     case 'visit-dest': E.visitDestination(S, arg); break;
@@ -833,6 +908,7 @@ export function showOfflineSummary(state, rep) {
     <div class="iv-offline-row">You were away for <b>${fmtTime(rep.seconds)}</b>${rep.capped ? ' <span class="iv-sub">(capped)</span>' : ''}.</div>
     <div class="iv-offline-row">💶 <b>+${fmt(rep.cash)}</b> cash</div>
     <div class="iv-offline-row">📣 <b>+${fmt(rep.clout)}</b> clout</div>
+    ${rep.conciergeBought ? `<div class="iv-offline-row">🛎️ The concierge bought <b>${rep.conciergeBought}</b> item${rep.conciergeBought > 1 ? 's' : ''} for <b>${fmt(rep.conciergeSpent)}</b></div>` : ''}
     <div class="iv-sub">😌 Comfort is now ${fmt(state.resources.comfort)} — a bonus of ×${fmt(lComfort)} on income while you were gone.</div>`;
   overlay.hidden = false;
 }

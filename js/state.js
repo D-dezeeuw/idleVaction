@@ -32,6 +32,25 @@ export function newGame() {
     // transport (E04-S1): no ride bought yet — a null activeSlot means no speed bonus
     // and no upkeep drain (engine.tick/engine.destCost both check for it).
     transport: { owned: [], activeSlot: null },
+    // concierge (E11 "Five-Star Frame of Mind" — the first automation seed): OFF by
+    // default (on: C.CONCIERGE.defaultOn === false) so a fresh game — and the harness,
+    // which never flips it on — are completely unaffected; see config.CONCIERGE's
+    // comment and engine.conciergeTick/checkConciergeReveal. budgetFrac/reserveFloor/
+    // whitelist are the player's own live-editable copies of the config defaults (the
+    // Concierge Desk's dial/checkboxes write here, never to config.js). tickAccum paces
+    // the policy at CONCIERGE.intervalSec regardless of tick granularity (online small
+    // dt or offline macro-step dt) — see engine.conciergeTick. lastActions/totalBought/
+    // totalSpent are the transparency log the desk renders (E11-S3-T5).
+    concierge: {
+      on: C.CONCIERGE.defaultOn,
+      budgetFrac: C.CONCIERGE.budgetFrac,
+      reserveFloor: C.CONCIERGE.reserveFloor,
+      whitelist: [...C.CONCIERGE.whitelist],
+      lastActions: [],
+      totalBought: 0,
+      totalSpent: 0,
+      tickAccum: 0,
+    },
     ascension: { count: 0, legacyBanked: 0, legacySpent: 0, tree: {} },
     story: { beat: 1, seen: [1], branch: 'neutral', flags: {} },
     // ui.bulkMode (E03-S1-T6): the ×1/×10/max buy-quantity toggle, persisted so the
