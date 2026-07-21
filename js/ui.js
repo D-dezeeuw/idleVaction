@@ -59,8 +59,8 @@ function renderOnboarding(s) {
   if (acted) { box.hidden = true; box.innerHTML = ''; return; }
   box.hidden = false;
   box.innerHTML = `☔ <b>Rain Check:</b> you're soggy, broke, and stuck at a bus stop with
-    €${fmt(s.resources.cash)}. Buy your first <b>Odd Job</b> below to start the cash trickle —
-    or just tap the umbrella in the footer while you wait. Money comes either way.`;
+    €${fmt(s.resources.cash)}. Buy your first <b>${DATA.generators[0].name}</b> below to start
+    the cash trickle — or just tap the umbrella in the footer while you wait. Money comes either way.`;
 }
 
 function renderNotifications(s) {
