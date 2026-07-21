@@ -72,6 +72,19 @@ body { background: var(--iv-bg); color: var(--iv-ink); font-family: system-ui, s
 .iv-skill .bar i { display: block; height: 100%; background: var(--iv-good); }
 .label { background: #0c151b; color: var(--iv-accent); border-radius: 4px; padding: 1px 6px; font-size: .7rem; }
 
+/* path meter (E04-S3-T5): four thin bars, one per build-path archetype. */
+.iv-pathmeter { margin-bottom: 8px; }
+.iv-pmeter-row { display: flex; align-items: center; gap: 6px; font-size: .74rem; margin-bottom: 3px; }
+.iv-pmeter-label { flex: 0 0 150px; color: var(--iv-sub); }
+.iv-pmeter-bar { flex: 1 1 auto; background: #0c151b; border-radius: 4px; height: 6px; overflow: hidden; }
+.iv-pmeter-bar i { display: block; height: 100%; background: var(--iv-accent); }
+.iv-pmeter-val { flex: 0 0 auto; color: var(--iv-ink); white-space: nowrap; }
+
+/* destinations (E04-S3): owned places read as little passport stamps. */
+.iv-dest-owned { background: #14252c; border: 1px solid var(--iv-good); border-radius: 6px;
+  padding: 6px 8px; font-size: .78rem; flex: 1 1 150px; max-width: 220px; }
+.iv-dest-owned .iv-btn { margin-top: 2px; }
+
 .iv-controls { position: fixed; bottom: 0; left: 0; right: 0; background: #0c151b; border-top: 1px solid var(--iv-line);
   padding: 8px 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: .78rem; z-index: 6; }
 .iv-speed { color: var(--iv-sub); } .iv-speed button { margin: 0 1px; }

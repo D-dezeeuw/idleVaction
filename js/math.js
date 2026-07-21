@@ -41,16 +41,45 @@ export function tierMultiplier(state, k) {
 
   // global layers
   const L_comfort = comfortMultiplier(state);
+  const L_dest = destMultiplier(state);
   const L_ascension = 1 + 0.10 * (state.ascension.tree.compounding_interest || 0);
   const L_tree = treeIncomeMult(state);
 
-  return mMilestone * L_upgrade * L_path * L_skill * L_comfort * L_ascension * L_tree;
+  return mMilestone * L_upgrade * L_path * L_skill * L_comfort * L_dest * L_ascension * L_tree;
 }
 
 // production per second of tier k (in units of tier k output)
 export function tierProd(state, k) {
   const g = state.generators[k];
   return g.count * C.GEN.perUnit[k] * tierMultiplier(state, k);
+}
+
+// ---- destinations (World Traveler backbone; E04) ----
+// L_dest = Π(owned destinations' mult) — a flat, PERMANENT, GLOBAL × (never per-tier
+// targeted), so it folds in alongside L_comfort in the stack above. `DATA` is passed
+// explicitly (same pattern as computeComfort/amenityScoreTotal below) so math.js never
+// imports data/ and the config→util→math→data chain stays acyclic.
+export function destMult(state, DATA) {
+  let m = 1;
+  for (const d of DATA.destinations) {
+    if (state.destinations[d.id]?.owned) m *= d.mult;
+  }
+  return m;
+}
+// tierMultiplier reads the per-tick cache (engine.tick sets state._destCache via
+// destMult(state, DATA)) rather than DATA directly — mirrors comfortMultiplier()
+// reading state._comfortCache just below.
+export function destMultiplier(state) {
+  return state._destCache ?? 1;
+}
+
+// ---- build paths: softcapped single-path preview (E04-S2-T3/S10-T2) ----
+// Pure preview of one path's own softcap shape — `1 + rate·points^0.85` — used by the
+// path-meter UI and tests. tierMultiplier's own L_path above stays the existing
+// bespoke per-tier blend (vlogger/traveler mix on social tiers); this is a read-only
+// "what would this path alone be worth" helper, not a second multiplier layer.
+export function pathMult(points) {
+  return 1 + C.PATH.rate * Math.pow(Math.max(0, points), C.PATH.softcapExp);
 }
 
 // ---- comfort ----

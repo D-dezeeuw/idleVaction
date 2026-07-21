@@ -72,6 +72,18 @@ export const CONFIG = {
   // ---- build paths ----
   PATH: { rate: 0.02, softcapExp: 0.85 },
 
+  // ---- destinations & transport (World Traveler backbone; E04) ----
+  // costGrowth: extra × per ADDITIONAL destination already owned (compounds with each
+  //   row's own costBase spacing) — paces "collect them all" toward the ~10-20min/place
+  //   cadence (docs/05 §5); a row may override with its own `costGrowth`.
+  // baseMult: fallback global × for a destination row that omits its own `mult`.
+  // visitYield: tiny flat cash from the repeatable, free `visitDestination` action.
+  // visitPathPoints: the one-off traveler-point bonus a manual visit grants (deliberately
+  //   NOT a per-tick trickle — L_dest already multiplies across every generator tier, so
+  //   an UNBOUNDED per-second point source compounds into a runaway; see docs/05 golden-
+  //   drift note / harness §9 and the E04 balance-tuner escalation note in math.js).
+  DEST: { costGrowth: 1.15, baseMult: 1.10, visitYield: 15, visitPathPoints: 0.2 },
+
   // ---- vlogger clout ----
   CLOUT: { contentRate: 1.0, charismaBoost: 0.02, comboDecaySec: 30, comboPerClick: 0.15, comboMax: 5 },
 

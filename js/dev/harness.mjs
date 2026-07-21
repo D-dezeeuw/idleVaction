@@ -11,6 +11,7 @@ import * as ST from '../state.js';
 import * as E from '../engine.js';
 import * as M from '../math.js';
 import * as P from '../prestige.js';
+import { validateDestinations } from '../data/destinations.js';
 import { fmt, fmtTime } from '../util.js';
 
 // ---- greedy "reasonable, keen" player ----
@@ -20,6 +21,13 @@ export function play(s) {
   while (E.accUnlocked(s) && E.accCost(s) <= s.resources.cash * 0.7 && g++ < 6) E.buyAccommodation(s);
   for (const a of DATA.amenities)
     if (E.amenityUnlocked(s, a.id) && E.amenityCost(s, a.id) <= s.resources.cash * 0.3) E.buyAmenity(s, a.id);
+  // destinations (E04-S8-T6/harness accuracy): grab an affordable, unlocked place the
+  // same way amenities are bought — otherwise L_dest stays 1 and mis-estimates pacing.
+  for (const d of DATA.destinations)
+    if (!s.destinations[d.id].owned && E.destUnlocked(s, d.id) && E.destCost(s, d.id) <= s.resources.cash * 0.4) E.buyDestination(s, d.id);
+  // transport (optional-ROI): grab a cheap ride once, it shrinks destination costs.
+  for (const t of DATA.transport)
+    if (!s.transport.owned.includes(t.id) && t.costBase * M.commsCostMult(s) <= s.resources.cash * 0.2) E.buyTransport(s, t.id);
   for (const t of DATA.training) if (E.trainingCost(s, t.id) <= s.resources.cash * 0.08) E.buyTraining(s, t.id);
   if (E.pathCost(s, 'vlogger') <= s.resources.cash * 0.08) E.buyPathFocus(s, 'vlogger');
   for (let i = 0; i < 40; i++) {
@@ -57,6 +65,7 @@ export function runCurve({ dt = 5, maxHours = 30, ascend = false } = {}) {
 
 // ---- report ----
 function report() {
+  validateDestinations();   // dev schema guard (E04-S1-T10) — fail loudly on malformed data
   const { beatTime, islandAt, peakLog, dblAtIsland } = runCurve({ dt: 5, maxHours: 40 });
   console.log('\n=== idleVaction balance-fit curve (greedy optimal, LOWER bound on real time) ===\n');
   const beats = Object.keys(beatTime).map(Number).sort((a, b) => a - b);

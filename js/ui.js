@@ -25,6 +25,8 @@ export function render(state) {
   renderNotifications(state);
   renderStory(state);
   renderAccommodation(state);
+  renderDestinations(state);
+  renderTransport(state);
   renderGenerators(state);
   renderAmenities(state);
   renderSkills(state);
@@ -41,12 +43,14 @@ function btn(action, arg, label, enabled = true, cls = '', title = '') {
 function renderHeader(s) {
   const perSec = M.tierProd(s, 0) + M.savvyPassive(s);
   const lComfort = M.comfortMultiplier(s);
+  const lDest = M.destMultiplier(s);
   el('hdr').innerHTML = `
     <span class="iv-res">💶 <b>${fmt(s.resources.cash)}</b> <small>(+${fmt(perSec)}/s)</small></span>
     <span class="iv-res">😌 Comfort <b>${fmt(s.resources.comfort)}</b> <small>(bonus ×${fmt(lComfort)})</small></span>
     <span class="iv-res">📣 Clout <b>${fmt(s.resources.clout)}</b></span>
     <span class="iv-res">🏆 Legacy <b>${fmt(s.resources.legacy)}</b></span>
     <span class="iv-res">🏨 <b>${DATA.accommodation[s.accommodation.tier].name}</b></span>
+    <span class="iv-res" aria-label="World Traveler destination bonus, times ${fmt(lDest)}">🌍 <b>×${fmt(lDest)}</b></span>
     <span class="iv-res">🔥 Combo ×${(s._combo ?? 1).toFixed(2)}</span>
   `;
 }
@@ -107,6 +111,65 @@ function renderAccommodation(s) {
   else line = `Next: <b>${nextName}</b> — ${fmt(cost)} ` + btn('buy-acc', '', 'Upgrade', afford(cost));
   el('accommodation').innerHTML =
     `<div class="iv-flavor">${DATA.accommodation[t].flavor}</div><div>${line}</div>`;
+}
+
+// Destinations panel + Getting Around row reveal together once the map exists —
+// beat 5 (First Passport Stamp) has fired, or the Budget Guesthouse (tier 3) is already
+// reached (E04-S4-T8). Hidden before that to avoid early clutter.
+function mapRevealed(s) { return s.story.seen.includes(5) || s.accommodation.tier >= 3; }
+
+function renderDestinations(s) {
+  const card = el('destCard');
+  const reveal = mapRevealed(s);
+  if (card) card.hidden = !reveal;
+  if (!reveal) { if (el('destinations')) el('destinations').innerHTML = ''; return; }
+
+  const lDest = M.destMultiplier(s);
+  const byRegion = {};
+  for (const d of DATA.destinations) (byRegion[d.region] ||= []).push(d);
+
+  let html = `<div class="iv-sub">🌍 Combined bonus: <b>×${fmt(lDest)}</b> on all income</div>`;
+  for (const region of Object.keys(byRegion)) {
+    const visible = byRegion[region].filter(d => s.destinations[d.id].owned || E.destUnlocked(s, d.id));
+    if (!visible.length) continue;
+    html += `<div class="iv-tag">${region}</div><div class="iv-amenities">`;
+    // owned places first (a little passport of stamps), then what's next to reach
+    for (const d of visible.sort((a, b) => s.destinations[b.id].owned - s.destinations[a.id].owned)) {
+      const owned = s.destinations[d.id].owned;
+      if (owned) {
+        const v = s.destinations[d.id].visits;
+        html += `<div class="iv-btn iv-dest-owned" title="${d.flavor}">
+          ✅ <b>${d.name}</b> <small aria-label="permanent ×${fmt(d.mult)} bonus">×${fmt(d.mult)}</small>
+          <br>${btn('visit-dest', d.id, `Visit <small>(+💶${fmt(C.DEST.visitYield)})</small>`)}
+          <div class="iv-sub">visited ${v}×</div>
+        </div>`;
+      } else {
+        const cost = E.destCost(s, d.id);
+        html += btn('buy-dest', d.id,
+          `${d.name} <small aria-label="grants ×${fmt(d.mult)}">×${fmt(d.mult)}</small><br><small>${fmt(cost)}</small>`,
+          afford(cost), '', d.flavor);
+      }
+    }
+    html += '</div>';
+  }
+  el('destinations').innerHTML = html;
+}
+
+function renderTransport(s) {
+  const card = el('transportCard');
+  const reveal = mapRevealed(s);
+  if (card) card.hidden = !reveal;
+  if (!reveal) { if (el('transport')) el('transport').innerHTML = ''; return; }
+
+  let html = '';
+  for (const t of DATA.transport) {
+    const owned = s.transport.owned.includes(t.id);
+    const active = s.transport.activeSlot === t.id;
+    const cost = t.costBase * M.commsCostMult(s);
+    const label = `${t.name} ${active ? '🟢' : ''}<br><small>${owned ? 'owned' : fmt(cost)} · +${Math.round(t.speed * 100)}% speed · −${fmt(t.upkeep)}/s</small>`;
+    html += btn('buy-transport', t.id, label, owned || afford(cost), active ? 'btn-primary' : '', t.flavor);
+  }
+  el('transport').innerHTML = html;
 }
 
 function renderGenerators(s) {
@@ -217,8 +280,30 @@ function npcRosterHtml(s) {
   return html;
 }
 
+// Path meter (E04-S3-T5/S7-T7): four thin bars, one per archetype, showing current
+// points and a live preview of that path's own softcapped × (M.pathMult). Pure display
+// — the real per-tier L_path blend stays in math.tierMultiplier; this is a legible
+// "what would this path be worth" readout, not a second multiplier source.
+function pathMeterHtml(s) {
+  let html = '<div class="iv-pathmeter">';
+  for (const p of DATA.paths) {
+    const pts = s.paths[p.id].points;
+    const preview = M.pathMult(pts);
+    const pct = clamp(100 * pts / (pts + 20), 0, 100); // saturating visual fill, Comfort is unbounded so no hard cap
+    html += `<div class="iv-pmeter-row">
+      <span class="iv-pmeter-label">${p.name}</span>
+      <div class="iv-pmeter-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100"
+        aria-valuenow="${pct.toFixed(0)}" aria-label="${p.name} progress"><i style="width:${pct.toFixed(1)}%"></i></div>
+      <span class="iv-pmeter-val" aria-label="${fmt(pts)} points, times ${fmt(preview)} bonus">${fmt(pts)} pts · ×${fmt(preview)}</span>
+    </div>`;
+  }
+  html += '</div>';
+  return html;
+}
+
 function renderPaths(s) {
   let html = s.accommodation.tier >= 2 ? npcRosterHtml(s) : '';
+  html += pathMeterHtml(s);
   html += '<div class="iv-amenities">';
   for (const p of DATA.paths) {
     const cost = E.pathCost(s, p.id);
@@ -292,6 +377,9 @@ function handle(action, arg) {
     case 'buy-training': E.buyTraining(S, arg); break;
     case 'buy-path': E.buyPathFocus(S, arg); break;
     case 'buy-acc': E.buyAccommodation(S); break;
+    case 'buy-dest': E.buyDestination(S, arg); break;
+    case 'visit-dest': E.visitDestination(S, arg); break;
+    case 'buy-transport': E.buyTransport(S, arg); break;
     case 'story-choice': { const [id, set] = arg.split('|'); E.applyStoryChoice(S, Number(id), set); break; }
     case 'ascend': if (P.ascend(S)) { setState(S); } break;
     case 'buy-node': P.buyNode(S, arg); break;
@@ -307,6 +395,14 @@ function handle(action, arg) {
     case 'dbg-cash': S.resources.cash += 1e6 * Math.pow(1000, Number(arg)); break;
     case 'dbg-comfort': S.stats.lifetimeCash += 1e9; S.skills.body.xp += 5000; break;
     case 'dbg-legacy': S.resources.legacy += 100; break;
+    case 'dbg-dest': {
+      // QA-only (E04-S8-T10): force-own the next place on the map, bypassing cost/chain,
+      // so downstream epics can test L_dest without grinding the map for real.
+      const next = DATA.destinations.find(d => !S.destinations[d.id].owned);
+      if (next) { S.destinations[next.id].owned = true; S._destCache = M.destMult(S, DATA); }
+      break;
+    }
+    case 'dbg-path': for (const p of DATA.paths) S.paths[p.id].points += 10; break;
     case 'export': hooks.exportSave(); break;
     case 'import': hooks.importSave(); break;
     case 'reset': if (confirm('Hard reset? This wipes everything.')) hooks.hardReset(); break;
@@ -375,5 +471,7 @@ function renderDebug() {
     ${btn('dbg-cash', 1, '+1M')}
     ${btn('dbg-cash', 2, '+1B')}
     ${btn('dbg-comfort', '', '+comfort/body')}
-    ${btn('dbg-legacy', '', '+100 Legacy')}`;
+    ${btn('dbg-legacy', '', '+100 Legacy')}
+    ${btn('dbg-dest', '', '+dest (E04 QA)')}
+    ${btn('dbg-path', '', '+10 path pts (all)')}`;
 }

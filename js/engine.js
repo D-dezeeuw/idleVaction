@@ -25,10 +25,11 @@ export function tick(state, dt) {
   state.stats.runSec += dt;
   state.meta.playtimeMs += dt * 1000;
 
-  // 1) refresh comfort cache (feeds the multiplier stack)
+  // 1) refresh comfort + destination caches (feed the multiplier stack)
   state._comfortCache = M.computeComfort(state, DATA);
   state.resources.comfort = state._comfortCache;
   if (state._comfortCache > state.stats.bestComfort) state.stats.bestComfort = state._comfortCache;
+  state._destCache = M.destMult(state, DATA);
 
   const rt = runtimeMult(state);
 
@@ -63,12 +64,28 @@ export function tick(state, dt) {
   trickleXp(state, cashGain, dt);
   refreshSkillLevels(state);
 
+  // 5b) Transport upkeep (E04-S2-T8) drains cash while a ride is active; clamped so it
+  // never goes negative, offline included (both just call tick()). NOTE: the traveler
+  // "head start" (E04-S7-T5) is granted as a ONE-OFF nudge in buyDestination/
+  // visitDestination, deliberately NOT a per-tick trickle here — L_dest already
+  // multiplies across every generator tier, so an unbounded per-second point source
+  // into the same L_path term compounded into a harness-measured runaway (island time
+  // collapsed from ~19h to ~6h in testing). See math.js's destMult comment.
+  applyTransportUpkeep(state, dt);
+
   // 6) unlocks + story
   checkUnlocks(state);
   checkAmenityUnlocks(state);
   checkVignettes(state);
   checkNpcUnlocks(state);
+  checkDestinationReveals(state);
   checkStory(state);
+}
+
+function applyTransportUpkeep(state, dt) {
+  const t = transportData(state.transport.activeSlot);
+  if (!t) return;
+  state.resources.cash = Math.max(0, state.resources.cash - t.upkeep * dt);
 }
 
 function decayCombo(state, dt) {
@@ -131,6 +148,95 @@ export function checkNpcUnlocks(state) {
     state.npcsMet[npc.id] = true;
     if (npc.pathSeed) state.story.flags[npc.pathSeed + 'Seed'] = true;
     notify(state, 'vignette', `${npc.emoji} ${npc.name}: "${npc.flavor}"`);
+  }
+}
+
+// ---------- destinations & transport (E04-S1/S2): the World Traveler map ----------
+export function destData(id) { return DATA.destinations.find(d => d.id === id); }
+export function transportData(id) { return DATA.transport.find(t => t.id === id); }
+
+// the active ride's speed shortens the effective cost of reaching a destination
+// (E04-S2-T5: effectiveCost = cost/(1+speed)).
+export function transportSpeed(state) {
+  const t = transportData(state.transport.activeSlot);
+  return t ? t.speed : 0;
+}
+
+// a destination reveals once BOTH its unlockAfter prerequisite (the prior place,
+// chaining reveal order) AND its unlockComfort threshold are met — Comfort paces the
+// LATER places across the whole run (not just cash, which grows too fast to gate a
+// permanent, all-8-tier multiplier on its own; see the data-file comment). The first
+// place (unlockAfter: null, unlockComfort: 0) is visible as soon as the Destinations
+// panel itself is revealed (see ui.js — gated on beat 5 / accTier>=3).
+export function destUnlocked(state, id) {
+  const d = destData(id);
+  if (!d) return false;
+  if (state.destinations[id].owned) return true;
+  const chainOk = !d.unlockAfter || !!state.destinations[d.unlockAfter]?.owned;
+  return chainOk && state._comfortCache >= (d.unlockComfort || 0);
+}
+export function destCost(state, id) {
+  const d = destData(id);
+  const ownedCount = Object.values(state.destinations).filter(x => x.owned).length;
+  const g = d.costGrowth || C.DEST.costGrowth;
+  const raw = d.costBase * Math.pow(g, ownedCount) * M.commsCostMult(state);
+  return raw / (1 + transportSpeed(state));
+}
+// one-time unlock: permanent global × (L_dest), blocked on a repeat buy (E04-S2-T4/S4-T10).
+export function buyDestination(state, id) {
+  if (!destUnlocked(state, id)) return false;
+  if (state.destinations[id].owned) return false;
+  const cost = destCost(state, id);
+  if (state.resources.cash < cost) return false;
+  state.resources.cash -= cost;
+  state.destinations[id].owned = true;
+  state._destCache = M.destMult(state, DATA);
+  const d = destData(id);
+  // small traveler head start on first owning a place (E04-S4-T6/S7-T5) — adds to the
+  // EXISTING state.paths.traveler.points read by tierMultiplier's L_path, no new layer.
+  state.paths.traveler.points += (d.pathAffinity && d.pathAffinity.traveler) || 0;
+  notify(state, 'unlock', `🌍 New destination unlocked: ${d.name} (×${d.mult} global)`);
+  return true;
+}
+// repeatable, free: a tiny cash reward + a small path-point nudge — never the fastest
+// path, just a flavor action for an already-owned place (E04-S4-T5).
+export function visitDestination(state, id) {
+  const d = destData(id);
+  if (!d || !state.destinations[id].owned) return false;
+  state.destinations[id].visits++;
+  state.resources.cash += C.DEST.visitYield;
+  state.stats.lifetimeCash += C.DEST.visitYield;
+  state.stats.lifetimeCashThisTree += C.DEST.visitYield;
+  state.paths.traveler.points += C.DEST.visitPathPoints;
+  return true;
+}
+// tier-1 rides (bus/train): cash check + add to owned, then switch the active slot —
+// re-selecting an already-owned ride is a free, idempotent switch (E04-S2-T7/S10-T4).
+export function buyTransport(state, id) {
+  const t = transportData(id);
+  if (!t) return false;
+  if (state.transport.owned.includes(id)) { state.transport.activeSlot = id; return true; }
+  const cost = t.costBase * M.commsCostMult(state);
+  if (state.resources.cash < cost) return false;
+  state.resources.cash -= cost;
+  state.transport.owned.push(id);
+  state.transport.activeSlot = id;
+  notify(state, 'unlock', `🚌 New ride unlocked: ${t.name}`);
+  return true;
+}
+// one-shot "new place on the map" reveal flash (mirrors checkAmenityUnlocks): fires
+// once per destination the moment its unlockAfter chain opens (E04-S2-T9).
+export function checkDestinationReveals(state) {
+  // the map itself only exists once beat 5 (First Passport Stamp) or the Budget
+  // Guesthouse (tier 3) is reached — no point flashing individual place-reveals earlier.
+  if (!(state.story.seen.includes(5) || state.accommodation.tier >= 3)) return;
+  for (const d of DATA.destinations) {
+    const flagKey = 'destRevealed_' + d.id;
+    if (state.story.flags[flagKey]) continue;
+    if (destUnlocked(state, d.id)) {
+      state.story.flags[flagKey] = true;
+      notify(state, 'unlock', `🗺️ New destination on the map: ${d.name}`);
+    }
   }
 }
 

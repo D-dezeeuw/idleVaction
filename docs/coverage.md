@@ -69,16 +69,35 @@ The E01 *mechanics* are all real; the pass filled the missing juice/QA.
 | S9 Save / migration / offline | 8 / 2 / 0 | New fields via generic `backfill()`. Done-now: `npcsMet`/`bulkMode` persistence + reload test. |
 | S10 QA / polish / juice | 3 / 6 / 1 | Done-now: bulk-math, chaining, NPC, persistence tests + validation. Superseded: cosmetic juice (per-row milestone flash, ripple). |
 
+### E04 — The Backpacker Circuit · **100/100** (present 20, done-now 72, superseded 8)
+A real build (destinations, transport, and the `L_dest` global multiplier are net-new). Notable
+balance discipline: destination `mult` was set **below** the epic's 1.08–1.20 range (to
+1.025–1.04, product ≈1.29) because the harness showed the epic range collapses island time to
+~12h; documented as a `@balance-tuner` note. Island **19h29m → 16h42m** — destinations (now
+bought by the harness) sped income back toward mid-band, offsetting E03's amenity drift.
+
+| Story | present/done/superseded | Notes |
+|---|---|---|
+| S1 Pack the Rucksack (data) | 2 / 7 / 1 | Done-now: `destinations.js` (8 stops + `TRANSPORT`), `DEST` config, `state.destinations`/`transport`, `validateDestinations()`. Present: `paths.js`, tier-3 row. Superseded: literal costBase/mult numbers (retuned conservative). |
+| S2 The Timetable (engine) | 1 / 9 / 0 | Done-now: `destMult`/`L_dest` fold, `buyDestination`, transport `speed`/`upkeep`, `destUnlocked`, one-off traveler nudge. Present: tick determinism (already pure). |
+| S3 Departures Board (UI) | 0 / 9 / 1 | Done-now: destinations panel (region-grouped), path meter, `L_dest` header readout, tooltips, afford-gating. Superseded: passport-stamp motion flourish (kept minimal). |
+| S4 First Passport Stamp | 4 / 5 / 1 | Present: beat 5, tier-3 onboarding. Done-now: `buyDestination`/`visitDestination`, first-place price, reveal. Superseded: separate passport artifact (folded into panel). |
+| S5 Backpacker Kit (amenities) | 0 / 9 / 1 | Done-now: 6 `tag:'backpack'` amenities (conservative), flavor, unlocks, persistence, QA. Superseded: sound juice. |
+| S6 Guesthouse (tier 3) | 7 / 3 / 0 | Present: tier-3 ladder + gate. Done-now: reveal wiring, arrival copy, harness beat-time check. |
+| S7 Wi-Fi & Ambition (paths) | 4 / 3 / 3 | Present: 4-path data, beat-6 choice, `applyStoryChoice`. Done-now: path meter, traveler head-start (one-off). Superseded: per-tick path trickle (**would runaway** — L_dest compounds all tiers), hybrid-beat stub, branch-badge. |
+| S8 Fitting the Curve (balance) | 1 / 6 / 3 | Done-now: `DEST`/mult tuned conservative, harness buys destinations, `validateDestinations`, in-band confirm. Superseded: epic's 1.08–1.20 mult range (collapses to ~12h), re-tune of fitted GEN/COMFORT, some golden churn. |
+| S9 Save the Itinerary (offline) | 1 / 9 / 0 | Done-now: persist destinations/transport, generic-`backfill` migration (smoke-tested no-crash), offline applies `L_dest` + upkeep, no free unlocks. |
+| S10 Smooth the Trip (QA) | 0 / 8 / 2 | Done-now: `destMult`/`pathMult`/transport-upkeep tests, stack-order regression, edge cases. Superseded: ka-ching sound, reduced-motion animation. |
+
 ---
 
-## Act II–VI — E04–E30
+## Act II–VI — E05–E30
 
 _Pending — appended as each phase's build pass audits its 100 tasks. Each row will carry the
 same `present / done-now / superseded` disposition and a per-phase tally in the commit + report._
 
 | Epic | Status |
 |---|---|
-| E04 The Backpacker Circuit | pending |
 | E05 One Star, Big Dreams | pending |
 | E06 Continental Comforts | pending |
 | E07 Making a Splash | pending |
@@ -109,5 +128,5 @@ same `present / done-now / superseded` disposition and a per-phase tally in the 
 ---
 
 ### Running total
-- **Audited:** 300 / 3,000 tasks (E01–E03) — present 181, done-now 93, superseded 26.
-- **Remaining:** 2,700 tasks (E04–E30).
+- **Audited:** 400 / 3,000 tasks (E01–E04) — present 201, done-now 165, superseded 34.
+- **Remaining:** 2,600 tasks (E05–E30).
