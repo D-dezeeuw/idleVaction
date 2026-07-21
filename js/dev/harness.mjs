@@ -14,13 +14,60 @@ import * as P from '../prestige.js';
 import { validateDestinations } from '../data/destinations.js';
 import { fmt, fmtTime } from '../util.js';
 
+// ---- ROI-aware amenity buying (the max-speed player, not a completionist) ----
+// A speed-optimal player buys an amenity ONLY when it earns its cost back, or when Comfort is
+// the thing literally gating the next accommodation tier. Amenities have exactly one income
+// effect: they add to the (unbounded) Comfort sum, which raises the GLOBAL multiplier
+// L_comfort = 1 + COMFORT.MULT·log10(1 + Comfort/C0). (The `xMult`/`xScope` fields in the
+// amenity data are dormant — never read by math.js/engine.js — so Comfort is the whole story.)
+// That effect is (a) logarithmic in Comfort and (b) swamped by the accommodation ladder's own
+// accScore, which dominates Comfort at every tier — so most amenities are effectively cosmetic
+// for income. The OLD policy bought one level of EVERY affordable amenity each step: a
+// completionist, not the "max-speed, LOWER-bound" player this harness claims to measure. That
+// both OVERSTATED optimal island time and, worse, made it drift with amenity COUNT — every new
+// cluster leaked more reinvestment cash into low-ROI Comfort regardless of unit price (E03→E07:
+// island crept 17h54m→19h11m). The payback test below fixes both: a dominated/cosmetic amenity
+// has a vanishing ΔL_comfort/L_comfort, hence an effectively infinite payback, so it is skipped
+// — which means ADDING such an amenity to the data cannot move the reported island. The horizon
+// is deliberately generous (a Comfort boost is permanent, lasting the whole multi-hour run), yet
+// the measured island is insensitive to it: ROI-good amenities are cheap (bought at any horizon)
+// and ROI-bad ones fail at every horizon (island ≈ constant for horizons 30s–30min in testing).
+const AMENITY_PAYBACK_HORIZON_SEC = 1800;
+
+// worth buying this level of amenity `a`? cashRate = current €/s cash income.
+function amenityWorthBuying(s, a, cashRate) {
+  // 1) progression override: if Comfort is short of the NEXT accommodation tier's unlock gate,
+  //    Comfort itself is gating the run — buy regardless of ROI. In the shipped economy accScore
+  //    over-satisfies every gate (ACC.unlockFrac 0.33 < 1/ACC.growth 0.385), so this is a dormant
+  //    safety net; it keeps the policy correct if unlockFrac is ever raised past that boundary.
+  const nextTier = s.accommodation.tier + 1;
+  if (nextTier < DATA.accommodation.length && s._comfortCache < M.accUnlockComfort(nextTier)) return true;
+  // 2) ROI test: the marginal €/s from this level's Comfort bump must repay its cost within the
+  //    horizon. income ∝ L_comfort, so ΔincomePerSec = cashRate · ΔL_comfort / L_comfort.
+  if (cashRate <= 0) return false;
+  const ascBonus = 1 + 0.25 * s.ascension.count;
+  const dComf = a.comfort * C.COMFORT.wAmen * ascBonus;   // this level's Comfort contribution
+  if (dComf <= 0) return false;
+  const comf = s._comfortCache;
+  const L = 1 + C.COMFORT.MULT * Math.log10(1 + comf / C.COMFORT.C0);
+  const Lafter = 1 + C.COMFORT.MULT * Math.log10(1 + (comf + dComf) / C.COMFORT.C0);
+  const gainPerSec = cashRate * (Lafter - L) / L;
+  if (gainPerSec <= 0) return false;
+  return E.amenityCost(s, a.id) / gainPerSec <= AMENITY_PAYBACK_HORIZON_SEC;
+}
+
 // ---- greedy "reasonable, keen" player ----
 export function play(s) {
   if (M.tierProd(s, 0) <= 0 && E.genCost(s, 0, 1) <= s.resources.cash) E.buyGenerator(s, 0, 1);
   let g = 0;
   while (E.accUnlocked(s) && E.accCost(s) <= s.resources.cash * 0.7 && g++ < 6) E.buyAccommodation(s);
+  // amenities — ROI-aware (see amenityWorthBuying). cashRate is the current €/s cash income; the
+  // 0.3·cash cap stays as a belt-and-suspenders against a single oversized buy (rarely binds
+  // now that the payback test already rejects expensive-for-their-Comfort amenities).
+  const cashRate = M.tierProd(s, 0) + M.savvyPassive(s);
   for (const a of DATA.amenities)
-    if (E.amenityUnlocked(s, a.id) && E.amenityCost(s, a.id) <= s.resources.cash * 0.3) E.buyAmenity(s, a.id);
+    if (E.amenityUnlocked(s, a.id) && E.amenityCost(s, a.id) <= s.resources.cash * 0.3
+        && amenityWorthBuying(s, a, cashRate)) E.buyAmenity(s, a.id);
   // destinations (E04-S8-T6/harness accuracy): grab an affordable, unlocked place the
   // same way amenities are bought — otherwise L_dest stays 1 and mis-estimates pacing.
   for (const d of DATA.destinations)
@@ -78,7 +125,8 @@ function report() {
   console.log(`  peak log10(cash):   ${peakLog.toFixed(1)}  (double overflows ~308)`);
   console.log(`  doubling time @isl: ${dblAtIsland ? fmtTime(dblAtIsland) : 'n/a'}`);
   console.log(`  beats reached:      ${beats.length}/30`);
-  console.log('\n  Target (docs/05 §1): island ~15-20h optimal so casual play lands ~20h+.\n');
+  console.log('\n  Max-speed ROI lower bound. Guard (docs/05 §9): island ~6-12h, 26 beats');
+  console.log('  monotone, peak log10(cash) << 290. Casual (idle/offline) lands the ~20h arc.\n');
 }
 
 // Only auto-run the report when executed directly (not when imported for sweeps).
