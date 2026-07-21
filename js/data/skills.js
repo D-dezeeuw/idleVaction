@@ -15,7 +15,8 @@ export const SKILLS = [
     effect: 'Unlocks luxury tiers and adds exclusivity multipliers.',
     flavor: 'You send back the wine now. Correctly.' },
   { id: 'savvy', name: 'Savvy',
-    effect: 'Passive cash trickle scaling with your wealth (√).',
+    effect: 'Passive cash trickle scaling with your wealth (√). XP also trickles in from ' +
+      'crypto coin yield and from surviving market crashes (E13 "Money Works While You Tan").',
     flavor: 'Money works while you tan.' },
 ];
 

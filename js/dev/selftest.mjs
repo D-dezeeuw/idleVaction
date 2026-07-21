@@ -2808,5 +2808,26 @@ console.log('\n[83] E13 beat 14 crypto variant (Whale Watching) + neutral fallba
   ok(!neutral.story.flags.whaleWatched, 'whaleWatched never fires for a non-crypto branch, even after beat 14');
 }
 
+// ---------- 84. E13 QA polish: savvyPassive purity (unchanged formula) + zero-net-worth
+// crypto edge cases, no NaN/divide-by-zero (E13-S10-T1/T5). ----------
+console.log('\n[84] E13 QA polish: savvyPassive purity + zero-holdings/zero-cash edge cases');
+{
+  const l0 = ST.newGame();
+  ok(M.savvyPassive(l0) === 0, 'savvyPassive is 0 at Savvy level 0 (a fresh game)');
+
+  const half = ST.newGame(); half.skills.savvy.xp = M.cumXpForLevel(5); half.stats.lifetimeCash = 1e6;
+  half.skills.savvy.level = M.levelFromXp(half.skills.savvy.xp);
+  const p1 = M.savvyPassive(half);
+  half.stats.lifetimeCash = 4e6; // 4x lifetime cash -> sqrt scaling => exactly 2x passive
+  const p2 = M.savvyPassive(half);
+  ok(approx(p2 / p1, 2), 'savvyPassive scales as √(lifetimeCash) — 4x cash gives exactly 2x passive');
+  ok(M.savvyPassive(half) === M.savvyPassive(half), 'savvyPassive is pure — repeated calls on the same state agree exactly');
+
+  const zeroCrypto = ST.newGame();
+  ok(M.cryptoYieldPerSec(zeroCrypto, DATA) === 0, 'cryptoYieldPerSec is exactly 0 with no coins held — no sqrt/log weirdness, no divide-by-zero');
+  ok(M.cryptoHoldingsValue(zeroCrypto, DATA) === 0, 'cryptoHoldingsValue is exactly 0 with no coins held');
+  ok(M.cryptoNetWorth(zeroCrypto, DATA) === zeroCrypto.resources.cash, 'cryptoNetWorth with zero holdings equals plain wallet cash');
+}
+
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);
 process.exit(fails === 0 ? 0 : 1);
