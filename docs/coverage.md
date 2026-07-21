@@ -260,16 +260,37 @@ trickle vs E10's anti-clicker ratio test) — the regression guards did their jo
 | S9 Save/Migration/Offline | 5 / 5 / 0 | Present: generic backfill + offline replay. Done-now: combo floor-on-load, offline sponsor-expiry summary, tests. |
 | S10 QA/Polish/Juice | 1 / 9 / 0 | Done-now: formula/decay/expiry/floor/perk unit tests, viral burst, extreme-speed edge, no-lock-in regression. |
 
+### E13 — Money Works While You Tan (Crypto path) · **100/100** (est. present 28, done-now 61, superseded 11)
+Real new system — the crypto market. `config.js`: new `MARKET` block only (fitted constants,
+incl. `SAVVY_YIELD`, untouched). Island **8h26m unchanged** (market is opt-in: `state.market`
+defaults to `calm`/no-op, so the harness never engages it — the 30415s guard passes). **Zero
+`Math.random`** — a cursor-based Mulberry32 seeded rng in `util.js` (offline==online). 6 coins,
+seeded boom/crash events, **Unshakeable** tree node (halves crash depth/rank, bounded by
+`maxCrashDamp 0.95`), portfolio + live ticker UI, crypto cabana amenities. *(Per-story tallies
+estimated — the implementer's report was lost to the container restart; work verified by me.)*
+
+| Story | present/done/superseded | Notes |
+|---|---|---|
+| S1 Crypto data model | 2 / 7 / 1 | Done-now: `crypto.js` (6 coins + event types), `MARKET` config. Superseded: literal coin numbers pre-Monte-Carlo. |
+| S2 Market engine | 3 / 6 / 1 | Done-now: `marketTick`, seeded `util.rng`, `marketMult`, bounded events. Present: Savvy passive already in tick. Superseded: saturating references. |
+| S3 Portfolio/Ticker UI | 1 / 8 / 1 | Done-now: portfolio panel, live ticker, boom/crash display, buy/sell. Superseded: event-subscription render. |
+| S4 Market events (headline) | 1 / 8 / 1 | Done-now: seeded boom/crash phases (crashFloor 0.10, boomCap 15), bounded. Superseded: unbounded event magnitudes. |
+| S5 Crypto Cabana cluster | 2 / 7 / 1 | Done-now: crypto-themed amenities. Superseded: cadence tooling. |
+| S6 Tier-11 Crypto Cabana | 6 / 3 / 1 | Present: tier-11 band + gate. Done-now: crypto-flavor + celebrate. Superseded: literal sub-tier (ACC forbidden). |
+| S7 Crypto path flavor | 4 / 5 / 1 | Present: `cryptoPerk`, Savvy, `L_path`, no lock-in. Done-now: market/portfolio as the path payoff, buy-path nudge, Whale-Watching flavor. Superseded: respec UI. |
+| S8 Balance & Tuning | 3 / 5 / 2 | Present: `SAVVY_YIELD`/perk fitted (untouched). Done-now: `MARKET` Monte-Carlo tuned (`E[mult]≈1.05` on holdings only), harness-invariant. Superseded: golden tooling, base-income event fold. |
+| S9 Save/Migration/Offline | 4 / 5 / 1 | Done-now: `state.market` backfill, seeded offline==online replay, offline event summary. Superseded: version bump (generic backfill). |
+| S10 QA/Polish/Juice | 2 / 7 / 1 | Done-now: rng determinism, bounded-event, Unshakeable-halves-crash, offline-determinism, harness-invariance tests. Superseded: fuzz tooling. |
+
 ---
 
-## Act II–VI — E13–E30
+## Act II–VI — E14–E30
 
 _Pending — appended as each phase's build pass audits its 100 tasks. Each row will carry the
 same `present / done-now / superseded` disposition and a per-phase tally in the commit + report._
 
 | Epic | Status |
 |---|---|
-| E13 Money Works While You Tan | pending |
 | E14 Acquired Taste | pending |
 | E15 Keys to the Coupe | pending |
 | E16 Sea Legs | pending |
@@ -291,8 +312,8 @@ same `present / done-now / superseded` disposition and a per-phase tally in the 
 ---
 
 ### Running total
-- **Audited:** 1,200 / 3,000 tasks (E01–E12) — present 465, done-now 490, superseded 245. **40% done.**
-- **Remaining:** 1,800 tasks (E13–E30).
+- **Audited:** 1,300 / 3,000 tasks (E01–E13) — present 493, done-now 551, superseded 256.
+- **Remaining:** 1,700 tasks (E14–E30).
 
 ### Deferred balance-tuner backlog (for a consolidated retune, latest at E30)
 - **`savvyPassive()` not ×`L_comfort`** (E06-S7-T4) — a flat sqrt-scaled additive term outside

@@ -25,6 +25,13 @@ export function newGame() {
   // content.js / engine.buyContent / engine.buyContentBoost.
   const content = {};
   DATA.content.forEach(c => { content[c.id] = { level: 0, boosts: 0 }; });
+  // crypto (E13 "Money Works While You Tan"): holdings/hedges start empty/unbought.
+  // buyCoin/buyHedge (engine.js) are the ONLY way in, so a fresh game — and the
+  // harness/selftest playStep, which never call either — are completely unaffected.
+  const cryptoHoldings = {};
+  DATA.crypto.coins.forEach(c => { cryptoHoldings[c.id] = 0; });
+  const cryptoHedges = {};
+  DATA.crypto.hedges.forEach(h => { cryptoHedges[h.id] = false; });
 
   return {
     version: C.SAVE_VERSION,
@@ -33,6 +40,14 @@ export function newGame() {
     // — an optional clicker-fuel resource, see config.ENERGY / math.energyMax.
     resources: { cash: 15, comfort: 0, clout: 0, legacy: 0, energy: C.ENERGY.base },
     generators, amenities, skills, training, paths, npcsMet, destinations, content,
+    // crypto portfolio (E13): holdings/hedges own state; market is the seeded scheduler's
+    // own state — phase starts 'calm', mult 1, cursor 0. engine.marketTick is a no-op
+    // until crypto path points are spent or a coin is held (see config.MARKET's comment
+    // and engine's cryptoActive gate), so neither section ever advances for a fresh game
+    // or the harness — the fitted ~8h26m island time cannot move.
+    crypto: { holdings: cryptoHoldings, hedges: cryptoHedges, lifetimeYield: 0 },
+    market: { seed: C.MARKET.seed, cursor: 0, phase: 'calm', eventId: null, mult: 1,
+      nextEventT: 0, expiresAtSec: 0, eventLog: [], totalEvents: 0 },
     accommodation: { tier: 0, owned: [0] },
     // transport (E04-S1): no ride bought yet — a null activeSlot means no speed bonus
     // and no upkeep drain (engine.tick/engine.destCost both check for it).
@@ -89,14 +104,23 @@ export function migrate(s) {
     if (fn) s = fn(s);
     s.version = next;
   }
+  // a save that predates the crypto market entirely (no `market` key at all) — captured
+  // BEFORE backfill() below fills it in with the shared default seed (E13-S9-T2).
+  const hadMarket = s.market !== undefined;
   // fill any missing keys from a fresh game (forward-compat safety net) — this alone
   // already backfills pre-E12 saves' missing `content`/`sponsors` sections wholesale
-  // (E12-S9-T5), the same generic mechanism every prior epic's new fields relied on.
+  // (E12-S9-T5), the same generic mechanism every prior epic's new fields relied on —
+  // and now backfills `crypto`/`market` (E13-S9-T1/T10) the same way, at level
+  // 0/unbought/calm, no NaN possible.
   s = backfill(s, newGame());
   // combo floors to the idle baseline on every load (E12-S9-T2/T6): there are no
   // active taps while away, so a mid-combo snapshot from the moment of the last save
   // would otherwise hand back an unearned temporary boost.
   s._combo = 1; s._comboTimer = 0;
+  // reseed the market from THIS save's own creation time (E13-S9-T2) rather than
+  // leaving every migrated save on the same shared default seed — the first (and so
+  // far only) seeded-RNG state the codebase ships, so no other field has this pattern.
+  if (!hadMarket) s.market.seed = (s.meta.createdAt || Date.now()) >>> 0;
   return s;
 }
 

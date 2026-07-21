@@ -37,7 +37,22 @@ export const STORY = [
   { id: 13, title: 'Five-Star Frame of Mind', requires: { accTier: 9 },
     text: 'The concierge anticipates your needs. It is unsettling and wonderful.' },
   { id: 14, title: 'Going Viral', requires: { comfort: 1.3e6 },
-    text: 'A clip explodes. Somewhere, an algorithm decides you are worth money.' },
+    text: 'A clip explodes. Somewhere, an algorithm decides you are worth money.',
+    // Branch-flavored variant (E13 "Money Works While You Tan" — Task D): the beat's
+    // GATE/requires stay exactly as shipped (E12) so every branch — crypto included —
+    // still fires beat 14 on the same Comfort threshold (E13-S7-T10: no build is ever
+    // stranded); this only swaps the TITLE/TEXT shown when story.branch==='crypto' (see
+    // engine.beatCopy / ui.js's renderStory, which read this the same way as the
+    // default). Adapted from the epic's "beat gate on crypto path points ≥ P1" ask: a
+    // second, points-gated beat would fork checkStory's one-beat-at-a-time narrative
+    // spine, so instead this variant fires whenever a crypto-branch player reaches the
+    // SAME beat 14 gate — a lighter, house-convention adaptation (see engine.js's
+    // checkWhaleWatching for the points-gated one-time bonus that layers on top).
+    variants: { crypto: { title: 'Whale Watching', text:
+      'Poolside, laptop humming, you watch one wallet move an amount with its own zip ' +
+      'code. The chart does something dramatic. You do not sell. You do not buy. You ' +
+      'just watch, tanning, mildly transfixed — wisdom or paralysis, hard to say. Either ' +
+      'way, the concierge has already booked the next flight. Someone should pack.' } } },
   { id: 15, title: 'Keys to the Coupe', requires: { accTier: 10 },
     text: 'No more buses. Something low, fast, and entirely impractical is yours.' },
   { id: 16, title: 'Sea Legs', requires: { comfort: 5e6 },

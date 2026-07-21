@@ -2,7 +2,7 @@
 import { CONFIG as C } from './config.js';
 import { DATA } from './data/index.js';
 import * as M from './math.js';
-import { bulkCost, maxAffordable, clamp } from './util.js';
+import { bulkCost, maxAffordable, clamp, rng } from './util.js';
 
 // ---------- notifications (drained by UI) ----------
 function notify(state, type, text) {
@@ -43,8 +43,18 @@ export function tick(state, dt) {
   }
 
   // 3) savvy passive income (sqrt-scaled), crypto-path perk ×1.3 when invested
-  const cryptoPerk = 1 + 0.3 * Math.sign(state.paths.crypto.points);
-  cashGain += M.savvyPassive(state) * cryptoPerk * dt;
+  cashGain += M.savvyPassive(state) * cryptoSavvyPerk(state) * dt;
+
+  // 3b) crypto portfolio: seeded market events + owned-coin yield (E13 "Money Works
+  // While You Tan") — GATED behind actually holding crypto path points or coins (see
+  // cryptoActive below), so a fresh newGame() and the harness/selftest playStep (which
+  // only ever invest in the vlogger path) see zero scheduler activity and zero yield;
+  // the fitted ~8h26m island time cannot move. marketMult scales ONLY this yield, never
+  // savvyPassive/tierProd above (opt-in volatility, never a base-income effect).
+  marketTick(state);
+  const cryptoYield = M.cryptoYieldPerSec(state, DATA) * dt;
+  cashGain += cryptoYield;
+  state.crypto.lifetimeYield += cryptoYield;
 
   state.resources.cash += cashGain;
   state.stats.lifetimeCash += cashGain;
@@ -93,6 +103,8 @@ export function tick(state, dt) {
   checkGoingViral(state);
   checkPathHybridFlags(state);
   checkContentUnlocks(state);
+  checkCryptoDeskReveal(state);
+  checkWhaleWatching(state);
 
   // 7) concierge: bounded, off-by-default auto-purchase policy (E11 "Five-Star Frame of
   // Mind") — a no-op instant boolean check whenever state.concierge.on is false, so a
@@ -412,6 +424,15 @@ function reqMet(state, r) {
   if (r.legacy !== undefined && state.resources.legacy < r.legacy) return false;
   return true;
 }
+// Branch-flavored beat copy (E13 Task D, "Whale Watching"): a beat's `requires`/gate and
+// default title/text are UNCHANGED for every branch (E13-S7-T10, no build ever
+// stranded) — this just swaps in a `variants[branch]` override for display/notify when
+// one exists, matching the DATA-driven precedent set by amenities'/vignettes' flavor
+// fields rather than restructuring the linear beat spine. Used by both checkStory's
+// notify text below and ui.js's renderStory.
+export function beatCopy(state, beat) {
+  return (beat.variants && beat.variants[state.story.branch]) || beat;
+}
 export function checkStory(state) {
   for (const beat of DATA.story) {
     if (state.story.seen.includes(beat.id)) continue;
@@ -422,7 +443,7 @@ export function checkStory(state) {
     if (reqMet(state, beat.requires)) {
       state.story.seen.push(beat.id);
       state.story.beat = Math.max(state.story.beat, beat.id);
-      notify(state, 'story', `📖 Beat ${beat.id}: ${beat.title}`);
+      notify(state, 'story', `📖 Beat ${beat.id}: ${beatCopy(state, beat).title}`);
     }
   }
 }
@@ -650,6 +671,173 @@ export function acceptSponsor(state, id) {
   state.sponsors.offer = null;
   notify(state, 'sponsor', `🤝 Deal accepted: ${d.name} — Clout ×${d.mult} for ${d.durationSec}s.`);
   return true;
+}
+
+// ---------- crypto portfolio + seeded market events (E13 "Money Works While You Tan") ----------
+// The crypto branch's Savvy passive perk (E13 Task C "surface Savvy... and the crypto
+// perk", already-shipped since before this epic per docs/coverage.md's "already exist,
+// don't rebuild" list) — pulled out of engine.tick's inline expression into a NAMED,
+// reusable function so ui.js's Savvy readout can display the SAME live value instead of
+// duplicating the "0.3" constant in a second file. Value UNCHANGED (still exactly
+// `1 + 0.3·sign(points)`) — a pure extraction, not a retune, mirrors E12's vloggerPerk
+// extraction (docs/coverage.md E12 notes, "value UNCHANGED").
+export function cryptoSavvyPerk(state) {
+  return 1 + 0.3 * Math.sign(state.paths.crypto.points);
+}
+// GATE: the whole market scheduler + coin yield stay dormant until the crypto path has
+// points or a coin is actually held — a fresh newGame() (and the harness/selftest
+// playStep, which only ever invest in the vlogger path) never trip this, so
+// state.market.phase stays 'calm', mult 1, cursor 0 forever; the fitted ~8h26m island
+// time cannot move (see config.MARKET's comment / the harness-invariance test).
+function cryptoActive(state) {
+  if (state.paths.crypto.points > 0) return true;
+  for (const c of DATA.crypto.coins) if ((state.crypto.holdings[c.id] || 0) > 0) return true;
+  return false;
+}
+
+export function coinData(id) { return DATA.crypto.coins.find(c => c.id === id); }
+export function coinCost(state, id, qty = 1) {
+  const c = coinData(id);
+  const held = state.crypto.holdings[id] || 0;
+  return bulkCost(c.costBase, c.costGrowth, held, qty) * M.commsCostMult(state);
+}
+// buying a coin is a player action; holdings ride the market from the NEXT tick on
+// (engine.tick's step 3b), never retroactively.
+export function buyCoin(state, id, qty = 1) {
+  const c = coinData(id);
+  if (!c) return false;
+  qty = Math.max(0, Math.floor(qty));
+  if (qty <= 0) return false;
+  const cost = coinCost(state, id, qty);
+  if (state.resources.cash < cost) return false;
+  state.resources.cash -= cost;
+  state.crypto.holdings[id] = (state.crypto.holdings[id] || 0) + qty;
+  // one-off crypto path-point nudge per purchase (E13-S7-T8 "the lane self-feeds"),
+  // mirrors DEST.visitPathPoints/CLOUT.contentPathNudge's established "one-off on a
+  // discrete action, never a per-tick trickle" pattern exactly.
+  state.paths.crypto.points += C.MARKET.buyPathNudge * qty;
+  return true;
+}
+// sells at MARKET.sellFrac of the marginal unit's buy price, modulated by the LIVE
+// marketMult — selling into a crash pays worse, riding a boom pays better. No
+// commsCostMult here: that discount is purchase-only, not a sale-price bonus.
+export function sellCoin(state, id, qty = 1) {
+  const c = coinData(id);
+  if (!c) return false;
+  qty = Math.max(0, Math.floor(qty));
+  const held = state.crypto.holdings[id] || 0;
+  if (qty <= 0 || qty > held) return false;
+  const unitPrice = M.coinUnitCost(c, Math.max(0, held - qty)) * C.MARKET.sellFrac * M.marketMult(state, DATA);
+  state.crypto.holdings[id] = held - qty;
+  const proceeds = unitPrice * qty;
+  state.resources.cash += proceeds;
+  state.stats.lifetimeCash += proceeds;
+  state.stats.lifetimeCashThisTree += proceeds;
+  return true;
+}
+
+// one-time risk-mitigation purchases (Task B): halves-crash-depth-adjacent, never
+// leveled — see math.crashDampTotal for how they combine with the Unshakeable node.
+export function hedgeData(id) { return DATA.crypto.hedges.find(h => h.id === id); }
+export function buyHedge(state, id) {
+  const h = hedgeData(id);
+  if (!h || state.crypto.hedges[id]) return false;
+  if (state.resources.cash < h.cost) return false;
+  state.resources.cash -= h.cost;
+  state.crypto.hedges[id] = true;
+  notify(state, 'unlock', `🛡️ Hedge bought: ${h.name} — crash pain dulled.`);
+  return true;
+}
+
+// weighted draw over DATA.crypto.events via the seeded, pure util.rng — consumes
+// exactly one cursor slot.
+function pickMarketEvent(state) {
+  const events = DATA.crypto.events;
+  const totalWeight = events.reduce((s, e) => s + e.weight, 0);
+  const roll = rng(state.market.seed, state.market.cursor++) * totalWeight;
+  let acc = 0;
+  for (const e of events) { acc += e.weight; if (roll <= acc) return e; }
+  return events[events.length - 1];
+}
+
+const SAVVY_CRASH_SURVIVE_XP = 40; // small Savvy XP nudge for "surviving" a drawn crash
+const SAVVY_WHALE_XP = 60;         // a touch more for the rare whale boom
+const MARKET_EVENT_LOG_MAX = 5;
+
+// The seeded event scheduler (E13-S2-T5/S4-T1..T9): a pure function of
+// (state.market.seed, state.market.cursor, state.stats.runSec), so it is trivially
+// reproducible online or replayed offline through the SAME tick() loop
+// engine.applyOffline already drives — no separate offline code path exists to drift.
+function marketTick(state) {
+  if (!cryptoActive(state)) return;
+  const mkt = state.market;
+  // an active phase expires back to calm, then a fresh gap is rolled before the next draw.
+  if (mkt.phase !== 'calm' && state.stats.runSec >= mkt.expiresAtSec) {
+    mkt.phase = 'calm'; mkt.mult = 1; mkt.eventId = null;
+    const gapRoll = rng(mkt.seed, mkt.cursor++);
+    const [lo, hi] = C.MARKET.eventEveryRange;
+    mkt.nextEventT = state.stats.runSec + lo + gapRoll * (hi - lo);
+  }
+  if (mkt.phase === 'calm' && state.stats.runSec >= mkt.nextEventT) {
+    const ev = pickMarketEvent(state);
+    const magRoll = rng(mkt.seed, mkt.cursor++);
+    const durRoll = rng(mkt.seed, mkt.cursor++);
+    let mult = ev.multRange[0] + magRoll * (ev.multRange[1] - ev.multRange[0]);
+    const dur = ev.durRange[0] + durRoll * (ev.durRange[1] - ev.durRange[0]);
+    // crypto branch perk: raises boom magnitude, the "market-event upside+" (E13-S4-T8/S7-T2).
+    if (ev.kind === 'boom' && state.story.branch === 'crypto') mult *= (1 + C.MARKET.branchBoomBonus);
+    // crash damping: HEDGES + Unshakeable pull the depth toward 1 (E13-S2-T8/S4-T3) —
+    // crashes stay bounded regardless (the clamp below is the hard floor either way).
+    if (ev.kind === 'crash') {
+      const damp = M.crashDampTotal(state, DATA);
+      mult = 1 - (1 - mult) * (1 - damp);
+    }
+    mult = clamp(mult, C.MARKET.crashFloor, C.MARKET.boomCap);
+    mkt.phase = ev.kind; mkt.eventId = ev.id; mkt.mult = mult;
+    mkt.expiresAtSec = state.stats.runSec + dur;
+    (mkt.eventLog ||= []).unshift({ id: ev.id, kind: ev.kind, mult, dur: Math.round(dur), t: state.stats.runSec });
+    if (mkt.eventLog.length > MARKET_EVENT_LOG_MAX) mkt.eventLog.length = MARKET_EVENT_LOG_MAX;
+    mkt.totalEvents = (mkt.totalEvents || 0) + 1;
+    // Savvy XP for surviving volatility (E13-S2-T7): a crash always pays a little,
+    // the rare whale boom pays a little more (S4-T6 "Whale-watching moment").
+    if (ev.kind === 'crash') state.skills.savvy.xp += SAVVY_CRASH_SURVIVE_XP;
+    if (ev.id === 'whale_boom') state.skills.savvy.xp += SAVVY_WHALE_XP;
+    refreshSkillLevels(state);
+    const label = ev.id === 'whale_boom' ? '🐋 WHALE PUMP' : ev.kind === 'boom' ? '📈 Market boom' : ev.kind === 'crash' ? '📉 Market crash' : '📊 Choppy market';
+    notify(state, ev.kind === 'crash' ? 'crash' : 'boom', `${label}: market ×${mult.toFixed(2)} for ${Math.round(dur)}s`);
+  }
+}
+
+// Reveal gate (E13-S3-T8): mirrors creatorDashboardUnlocked's exact OR contract — the
+// crypto path has points (buyPathFocus has no Comfort gate, so this can trigger early
+// for a dabbler before any branch is chosen), OR beat 14 has fired, OR the tier-11 band
+// is reached, whichever comes first.
+export function cryptoDeskUnlocked(state) {
+  return state.paths.crypto.points > 0 || state.story.seen.includes(14) || state.accommodation.tier >= 11;
+}
+// one-shot reveal flash (mirrors checkCreatorDashboardReveal/checkConciergeReveal).
+export function checkCryptoDeskReveal(state) {
+  if (state.story.flags.cryptoDeskRevealed) return;
+  if (!cryptoDeskUnlocked(state)) return;
+  state.story.flags.cryptoDeskRevealed = true;
+  notify(state, 'unlock', '📈 The Crypto Desk opens: your money wants a job. Buy a coin, watch the ticker.');
+}
+
+// "Whale Watching" one-time bonus (E13-S7-T3..T5, Task D): adapts the epic's "beat
+// choice sets a flag" ask to the house convention already used by checkGoingViral/
+// checkBodyPathFlags/checkPathHybridFlags (an automatic one-shot flag tied to an
+// EXISTING beat gate, never a second interactive choice beat forking checkStory's
+// one-beat-at-a-time spine) — fires once beat 14 has fired for a crypto-branch player.
+const WHALE_WATCH_XP_BONUS = 200;
+const WHALE_WATCH_PATH_BONUS = 2;
+export function checkWhaleWatching(state) {
+  if (state.story.flags.whaleWatched) return;
+  if (state.story.branch !== 'crypto' || !state.story.seen.includes(14)) return;
+  state.story.flags.whaleWatched = true;
+  state.skills.savvy.xp += WHALE_WATCH_XP_BONUS;
+  state.paths.crypto.points += WHALE_WATCH_PATH_BONUS;
+  refreshSkillLevels(state);
+  notify(state, 'celebrate', '🐋 Whale Watching: you clocked the pattern before the chart did. Savvy sharpens — the market, ever so slightly, notices you noticing.');
 }
 
 export function nextAccTier(state) { return state.accommodation.tier + 1; }
@@ -952,7 +1140,8 @@ export function applyOffline(state, elapsedMs) {
   // "While you were away" summary can report what it bought (nothing extra to compute).
   const before = { cash: state.resources.cash, clout: state.resources.clout,
     conciergeBought: state.concierge.totalBought, conciergeSpent: state.concierge.totalSpent,
-    sponsorsExpired: state.sponsors.totalExpired };
+    sponsorsExpired: state.sponsors.totalExpired,
+    cryptoYield: state.crypto.lifetimeYield, marketEvents: state.market.totalEvents };
   const total = cappedMs / 1000;
   const step = total / C.OFFLINE_STEPS;
   for (let i = 0; i < C.OFFLINE_STEPS; i++) tick(state, step);
@@ -967,5 +1156,11 @@ export function applyOffline(state, elapsedMs) {
     // the SAME tick() the online loop does, so tickSponsors expires any in-flight deal
     // exactly as it would online — this just diffs the running counter for the summary.
     sponsorsExpired: state.sponsors.totalExpired - before.sponsorsExpired,
+    // crypto portfolio while away (E13-S9-T3/T4/T7): the SAME tick() the online loop
+    // uses drives marketTick + coin yield here too, so a crypto-active player's market
+    // events fire (and their coins earn) exactly as they would online — this just diffs
+    // the running totals for the "While you were away" summary.
+    cryptoYield: state.crypto.lifetimeYield - before.cryptoYield,
+    marketEvents: state.market.totalEvents - before.marketEvents,
   };
 }

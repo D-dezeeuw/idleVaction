@@ -348,7 +348,8 @@ console.log('\n[8] E03 data validation: GEN arrays aligned; NPC ids unique + pat
 // single buys exactly, for random (bought, qty) pairs (E03-S4-T10 / S10-T4). ----------
 console.log('\n[9] E03 bulk-buy parity vs sequential single buys');
 {
-  const rand = rng(20230721);
+  let rc = 0;
+  const rand = () => rng(20230721, rc++);   // wraps the pure (seed,cursor) rng as a stream
   for (let trial = 0; trial < 10; trial++) {
     const k = 0; // D1 — always unlocked, cheapest to reason about
     const bought0 = Math.floor(rand() * 40);
@@ -2540,6 +2541,271 @@ console.log('\n[74] E12 regression: no lock-in — neutral branch still earns Cl
   noPoints.story.branch = 'vlogger';   // branch chosen, but zero points invested
   ok(approx(M.cloutRate(noPoints, DATA), C.CLOUT.contentRate),
     'choosing the vlogger branch ALONE (no points) does not change cloutRate — the perk keys on points, not the label');
+}
+
+// ---------- 75. E13 config + data validation: MARKET block, COINS/MARKET_EVENTS/HEDGES
+// schema, fresh-game state.market/state.crypto shape (E13-S1). ----------
+console.log('\n[75] E13 config + data validation: MARKET block, COINS/MARKET_EVENTS/HEDGES schema');
+{
+  ok(typeof C.MARKET.seed === 'number', 'config.MARKET.seed is a number');
+  ok(C.MARKET.crashFloor > 0 && C.MARKET.crashFloor < 1, 'config.MARKET.crashFloor is a positive floor below 1');
+  ok(C.MARKET.boomCap > 1, 'config.MARKET.boomCap is a ceiling above 1');
+  ok(C.SAVVY_YIELD === 0.02, 'SAVVY_YIELD is untouched by E13 — still 0.02, a fitted constant never retuned here');
+
+  const seenCoin = new Set();
+  for (const c of DATA.crypto.coins) {
+    ok(!seenCoin.has(c.id), `coin id is unique: ${c.id}`);
+    seenCoin.add(c.id);
+    ok(c.costBase > 0 && c.costGrowth > 1, `${c.id}: costBase/costGrowth sane`);
+    ok(c.yieldPerUnit > 0, `${c.id}: yieldPerUnit > 0`);
+  }
+  ok(DATA.crypto.coins.length >= 6, 'the coin roster has at least 6 flavored coins');
+
+  let weightSum = 0;
+  for (const e of DATA.crypto.events) {
+    ok(['boom', 'crash', 'chop'].includes(e.kind), `${e.id}: kind is boom/crash/chop`);
+    ok(e.multRange[0] > 0 && e.multRange[1] >= e.multRange[0], `${e.id}: multRange sane`);
+    ok(e.durRange[0] > 0 && e.durRange[1] >= e.durRange[0], `${e.id}: durRange sane`);
+    weightSum += e.weight;
+  }
+  ok(approx(weightSum, 1), `MARKET_EVENTS weights sum to 1 (got ${weightSum})`);
+
+  for (const h of DATA.crypto.hedges) ok(h.cost > 0 && h.crashDamp > 0 && h.crashDamp < 1, `${h.id}: cost/crashDamp sane`);
+
+  const fresh = ST.newGame();
+  ok(fresh.market && fresh.market.phase === 'calm' && fresh.market.mult === 1 && fresh.market.cursor === 0,
+    'a fresh game starts with market phase calm, mult 1, cursor 0');
+  ok(fresh.crypto && DATA.crypto.coins.every(c => fresh.crypto.holdings[c.id] === 0),
+    'a fresh game starts with every coin holding at 0');
+  ok(DATA.crypto.hedges.every(h => fresh.crypto.hedges[h.id] === false), 'a fresh game starts with no hedges owned');
+}
+
+// ---------- 76. E13 util.rng: pure, seeded, deterministic hash (guardrail: NO
+// Math.random anywhere) — same (seed,cursor) always matches, a different cursor (or
+// seed) always differs (E13-S10-T2). ----------
+console.log('\n[76] E13 util.rng: pure, deterministic, seeded hash');
+{
+  const a1 = rng(42, 7), a2 = rng(42, 7);
+  ok(a1 === a2, 'rng(seed, cursor) is a pure function — the SAME (seed,cursor) gives the exact same value every call');
+  ok(rng(42, 8) !== a1, 'a different cursor (same seed) gives a different draw');
+  ok(rng(43, 7) !== a1, 'a different seed (same cursor) gives a different draw');
+
+  let allInRange = true;
+  for (let i = 0; i < 200; i++) { const v = rng(1337, i); if (!(v >= 0 && v < 1)) allInRange = false; }
+  ok(allInRange, 'rng(seed, cursor) always returns a value in [0,1) across 200 cursors');
+
+  const vals = Array.from({ length: 500 }, (_, i) => rng(9, i));
+  const mean = vals.reduce((s, v) => s + v, 0) / vals.length;
+  ok(mean > 0.4 && mean < 0.6, `rng draws are reasonably well-distributed (mean ${mean.toFixed(3)} over 500 draws, expect ~0.5)`);
+}
+
+// ---------- 77. E13 crash damping: Unshakeable halves crash DEPTH per rank; hedges +
+// Unshakeable stack multiplicatively toward, but never past, config.MARKET.maxCrashDamp
+// (Task B, E13-S2-T8/S10-T4). ----------
+console.log('\n[77] E13 crash damping: Unshakeable halves crash depth; stacks toward, never past, full immunity');
+{
+  const rawMult = 0.3;             // a crafted undamped crash multiplier for this test
+  const undampedDepth = 1 - rawMult;
+
+  const zero = ST.newGame();
+  ok(approx(M.crashDampTotal(zero, DATA), 0), 'no hedges + no Unshakeable => zero crash damp');
+
+  const one = ST.newGame();
+  one.ascension.tree.unshakeable = 1;
+  const damp1 = M.crashDampTotal(one, DATA);
+  const damped1 = 1 - (1 - rawMult) * (1 - damp1);
+  ok(approx(1 - damped1, undampedDepth * 0.5), 'Unshakeable rank 1 (no hedges) exactly halves crash DEPTH');
+
+  const two = ST.newGame();
+  two.ascension.tree.unshakeable = 2;
+  ok(M.crashDampTotal(two, DATA) > damp1, 'a higher Unshakeable rank damps MORE than a lower rank');
+
+  const maxed = ST.newGame();
+  maxed.ascension.tree.unshakeable = 3;
+  for (const h of DATA.crypto.hedges) maxed.crypto.hedges[h.id] = true;
+  const dampMax = M.crashDampTotal(maxed, DATA);
+  ok(dampMax < 1, 'even fully hedged + maxed Unshakeable NEVER reaches full crash immunity (damp < 1)');
+  ok(dampMax <= C.MARKET.maxCrashDamp + 1e-9, 'combined crash damp never exceeds config.MARKET.maxCrashDamp');
+}
+
+// ---------- 78. E13 market events: bounded regardless of hedges/branch (crash floor,
+// boom cap), and completely gated off for a fresh game (E13-S4-T3/T10, S10-T3). ----------
+console.log('\n[78] E13 market events: bounded (crash floor / boom cap), gated off by default');
+{
+  const g = ST.newGame();
+  for (let i = 0; i < 50; i++) E.tick(g, 5);
+  ok(g.market.phase === 'calm' && g.market.cursor === 0 && g.market.mult === 1,
+    'a fresh game with zero crypto investment never advances the market scheduler, even after many ticks');
+
+  const active = ST.newGame();
+  active.paths.crypto.points = 1;   // trip cryptoActive — no coin purchase needed
+  let minMult = Infinity, maxMult = -Infinity;
+  for (let i = 0; i < 6000; i++) {
+    E.tick(active, 10);
+    const m = M.marketMult(active, DATA);
+    if (m < minMult) minMult = m;
+    if (m > maxMult) maxMult = m;
+  }
+  ok(active.market.cursor > 0, 'the scheduler DOES advance once the crypto path has points');
+  ok(active.market.totalEvents > 0, 'at least one market event fired over the simulated stretch');
+  ok(minMult >= C.MARKET.crashFloor - 1e-9, `marketMult never dips below config.MARKET.crashFloor (got min ${minMult.toFixed(3)})`);
+  ok(maxMult <= C.MARKET.boomCap + 1e-9, `marketMult never exceeds config.MARKET.boomCap (got max ${maxMult.toFixed(3)})`);
+  ok(Number.isFinite(active.resources.cash) && active.resources.cash >= 0, 'cash stays finite and non-negative through heavy market volatility');
+}
+
+// ---------- 79. E13 crypto buy/sell (engine.buyCoin/sellCoin/buyHedge): affordability
+// gates, holdings, path-point nudge, cash never negative (E13-S3-T4, S1-T8). ----------
+console.log('\n[79] E13 crypto buy/sell: affordability gates, holdings, path-point nudge');
+{
+  const b = ST.newGame();
+  const coin = DATA.crypto.coins[0];
+  b.resources.cash = 0;
+  ok(!E.buyCoin(b, coin.id, 1), 'buyCoin is blocked at zero cash');
+  ok((b.crypto.holdings[coin.id] || 0) === 0, 'holdings unchanged after a blocked buy');
+
+  b.resources.cash = 1e6;
+  const cost0 = E.coinCost(b, coin.id, 1);
+  ok(approx(cost0, coin.costBase), 'the first unit costs exactly costBase');
+  const pointsBefore = b.paths.crypto.points;
+  ok(E.buyCoin(b, coin.id, 1), 'buyCoin succeeds with enough cash');
+  ok(b.crypto.holdings[coin.id] === 1, 'holdings incremented by 1');
+  ok(b.paths.crypto.points > pointsBefore, 'buying a coin nudges crypto path points (E13-S7-T8, "the lane self-feeds")');
+
+  const cost1 = E.coinCost(b, coin.id, 1);
+  ok(approx(cost1 / cost0, coin.costGrowth), 'the next unit costs exactly ×costGrowth more (geometric ramp)');
+
+  const cashBefore = b.resources.cash;
+  ok(!E.sellCoin(b, coin.id, 5), 'sellCoin is blocked when selling more than held');
+  ok(E.sellCoin(b, coin.id, 1), 'sellCoin succeeds for an owned unit');
+  ok(b.crypto.holdings[coin.id] === 0, 'holdings decremented back to 0');
+  ok(b.resources.cash > cashBefore, 'selling pays out cash');
+
+  const zeroHeld = ST.newGame();
+  ok(!E.sellCoin(zeroHeld, coin.id, 1), 'sellCoin is blocked with zero held');
+
+  const h = DATA.crypto.hedges[0];
+  const hd = ST.newGame();
+  hd.resources.cash = 0;
+  ok(!E.buyHedge(hd, h.id), 'buyHedge is blocked at zero cash');
+  hd.resources.cash = 1e7;
+  ok(E.buyHedge(hd, h.id), 'buyHedge succeeds with enough cash');
+  ok(hd.crypto.hedges[h.id] === true, 'hedge flips to owned');
+  ok(!E.buyHedge(hd, h.id), 're-buying an already-owned hedge is blocked (a one-time purchase)');
+}
+
+// ---------- 80. E13 harness invariance: crypto is gated off by default, so the fitted
+// island time is UNCHANGED (guardrail #3 — the direct island guard). ----------
+console.log('\n[80] E13 harness invariance: crypto gated off by default, fitted island UNCHANGED');
+{
+  const fresh = ST.newGame();
+  ok(fresh.market.phase === 'calm' && fresh.paths.crypto.points === 0,
+    'a fresh newGame() (exactly what the harness constructs) starts with the market calm and zero crypto points');
+
+  const { islandAt, peakLog } = runCurve({ dt: 5, maxHours: 40 });
+  ok(islandAt !== null, 'the harness still reaches the island (tier 20) within the cap');
+  ok(Math.abs(islandAt - 30415) < 1, `harness island time is UNCHANGED by E13 (got ${fmtTime(islandAt)}, expected ~8h26m55s / 30415s)`);
+  ok(peakLog < 290, `peak log10(cash) (${peakLog.toFixed(1)}) stays far under the double-overflow ceiling (~308)`);
+}
+
+// ---------- 81. E13 offline replay determinism: same seed -> same market outcome
+// (mirrors test [59]'s applyOffline-vs-manual-macro-loop pattern exactly) + seed
+// reproducibility on a second independent replay (E13-S4-T9, S9-T3/T6, S10-T2). ----------
+console.log('\n[81] E13 offline replay determinism: same seed -> same market outcome');
+{
+  const seedState = () => {
+    const s = ST.newGame();
+    s.market.seed = 424242;
+    s.paths.crypto.points = 5;                          // trip cryptoActive
+    s.crypto.holdings[DATA.crypto.coins[0].id] = 10;     // owns yield-producing coins
+    s.settings.offlineEnabled = true;
+    return s;
+  };
+  const manual = seedState();
+  const viaOffline = ST.migrate(JSON.parse(JSON.stringify(seedState())));
+
+  const elapsedMs = 3600 * 1000; // 1h away
+  const capH = C.OFFLINE_CAP_H + 2 * (manual.ascension.tree.iron_const || 0);
+  const total = Math.min(elapsedMs, capH * 3600 * 1000) / 1000;
+  const step = total / C.OFFLINE_STEPS;
+  for (let i = 0; i < C.OFFLINE_STEPS; i++) E.tick(manual, step);
+
+  const rep = E.applyOffline(viaOffline, elapsedMs);
+  ok(rep && rep.seconds > 0, 'applyOffline returns a report for a real elapsed gap');
+  ok(manual.market.cursor === viaOffline.market.cursor, 'manual macro-step loop and applyOffline draw the IDENTICAL number of seeded market draws');
+  ok(manual.market.totalEvents === viaOffline.market.totalEvents, 'manual macro-step loop and applyOffline fire the IDENTICAL count of market events');
+  ok(approx(manual.resources.cash, viaOffline.resources.cash, 1e-6), 'manual macro-step loop and applyOffline produce IDENTICAL cash (crypto yield included) for identical elapsed time');
+  ok(rep.cryptoYield > 0, "the offline report's cryptoYield reflects real crypto income accrued while away (this test is not vacuous)");
+
+  // seed reproducibility (E13-S4-T9): the SAME seed, replayed through applyOffline from
+  // an IDENTICAL starting state a second time, gives the IDENTICAL outcome — no
+  // Math.random, no wall-clock dependence anywhere in the market.
+  const again = ST.migrate(JSON.parse(JSON.stringify(seedState())));
+  E.applyOffline(again, elapsedMs);
+  ok(again.market.cursor === viaOffline.market.cursor && approx(again.resources.cash, viaOffline.resources.cash, 1e-6),
+    'replaying the SAME seed from the SAME starting state gives the IDENTICAL market outcome');
+}
+
+// ---------- 82. E13 migration: backfills state.market/state.crypto for a pre-E13 save,
+// reseeding market.seed from THAT save's own meta.createdAt (E13-S9-T1/T2/T10). ----------
+console.log('\n[82] E13 migration: backfills state.market/state.crypto, reseeds from meta.createdAt');
+{
+  const pre13 = ST.newGame();
+  pre13.meta.createdAt = 123456789;
+  delete pre13.market;
+  delete pre13.crypto;
+  const migrated = ST.migrate(JSON.parse(JSON.stringify(pre13)));
+  ok(migrated.market && migrated.market.phase === 'calm' && migrated.market.mult === 1,
+    'migration backfills state.market (calm, mult 1) for a save that predates E13');
+  ok(migrated.market.seed === 123456789, "migration reseeds market.seed from the save's OWN meta.createdAt, not the shared default");
+  ok(migrated.crypto && DATA.crypto.coins.every(c => migrated.crypto.holdings[c.id] === 0),
+    'migration backfills state.crypto.holdings at 0 for every coin');
+  ok(DATA.crypto.hedges.every(h => migrated.crypto.hedges[h.id] === false), 'migration backfills state.crypto.hedges as unbought');
+  E.tick(migrated, 1);
+  ok(Number.isFinite(migrated.resources.cash), 'ticking a migrated pre-E13 save does not crash and cash stays finite (no NaN)');
+
+  const already = ST.newGame();
+  already.market.seed = 777;
+  const stillSame = ST.migrate(JSON.parse(JSON.stringify(already)));
+  ok(stillSame.market.seed === 777, 'a save that already has state.market keeps its OWN seed (not silently reseeded)');
+}
+
+// ---------- 83. E13 beat 14 crypto variant ("Whale Watching") + neutral fallback +
+// the one-shot Savvy/path bonus (Task D, E13-S7-T3/T4/T5/T10). ----------
+console.log('\n[83] E13 beat 14 crypto variant (Whale Watching) + neutral fallback + Savvy/path bonus');
+{
+  const cr = ST.newGame();
+  cr.story.branch = 'crypto';
+  cr.accommodation.tier = 11;
+  cr.accommodation.owned = Array.from({ length: 12 }, (_, i) => i);
+  cr.skills.charisma.xp = 1e6;
+  cr.skills.body.xp = 1e7;
+  const savvyBefore = cr.skills.savvy.xp, pointsBefore = cr.paths.crypto.points;
+  E.tick(cr, 1);
+  ok(cr.story.seen.includes(14), 'beat 14 fires for a crypto-branch player on the SAME shared gate as every other branch');
+
+  const beat14 = DATA.story.find(b => b.id === 14);
+  const copy = E.beatCopy(cr, beat14);
+  ok(copy.title === 'Whale Watching', 'the crypto branch sees the "Whale Watching" variant title');
+  ok(copy.text !== beat14.text, 'the crypto variant text differs from the neutral default');
+
+  ok(cr.story.flags.whaleWatched, 'whaleWatched fires automatically once beat 14 lands for a crypto-branch player (E13-S7-T5, adapted)');
+  ok(cr.skills.savvy.xp > savvyBefore, 'whaleWatched grants a one-time Savvy XP bonus');
+  ok(cr.paths.crypto.points > pointsBefore, 'whaleWatched grants a one-time crypto path-point bonus');
+  const xpAfterFirst = cr.skills.savvy.xp;
+  E.checkWhaleWatching(cr);
+  ok(cr.skills.savvy.xp === xpAfterFirst, 'whaleWatched never re-fires (one-shot)');
+
+  // neutral fallback (E13-S7-T10): a non-crypto player still passes beat 14 via the
+  // UNCHANGED default gate/copy, and never gets the crypto-only bonus.
+  const neutral = ST.newGame();
+  neutral.accommodation.tier = 11;
+  neutral.accommodation.owned = Array.from({ length: 12 }, (_, i) => i);
+  neutral.skills.charisma.xp = 1e6;
+  neutral.skills.body.xp = 1e7;
+  E.tick(neutral, 1);
+  ok(neutral.story.seen.includes(14), 'a neutral/other-branch player still passes beat 14 via the default gate — no build stranded');
+  ok(E.beatCopy(neutral, beat14).title === 'Going Viral', 'a non-crypto player sees the default "Going Viral" title');
+  ok(!neutral.story.flags.whaleWatched, 'whaleWatched never fires for a non-crypto branch, even after beat 14');
 }
 
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);

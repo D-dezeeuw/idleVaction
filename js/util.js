@@ -29,15 +29,21 @@ export function fmtTime(sec) {
   return `${sec}s`;
 }
 
-// Mulberry32 seeded RNG — deterministic for reproducible market events/tests.
-export function rng(seed) {
-  let a = seed >>> 0;
-  return function () {
-    a |= 0; a = (a + 0x6D2B79F5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
+// Seeded, PURE hash RNG (E13 "Money Works While You Tan") — rng(seed, cursor) always
+// returns the SAME [0,1) value for the same (seed, cursor) pair; different cursors give
+// well-distributed, uncorrelated draws. No internal state, so online ticks and an
+// offline macro-step replay (or two separate runs) draw an IDENTICAL sequence as long
+// as they advance the same cursor — see engine.marketTick / state.market.cursor. NEVER
+// use Math.random anywhere in shipped logic; this is the one and only source of
+// randomness (market events, and — via the small wrapper in js/dev/selftest.mjs — the
+// bulk-buy-parity fuzz test). Mixes cursor into the seed with a splitmix-style constant
+// before one Mulberry32 round.
+export function rng(seed, cursor = 0) {
+  let a = (Math.imul(cursor >>> 0, 0x9E3779B1) ^ (seed >>> 0)) >>> 0;
+  a |= 0; a = (a + 0x6D2B79F5) | 0;
+  let t = Math.imul(a ^ (a >>> 15), 1 | a);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 }
 
 // geometric-sum bulk cost: base·g^b·(g^q−1)/(g−1)

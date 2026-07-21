@@ -190,6 +190,46 @@ export const CONFIG = {
   // (Clout) that never feeds the cash multiplier stack, so neither can move the harness.
   SPONSOR: { offerIntervalSec: 90, cooldownSec: 180 },
 
+  // ---- crypto market (E13 "Money Works While You Tan"): OPT-IN, crypto-holdings-ONLY
+  // volatility. Everything read from this block only ever multiplies crypto coin-yield
+  // cash (math.cryptoYieldPerSec) — it NEVER touches tierProd/tierMultiplier/
+  // savvyPassive — and the whole scheduler is gated off (engine.marketTick's cryptoActive
+  // check) until the crypto path has points or a coin is held. A fresh newGame() and the
+  // harness (which never buys into crypto) therefore see phase:'calm', mult:1, zero
+  // scheduler draws, ever — the fitted ~8h26m island time cannot move (see
+  // docs/coverage.md E13 notes / the harness-invariance test).
+  //   seed            — default seed; migrate() reseeds existing saves from meta.createdAt.
+  //   tickVolatility  — ± baseline "chop" jitter always present while crypto is active,
+  //                     damped per-hedge by HEDGES' varianceDamp (math.marketBaselineJitter).
+  //   eventEveryRange — seconds of calm between one event ending and the next being
+  //                     drawn (engine.marketTick) — a boom/crash/chop every ~3-6 min.
+  //   crashFloor/boomCap — hard clamp on marketMult regardless of hedges/branch perk —
+  //                     crashes never zero cash, booms never runaway (engine/math guard).
+  //   sellFrac        — selling a coin back pays this fraction of its marginal buy price
+  //                     (engine.sellCoin), modulated by the live marketMult.
+  //   buyPathNudge    — one-off crypto path-point nudge per coin PURCHASE (mirrors
+  //                     DEST.visitPathPoints/CLOUT.contentPathNudge's "one-off on a
+  //                     discrete action, never a per-tick trickle" pattern exactly).
+  //   branchBoomBonus — the crypto branch's "market-event upside+" perk: boom multipliers
+  //                     are raised this fraction when story.branch==='crypto' (E13-S7-T2).
+  //   maxCrashDamp    — hedges+Unshakeable combine multiplicatively toward, but never
+  //                     past, this ceiling — bounded downside, never full immunity.
+  // MARKET_EVENTS' weights (see data/crypto.js) were Monte-Carlo checked to land
+  // long-run E[marketMult] ~= 1.05 (a slight positive drift, per the epic's "exciting but
+  // never free money" target) — a first-pass fit, not a rigorously tuned constant; a
+  // deeper balance pass belongs to @balance-tuner if the crypto lane ships as a headline.
+  MARKET: {
+    seed: 1337,
+    tickVolatility: 0.03,
+    eventEveryRange: [180, 360],
+    crashFloor: 0.10,
+    boomCap: 15,
+    sellFrac: 0.6,
+    buyPathNudge: 0.1,
+    branchBoomBonus: 0.25,
+    maxCrashDamp: 0.95,
+  },
+
   // ---- ascension / legacy ----
   LEGACY_K: 1.0,
   LEGACY_SCALE: 1e6,
