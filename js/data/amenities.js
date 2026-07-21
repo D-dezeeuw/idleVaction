@@ -178,4 +178,30 @@ export const AMENITIES = [
   { id: 'butler_bell',  name: 'A Little Silver Bell', tag: 'luxury', costBase: 3e6, comfort: 500, xMult: 0.15, xScope: 'all', unlockComfort: 4e4, flavor: 'You ring. Things happen.' },
   { id: 'gold_taps',    name: 'Gold Bathroom Taps',   tag: 'luxury', costBase: 1e7, comfort: 900, xMult: 0.18, xScope: 'all', unlockComfort: 1.2e5, flavor: 'Tasteless? Yes. Yours? Also yes.' },
   { id: 'infinity_pool',name: 'Private Infinity Pool',tag: 'luxury', costBase: 5e7, comfort: 2200,xMult: 0.25, xScope: 'all', unlockComfort: 5e5, flavor: 'The edge of the pool is the edge of the world.' },
+
+  // --- Signature Suite cluster (E11 "Five-Star Frame of Mind" — the epic's small-wins
+  // cluster, gated to the 5-Star Hotel/Suite era). tag:'suite'. Positioned above the
+  // Wellness Wing's own top (gym_altitude_room @ costBase 1.92e7) — conservative comfort
+  // weights, matching every gap-fill cluster's convention (the ROI-aware harness already
+  // skips Comfort-only amenities on payback — see harness.mjs's amenityWorthBuying and
+  // this epic's engine.conciergeCandidates — so this cluster cannot move the fitted
+  // pacing curve). costBase doubles per item (~2x, per the epic's own "ramping ~2x per
+  // step"), using the DEFAULT AMENITY.growthDefault (~1.5, no override) — same
+  // convention as the tan/gym/wellness clusters. unlockComfort brackets BOTH new tiers'
+  // Comfort gates (accUnlockComfort(9)≈89.6K, accUnlockComfort(10)≈232.9K), the same
+  // bracket-the-gate convention as onestar/breakfast: the first two items help you check
+  // into the 5-Star Hotel, the rest keep small wins flowing on through the Suite
+  // check-in and beyond. Each is a plain amenity — buyAmenity(id), no bespoke suite code
+  // (E11-S5-T2) — and therefore automatically concierge-eligible under the 'amenity'
+  // whitelist category (E11-S5-T5; no extra per-item field needed — every amenity IS
+  // category 'amenity' to the concierge, see engine.conciergeCandidates). No dedicated
+  // card either: the general Amenities panel already groups unrecognized tags by name
+  // (renderAmenities), so 'suite' surfaces there automatically, same as onestar/
+  // breakfast/hostel/backpack/motel before it — additive UI, no new subsystem. ---
+  { id: 'turndown_service',   name: 'Turndown Service',       tag: 'suite', costBase: 2.4e7,  comfort: 1300, xMult: 0.06, xScope: 'all', unlockComfort: 60000,  flavor: 'They fold your poncho into a swan. You did not know it could do that.' },
+  { id: 'pillow_menu',        name: 'Pillow Menu',            tag: 'suite', costBase: 4.8e7,  comfort: 1700, xMult: 0.08, xScope: 'all', unlockComfort: 90000,  flavor: 'Seven pillows, one head — finally, abundance.' },
+  { id: 'minibar',            name: 'Fully Stocked Minibar',  tag: 'suite', costBase: 9.6e7,  comfort: 2200, xMult: 0.10, xScope: 'all', unlockComfort: 130000, flavor: 'The Toblerone alone costs more than your old motel room.' },
+  { id: 'bathrobe',           name: 'Monogrammed Bathrobe',   tag: 'suite', costBase: 1.92e8, comfort: 2900, xMult: 0.12, xScope: 'all', unlockComfort: 180000, flavor: 'Your initials, embroidered, on a robe you will absolutely try to take home.' },
+  { id: 'rainfall_shower',    name: 'Rainfall Shower',        tag: 'suite', costBase: 3.84e8, comfort: 3800, xMult: 0.14, xScope: 'all', unlockComfort: 240000, flavor: 'Actual Dutch rain, but warm, and entirely by choice.' },
+  { id: 'butler_call_button', name: 'Butler Call Button',     tag: 'suite', costBase: 7.68e8, comfort: 4900, xMult: 0.16, xScope: 'all', unlockComfort: 320000, flavor: 'One press. He already knew.' },
 ];

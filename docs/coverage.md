@@ -218,16 +218,37 @@ drift (Body→Charisma / Body→path trickles → 8h21m) and **reverted both**; 
 | S9 Persistence/Offline | 5 / 3 / 2 | Done-now: energy + new-amenity persist/backfill/export. Superseded: `MIGRATIONS` entry (generic backfill), stacked idempotency. |
 | S10 QA/Polish/Juice | 2 / 6 / 2 | Done-now: energy clamp/tap/format/pulse/regression tests (10 sections). Superseded: Comfort-cap monotonicity test (no cap), Body-specific toast (reused generic). |
 
+### E11 — Five-Star Frame of Mind · **100/100** (present 24, done-now 67, superseded 9)
+High done-now — the **concierge auto-buyer** is genuinely new. `config.js` adds only a
+`CONCIERGE` block; **`GEN.*` untouched** (epic's D4/D5 retune superseded). Concierge is **OFF by
+default** (config + state, so the harness is unaffected — island **8h26m unchanged**), bounded
+(`budgetFrac 0.25` + reserve floor), ROI-positive (excludes cosmetic amenities), and routes
+through existing buy functions. Best part: selftest now carries a **direct harness-island
+regression guard** (imports `runCurve`, asserts 30415s). 6-item `suite` cluster; tier 9/10
+celebrate flashes.
+
+| Story | present/done/superseded | Notes |
+|---|---|---|
+| S1 Concierge Ledger | 4 / 6 / 0 | Done-now: `CONCIERGE` config, suite items, `state.concierge`, gate. Present: tiers 9/10, D4/D5, beat 13. |
+| S2 Bounded Auto-Buyer | 0 / 10 / 0 | Done-now: `conciergeCandidates`/`conciergeTick` (ROI-ranked, routed through existing buys). |
+| S3 Concierge Desk UI | 0 / 10 / 0 | Done-now: desk card, toggle/budget/whitelist/reserve, aria-live log, reveal gating. |
+| S4 Automation seed | 0 / 9 / 1 | Done-now: forbidden-actions hardcoded, tip sink, greedy ranking, transparency log. Superseded: "clicks saved" stat (no click-analog). |
+| S5 Suite Perks | 2 / 8 / 0 | Done-now: 6-item `suite` cluster via generic buy. |
+| S6 Two Stars in One Epic | 6 / 4 / 0 | Present: tiers 9/10 + beat 13. Done-now: tier-9/10 celebrate flashes, concierge-unlock wiring. |
+| S7 Branch flavor | 2 / 5 / 3 | Done-now: branch-flavored concierge log copy. Superseded: `branchWeights` ROI biasing (keeps ranking provably unbiased / no lock-in). |
+| S8 Tuning D4/D5 & concierge | 3 / 2 / 5 | Present: concierge literals per spec, harness re-verified. Superseded: `GEN[3..4]` retune (fitted). |
+| S9 Save/migration/offline | 5 / 5 / 0 | Done-now: `state.concierge` backfill, offline determinism, offline spend summary. |
+| S10 QA/polish/juice | 2 / 8 / 0 | Done-now: 10 selftest sections incl. ROI ranking, budget/reserve, forbidden-actions, offline determinism, **direct harness-island guard**. |
+
 ---
 
-## Act II–VI — E11–E30
+## Act II–VI — E12–E30
 
 _Pending — appended as each phase's build pass audits its 100 tasks. Each row will carry the
 same `present / done-now / superseded` disposition and a per-phase tally in the commit + report._
 
 | Epic | Status |
 |---|---|
-| E11 Five-Star Frame of Mind | pending |
 | E12 Lights, Camera, Clout | pending |
 | E13 Money Works While You Tan | pending |
 | E14 Acquired Taste | pending |
@@ -251,8 +272,8 @@ same `present / done-now / superseded` disposition and a per-phase tally in the 
 ---
 
 ### Running total
-- **Audited:** 1,000 / 3,000 tasks (E01–E10) — present 411, done-now 368, superseded 221. **⅓ done.**
-- **Remaining:** 2,000 tasks (E11–E30).
+- **Audited:** 1,100 / 3,000 tasks (E01–E11) — present 435, done-now 435, superseded 230.
+- **Remaining:** 1,900 tasks (E12–E30).
 
 ### Deferred balance-tuner backlog (for a consolidated retune, latest at E30)
 - **`savvyPassive()` not ×`L_comfort`** (E06-S7-T4) — a flat sqrt-scaled additive term outside

@@ -90,6 +90,12 @@ export function tick(state, dt) {
   checkPoolTease(state);
   checkWellnessReveal(state);
   checkBodyPathFlags(state);
+  checkConciergeReveal(state);
+
+  // 7) concierge: bounded, off-by-default auto-purchase policy (E11 "Five-Star Frame of
+  // Mind") — a no-op instant boolean check whenever state.concierge.on is false, so a
+  // fresh game (and the harness, which never flips it on) pay no cost and never buy.
+  conciergeTick(state, dt);
 }
 
 function applyTransportUpkeep(state, dt) {
@@ -541,7 +547,191 @@ export function buyAccommodation(state) {
   if (t === 8) {
     notify(state, 'celebrate', '🛎️ The Boutique Retreat. Small, tasteful, and quietly judging your poncho.');
   }
+  // the 5-Star Hotel moment (E11-S6-T5/T6/T8 "Five-Star Frame of Mind"): the tier-9
+  // arrival IS the headline reveal for the concierge itself — beat 13 fires separately
+  // from checkStory() on the same accTier:9 gate (docs/story.js) — this is purely the
+  // extra celebratory flash tied to the tier-up, mirroring the tier-4..8 flashes above.
+  // The Concierge Desk's own one-shot reveal (checkConciergeReveal, below) fires the
+  // same tick, since conciergeUnlocked() reads accommodation.tier live.
+  if (t === 9) {
+    notify(state, 'celebrate', '🛎️ The 5-Star Hotel. A concierge appears before you have finished your sentence.');
+  }
+  // the 5-Star Suite moment (E11-S6-T2/T5/T6/T8): the epic's SECOND accommodation step
+  // — "two stars in one epic" — mirrors the tier-9 flash immediately above, one tier
+  // later.
+  if (t === 10) {
+    notify(state, 'celebrate', '🥂 The 5-Star Signature Suite. A living room. In a hotel. For you. Your poncho has never felt so out of place.');
+  }
   return true;
+}
+
+// ---------- concierge: bounded auto-purchase policy (E11 "Five-Star Frame of Mind") ----------
+// The game's first automation seed. Shaped as a plain AutomationPolicy so later staff
+// (E19's butler, E20's household) reuse this exact pattern rather than forking it
+// (E11-S4-T1): "shouldRun" = state.concierge.on + conciergeUnlocked, "pickPurchases" =
+// conciergeCandidates, "apply" = applyConciergeCandidate. OFF by default
+// (state.concierge.on=false, CONFIG.CONCIERGE.defaultOn=false) — a fresh newGame() and
+// the harness (which never flips it on) are therefore untouched; the fitted ~8h26m
+// island time cannot move (see docs/coverage.md E11 notes / the harness-invariance
+// test). Hardcoded-forbidden, never data/config-driven (E11-S4-T6, S10-T10): the
+// concierge NEVER buys accommodation, NEVER ascends, NEVER answers a story choice —
+// those simply have no candidate category below, by construction, not by a guard that
+// could be misconfigured away.
+
+// mirrors dev/harness.mjs's amenityWorthBuying ROI test (kept LOCAL — dev/harness.mjs is
+// a dev-only script, never imported by shipped runtime code): the marginal €/s an
+// amenity's Comfort bump is worth, at the CURRENT cash rate. A near-zero/cosmetic
+// amenity yields a near-zero gain here and is filtered by the payback-horizon check in
+// conciergeCandidates below — this is what stops the concierge from ever leaking cash
+// into a dominated/cosmetic purchase, the exact anti-pattern the ROI harness itself
+// exists to prevent.
+function conciergeAmenityGainPerSec(state, a, cashRate) {
+  if (cashRate <= 0) return 0;
+  const ascBonus = 1 + 0.25 * state.ascension.count;
+  const dComf = a.comfort * C.COMFORT.wAmen * ascBonus;
+  if (dComf <= 0) return 0;
+  const comf = state._comfortCache;
+  const L = 1 + C.COMFORT.MULT * Math.log10(1 + comf / C.COMFORT.C0);
+  const Lafter = 1 + C.COMFORT.MULT * Math.log10(1 + (comf + dComf) / C.COMFORT.C0);
+  return cashRate * (Lafter - L) / L;
+}
+const CONCIERGE_AMENITY_HORIZON_SEC = 1800; // same payback horizon dev/harness.mjs uses
+
+// Every candidate a MANUAL player could buy RIGHT NOW, filtered to state.concierge.
+// whitelist, ranked by marginal-gain/cost descending (E11-S2-T1/T2/T4/T6) — the SAME
+// gates (unlocked/affordable) as the UI buttons, via the SAME cost/unlock functions
+// above; no bespoke purchase logic. Amenities additionally require a positive gain AND
+// payback within CONCIERGE_AMENITY_HORIZON_SEC — the guardrail against ever auto-buying
+// a cosmetic amenity. Generator/upgrade candidates use a scale-free "relative output (or
+// L_upgrade) gain per cost" — always positive (there is no cosmetic generator/upgrade in
+// this economy), matching "greedy, not clever, no lookahead" (E11-S4-T5).
+export function conciergeCandidates(state) {
+  const wl = state.concierge.whitelist;
+  const out = [];
+  if (wl.includes('amenity')) {
+    const cashRate = M.tierProd(state, 0) + M.savvyPassive(state);
+    for (const a of DATA.amenities) {
+      if (!amenityUnlocked(state, a.id)) continue;
+      const cost = amenityCost(state, a.id);
+      if (cost <= 0) continue;
+      const gain = conciergeAmenityGainPerSec(state, a, cashRate);
+      if (gain <= 0 || cost / gain > CONCIERGE_AMENITY_HORIZON_SEC) continue;
+      out.push({ category: 'amenity', id: a.id, cost, roi: gain / cost });
+    }
+  }
+  if (wl.includes('generator')) {
+    for (let k = 0; k < DATA.generators.length; k++) {
+      if (!state.generators[k].unlocked) continue;
+      const cost = genCost(state, k, 1);
+      if (cost <= 0) continue;
+      const roi = (1 / (state.generators[k].bought + 1)) / cost;
+      out.push({ category: 'generator', k, cost, roi });
+    }
+  }
+  if (wl.includes('upgrade')) {
+    for (let k = 0; k < DATA.generators.length; k++) {
+      if (!state.generators[k].unlocked) continue;
+      const cost = genUpgradeCost(state, k);
+      if (cost <= 0) continue;
+      const upgrades = state.generators[k].upgrades;
+      const roi = (C.L_UPGRADE_RATE / (1 + C.L_UPGRADE_RATE * upgrades)) / cost;
+      out.push({ category: 'upgrade', k, cost, roi });
+    }
+  }
+  return out.sort((x, y) => y.roi - x.roi);
+}
+
+function conciergeCandidateName(cand) {
+  if (cand.category === 'amenity') return amenityData(cand.id).name;
+  if (cand.category === 'generator') return DATA.generators[cand.k].name;
+  return `${DATA.generators[cand.k].name} renovation`;
+}
+function applyConciergeCandidate(state, cand) {
+  if (cand.category === 'amenity') return buyAmenity(state, cand.id);
+  if (cand.category === 'generator') return buyGenerator(state, cand.k, 1);
+  return buyGenUpgrade(state, cand.k);
+}
+
+// Dutch-tourist flavor for the desk log (E11-S1-T10), lightly branch-flavored
+// (E11-S7-T6) — cosmetic text only, no ranking bias, so a re-specced player's concierge
+// still shops identically (E11-S7-T7/T9: neutral stays plain, no lock-in either way).
+const CONCIERGE_FLAVOR_BY_BRANCH = {
+  vlogger: label => `📸 The concierge, curating your feed, quietly bought you ${label}.`,
+  crypto: label => `📈 The concierge diversified a sliver of your position into ${label}.`,
+  connoisseur: label => `🍸 The concierge, in impeccable taste, arranged for ${label}.`,
+  traveler: label => `🗺️ The concierge, ever the fixer, added ${label} to the itinerary.`,
+};
+function conciergeFlavor(state, names) {
+  const label = names.length > 1
+    ? `${names[0]} and ${names.length - 1} other thing${names.length > 2 ? 's' : ''}`
+    : names[0];
+  const byBranch = CONCIERGE_FLAVOR_BY_BRANCH[state.story.branch];
+  if (byBranch) return byBranch(label);
+  return `🛎️ The concierge, sensing your indecision, has taken the liberty of buying you ${label}.`;
+}
+
+// One bounded shopping pass (E11-S2-T3/T7/T8): budget freezes at CONCIERGE.budgetFrac·
+// cash at the START of the interval; the reserve floor is honored on every single
+// purchase, not just at the end of the batch. All buys in one interval are batched into
+// ONE notification (S2-T8), not one per item.
+function conciergeInterval(state) {
+  const floor = state.concierge.reserveFloor;
+  let budget = C.CONCIERGE.budgetFrac * state.resources.cash;
+  const bought = [];
+  for (let guard = 0; guard < 20; guard++) {
+    const pick = conciergeCandidates(state)
+      .find(c => c.cost <= budget && state.resources.cash - c.cost >= floor);
+    if (!pick) break;
+    const cashBefore = state.resources.cash;
+    if (!applyConciergeCandidate(state, pick)) break;
+    const spent = cashBefore - state.resources.cash;
+    // tip/fee sink (E11-S4-T7): a small extra payroll-lite drag on top of the purchase
+    // itself, clamped so it can never cross the reserve floor either.
+    const tip = Math.min(Math.max(0, state.resources.cash - floor), spent * C.CONCIERGE.tipFrac);
+    state.resources.cash -= tip;
+    budget -= (spent + tip);
+    bought.push({ name: conciergeCandidateName(pick), cost: spent + tip });
+  }
+  if (bought.length) {
+    state.concierge.totalBought += bought.length;
+    const total = bought.reduce((s, b) => s + b.cost, 0);
+    state.concierge.totalSpent += total;
+    state.concierge.lastActions.unshift({ t: state.stats.runSec, items: bought, cost: total });
+    if (state.concierge.lastActions.length > 8) state.concierge.lastActions.length = 8;
+    notify(state, 'concierge', conciergeFlavor(state, bought.map(b => b.name)));
+  }
+}
+
+// Paced by CONFIG.CONCIERGE.intervalSec, accumulated (not gated on dt itself) so a
+// single large offline macro-step runs EXACTLY as many intervals as the same elapsed
+// real time would online (E11-S9-T4/T5, S10-T5 "offline determinism"). While
+// state.concierge.on is false, tickAccum is simply not advanced — no backlog builds up,
+// so toggling off then back on later can never trigger a stuck-timer catch-up burst
+// (E11-S10-T6).
+export function conciergeTick(state, dt) {
+  if (!state.concierge.on) return;
+  state.concierge.tickAccum += dt;
+  let iters = 0;
+  while (state.concierge.tickAccum >= C.CONCIERGE.intervalSec && iters++ < 2000) {
+    state.concierge.tickAccum -= C.CONCIERGE.intervalSec;
+    conciergeInterval(state);
+  }
+}
+
+// Reveal gate (E11-S1-T7/S6-T4/S3-T7/T9): the concierge (and its desk card) appear the
+// moment tier 9 (5-Star Hotel) is owned, or Beat 13 has fired — whichever comes first.
+// Beat 13 itself gates on accTier:9 but ALSO requires beat 12 first via checkStory's
+// narrative-monotonicity rule, so the OR keeps the desk from waiting on an unrelated
+// earlier beat once tier 9 is genuinely owned.
+export function conciergeUnlocked(state) {
+  return state.accommodation.tier >= 9 || state.story.seen.includes(13);
+}
+// one-shot reveal flash (mirrors checkWellnessReveal/checkPoolTease's pattern).
+export function checkConciergeReveal(state) {
+  if (state.story.flags.conciergeRevealed) return;
+  if (!conciergeUnlocked(state)) return;
+  state.story.flags.conciergeRevealed = true;
+  notify(state, 'unlock', '🛎️ The Concierge Desk opens: dial in a budget, and let the hotel do some of the shopping.');
 }
 
 // ---------- clicker (optional; never the fastest path) ----------
@@ -589,7 +779,12 @@ export function applyOffline(state, elapsedMs) {
   if (!state.settings.offlineEnabled || elapsedMs <= 0) return null;
   const capH = C.OFFLINE_CAP_H + 2 * (state.ascension.tree.iron_const || 0);
   const cappedMs = Math.min(elapsedMs, capH * 3600 * 1000);
-  const before = { cash: state.resources.cash, clout: state.resources.clout };
+  // concierge deltas (E11-S9-T4/T5/T6): the offline macro-loop below calls the SAME
+  // tick() the online loop does, so a concierge left on runs its SAME bounded, budget/
+  // reserve-respecting policy while away — this just diffs its own running totals so the
+  // "While you were away" summary can report what it bought (nothing extra to compute).
+  const before = { cash: state.resources.cash, clout: state.resources.clout,
+    conciergeBought: state.concierge.totalBought, conciergeSpent: state.concierge.totalSpent };
   const total = cappedMs / 1000;
   const step = total / C.OFFLINE_STEPS;
   for (let i = 0; i < C.OFFLINE_STEPS; i++) tick(state, step);
@@ -598,5 +793,7 @@ export function applyOffline(state, elapsedMs) {
     cash: state.resources.cash - before.cash,
     clout: state.resources.clout - before.clout,
     capped: elapsedMs > cappedMs,
+    conciergeBought: state.concierge.totalBought - before.conciergeBought,
+    conciergeSpent: state.concierge.totalSpent - before.conciergeSpent,
   };
 }
