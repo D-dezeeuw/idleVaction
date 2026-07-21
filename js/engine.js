@@ -799,8 +799,14 @@ function marketTick(state) {
     if (mkt.eventLog.length > MARKET_EVENT_LOG_MAX) mkt.eventLog.length = MARKET_EVENT_LOG_MAX;
     mkt.totalEvents = (mkt.totalEvents || 0) + 1;
     // Savvy XP for surviving volatility (E13-S2-T7): a crash always pays a little,
-    // the rare whale boom pays a little more (S4-T6 "Whale-watching moment").
-    if (ev.kind === 'crash') state.skills.savvy.xp += SAVVY_CRASH_SURVIVE_XP;
+    // the rare whale boom pays a little more (S4-T6 "Whale-watching moment"). Surviving
+    // a crash ALSO nudges crypto path points (E13-S7-T8 "path points from crypto spend +
+    // surviving crashes"), mirroring buyCoin's own one-off nudge — the lane self-feeds
+    // from both spend AND volatility, not spend alone.
+    if (ev.kind === 'crash') {
+      state.skills.savvy.xp += SAVVY_CRASH_SURVIVE_XP;
+      state.paths.crypto.points += C.MARKET.buyPathNudge;
+    }
     if (ev.id === 'whale_boom') state.skills.savvy.xp += SAVVY_WHALE_XP;
     refreshSkillLevels(state);
     const label = ev.id === 'whale_boom' ? '🐋 WHALE PUMP' : ev.kind === 'boom' ? '📈 Market boom' : ev.kind === 'crash' ? '📉 Market crash' : '📊 Choppy market';
