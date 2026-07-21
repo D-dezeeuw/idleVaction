@@ -4,7 +4,7 @@ import { DATA } from './data/index.js';
 import * as M from './math.js';
 import * as E from './engine.js';
 import * as P from './prestige.js';
-import { fmt, fmtTime } from './util.js';
+import { fmt, fmtTime, clamp } from './util.js';
 
 let S = null;                 // live state ref (stable across ascension)
 let hooks = {};               // { save, exportSave, importSave, hardReset }
@@ -33,15 +33,16 @@ export function render(state) {
 }
 
 function afford(cost) { return S.resources.cash >= cost; }
-function btn(action, arg, label, enabled = true, cls = '') {
-  return `<button class="btn btn-sm iv-btn ${cls}" data-action="${action}" data-arg="${arg ?? ''}" ${enabled ? '' : 'disabled'}>${label}</button>`;
+function btn(action, arg, label, enabled = true, cls = '', title = '') {
+  return `<button class="btn btn-sm iv-btn ${cls}" data-action="${action}" data-arg="${arg ?? ''}" ${enabled ? '' : 'disabled'} ${title ? `title="${title}"` : ''}>${label}</button>`;
 }
 
 function renderHeader(s) {
   const perSec = M.tierProd(s, 0) + M.savvyPassive(s);
+  const lComfort = M.comfortMultiplier(s);
   el('hdr').innerHTML = `
     <span class="iv-res">💶 <b>${fmt(s.resources.cash)}</b> <small>(+${fmt(perSec)}/s)</small></span>
-    <span class="iv-res">😌 Comfort <b>${fmt(s.resources.comfort)}</b></span>
+    <span class="iv-res">😌 Comfort <b>${fmt(s.resources.comfort)}</b> <small>(bonus ×${fmt(lComfort)})</small></span>
     <span class="iv-res">📣 Clout <b>${fmt(s.resources.clout)}</b></span>
     <span class="iv-res">🏆 Legacy <b>${fmt(s.resources.legacy)}</b></span>
     <span class="iv-res">🏨 <b>${DATA.accommodation[s.accommodation.tier].name}</b></span>
@@ -133,13 +134,33 @@ function renderGenerators(s) {
   el('generators').innerHTML = rows;
 }
 
+// Comfort is unbounded (see math.js), so the meter fills toward something honest and
+// meaningful instead of a hard cap: the next accommodation tier's unlock threshold
+// (E02-S3-T1, adapted). Also surfaces the live L_comfort income bonus (E02-S3-T5).
+function comfortMeterHtml(s) {
+  const t = E.nextAccTier(s);
+  const bonus = `<div class="iv-comfort-bonus">😌 Comfort bonus <b>×${fmt(M.comfortMultiplier(s))}</b> on all income</div>`;
+  if (t >= DATA.accommodation.length) {
+    return `${bonus}<div class="iv-sub">Comfort ${fmt(s.resources.comfort)} — top tier owned, you're among the clouds ☁️</div>`;
+  }
+  const target = M.accUnlockComfort(t);
+  const pct = clamp(100 * s.resources.comfort / target, 0, 100);
+  const nextName = DATA.accommodation[t].name;
+  return `${bonus}
+    <div class="iv-comfort-meter" role="progressbar" aria-valuemin="0" aria-valuemax="100"
+      aria-valuenow="${pct.toFixed(0)}" aria-label="Comfort progress toward ${nextName}">
+      <i style="width:${pct.toFixed(1)}%"></i>
+    </div>
+    <div class="iv-sub">Comfort ${fmt(s.resources.comfort)} / ${fmt(target)} → next: ${nextName}</div>`;
+}
+
 function renderAmenities(s) {
   const byTag = {};
   for (const a of DATA.amenities) {
     if (!E.amenityUnlocked(s, a.id)) continue;
     (byTag[a.tag] ||= []).push(a);
   }
-  let html = '';
+  let html = comfortMeterHtml(s);
   for (const tag of Object.keys(byTag)) {
     html += `<div class="iv-tag">${tag}</div><div class="iv-amenities">`;
     for (const a of byTag[tag]) {
@@ -147,11 +168,12 @@ function renderAmenities(s) {
       const lvl = s.amenities[a.id].level;
       html += btn('buy-amenity', a.id,
         `${a.name} <small>Lv${lvl}</small><br><small>${fmt(cost)} · +${fmt(a.comfort)}😌</small>`,
-        afford(cost));
+        afford(cost), '', a.flavor);
     }
     html += '</div>';
   }
-  el('amenities').innerHTML = html || '<em>Get some Comfort to unlock little luxuries…</em>';
+  if (!Object.keys(byTag).length) html += '<em>Get some Comfort to unlock little luxuries…</em>';
+  el('amenities').innerHTML = html;
 }
 
 function renderSkills(s) {
@@ -268,7 +290,29 @@ function handle(action, arg) {
     case 'import': hooks.importSave(); break;
     case 'reset': if (confirm('Hard reset? This wipes everything.')) hooks.hardReset(); break;
     case 'save': hooks.save(); break;
+    case 'dismiss-offline': hideOfflineSummary(); break;
   }
+}
+
+// ---------- "While you were away" summary (E02-S9-T5) ----------
+// A dismissible in-page modal replacing the old alert() stub. Purely presentational —
+// applyOffline() already did the math; this just reads its returned summary plus the
+// post-offline state for Comfort context.
+export function showOfflineSummary(state, rep) {
+  const overlay = el('offlineModal');
+  const body = el('offlineModalBody');
+  if (!overlay || !body) return;
+  const lComfort = M.comfortMultiplier(state);
+  body.innerHTML = `
+    <div class="iv-offline-row">You were away for <b>${fmtTime(rep.seconds)}</b>${rep.capped ? ' <span class="iv-sub">(capped)</span>' : ''}.</div>
+    <div class="iv-offline-row">💶 <b>+${fmt(rep.cash)}</b> cash</div>
+    <div class="iv-offline-row">📣 <b>+${fmt(rep.clout)}</b> clout</div>
+    <div class="iv-sub">😌 Comfort is now ${fmt(state.resources.comfort)} — a bonus of ×${fmt(lComfort)} on income while you were gone.</div>`;
+  overlay.hidden = false;
+}
+function hideOfflineSummary() {
+  const overlay = el('offlineModal');
+  if (overlay) overlay.hidden = true;
 }
 
 // tap feedback (E01-S5-T4): a floating "+N" (or a cooldown glyph when soft-capped)

@@ -71,3 +71,12 @@ export const STORY = [
   { id: 30, title: 'Empire of Leisure', requires: { comfort: 3e9 },
     text: 'An empire of loungers, all yours. New horizons shimmer. New Game+ awaits.' },
 ];
+
+// data/story.js — NPC vignette seeds (E02-S7): pure flavor toasts, never a progression
+// gate. Each fires once at `minComfort`, between beats 2 (Comfort 20) and 3 (accTier 1),
+// tracked in state.story.flags so it never repeats across a reload.
+export const VIGNETTES = [
+  { id: 'motel_manager_1', minComfort: 80,
+    text: '📋 The manager taps his clipboard. "Rats are down two stars this week. Congratulations. ' +
+          'There\'s a hostel down the road, you know. Cheaper. The rats there have union representation too."' },
+];

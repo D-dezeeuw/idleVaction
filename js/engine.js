@@ -65,6 +65,8 @@ export function tick(state, dt) {
 
   // 6) unlocks + story
   checkUnlocks(state);
+  checkAmenityUnlocks(state);
+  checkVignettes(state);
   checkStory(state);
 }
 
@@ -101,6 +103,21 @@ export function checkUnlocks(state) {
   }
 }
 
+// one-time "new little luxury" flash (E02-S3-T7/T8, E02-S5-T5): fires the moment an
+// amenity first crosses its unlockComfort threshold. Tracked in state.story.flags (a
+// generic already-fired bag) so it's testable, deterministic, and survives reload
+// without needing a bespoke state field / migration.
+export function checkAmenityUnlocks(state) {
+  for (const a of DATA.amenities) {
+    const flagKey = 'amenityUnlocked_' + a.id;
+    if (state.story.flags[flagKey]) continue;
+    if (state._comfortCache >= (a.unlockComfort || 0)) {
+      state.story.flags[flagKey] = true;
+      notify(state, 'unlock', `✨ New little luxury unlocked: ${a.name}`);
+    }
+  }
+}
+
 // ---------- story ----------
 function reqMet(state, r) {
   if (!r) return true;
@@ -124,6 +141,19 @@ export function checkStory(state) {
       state.story.seen.push(beat.id);
       state.story.beat = Math.max(state.story.beat, beat.id);
       notify(state, 'story', `📖 Beat ${beat.id}: ${beat.title}`);
+    }
+  }
+}
+// recurring NPC flavor toasts (E02-S7): pure texture between the main story beats,
+// never a progression gate. Each fires once at its Comfort threshold, tracked in
+// state.story.flags alongside the amenity-unlock flags.
+export function checkVignettes(state) {
+  for (const v of DATA.vignettes) {
+    const flagKey = 'vignette_' + v.id;
+    if (state.story.flags[flagKey]) continue;
+    if (state._comfortCache >= v.minComfort) {
+      state.story.flags[flagKey] = true;
+      notify(state, 'vignette', v.text);
     }
   }
 }

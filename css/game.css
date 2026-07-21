@@ -21,6 +21,7 @@ body { background: var(--iv-bg); color: var(--iv-ink); font-family: system-ui, s
   border-radius: 4px; font-size: .8rem; animation: slidein .25s ease; box-shadow: 0 4px 14px rgba(0,0,0,.35); }
 .iv-notif.iv-story { border-color: #6ab0ff; } .iv-notif.iv-unlock { border-color: var(--iv-good); }
 .iv-notif.iv-ascend { border-color: #d17bff; } .iv-notif.iv-info { border-color: var(--iv-sub); }
+.iv-notif.iv-vignette { border-color: var(--iv-accent); font-style: italic; }
 @keyframes slidein { from { transform: translateX(30px); opacity: 0; } }
 
 .iv-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; padding: 12px; max-width: 1100px; margin: 0 auto; }
@@ -47,6 +48,15 @@ body { background: var(--iv-bg); color: var(--iv-ink); font-family: system-ui, s
 .iv-amenities { display: flex; flex-wrap: wrap; gap: 4px; }
 .iv-amenities > .iv-btn, .iv-amenities > button { flex: 1 1 130px; max-width: 220px; }
 
+/* Comfort meter (E02-S3-T1): unbounded Comfort, so the bar fills toward the next
+   accommodation unlock threshold rather than a hard cap — see math.js comments. */
+.iv-comfort-bonus { margin-bottom: 4px; font-size: .82rem; }
+.iv-comfort-bonus b { color: var(--iv-accent); }
+.iv-comfort-meter { background: #0c151b; border: 1px solid var(--iv-line); border-radius: 6px;
+  height: 10px; overflow: hidden; margin-bottom: 4px; }
+.iv-comfort-meter i { display: block; height: 100%; background: linear-gradient(90deg, var(--iv-good), var(--iv-accent));
+  transition: width .4s ease; }
+
 .iv-flavor { font-style: italic; color: var(--iv-sub); margin-bottom: 6px; }
 .iv-beatnum { color: var(--iv-sub); font-size: .72rem; } .iv-beattitle { color: var(--iv-accent); font-weight: bold; margin: 2px 0; }
 .iv-beattext { font-size: .85rem; } .iv-choices { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px; }
@@ -63,3 +73,12 @@ body { background: var(--iv-bg); color: var(--iv-ink); font-family: system-ui, s
 .iv-tap-pop { position: absolute; bottom: 46px; transform: translateX(-50%); color: var(--iv-good);
   font-weight: bold; font-size: .85rem; pointer-events: none; animation: tapfloat .7s ease-out forwards; }
 @keyframes tapfloat { from { opacity: 1; transform: translate(-50%, 0); } to { opacity: 0; transform: translate(-50%, -22px); } }
+
+/* "While you were away" summary (E02-S9-T5): dismissible, mobile-friendly overlay. */
+.iv-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex;
+  align-items: center; justify-content: center; z-index: 20; padding: 16px; }
+.iv-modal-overlay[hidden] { display: none; }
+.iv-modal { background: var(--iv-card); border: 1px solid var(--iv-line); border-radius: 10px;
+  padding: 16px; max-width: 380px; width: 100%; box-shadow: 0 8px 30px rgba(0,0,0,.5); }
+.iv-modal h3 { margin: 0 0 8px; }
+.iv-offline-row { margin: 4px 0; font-size: .88rem; }
