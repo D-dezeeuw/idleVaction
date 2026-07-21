@@ -1386,5 +1386,375 @@ console.log('\n[42] E09 Charm Offensive: skills curve, scope, training, tier-8 +
   ok(approx(M.commsCostMult(migratedSkills), 1), 'a migrated save with comms level 0 has a neutral (×1) cost multiplier — no NaN');
 }
 
+// ---------- 43. E10 "Body & Soul": wellness amenity clusters (tan/gym/wellness tags) —
+// data validation, mirrors [32]/[37]'s pool/beach cluster checks (E10-S1-T3/T4/T5/T6,
+// S8-T4). ----------
+console.log('\n[43] E10 wellness clusters (tan/gym/wellness): data validation');
+{
+  const tan = DATA.amenities.filter(a => a.tag === 'tan');
+  const gym = DATA.amenities.filter(a => a.tag === 'gym');
+  const wellness = DATA.amenities.filter(a => a.tag === 'wellness');
+  ok(tan.length === 4, `the tanning cluster has exactly 4 items (got ${tan.length})`);
+  ok(gym.length === 4, `the gym cluster has exactly 4 items (got ${gym.length})`);
+  ok(wellness.length === 4, `the spa-menu continuation (tag 'wellness') has exactly 4 items (got ${wellness.length})`);
+
+  const seenIds = new Set();
+  for (const a of [...tan, ...gym, ...wellness]) {
+    ok(!seenIds.has(a.id), `wellness amenity id is unique: ${a.id}`);
+    seenIds.add(a.id);
+    ok(a.costBase > 0, `${a.id}: costBase > 0`);
+    ok(a.comfort > 0, `${a.id}: comfort > 0`);
+    ok(typeof a.bodyXp === 'number' && a.bodyXp > 0, `${a.id}: bodyXp is declared (data-driven, per the epic) even though dormant — see amenities.js's comment`);
+    const g = a.costGrowth || C.AMENITY.growthDefault;
+    ok(g > 1, `${a.id}: effective costGrowth > 1 (${g})`);
+    // positioned above the pre-existing spa cluster's top (private_spa @ 1.2e6) — the
+    // wing's own era, per Task B ("above the beach/service tiers").
+    ok(a.costBase > 1.2e6, `${a.id}: costBase (${a.costBase}) sits above the pre-existing spa cluster's top (1.2e6)`);
+  }
+
+  // gym has the highest bodyXp weight of the three clusters at every matching tier index
+  // (S1-T4); the 'wellness' (spa continuation) cluster has the highest comfort weight,
+  // continuing above private_spa's own comfort (380) (S1-T5).
+  for (let i = 0; i < 4; i++) {
+    ok(gym[i].bodyXp > tan[i].bodyXp, `gym tier ${i}: bodyXp (${gym[i].bodyXp}) > tan's (${tan[i].bodyXp})`);
+    ok(wellness[i].comfort > gym[i].comfort, `wellness tier ${i}: comfort (${wellness[i].comfort}) > gym's (${gym[i].comfort})`);
+  }
+  ok(wellness[0].comfort > 380, "the 'wellness' cluster's first item already exceeds private_spa's comfort (380) — a clean continuation of the chain");
+
+  // each cluster is internally monotonic (costBase/comfort/unlockComfort/bodyXp all
+  // strictly increase tier-over-tier, mirroring every other chain in this file).
+  for (const [label, cluster] of [['tan', tan], ['gym', gym], ['wellness', wellness]]) {
+    let prevCost = 0, prevComfort = 0, prevUnlock = 0, prevXp = 0;
+    for (const a of cluster) {
+      ok(a.costBase > prevCost, `${label} ${a.id}: costBase strictly increases`);
+      ok(a.comfort > prevComfort, `${label} ${a.id}: comfort strictly increases`);
+      ok(a.unlockComfort > prevUnlock, `${label} ${a.id}: unlockComfort strictly increases`);
+      ok(a.bodyXp > prevXp, `${label} ${a.id}: bodyXp strictly increases`);
+      prevCost = a.costBase; prevComfort = a.comfort; prevUnlock = a.unlockComfort; prevXp = a.bodyXp;
+    }
+  }
+
+  // brackets the tier-8 (Boutique Retreat) Comfort gate, same convention as onestar/
+  // breakfast (E05/E06): the first item in each cluster unlocks before it, later items
+  // keep small wins flowing after check-in.
+  const gate8 = M.accUnlockComfort(8);
+  for (const [label, cluster] of [['tan', tan], ['gym', gym], ['wellness', wellness]]) {
+    ok(cluster.some(a => a.unlockComfort < gate8), `${label}: at least one item unlocks BEFORE the tier-8 gate`);
+    ok(cluster.some(a => a.unlockComfort > gate8), `${label}: at least one item unlocks AFTER the tier-8 gate`);
+  }
+
+  // the pre-existing 'spa' tag (sunscreen/massage/private_spa) is untouched — same ids,
+  // same values as before this epic (guardrail: "don't modify existing amenities").
+  const spa = DATA.amenities.filter(a => a.tag === 'spa');
+  ok(spa.length === 3, "the pre-existing 'spa' tag still has exactly its original 3 items");
+  ok(spa.some(a => a.id === 'private_spa' && a.costBase === 1.2e6 && a.comfort === 380),
+    'private_spa (pre-existing) is untouched by this epic');
+}
+
+// ---------- 44. E10 Body -> Comfort (wBody, UNBOUNDED — no ceiling): guardrail check
+// that the saturating Comfort-cap model was NOT reintroduced, plus monotonicity of
+// Body's own Comfort contribution at extreme levels (E10-S2-T4/T5/T6 superseded,
+// S10-T2/T10). ----------
+console.log('\n[44] E10 Body -> Comfort: unbounded (no cap reintroduced), monotonic');
+{
+  // guardrail: COMFORT.cap / COMFORT.bodyCapRate were deliberately NOT added — Comfort
+  // stays the unbounded sum it has been since E02 (see docs/coverage.md E10 notes).
+  ok(C.COMFORT.cap === undefined && C.COMFORT.bodyCapRate === undefined,
+    'no COMFORT.cap/bodyCapRate was added (superseded — Comfort stays unbounded, no saturating ceiling)');
+
+  const b = ST.newGame();
+  let prev = -Infinity, mono = true;
+  for (const lvl of [0, 1, 5, 10, 50, 500, 5000]) {
+    b.skills.body.level = lvl;
+    const c = M.computeComfort(b, DATA);
+    if (c < prev - 1e-9) mono = false;
+    prev = c;
+  }
+  ok(mono, 'computeComfort is non-decreasing as Body level rises, all the way to absurd levels — no cap/saturation');
+  ok(Number.isFinite(prev), 'computeComfort stays finite even at an absurd Body level (5000)');
+
+  // Body's own contribution is an exact linear term (wBody · level), unbounded — a
+  // level-5000 Body keeps adding the SAME per-level Comfort as a level-1 Body would
+  // (no diminishing per-level return — that would be exactly the forbidden cap shape).
+  const base = ST.newGame();
+  base.skills.body.level = 0;
+  const c0 = M.computeComfort(base, DATA);
+  base.skills.body.level = 1;
+  const c1 = M.computeComfort(base, DATA);
+  base.skills.body.level = 5000;
+  const c5000 = M.computeComfort(base, DATA);
+  base.skills.body.level = 5001;
+  const c5001 = M.computeComfort(base, DATA);
+  ok(approx(c1 - c0, C.COMFORT.wBody), 'Body level 0->1 adds exactly wBody Comfort');
+  ok(approx(c5001 - c5000, C.COMFORT.wBody),
+    'Body level 5000->5001 adds the SAME exact wBody Comfort as 0->1 — unbounded, not a saturating cap');
+}
+
+// ---------- 45. E10 energy: energyMax/energyRegenRate scale with Body level; engine.tick
+// clamps stored energy into [0, energyMax] across normal AND extreme dt (E10-S2-T7/T9,
+// S10-T3/T8). ----------
+console.log('\n[45] E10 energy: Body-scaled tank + regen, clamped every tick');
+{
+  const e0 = ST.newGame();
+  ok(approx(M.energyMax(e0), C.ENERGY.base), 'energyMax at Body level 0 equals ENERGY.base exactly');
+  ok(approx(M.energyRegenRate(e0), C.ENERGY.regen), 'energyRegenRate at Body level 0 equals ENERGY.regen exactly');
+
+  e0.skills.body.level = 10;
+  ok(approx(M.energyMax(e0), C.ENERGY.base * (1 + C.ENERGY.perBody * 10)), 'energyMax scales with Body level exactly as documented');
+  ok(approx(M.energyRegenRate(e0), C.ENERGY.regen * (1 + C.ENERGY.perBody * 10)), 'energyRegenRate scales with Body level exactly as documented');
+  ok(M.energyMax(e0) > M.energyMax(ST.newGame()), 'a fitter Body has a strictly bigger energy tank than a fresh one');
+
+  // clamp: regen never overflows energyMax, even with an absurd dt (E10-S4-T7 "prevent
+  // overflow"; S10-T8 "extreme game speed").
+  const overflow = ST.newGame();
+  overflow.resources.energy = 0;
+  E.tick(overflow, 1e6);            // an absurd dt (as gameSpeed=1e6 would produce)
+  ok(Number.isFinite(overflow.resources.energy), 'energy stays finite even after an absurd dt');
+  ok(approx(overflow.resources.energy, M.energyMax(overflow)), 'a huge dt fills the tank to EXACTLY energyMax, never past it');
+
+  // clamp: never negative, even if externally poked below zero before a tick.
+  const negative = ST.newGame();
+  negative.resources.energy = -50;
+  E.tick(negative, 0.001);
+  ok(negative.resources.energy >= 0, 'a tick clamps a negative energy value back to >= 0');
+
+  // normal regen: a small, ordinary tick adds the documented rate·dt (Body level 0 here,
+  // and the fresh Comfort is small enough that Body doesn't level up within one second).
+  const reg = ST.newGame();
+  reg.resources.energy = 0;
+  E.tick(reg, 1);
+  ok(approx(reg.resources.energy, C.ENERGY.regen, 1e-6), 'one second of regen from empty adds exactly ENERGY.regen at Body level 0');
+}
+
+// ---------- 46. E10 energy: engine.click() spends energy on a full tap, floors payout
+// once empty, Body XP only on full taps, energy never goes negative (E10-S2-T8, S4-T2/
+// T3/T4/T6/T10, S10-T4). ----------
+console.log('\n[46] E10 tap spends energy, floors at empty, Body XP on full taps only');
+{
+  const tp = ST.newGame();
+  tp.resources.cash = 1e6;
+  E.buyGenerator(tp, 0, 20);         // idle income so baseGain isn't just the €1 floor
+  const energyBefore = tp.resources.energy;
+  const bodyXpBefore = tp.skills.body.xp;
+  const fullGain = E.click(tp);
+  ok(fullGain > 0, 'a full-energy tap pays out');
+  ok(approx(tp.resources.energy, energyBefore - C.ENERGY.tapCost), 'a full-energy tap spends exactly ENERGY.tapCost');
+  ok(tp.skills.body.xp > bodyXpBefore, 'a full-energy tap grants Body XP (ENERGY.tapBodyXp)');
+
+  // drain the tank fully WITHOUT ticking (so regen never sneaks it back above tapCost) —
+  // directly roll the per-second tap-spam window over each iteration, so only the
+  // ENERGY gate (not TAP.maxPerSec) is under test here.
+  let windowSec = 0;
+  while (tp.resources.energy >= C.ENERGY.tapCost) {
+    windowSec++; tp.stats.tapWindowSec = windowSec; tp.stats.tapWindowCount = 0;
+    E.click(tp);
+  }
+  ok(tp.resources.energy < C.ENERGY.tapCost, 'the tank is now below tapCost (empty enough to floor)');
+  ok(tp.resources.energy >= 0, 'draining the tank never leaves energy negative');
+
+  windowSec++; tp.stats.tapWindowSec = windowSec; tp.stats.tapWindowCount = 0;
+  const bodyXpAtEmpty = tp.skills.body.xp;
+  const floorGain = E.click(tp);
+  ok(floorGain > 0, 'a tap at empty energy still pays out (the floor), never blocked, never throws');
+  ok(tp.resources.energy >= 0, 'a floor tap never drives energy negative');
+  ok(approx(tp.skills.body.xp, bodyXpAtEmpty),
+    'a floor (empty-energy) tap grants NO Body XP — energy stayed below tapCost, so the full-tap branch never ran');
+}
+
+// ---------- 47. E10 pacing invariance: energy/tapping never move tierProd/tierMultiplier
+// — the harness itself never taps, and this confirms directly that click() alone cannot
+// touch idle income (E10-S4-T9, "never touch the multiplier stack"; harness.mjs's island
+// time is IDENTICAL before/after this epic, see docs/coverage.md). ----------
+console.log('\n[47] E10 pacing invariance: tapping never moves tierProd/tierMultiplier');
+{
+  const pv = ST.newGame();
+  pv.resources.cash = 1e8;
+  E.buyGenerator(pv, 0, 20);
+  E.buyGenerator(pv, 1, 10);
+  pv.skills.charisma.level = 5;
+  pv._comfortCache = M.computeComfort(pv, DATA);
+
+  const prodBefore = [0, 1, 2].map(k => M.tierProd(pv, k));
+  const multBefore = [0, 1, 2].map(k => M.tierMultiplier(pv, k));
+
+  // hammer the tap WITHOUT any tick() in between — click() never advances runSec, never
+  // calls refreshSkillLevels, and never touches generators/comfort/paths/tree, so this
+  // isolates tapping's own effect from the (unrelated) tick-loop progression.
+  for (let i = 0; i < 50; i++) E.click(pv);
+
+  const prodAfter = [0, 1, 2].map(k => M.tierProd(pv, k));
+  const multAfter = [0, 1, 2].map(k => M.tierMultiplier(pv, k));
+  for (let k = 0; k < 3; k++) {
+    ok(approx(prodAfter[k], prodBefore[k]), `tierProd(${k}) is UNCHANGED by 50 taps — tapping cannot move idle income`);
+    ok(approx(multAfter[k], multBefore[k]), `tierMultiplier(${k}) is UNCHANGED by 50 taps — energy/combo never touch the multiplier stack`);
+  }
+  ok(pv.skills.body.xp > 0, 'tapping DID grant Body XP (the loop is real) even though it never touched tierProd/tierMultiplier');
+}
+
+// ---------- 48. E10 Wellness Wing: panel reveal gating (mirrors ui.js wellnessRevealed
+// exactly) + the one-shot reveal flash (E10-S3-T6/S6-T5, mirrors [33]/[38]'s pattern). ----------
+console.log('\n[48] E10 Wellness Wing: reveal gating + one-shot flash');
+{
+  const wellnessRevealed = s => s.accommodation.tier >= 8;
+
+  const fresh = ST.newGame();
+  ok(!wellnessRevealed(fresh), 'the Wellness Wing panel stays hidden on a fresh game (tier 0)');
+
+  const almost = ST.newGame();
+  almost.accommodation.tier = 7;
+  ok(!wellnessRevealed(almost), 'the Wellness Wing panel stays hidden at tier 7 (the beach tier, not the Boutique Retreat)');
+  E.checkWellnessReveal(almost);
+  ok(!almost.story.flags.wellnessRevealed, 'checkWellnessReveal does not fire before tier 8');
+
+  const arrived = ST.newGame();
+  arrived.accommodation.tier = 8;
+  ok(wellnessRevealed(arrived), 'the Wellness Wing panel reveals the moment accommodation.tier reaches 8');
+  E.checkWellnessReveal(arrived);
+  ok(arrived.story.flags.wellnessRevealed, 'checkWellnessReveal fires once tier 8 is reached');
+  const notifs = E.drainNotifications(arrived);
+  ok(notifs.some(n => n.type === 'unlock' && /Wellness Wing/.test(n.text)), 'the reveal fires a distinct unlock notification');
+
+  E.checkWellnessReveal(arrived);
+  ok(!E.drainNotifications(arrived).length, 'checkWellnessReveal does not re-fire on a subsequent check');
+
+  const reloaded = ST.migrate(JSON.parse(JSON.stringify(arrived)));
+  ok(reloaded.story.flags.wellnessRevealed, 'the reveal flag survives a save/reload round-trip');
+}
+
+// ---------- 49. E10 path-flavor cosmetics: photogenic/sunKissed/hybrid flags — cosmetic
+// only (no mechanical effect), branch-specific, neutral entirely unaffected either way
+// (E10-S7-T1/T2/T7/T8/T9/T10). ----------
+console.log('\n[49] E10 Body path-flavor cosmetics (photogenic/sunKissed/hybrid)');
+{
+  // below the Body gate: nothing fires, any branch.
+  const low = ST.newGame();
+  low.story.branch = 'vlogger';
+  low.skills.body.level = 7;
+  E.checkBodyPathFlags(low);
+  ok(!low.story.flags.photogenic, 'photogenic does not fire below the Body gate (level 7)');
+
+  // vlogger + high Body -> photogenic, and ONLY photogenic.
+  const vlog = ST.newGame();
+  vlog.story.branch = 'vlogger';
+  vlog.skills.body.level = 8;
+  E.checkBodyPathFlags(vlog);
+  ok(vlog.story.flags.photogenic, 'photogenic fires once Body reaches the gate on the vlogger branch');
+  ok(!vlog.story.flags.sunKissed, 'sunKissed does NOT fire on the vlogger branch');
+  const notifsVlog = E.drainNotifications(vlog);
+  ok(notifsVlog.some(n => /[Pp]hotogenic/.test(n.text)), 'photogenic fires a distinct flavor notification');
+
+  // crypto + high Body -> sunKissed, and ONLY sunKissed.
+  const crypto = ST.newGame();
+  crypto.story.branch = 'crypto';
+  crypto.skills.body.level = 8;
+  E.checkBodyPathFlags(crypto);
+  ok(crypto.story.flags.sunKissed, 'sunKissed fires once Body reaches the gate on the crypto branch');
+  ok(!crypto.story.flags.photogenic, 'photogenic does NOT fire on the crypto branch');
+
+  // neutral: high Body triggers NEITHER cosmetic flag — a neutral player loses nothing
+  // either way (core Body value — Comfort, training, energy — is entirely unaffected).
+  const neutral = ST.newGame();
+  neutral.skills.body.level = 20;
+  E.checkBodyPathFlags(neutral);
+  ok(!neutral.story.flags.photogenic && !neutral.story.flags.sunKissed && !neutral.story.flags.hybridBodyVlogger,
+    'the neutral branch gets no cosmetic flags — purely additive path flavor, no lock-in either way');
+
+  // hybrid: vlogger + high Body + genuine vlogger-path investment (not just the branch
+  // choice) -> the extra hybrid flag.
+  const hybrid = ST.newGame();
+  hybrid.story.branch = 'vlogger';
+  hybrid.skills.body.level = 8;
+  hybrid.paths.vlogger.points = 2;
+  E.checkBodyPathFlags(hybrid);
+  ok(!hybrid.story.flags.hybridBodyVlogger, 'hybrid does not fire from branch choice alone (vlogger points too low)');
+  hybrid.paths.vlogger.points = 5;
+  E.checkBodyPathFlags(hybrid);
+  ok(hybrid.story.flags.hybridBodyVlogger, 'hybrid fires once vlogger points also cross the threshold');
+
+  const reloadedHybrid = ST.migrate(JSON.parse(JSON.stringify(hybrid)));
+  ok(reloadedHybrid.story.flags.hybridBodyVlogger, 'the hybrid flag survives a save/reload round-trip');
+}
+
+// ---------- 50. E10 beat 12 (The Body You Travel In) fires once skills.body.level >= 8
+// (after beat 11), persists across reload ("confirm beat 12 fires", epic Task D). ----------
+console.log('\n[50] E10 beat 12 (The Body You Travel In) fires at Body level 8');
+{
+  const b12 = ST.newGame();
+  b12.accommodation.tier = 7;     // satisfies every accTier-gated beat up through 9
+  b12.skills.charisma.level = 5;  // satisfies beat 10's own gate
+  b12._comfortCache = 2.2e5;      // satisfies beat 11's own gate
+  b12.skills.body.level = 7;
+  E.checkStory(b12);
+  ok(b12.story.seen.includes(11), "beat 11 fires first (its own Comfort gate is met)");
+  ok(!b12.story.seen.includes(12), 'beat 12 has NOT fired at Body level 7, one short of the gate');
+
+  b12.skills.body.level = 8;
+  E.checkStory(b12);
+  ok(b12.story.seen.includes(12), 'beat 12 fires the moment Body reaches level 8');
+  ok(b12.story.seen.filter(x => x === 12).length === 1, 'beat 12 is recorded exactly once');
+  E.checkStory(b12); E.checkStory(b12);
+  ok(b12.story.seen.filter(x => x === 12).length === 1, 'repeated checkStory calls do not re-fire beat 12');
+
+  const reloadedB12 = ST.migrate(JSON.parse(JSON.stringify(b12)));
+  ok(reloadedB12.story.seen.includes(12), 'beat 12 survives a save/reload round-trip');
+}
+
+// ---------- 51. E10 migration backfill: resources.energy + the new wellness amenity ids
+// for a pre-E10 save (E10-S9-T1/T2/T3/T4/T9/T10, mirrors [36]/[41]'s pattern). ----------
+console.log('\n[51] E10 migration backfill: resources.energy + wellness amenities');
+{
+  const newIds = ['tan_sunbed', 'tan_spray_tan', 'tan_golden_hour_deck', 'tan_bronzing_oil',
+    'gym_dumbbell_rack', 'gym_treadmill', 'gym_personal_trainer', 'gym_altitude_room',
+    'wellness_sauna', 'wellness_hot_stone', 'wellness_seaweed_wrap', 'wellness_cryo_chamber'];
+  const oldSave = ST.newGame();
+  delete oldSave.resources.energy;
+  for (const id of newIds) delete oldSave.amenities[id];
+  const migrated = ST.migrate(JSON.parse(JSON.stringify(oldSave)));
+
+  ok(typeof migrated.resources.energy === 'number', 'migration backfills resources.energy for a pre-E10 save');
+  ok(migrated.resources.energy > 0, 'the backfilled energy is a sane positive default, not 0 or NaN');
+  ok(newIds.every(id => migrated.amenities[id] && migrated.amenities[id].level === 0),
+    'migration backfills every new wellness amenity id at level 0 for a save that predates them');
+
+  E.tick(migrated, 1);
+  ok(Number.isFinite(migrated.resources.cash) && Number.isFinite(migrated.resources.energy),
+    'ticking a migrated pre-E10 save does not crash and cash/energy stay finite');
+  ok(migrated.resources.energy >= 0 && migrated.resources.energy <= M.energyMax(migrated),
+    'the migrated energy stays clamped into [0, energyMax] after the first tick');
+  ok(approx(migrated._comfortCache, M.computeComfort(migrated, DATA)),
+    'a reloaded save recomputes Comfort identically to a fresh computeComfort() call — no drift');
+
+  // export/import round-trip carries the new field too (E10-S9-T9) — the SAME base64
+  // JSON blob as every other field, no special-casing needed.
+  const withEnergy = ST.newGame();
+  withEnergy.resources.energy = 42;
+  const roundTripped = ST.importSave(ST.exportSave(withEnergy));
+  ok(roundTripped && roundTripped.resources.energy === 42, 'export/import round-trips resources.energy exactly');
+}
+
+// ---------- 52. E10 anti-clicker guardrail: sustained max-rate tapping stays a modest,
+// floor-dominated fraction of idle income — energy's regen is deliberately much slower
+// than its drain (ENERGY.regen=2/s vs a maxPerSec burst spending 40/s), so a truly
+// SUSTAINED tapper spends almost the whole time at the ENERGY.tapFloorFrac floor, not
+// the full-energy rate (E10-S4-T9, S8-T6: "tapping never becomes the fastest path"). ----------
+console.log('\n[52] E10 anti-clicker: sustained tapping stays a modest, floor-dominated fraction of idle income');
+{
+  const ac = ST.newGame();
+  ac.resources.cash = 1e9;
+  E.buyGenerator(ac, 0, 30);
+  ac.skills.body.level = 20;         // a well-trained Body — the BEST case for the clicker
+
+  let idleCash = 0, tapCash = 0;
+  for (let sec = 0; sec < 600; sec++) {           // 10 sustained in-game minutes
+    const before = ac.resources.cash;
+    E.tick(ac, 1);
+    idleCash += (ac.resources.cash - before);
+    for (let i = 0; i < C.TAP.maxPerSec; i++) tapCash += E.click(ac);
+  }
+  ok(idleCash > 0, `baseline idle income accrued over the run (€${fmt(idleCash)})`);
+  const ratio = tapCash / idleCash;
+  ok(ratio < 0.35, `sustained max-rate tapping (€${fmt(tapCash)}) stays under 35% of idle income (€${fmt(idleCash)}, ratio ${ratio.toFixed(2)}) — the idle rate is always the honest floor`);
+}
+
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);
 process.exit(fails === 0 ? 0 : 1);

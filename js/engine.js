@@ -64,6 +64,12 @@ export function tick(state, dt) {
   trickleXp(state, cashGain, dt);
   refreshSkillLevels(state);
 
+  // 5a) energy regen (E10 "Body & Soul"): optional clicker fuel, Body-scaled tank +
+  // regen — never read by tierProd/tierMultiplier, so it cannot affect idle income or
+  // pacing (the harness never taps; see math.energyMax/energyRegenRate).
+  state.resources.energy = clamp(
+    (state.resources.energy || 0) + M.energyRegenRate(state) * dt, 0, M.energyMax(state));
+
   // 5b) Transport upkeep (E04-S2-T8) drains cash while a ride is active; clamped so it
   // never goes negative, offline included (both just call tick()). NOTE: the traveler
   // "head start" (E04-S7-T5) is granted as a ONE-OFF nudge in buyDestination/
@@ -82,6 +88,8 @@ export function tick(state, dt) {
   checkStory(state);
   checkComfortOnline(state);
   checkPoolTease(state);
+  checkWellnessReveal(state);
+  checkBodyPathFlags(state);
 }
 
 function applyTransportUpkeep(state, dt) {
@@ -172,6 +180,46 @@ export function checkPoolTease(state) {
     traveler: '🗺️ A porter mentions, off-hand: the next place has a pool. Add it to the itinerary.',
   };
   notify(state, 'vignette', byBranch[state.story.branch] || '💧 A porter mentions, off-hand: the next place has a pool. You pretend not to care.');
+}
+
+// one-shot Wellness Wing reveal flash (E10-S3-T6/S6-T5/D-T4): the Boutique Retreat
+// (tier 8) arrival IS the reveal — mirrors beachRevealed's "the tier-up IS the reveal"
+// pattern one epic later (ui.js's wellnessRevealed(s) reads accommodation.tier live, so
+// the card appears the same tick this flips, no separate mount event needed). Beat 12
+// (The Body You Travel In) itself already fires from checkStory() on skills.body.level
+// >= 8 (pre-existing, see data/story.js) — this is purely the extra celebratory flash
+// tied to the wing's arrival.
+export function checkWellnessReveal(state) {
+  if (state.story.flags.wellnessRevealed) return;
+  if (state.accommodation.tier < 8) return;
+  state.story.flags.wellnessRevealed = true;
+  notify(state, 'unlock', '💪🧖 The Wellness Wing opens: tan, gym, spa — under one quietly judgmental roof.');
+}
+
+// Path-flavor cosmetics (E10-S7): cosmetic-only flags with no mechanical lock-in — a
+// vlogger with a fit Body reads as "photogenic," a crypto tourist as "sun-kissed," and a
+// vlogger who has ALSO genuinely invested in that path gets a small "hybrid" flag on
+// top. Pure flavor for later epics (E12's Clout combo) to read; never touches income
+// math. Reuses beat 12's own Body gate (8) as the shared "high Body" threshold — no new
+// balance constant needed, matching how narrative gates already live in data/story.js
+// rather than config.js.
+const BODY_FLAVOR_GATE = 8;
+const HYBRID_VLOGGER_POINTS = 5;
+export function checkBodyPathFlags(state) {
+  if (state.skills.body.level < BODY_FLAVOR_GATE) return;
+  if (state.story.branch === 'vlogger' && !state.story.flags.photogenic) {
+    state.story.flags.photogenic = true;
+    notify(state, 'vignette', '📸 Photogenic. The lighting on those delts is doing half your engagement now.');
+  }
+  if (state.story.branch === 'crypto' && !state.story.flags.sunKissed) {
+    state.story.flags.sunKissed = true;
+    notify(state, 'vignette', '📈 Sun-kissed. Money works while you tan — literally, now.');
+  }
+  if (state.story.branch === 'vlogger' && state.paths.vlogger.points >= HYBRID_VLOGGER_POINTS
+      && !state.story.flags.hybridBodyVlogger) {
+    state.story.flags.hybridBodyVlogger = true;
+    notify(state, 'vignette', '🎬🏋️ The fit-and-photogenic combo. Sponsors take notice.');
+  }
 }
 
 // ---------- NPCs (E03-S1/S6/S7): recurring cast revealed once you land in the hostel
@@ -512,7 +560,24 @@ export function click(state) {
   state.stats.tapWindowCount++;
 
   const perSec = M.tierProd(state, 0) + M.savvyPassive(state);
-  const gain = Math.max(1, perSec * 0.10);
+  const baseGain = Math.max(1, perSec * 0.10);
+
+  // energy (E10 "Body & Soul"): a full-energy tap pays a touch more — Body makes the
+  // burst bigger — and spends ENERGY.tapCost plus a sliver of Body XP, closing a gentle
+  // loop (tapping trains the very Body that fuels tapping). An empty tank still pays the
+  // honest ENERGY.tapFloorFrac floor — tapping never blocks, it just tapers (the "idle
+  // floor" contract, docs/01 §5). Purely a clicker flourish: nothing here feeds
+  // tierProd/tierMultiplier, so it can never move pacing (the harness never taps).
+  const bodyLvl = state.skills.body.level;
+  const fullEnergy = state.resources.energy >= C.ENERGY.tapCost;
+  let gain;
+  if (fullEnergy) {
+    gain = baseGain * (1 + 0.02 * bodyLvl);
+    state.resources.energy = Math.max(0, state.resources.energy - C.ENERGY.tapCost);
+    state.skills.body.xp += C.ENERGY.tapBodyXp;
+  } else {
+    gain = baseGain * C.ENERGY.tapFloorFrac;
+  }
   state.resources.cash += gain;
   state.stats.lifetimeCash += gain;
   state.stats.lifetimeCashThisTree += gain;

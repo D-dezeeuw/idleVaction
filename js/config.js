@@ -54,6 +54,17 @@ export const CONFIG = {
   // trivialize the economy — the idle rate is always the honest floor.
   TAP: { maxPerSec: 8 },
 
+  // ---- energy: optional clicker fuel (E10 "Body & Soul") ----
+  // A pure UI/clicker flourish — nothing in tierProd/tierMultiplier/computeComfort reads
+  // energy, so it can never move the harness's max-speed island time (the harness never
+  // taps; see math.energyMax/energyRegenRate and engine.click). base/perBody size the
+  // tank AND its regen rate — a fitter Body means a bigger, faster-refilling tank.
+  // tapCost is spent per full-energy tap; tapFloorFrac is what a tap still pays once the
+  // tank is empty (never zero — the "idle floor" contract, docs/01 §5); tapBodyXp is the
+  // small Body XP a full-energy tap grants, closing a gentle loop (tapping trains the
+  // very Body that fuels tapping).
+  ENERGY: { base: 100, perBody: 0.08, regen: 2, tapCost: 5, tapFloorFrac: 0.25, tapBodyXp: 3 },
+
   // ---- comfort (UNBOUNDED sum; the log multiplier softcaps its *effect*) ----
   COMFORT: {
     C0: 100,                // scale for the log multiplier
