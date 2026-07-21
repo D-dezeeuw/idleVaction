@@ -469,6 +469,16 @@ export function buyAccommodation(state) {
   if (t === 6) {
     notify(state, 'celebrate', '🏊 There is a POOL. An actual pool. You stand at the edge for a full minute.');
   }
+  // the beach moment (E08-S6-T5/T7/T10 "Sun, Sand & Service"): the 4-Star Beach Resort
+  // arrival IS the headline reveal — beat 10 (Poolside Persona) fires separately from
+  // checkStory() on its own charisma gate (docs/story.js) — this is purely the extra
+  // "sand, finally" celebratory flash tied to the tier-up, mirroring the flashes above.
+  // It also doubles as the beach panel's mount cue: ui.js's beachRevealed() reads
+  // accommodation.tier live on every render, so the Beachfront card appears the same
+  // tick this flips, no separate mount event needed.
+  if (t === 7) {
+    notify(state, 'celebrate', '🏖️ Sand, finally. A waiter appears before you have finished sitting down.');
+  }
   return true;
 }
 

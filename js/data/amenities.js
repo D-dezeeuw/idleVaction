@@ -89,10 +89,45 @@ export const AMENITIES = [
   { id: 'pool_cocktail_2',    name: 'Mixologist Cart',       tag: 'pool', costBase: 40000,  comfort: 85,  costGrowth: 1.8, xMult: 0.07, xScope: 'social', unlockComfort: 1600, flavor: 'A cart, a shaker, and a man named Sven who takes this very seriously.' },
   { id: 'pool_cocktail_3',    name: 'Butler-Served Cocktail',tag: 'pool', costBase: 110000, comfort: 170, costGrowth: 1.8, xMult: 0.09, xScope: 'all', unlockComfort: 2800, flavor: 'Butler-served, poolside. Nobody asks how you afford this. You wonder too.', staffHint: true },
 
-  // --- beach cluster (E08) ---
+  // --- beach cluster (E08 "Sun, Sand & Service") ---
   { id: 'beach_towel',  name: 'Monogrammed Towel',    tag: 'beach', costBase: 4e4,  comfort: 40,  xMult: 0.03, xScope: 'all', unlockComfort: 1500, flavor: 'Your initials, in the sand of your soul.' },
   { id: 'beach_svc',    name: 'Beach Cocktail Service',tag:'beach', costBase: 9e4,  comfort: 90,  xMult: 0.07, xScope: 'all', unlockComfort: 2600, flavor: 'They find you. You never move.' },
   { id: 'cabana_beach', name: 'Beachfront Cabana',    tag: 'beach', costBase: 2.4e5,comfort: 180, xMult: 0.10, xScope: 'all', unlockComfort: 5000, flavor: 'Ocean view. Owned view.' },
+
+  // --- beach gap-fill (E08-S1-T4/S5, "Sun, Sand & Service" — the beach was ROI-capacity-
+  // constrained under E07's amenity-count-inflates-pacing harness; that harness is now
+  // ROI-aware (E07 gap-fill), so the ≤4-item drift guardrail is LIFTED here — this is a
+  // normal-size cluster (7 items total incl. the 3 above). Interleaved by costBase between
+  // the 3 existing items (4e4/9e4/2.4e5) with the same gentle ~1.5-1.7x ramp and the DEFAULT
+  // AMENITY.growthDefault (~1.5, no override) matching the existing three. unlockComfort
+  // stays in the SAME low band as the existing items (well under accUnlockComfort(8)≈34456,
+  // in fact under accUnlockComfort(7)≈13252 too) — same shipped shape as the E07 pool
+  // cluster, not rebracketed to the zone's own gate (see the E07 gap-fill note just above
+  // in this file's history / docs/coverage.md). ---
+  { id: 'beach_umbrella',       name: 'Beach Umbrella',         tag: 'beach', costBase: 6e4,  comfort: 60,  xMult: 0.05, xScope: 'all',    unlockComfort: 2000,  flavor: 'An umbrella against a sun you flew 2,000km to find, having complained about its absence your whole life.' },
+  { id: 'beach_sun_lounger',    name: 'Beachfront Sun Lounger', tag: 'beach', costBase: 1.5e5,comfort: 130, xMult: 0.08, xScope: 'all',    unlockComfort: 3800,  flavor: 'Reclines to eleven angles. You find the correct one. You do not move again.' },
+  { id: 'beach_jetski',         name: 'Rented Jet Ski',         tag: 'beach', costBase: 4.2e5,comfort: 240, xMult: 0.06, xScope: 'social', unlockComfort: 7000,  flavor: 'Driven like it is stolen. The waiver was thorough. Your commitment to it was not.' },
+  { id: 'beach_private_stretch',name: 'Private Stretch of Sand',tag:'beach', costBase: 7.5e5,comfort: 420, xMult: 0.12, xScope: 'all',    unlockComfort: 10000, flavor: 'A hundred roped-off meters, just for you. A Dutch tour guide explains to her group, at length, why they do not get a rope.' },
+
+  // --- service-quality chain (E08-S1-T3/S4, the epic's headline pre-staff ladder):
+  // self-serve cart → waiter → head waiter → maître d' → concierge (seed). tag:'service'
+  // (its OWN cross-zone tag, distinct from 'beach' — pool service items keep tag:'pool').
+  // costGrowth:1.9 overrides AMENITY.growthDefault (~1.5) for a steeper per-level repeat-buy
+  // curve, per row (no new config knob — matches the pool cocktail chain's costGrowth:1.8
+  // precedent, just steeper for more "prestige"). costBase ramps a clean ×3/tier; comfort
+  // and (dormant, forward-compat) xMult both climb tier-over-tier. NOTE: xMult/xScope are
+  // NOT read by math.js/engine.js (dormant since E02, see amenityScoreTotal) — the ONLY
+  // income effect here is `comfort` feeding the existing wAmen Comfort term. The epic's
+  // proposed separate `w_service` Comfort weight / `service` field is deliberately NOT
+  // added (redundant with wAmen, an economy change) — "better service" instead shows up
+  // as a bigger `comfort` number on each tier, same convention as every other amenity.
+  // service_concierge_seed carries staffHint (mirrors pool_cocktail_3) as the pre-staff
+  // bridge toward hiring real staff (E11/E19) — flavor-only, does not activate anything. ---
+  { id: 'service_selfserve',     name: 'Self-Serve Cart',        tag: 'service', costBase: 1.2e5, comfort: 110, costGrowth: 1.9, xMult: 0.03, xScope: 'all', unlockComfort: 3000,  flavor: 'A cart, a stack of napkins, and the honor system. You take two extra hagelslag packets. It is fine. It is included.' },
+  { id: 'service_waiter',        name: 'Beach Waiter',           tag: 'service', costBase: 3.6e5, comfort: 220, costGrowth: 1.9, xMult: 0.05, xScope: 'all', unlockComfort: 6000,  flavor: 'He remembers "the usual" by day three. You did not know you had a usual.' },
+  { id: 'service_head_waiter',   name: 'Head Waiter',            tag: 'service', costBase: 1.08e6,comfort: 380, costGrowth: 1.9, xMult: 0.07, xScope: 'all', unlockComfort: 9000,  flavor: 'He seats you at the good table without being asked. Nobody explains how he knows which table is good.' },
+  { id: 'service_maitre_d',      name: "Maître d'",              tag: 'service', costBase: 3.24e6,comfort: 600, costGrowth: 1.9, xMult: 0.09, xScope: 'all', unlockComfort: 12000, flavor: 'He pretends your poncho is "a look." You believe him, just for one holiday.' },
+  { id: 'service_concierge_seed',name: 'Resort Concierge (seed)',tag: 'service', costBase: 9.72e6,comfort: 900, costGrowth: 1.9, xMult: 0.12, xScope: 'all', unlockComfort: 16000, staffHint: true, flavor: 'He hands you a card with a number, no name. "For anything," he says. You suspect "anything" will one day mean staff of your own.' },
 
   // --- spa/wellness cluster (E10) ---
   { id: 'sunscreen',    name: 'Proper Sunscreen',     tag: 'spa', costBase: 1.5e5,comfort: 70,  xMult: 0.04, xScope: 'all', unlockComfort: 4000,  flavor: 'The Dutch skin thanks you.' },
