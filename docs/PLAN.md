@@ -29,6 +29,7 @@ Full conventions: **[`docs/06-plan-format.md`](06-plan-format.md)**.
 5. **[`04-ascension-and-skill-tree.md`](04-ascension-and-skill-tree.md)** — ascension loop, Legacy currency, the permanent **physique/character** skill tree, second prestige layer.
 6. **[`05-balancing-and-pacing.md`](05-balancing-and-pacing.md)** — the 20h pacing contract, the 12 tuning levers, the balance harness, softcaps, the fun-cadence spec, the BigNumber swap, and the **honest prototype balance status**.
 7. **[`06-plan-format.md`](06-plan-format.md)** — the agile mapping & per-file structure.
+8. **[`math-proof.md`](math-proof.md)** — a measured investigation of the economy at scale: does one run hold to 20h, does it scale with ascensions/skill trees, precision — with the root-cause derivation of the finite-time singularity, the verified soft-cap fix, and prioritized improvements (P0 applied, P1–P5 proposed).
 
 ## The 30 epics (phases)
 

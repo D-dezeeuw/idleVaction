@@ -164,3 +164,11 @@ Coarse-tuning already done (each a `config.js` edit, no code change) moved the h
 from ~2min → ~4min purely by widening `GEN.base` spacing and steepening `GEN.growth` — which
 is the whole point: **the foundation is solid and every knob visibly moves the curve.** The
 remaining work is convergence, tracked as real tasks in E30, not architecture.
+
+**Update — the singularity was found and fixed (see `docs/math-proof.md`).** A full numerical
+investigation showed the pre-fix curve was a *finite-time singularity* (cash overflowed `double`
+in ~9 min), caused by the milestone term scaling as a power of cash. That is now fixed at the
+mechanism level (soft-capped milestone, `MILESTONE_SOFT_KNEE`/`LIN`): overflow is gone and the
+curve is monotone and bounded, so the harness-fit loop above **converges**. Hitting the exact
+20 h number is the remaining E30 tuning, plus the meta-layer and precision recommendations (P1–P5)
+in the math-proof.

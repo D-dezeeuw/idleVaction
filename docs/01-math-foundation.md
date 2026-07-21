@@ -84,6 +84,14 @@ milestoneMult_k = 2^floor(bought_k / 10)
 Later "prestige" upgrades change `MILESTONE_STEP` to 8, then 6 — a classic accelerator.
 This is the dopamine engine: a visible "next double in 3 buys" target at all times.
 
+> **Soft cap (important — see `docs/math-proof.md`).** An *uncapped* `2^(bought/step)` equals
+> `cash^(ln2/(step·ln growth))` for a greedy buyer — a positive power of cash that compounds
+> across the tier chain into a **finite-time singularity** (measured: cash overflowed `double`
+> in ~9 min). The shipped code therefore **soft-caps** the doublings: exponential for the first
+> `MILESTONE_SOFT_KNEE` (=4) doublings, then **linear** (`+MILESTONE_SOFT_LIN` each). Past the
+> knee the term grows ∝ `bought` (∝ `log cash`), which restores controlled growth while keeping
+> the early visible ×2s. `milestoneMult_k = m≤KNEE ? 2^m : 2^KNEE·(1+LIN·(m−KNEE))`, `m=⌊bought/step⌋`.
+
 ---
 
 ## 2. Worked example — one tier, from zero
