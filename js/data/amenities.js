@@ -134,6 +134,46 @@ export const AMENITIES = [
   { id: 'massage',      name: 'Daily Massage',        tag: 'spa', costBase: 4e5,  comfort: 160, xMult: 0.08, xScope: 'all', unlockComfort: 8000,  flavor: 'Knots you did not know were nations.' },
   { id: 'private_spa',  name: 'Private Spa Wing',     tag: 'spa', costBase: 1.2e6,comfort: 380, xMult: 0.12, xScope: 'all', unlockComfort: 18000, flavor: 'Steam, stone, and silence you paid for.' },
 
+  // --- Wellness Wing gap-fill (E10 "Body & Soul" — tan/gym/spa clusters, revealed
+  // alongside the Wellness Wing panel at accommodation.tier >= 8 / Boutique Retreat).
+  // Positioned above the beach/service tiers (whose top costBase is 7.5e5/9.72e6) and
+  // interleaved with the low end of the luxury cluster below — conservative comfort
+  // weights (the ROI-aware harness already skips Comfort-only amenities on payback, see
+  // harness.mjs's amenityWorthBuying, so this cluster cannot move the fitted pacing
+  // curve). Each unlockComfort band brackets the tier-8 Comfort gate
+  // (accUnlockComfort(8) ≈ 34456, matching the onestar/breakfast cluster convention):
+  // the first item in every cluster unlocks just before it, the rest keep small wins
+  // flowing after the Boutique Retreat check-in. `bodyXp` is declared per-item (data-
+  // driven, per the epic) but stays DORMANT — never read by math.js/engine.js — same
+  // house convention as every amenity's `xMult`/`xScope` (see the service-chain comment
+  // above): Body already levels plenty fast from the existing Comfort-based trickle
+  // (engine.trickleXp) and from training (state.training.train_body, pre-existing), so
+  // wiring a second passive source would be inaudible noise, not a felt mechanic — see
+  // docs/coverage.md E10 notes.
+  //
+  // --- tanning deck: comfort + a small bodyXp hint, the "casual" third of the wing ---
+  { id: 'tan_sunbed',           name: 'Sunbed Session',        tag: 'tan', costBase: 2.0e6, comfort: 260, bodyXp: 4, xMult: 0.05, xScope: 'all', unlockComfort: 25000,  flavor: 'Fifteen artificial minutes of Mediterranean. The real sun is next door, free. You already paid for this one.' },
+  { id: 'tan_spray_tan',        name: 'Spray Tan',             tag: 'tan', costBase: 4.0e6, comfort: 340, bodyXp: 5, xMult: 0.06, xScope: 'all', unlockComfort: 45000,  flavor: 'You leave slightly orange. You leave anyway. Confidence is a colour now.' },
+  { id: 'tan_golden_hour_deck', name: 'Golden Hour Deck',      tag: 'tan', costBase: 8.0e6, comfort: 440, bodyXp: 6, xMult: 0.08, xScope: 'all', unlockComfort: 70000,  flavor: 'Angled precisely for the one good photo you take per day.' },
+  { id: 'tan_bronzing_oil',     name: 'Bronzing Oil',          tag: 'tan', costBase: 1.6e7, comfort: 570, bodyXp: 8, xMult: 0.10, xScope: 'all', unlockComfort: 110000, flavor: 'Smells like coconut and questionable decisions. Reapplied hourly, out of principle.' },
+
+  // --- gym: the highest bodyXp weight of the three (training feels like training) ---
+  { id: 'gym_dumbbell_rack',    name: 'Dumbbell Rack',         tag: 'gym', costBase: 2.4e6,  comfort: 280, bodyXp: 8,  xMult: 0.05, xScope: 'all', unlockComfort: 28000,  flavor: 'You start with the small ones. Nobody is watching. Someone is always watching.' },
+  { id: 'gym_treadmill',        name: 'Ocean-View Treadmill',  tag: 'gym', costBase: 4.8e6,  comfort: 360, bodyXp: 10, xMult: 0.07, xScope: 'all', unlockComfort: 50000,  flavor: 'Running nowhere, scenically. The Dutch flatlands never offered a view like this.' },
+  { id: 'gym_personal_trainer', name: 'Personal Trainer',     tag: 'gym', costBase: 9.6e6,  comfort: 470, bodyXp: 13, xMult: 0.09, xScope: 'all', unlockComfort: 80000,  flavor: 'He counts your reps out loud. You count the minutes until brunch.' },
+  { id: 'gym_altitude_room',    name: 'Altitude Simulation Room', tag: 'gym', costBase: 1.92e7, comfort: 610, bodyXp: 16, xMult: 0.11, xScope: 'all', unlockComfort: 130000, flavor: 'Thinner air, for a fitness gain you cannot quite pronounce. You breathe harder. You feel important.' },
+
+  // --- spa menu continuation (own tag: 'wellness' — distinct from the pre-existing
+  // 'spa' tag above, so the general Amenities card's existing sunscreen/massage/
+  // private_spa display is left completely untouched; these new tiers live only in the
+  // Wellness Wing panel, per house convention for a cluster that ships alongside its own
+  // dedicated card, mirroring pool/beach/service). Highest comfort weight of the three
+  // clusters, per the epic; continues private_spa's costBase (1.2e6) upward. ---
+  { id: 'wellness_sauna',         name: 'Sauna',           tag: 'wellness', costBase: 1.8e6,  comfort: 460,  bodyXp: 3, xMult: 0.06, xScope: 'all', unlockComfort: 22000,  flavor: 'Hotter than a Delft attic in July, and you paid extra for it.' },
+  { id: 'wellness_hot_stone',     name: 'Hot Stone Massage', tag: 'wellness', costBase: 3.6e6, comfort: 600,  bodyXp: 4, xMult: 0.08, xScope: 'all', unlockComfort: 40000,  flavor: 'Rocks, warmed, placed on your back by someone who trained for this. You trained for nothing.' },
+  { id: 'wellness_seaweed_wrap',  name: 'Seaweed Wrap',    tag: 'wellness', costBase: 7.2e6,  comfort: 780,  bodyXp: 5, xMult: 0.10, xScope: 'all', unlockComfort: 65000,  flavor: 'You are, technically, already at a beach, and now wrapped in more beach. The irony is complimentary.' },
+  { id: 'wellness_cryo_chamber',  name: 'Cryo Chamber',    tag: 'wellness', costBase: 1.44e7, comfort: 1020, bodyXp: 6, xMult: 0.13, xScope: 'all', unlockComfort: 100000, flavor: 'Colder than a Rotterdam tram platform in February, but on purpose this time.' },
+
   // --- luxury cluster (mid/late) ---
   { id: 'butler_bell',  name: 'A Little Silver Bell', tag: 'luxury', costBase: 3e6, comfort: 500, xMult: 0.15, xScope: 'all', unlockComfort: 4e4, flavor: 'You ring. Things happen.' },
   { id: 'gold_taps',    name: 'Gold Bathroom Taps',   tag: 'luxury', costBase: 1e7, comfort: 900, xMult: 0.18, xScope: 'all', unlockComfort: 1.2e5, flavor: 'Tasteless? Yes. Yours? Also yes.' },

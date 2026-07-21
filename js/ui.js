@@ -31,10 +31,12 @@ export function render(state) {
   renderAmenities(state);
   renderPoolside(state);
   renderBeachfront(state);
+  renderWellness(state);
   renderSkills(state);
   renderPaths(state);
   renderAscension(state);
   renderTree(state);
+  renderEnergyMini(state);
 }
 
 function afford(cost) { return S.resources.cash >= cost; }
@@ -286,6 +288,13 @@ function renderAmenities(s) {
   for (const a of DATA.amenities) {
     if (a.tag === 'pool') continue; // the dedicated Poolside card (E07) owns this tag
     if (a.tag === 'beach' || a.tag === 'service') continue; // the dedicated Beachfront card (E08) owns these tags
+    // the dedicated Wellness Wing card (E10) owns these tags. Note: the pre-existing
+    // 'spa' tag (sunscreen/massage/private_spa) deliberately stays HERE, unmoved — those
+    // three shipped in the general Amenities card long before the Wellness Wing existed,
+    // so relocating them would delay an already-unlocked purchase's visibility for
+    // players mid-run (a real behavior change, not just a data addition). The new
+    // tan/gym/wellness tags ship straight into their own card instead, same as pool did.
+    if (a.tag === 'tan' || a.tag === 'gym' || a.tag === 'wellness') continue;
     if (!E.amenityUnlocked(s, a.id)) continue;
     (byTag[a.tag] ||= []).push(a);
   }
@@ -422,6 +431,95 @@ function renderBeachfront(s) {
   el('beachfront').innerHTML = html;
 }
 
+// ---------- Wellness Wing panel (E10 "Body & Soul" — Personal Growth II) ----------
+// Reveals on the Boutique Retreat arrival (tier 8) — the tier-up IS the reveal, mirroring
+// beachRevealed's pattern one tier later (see engine.checkWellnessReveal for the
+// one-shot celebratory flash tied to the same gate).
+function wellnessRevealed(s) { return s.accommodation.tier >= 8; }
+
+// Sub-cluster grouping (mirrors POOL_GROUPS/SERVICE_CHAIN): tan (casual), gym (highest
+// bodyXp weight), and the wellness-tagged spa continuation (highest comfort weight) —
+// the pre-existing 'spa' tag (sunscreen/massage/private_spa) is intentionally NOT
+// duplicated here, see the renderAmenities exclusion-list comment.
+const WELLNESS_GROUPS = [
+  { label: 'Tanning Deck', ids: ['tan_sunbed', 'tan_spray_tan', 'tan_golden_hour_deck', 'tan_bronzing_oil'] },
+  { label: 'Gym', ids: ['gym_dumbbell_rack', 'gym_treadmill', 'gym_personal_trainer', 'gym_altitude_room'] },
+  { label: 'Spa Menu', ids: ['wellness_sauna', 'wellness_hot_stone', 'wellness_seaweed_wrap', 'wellness_cryo_chamber'] },
+];
+
+// live energy readout (E10-S3-T2): current/max + regen rate, reusing the .iv-comfort-
+// meter bar shell. A brief pulse (energyPulseUntil, set from a tap) is reduced-motion
+// gated in CSS.
+let energyPulseUntil = 0;
+function pulseEnergy() { energyPulseUntil = Date.now() + 500; }
+function energyMeterHtml(s) {
+  const max = M.energyMax(s);
+  const cur = clamp(s.resources.energy, 0, max);
+  const pct = clamp(100 * cur / max, 0, 100);
+  const regen = M.energyRegenRate(s);
+  const low = cur < C.ENERGY.tapCost;
+  const pulsing = Date.now() < energyPulseUntil;
+  return `<div class="iv-comfort-meter iv-energy-meter${low ? ' iv-energy-low' : ''}${pulsing ? ' iv-energy-pulse' : ''}"
+      role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct.toFixed(0)}"
+      aria-label="Energy ${fmt(cur)} of ${fmt(max)}"><i style="width:${pct.toFixed(1)}%"></i></div>
+    <div class="iv-sub">⚡ Energy <b>${fmt(cur)} / ${fmt(max)}</b> <small>(regen +${fmt(regen)}/s)</small>
+      ${low ? '<small> — low tank, taps pay the floor</small>' : ''}</div>`;
+}
+
+const WELLNESS_BRANCH_COPY = {
+  vlogger: '📸 Great lighting on those delts. The algorithm approves.',
+  crypto: '📈 Poolside tan, portfolio compounding — money works while you tan, literally now.',
+  connoisseur: 'A discreet, tasteful sort of fitness. Nothing so vulgar as a "gains" photo.',
+  traveler: 'Fit enough for any itinerary, however punishing the connecting flight.',
+};
+
+function renderWellness(s) {
+  const card = el('wellnessCard');
+  const reveal = wellnessRevealed(s);
+  if (card) card.hidden = !reveal;
+  if (!reveal) { if (el('wellness')) el('wellness').innerHTML = ''; return; }
+
+  const bodyLvl = s.skills.body.level;
+  const contrib = C.COMFORT.wBody * bodyLvl;
+  let html = `<div class="iv-sub" title="Body raises Comfort directly — Comfort is unbounded, no ceiling — and fills the Energy tank that fuels tapping.">
+    💪 Body L${bodyLvl} — Comfort contribution <b>${fmt(contrib)}</b></div>`;
+  html += energyMeterHtml(s);
+  html += `<div class="iv-flavor">${WELLNESS_BRANCH_COPY[s.story.branch] || 'Tan, fit, spa-buffed. The soggy is finally gone.'}</div>`;
+
+  let anyVisible = false;
+  for (const grp of WELLNESS_GROUPS) {
+    const visible = DATA.amenities.filter(a => grp.ids.includes(a.id) && E.amenityUnlocked(s, a.id));
+    if (!visible.length) continue;
+    anyVisible = true;
+    html += `<div class="iv-tag">${grp.label}</div><div class="iv-amenities">`;
+    for (const a of visible) {
+      const cost = E.amenityCost(s, a.id);
+      const lvl = s.amenities[a.id].level;
+      html += btn('buy-amenity', a.id,
+        `${a.name} <small>Lv${lvl}</small><br><small>${fmt(cost)} · +${fmt(a.comfort)}😌</small>`,
+        afford(cost), '', a.flavor);
+    }
+    html += '</div>';
+  }
+  if (!anyVisible) html += '<em>The wing just opened. Keep building Comfort — the first sunbed is close.</em>';
+  el('wellness').innerHTML = html;
+}
+
+// live footer energy readout, "near the tap button" (E10-S4-T8): #energyMini is a
+// persistent node created once by renderControls's template (like the aria-live
+// regions above) and refreshed here on every render() cycle, since renderControls
+// itself only re-renders on a speed change.
+function renderEnergyMini(s) {
+  const mini = el('energyMini');
+  if (!mini) return;
+  const max = M.energyMax(s);
+  const cur = clamp(s.resources.energy, 0, max);
+  const low = cur < C.ENERGY.tapCost;
+  mini.textContent = `⚡ ${fmt(cur)}/${fmt(max)}`;
+  mini.classList.toggle('iv-energy-low', low);
+  mini.classList.toggle('iv-energy-pulse', Date.now() < energyPulseUntil);
+}
+
 // splash juice (E07-S10-T9): a tiny popup on a pool/beach/service purchase. Unlike
 // showTapPopup (whose button lives in the footer, never touched by the main render
 // cycle), these buy buttons sit INSIDE #poolside/#beachfront, which the very same
@@ -470,6 +568,10 @@ function announceBeach(text) {
   const live = el('beachAnnounce');
   if (live) live.textContent = text;
 }
+function announceWellness(text) {
+  const live = el('wellnessAnnounce');
+  if (live) live.textContent = text;
+}
 
 // skill level-up flash (E09-S3-T6/S10-T1): a brief bar pulse on the skill that just
 // leveled, detected from the drained 'levelup' notification text itself (no new state
@@ -505,6 +607,17 @@ function skillEffectReadout(sk, st) {
     return `<div class="iv-sub iv-skill-effect">💸 All purchases <b>−${(pct * 100).toFixed(1)}%</b>
       ${maxed ? '<span class="iv-badge-maxed">MAXED −60%</span>'
               : `<br><small>next level: −${((nextPct - pct) * 100).toFixed(2)}% more (cap −${(C.COMMS_DISCOUNT_CAP * 100).toFixed(0)}%)</small>`}</div>`;
+  }
+  if (sk.id === 'body') {
+    // Body's live Comfort contribution (E10 "Body & Soul" — Task A): Comfort is an
+    // UNBOUNDED sum (math.computeComfort), so there is no "ceiling" to preview here —
+    // Body simply adds wBody per level, permanently, same convention as every other
+    // skillEffectReadout above.
+    const contrib = C.COMFORT.wBody * st.level;
+    const nextContrib = C.COMFORT.wBody * (st.level + 1);
+    return `<div class="iv-sub iv-skill-effect" title="Body adds directly to Comfort (unbounded — no ceiling) and fills the Energy tank that fuels tapping.">
+      😌 Comfort contribution <b>+${fmt(contrib)}</b>
+      <br><small>next level: +${fmt(nextContrib - contrib)} more Comfort</small></div>`;
   }
   return '';
 }
@@ -657,6 +770,9 @@ function handle(action, arg, btnEl) {
       } else if (bought && a.tag === 'service') {
         announceBeach(`Promoted to ${a.name} service (+${fmt(a.comfort)} Comfort)`);
         showSplashPopup(btnEl, '🎩');
+      } else if (bought && (a.tag === 'tan' || a.tag === 'gym' || a.tag === 'wellness')) {
+        announceWellness(`Bought ${a.name} (+${fmt(a.comfort)} Comfort)`);
+        showSplashPopup(btnEl, '💪');
       }
       break;
     }
@@ -677,7 +793,7 @@ function handle(action, arg, btnEl) {
     case 'ascend': if (P.ascend(S)) { setState(S); } break;
     case 'buy-node': P.buyNode(S, arg); break;
     case 'respec': if (confirm('Refund all Legacy and clear the tree?')) P.respec(S); break;
-    case 'click': showTapPopup(E.click(S)); break;
+    case 'click': { const gain = E.click(S); showTapPopup(gain); if (gain > 0) pulseEnergy(); break; }
     case 'set-speed': S.settings.gameSpeed = Number(arg); renderControls(S); break;
     case 'set-speed-custom': {
       const v = Number(document.getElementById('speedInput')?.value);
@@ -745,6 +861,8 @@ export function renderControls(state) {
     `<button class="btn btn-sm ${state.settings.gameSpeed === v ? 'btn-primary' : ''}" data-action="set-speed" data-arg="${v}">${v}×</button>`).join('');
   el('controls').innerHTML = `
     <button class="btn btn-lg btn-primary" data-action="click">👆 Tap (small gain + combo)</button>
+    <span id="energyMini" class="iv-sub iv-energy-inline"
+      title="Energy fuels a bigger tap — Body raises the tank size and its regen rate. Never required to progress."></span>
     <span class="iv-speed">Speed <b>${state.settings.gameSpeed}×</b>: ${speeds}
       <input id="speedInput" type="number" min="0" step="1" value="${state.settings.gameSpeed}"
         style="width:74px" title="Custom pace — 1 = natural course, high = hyperspeed for testing">

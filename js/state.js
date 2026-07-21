@@ -24,7 +24,9 @@ export function newGame() {
   return {
     version: C.SAVE_VERSION,
     meta: { createdAt: 0, lastSaved: 0, lastSeen: 0, playtimeMs: 0, runStartSec: 0 },
-    resources: { cash: 15, comfort: 0, clout: 0, legacy: 0 },
+    // energy (E10 "Body & Soul"): starts at a full tank (base energyMax at Body level 0)
+    // — an optional clicker-fuel resource, see config.ENERGY / math.energyMax.
+    resources: { cash: 15, comfort: 0, clout: 0, legacy: 0, energy: C.ENERGY.base },
     generators, amenities, skills, training, paths, npcsMet, destinations,
     accommodation: { tier: 0, owned: [0] },
     // transport (E04-S1): no ride bought yet — a null activeSlot means no speed bonus

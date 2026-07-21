@@ -150,6 +150,18 @@ export function savvyPassive(state) {
   return state.skills.savvy.level * C.SAVVY_YIELD * Math.sqrt(Math.max(0, state.stats.lifetimeCash));
 }
 
+// ---- energy: optional clicker fuel (E10 "Body & Soul") ----
+// Pure functions of Body level only; engine.tick clamps the STORED energy into
+// [0, energyMax(state)] every tick. Neither is ever read by tierProd/tierMultiplier/
+// computeComfort, so energy can't affect idle income or pacing (see config.js's ENERGY
+// comment) — a fitter Body just gets a bigger, faster-refilling clicker tank.
+export function energyMax(state) {
+  return C.ENERGY.base * (1 + C.ENERGY.perBody * state.skills.body.level);
+}
+export function energyRegenRate(state) {
+  return C.ENERGY.regen * (1 + C.ENERGY.perBody * state.skills.body.level);
+}
+
 // ---- permanent skill tree effects ----
 export function treeIncomeMult(state) {
   const t = state.ascension.tree;

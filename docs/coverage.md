@@ -197,16 +197,36 @@ need`, wrong once per-level costs differ) and added the missing **level-up detec
 | S9 Save/Migration/Offline | 8 / 1 / 1 | Present: generic backfill + offline replay (tested: deleting `state.skills` still backfills, no NaN). Superseded: skill gains in away-summary (T6, minor). |
 | S10 QA/Polish/Juice | 4 / 4 / 2 | Done-now: level-up juice, cap/boundary/scope tests, fmt, aria-live. Superseded: preview-vs-charged-cost test, story-choice-XP test (mechanic absent). |
 
+### E10 — Body & Soul · **100/100** (present 20, done-now 50, superseded 30)
+Gap-fill + one new **optional** mechanic (Energy). `config.js` adds only an `ENERGY` block
+(never read by the income path — provably pacing-neutral; island **8h26m unchanged**);
+`math.js` additive; Comfort still unbounded. **No `COMFORT.cap`/saturating model** (superseded —
+Body already feeds unbounded `ComfortRaw` via `wBody`). The implementer caught its own harness
+drift (Body→Charisma / Body→path trickles → 8h21m) and **reverted both**; kept `bodyXp` dormant
+(same convention as `xMult`). 12 new tan/gym/wellness amenities.
+
+| Story | present/done/superseded | Notes |
+|---|---|---|
+| S1 Body/Wellness Data | 1 / 6 / 3 | Done-now: `ENERGY` block, tan+gym+spa clusters. Superseded: `BODY.*` block (reuses `SKILL`), `COMFORT.cap`/`bodyCapRate` (forbidden). |
+| S2 Comfort Ceiling | 3 / 4 / 3 | Done-now: energy regen/drain/clamp. Superseded: comfortCap tasks, passive amenity→bodyXp (dormant). |
+| S3 Wellness Wing Panel | 3 / 5 / 2 | Done-now: panel, energy meter, tooltips, reduced-motion. Superseded: Comfort-cap delta preview (replaced w/ honest unbounded readout), per-event subscription (no such arch). |
+| S4 Energy: Clicker Fuel | 0 / 8 / 2 | Done-now: energy-gated `click()`, idle floor, Body XP, overflow guard, anti-clicker test. Superseded: separate `tap()` payload, `emit('tap')` bus (reused `click()`; no pub/sub). |
+| S5 Spa Menu cluster | 3 / 5 / 2 | Done-now: 4 `wellness_*` items. Superseded: bodyXp trickle (dormant), precise 60–90s cadence tuning. |
+| S6 Wellness Wing step | 1 / 3 / 6 | Scoped to a UI panel (per brief), NOT a purchasable accScore sub-tier (would touch `ACC`/Comfort math — forbidden). |
+| S7 Path flavor | 1 / 6 / 3 | Done-now: cosmetic branch flags + copy. Superseded: Body→Charisma XP + Body-training→path trickles (**implemented then reverted** — drifted the harness). |
+| S8 Balance & tuning | 1 / 4 / 5 | Done-now: ENERGY-feel constants, anti-clicker verification. Superseded: multiplier-stack tuning (balance-tuner territory). |
+| S9 Persistence/Offline | 5 / 3 / 2 | Done-now: energy + new-amenity persist/backfill/export. Superseded: `MIGRATIONS` entry (generic backfill), stacked idempotency. |
+| S10 QA/Polish/Juice | 2 / 6 / 2 | Done-now: energy clamp/tap/format/pulse/regression tests (10 sections). Superseded: Comfort-cap monotonicity test (no cap), Body-specific toast (reused generic). |
+
 ---
 
-## Act II–VI — E10–E30
+## Act II–VI — E11–E30
 
 _Pending — appended as each phase's build pass audits its 100 tasks. Each row will carry the
 same `present / done-now / superseded` disposition and a per-phase tally in the commit + report._
 
 | Epic | Status |
 |---|---|
-| E10 Body & Soul | pending |
 | E11 Five-Star Frame of Mind | pending |
 | E12 Lights, Camera, Clout | pending |
 | E13 Money Works While You Tan | pending |
@@ -231,8 +251,8 @@ same `present / done-now / superseded` disposition and a per-phase tally in the 
 ---
 
 ### Running total
-- **Audited:** 900 / 3,000 tasks (E01–E09) — present 391, done-now 318, superseded 191.
-- **Remaining:** 2,100 tasks (E10–E30).
+- **Audited:** 1,000 / 3,000 tasks (E01–E10) — present 411, done-now 368, superseded 221. **⅓ done.**
+- **Remaining:** 2,000 tasks (E11–E30).
 
 ### Deferred balance-tuner backlog (for a consolidated retune, latest at E30)
 - **`savvyPassive()` not ×`L_comfort`** (E06-S7-T4) — a flat sqrt-scaled additive term outside

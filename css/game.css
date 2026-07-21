@@ -154,6 +154,20 @@ body { background: var(--iv-bg); color: var(--iv-ink); font-family: system-ui, s
   font-weight: bold; font-size: .85rem; pointer-events: none; animation: tapfloat .7s ease-out forwards; }
 @keyframes tapfloat { from { opacity: 1; transform: translate(-50%, 0); } to { opacity: 0; transform: translate(-50%, -22px); } }
 
+/* Energy meter (E10 "Body & Soul"): reuses .iv-comfort-meter's bar shell for the tank;
+   a low-tank state dims the fill (never blocks — a tap still pays the floor), and a
+   full-energy tap gives the bar a brief pulse. Both reduced-motion gated, mirroring
+   .iv-skill-flash's convention. */
+.iv-energy-meter i { background: linear-gradient(90deg, #f5b301, #ff6b6b); }
+.iv-energy-low i { opacity: .55; }
+.iv-energy-pulse i { animation: energypulse .5s ease 1; }
+@keyframes energypulse { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.7); } }
+@media (prefers-reduced-motion: reduce) { .iv-energy-pulse i { animation: none; } }
+.iv-energy-inline { margin-left: 4px; }
+.iv-energy-inline.iv-energy-low { color: #ff8f6b; }
+.iv-energy-inline.iv-energy-pulse { animation: energypulse .5s ease 1; }
+@media (prefers-reduced-motion: reduce) { .iv-energy-inline.iv-energy-pulse { animation: none; } }
+
 /* "While you were away" summary (E02-S9-T5): dismissible, mobile-friendly overlay. */
 .iv-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex;
   align-items: center; justify-content: center; z-index: 20; padding: 16px; }
