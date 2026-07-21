@@ -25,6 +25,12 @@ export const CONFIG = {
   },
   MILESTONE_STEP: 10,       // every N buys → tier ×2 (lowered by meta upgrades later)
   MILESTONE_MULT: 2,
+  // Soft cap on the doubling stack: the first KNEE doublings are exponential (the fun,
+  // visible ×2s), after which extra doublings add only LIN each (linear, not exponential).
+  // This removes the cash^α power-law feedback that otherwise makes growth super-
+  // exponential (finite-time blow-up + double overflow). See docs/math-proof.md.
+  MILESTONE_SOFT_KNEE: 4,
+  MILESTONE_SOFT_LIN: 0.5,
 
   // ---- amenities (the small-wins engine) ----
   AMENITY: { growthDefault: 1.5, comfortWeight: 1.0 },

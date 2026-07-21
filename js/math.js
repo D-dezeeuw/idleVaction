@@ -5,8 +5,17 @@ import { CONFIG as C } from './config.js';
 import { clamp } from './util.js';
 
 // ---- tier ladder ----
+// Soft-capped milestone multiplier. The n-th unit's cost is base·growth^n, so a greedy
+// player has bought ≈ log_growth(cash) units → an *un*capped 2^(bought/step) would equal
+// cash^(ln2/(step·ln growth)) (a positive power of cash), which compounds across the 8-tier
+// chain into super-exponential, finite-time blow-up (and double overflow in ~9 min — see
+// docs/math-proof.md). Capping the exponential part at KNEE doublings, then going linear,
+// keeps the early dopamine while making the tail scale ∝ bought (log in cash) → tame.
 export function milestoneMult(bought) {
-  return Math.pow(C.MILESTONE_MULT, Math.floor(bought / C.MILESTONE_STEP));
+  const m = Math.floor(bought / C.MILESTONE_STEP);
+  const knee = C.MILESTONE_SOFT_KNEE;
+  if (m <= knee) return Math.pow(C.MILESTONE_MULT, m);
+  return Math.pow(C.MILESTONE_MULT, knee) * (1 + C.MILESTONE_SOFT_LIN * (m - knee));
 }
 export function unitCost(k, bought) {
   return C.GEN.base[k] * Math.pow(C.GEN.growth[k], bought);
