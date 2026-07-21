@@ -30,6 +30,7 @@ export function render(state) {
   renderGenerators(state);
   renderAmenities(state);
   renderPoolside(state);
+  renderBeachfront(state);
   renderSkills(state);
   renderPaths(state);
   renderAscension(state);
@@ -280,6 +281,7 @@ function renderAmenities(s) {
   const byTag = {};
   for (const a of DATA.amenities) {
     if (a.tag === 'pool') continue; // the dedicated Poolside card (E07) owns this tag
+    if (a.tag === 'beach' || a.tag === 'service') continue; // the dedicated Beachfront card (E08) owns these tags
     if (!E.amenityUnlocked(s, a.id)) continue;
     (byTag[a.tag] ||= []).push(a);
   }
@@ -349,30 +351,103 @@ function renderPoolside(s) {
   el('poolside').innerHTML = html;
 }
 
-// splash juice (E07-S10-T9): a tiny water-droplet popup on a pool purchase. Unlike
+// ---------- Beachfront panel (E08 "Sun, Sand & Service") ----------
+// Reveals on the 4-Star Beach Resort tier-up (tier 7) — the resort arrival IS the reveal
+// (see engine.buyAccommodation's t===7 celebrate flash); mirrors poolRevealed()'s pattern
+// one tier later, no separate tease flag needed for this epic's DoD ("the beach zone
+// reveals on tier-up").
+function beachRevealed(s) { return s.accommodation.tier >= 7; }
+
+// the service-quality chain in ladder order (E08-S1-T3/S4-T1): self-serve cart → waiter
+// → head waiter → maître d' → concierge (seed). Pure UI ordering constant, mirrors
+// POOL_GROUPS just above — no data-shape change, same buyAmenity(id) flow as every
+// other amenity card.
+const SERVICE_CHAIN = ['service_selfserve', 'service_waiter', 'service_head_waiter', 'service_maitre_d', 'service_concierge_seed'];
+
+// service-quality meter (E08-S3-T2): a labeled bar showing how far up the ladder the
+// player has climbed. Reads levels directly (no bespoke "current tier" state) — the
+// highest-ranked OWNED chain link wins regardless of purchase order, since nothing
+// besides Comfort gates buying a later tier out of sequence.
+function serviceMeterHtml(s) {
+  const owned = SERVICE_CHAIN.filter(id => (s.amenities[id]?.level || 0) > 0);
+  const pct = 100 * owned.length / SERVICE_CHAIN.length;
+  const highestId = owned[owned.length - 1];
+  const highest = highestId ? E.amenityData(highestId) : null;
+  const label = highest ? `${highest.name} (Lv${s.amenities[highestId].level})` : 'Self-serve, for now';
+  return `<div class="iv-comfort-meter" role="progressbar" aria-valuemin="0" aria-valuemax="100"
+      aria-valuenow="${pct.toFixed(0)}" aria-label="Service quality ladder progress">
+      <i style="width:${pct.toFixed(1)}%"></i>
+    </div>
+    <div class="iv-sub">🎩 Service quality: <b>${label}</b></div>`;
+}
+
+function renderBeachfront(s) {
+  const card = el('beachCard');
+  const reveal = beachRevealed(s);
+  if (card) card.hidden = !reveal;
+  if (!reveal) { if (el('beachfront')) el('beachfront').innerHTML = ''; return; }
+
+  const sandItems = DATA.amenities.filter(a => a.tag === 'beach');
+  const serviceItems = DATA.amenities.filter(a => a.tag === 'service');
+  // zone Comfort subtotal (E08-S3-T8, mirrors the pool card's poolComfort line): beach +
+  // service combined, since both feed the same wAmen Comfort term (no separate weight).
+  const zoneComfort = [...sandItems, ...serviceItems]
+    .reduce((sum, a) => sum + (s.amenities[a.id]?.level || 0) * a.comfort, 0);
+  const share = s.resources.comfort > 0 ? 100 * zoneComfort / s.resources.comfort : 0;
+  let html = `<div class="iv-sub">🏖️ Beach + Service Comfort: <b>${fmt(zoneComfort)}</b> (${share.toFixed(0)}% of your total Comfort)</div>`;
+  html += serviceMeterHtml(s);
+
+  const renderGroup = (label, items) => {
+    const visible = items.filter(a => E.amenityUnlocked(s, a.id));
+    if (!visible.length) return '';
+    let h = `<div class="iv-tag">${label}</div><div class="iv-amenities">`;
+    for (const a of visible) {
+      const cost = E.amenityCost(s, a.id);
+      const lvl = s.amenities[a.id].level;
+      h += btn('buy-amenity', a.id,
+        `${a.name} <small>Lv${lvl}</small><br><small>${fmt(cost)} · +${fmt(a.comfort)}😌</small>`,
+        afford(cost), '', a.flavor);
+    }
+    return h + '</div>';
+  };
+  // separate sand vs. service sections (E08-S3-T6), same buyAmenity(id) buy-flow for both.
+  const sandHtml = renderGroup('Sun & Sand', sandItems);
+  const serviceHtml = renderGroup('Service', serviceItems);
+  html += sandHtml + serviceHtml;
+  if (!sandHtml && !serviceHtml) html += '<em>The beach just opened. Keep building Comfort — the first towel is close.</em>';
+  el('beachfront').innerHTML = html;
+}
+
+// splash juice (E07-S10-T9): a tiny popup on a pool/beach/service purchase. Unlike
 // showTapPopup (whose button lives in the footer, never touched by the main render
-// cycle), the pool buy button sits INSIDE #poolside, which the very same click's
-// render(S) call re-renders right after this fires — so the popup is appended to
-// document.body at the button's page coordinates (captured before that wipe) rather
+// cycle), these buy buttons sit INSIDE #poolside/#beachfront, which the very same
+// click's render(S) call re-renders right after this fires — so the popup is appended
+// to document.body at the button's page coordinates (captured before that wipe) rather
 // than as a child of the button, surviving the innerHTML replace. CSS gates the
-// motion behind prefers-reduced-motion (game.css).
-function showSplashPopup(btnEl) {
+// motion behind prefers-reduced-motion (game.css). `emoji` defaults to the original
+// pool water-droplet; the beach panel (E08) reuses the same popup with its own icon
+// rather than forking a second implementation.
+function showSplashPopup(btnEl, emoji = '💦') {
   if (!btnEl) return;
   const rect = btnEl.getBoundingClientRect();
   const pop = document.createElement('span');
   pop.className = 'iv-splash-pop';
-  pop.textContent = '💦';
+  pop.textContent = emoji;
   pop.style.left = `${rect.left + rect.width / 2 + window.scrollX}px`;
   pop.style.top = `${rect.top + window.scrollY}px`;
   document.body.appendChild(pop);
   setTimeout(() => pop.remove(), 700);
 }
 
-// aria-live purchase ticker (E07-S3-T8): a genuinely persistent live region (declared
-// once in index.html, never wiped by renderPoolside's innerHTML replace) so a text-only
-// content change is what screen readers actually announce.
+// aria-live purchase tickers (E07-S3-T8, extended E08-S3-T7): genuinely persistent live
+// regions (declared once in index.html, never wiped by the panel's innerHTML replace) so
+// a text-only content change is what screen readers actually announce.
 function announcePool(text) {
   const live = el('poolAnnounce');
+  if (live) live.textContent = text;
+}
+function announceBeach(text) {
+  const live = el('beachAnnounce');
   if (live) live.textContent = text;
 }
 
@@ -508,9 +583,16 @@ function handle(action, arg, btnEl) {
     case 'buy-cheapest-upg': E.buyCheapestGenUpgrade(S); break;
     case 'buy-amenity': {
       const a = E.amenityData(arg);
-      if (E.buyAmenity(S, arg) && a.tag === 'pool') {
+      const bought = E.buyAmenity(S, arg);
+      if (bought && a.tag === 'pool') {
         announcePool(`Bought ${a.name} (+${fmt(a.comfort)} Comfort)`);
         showSplashPopup(btnEl);
+      } else if (bought && a.tag === 'beach') {
+        announceBeach(`Bought ${a.name} (+${fmt(a.comfort)} Comfort)`);
+        showSplashPopup(btnEl, '🏖️');
+      } else if (bought && a.tag === 'service') {
+        announceBeach(`Promoted to ${a.name} service (+${fmt(a.comfort)} Comfort)`);
+        showSplashPopup(btnEl, '🎩');
       }
       break;
     }

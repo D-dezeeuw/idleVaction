@@ -1107,5 +1107,179 @@ console.log('\n[36] E07 migration backfill: pool gap-fill cluster');
     'a reloaded save recomputes Comfort identically to a fresh computeComfort() call — no drift');
 }
 
+// ---------- 37. E08 "Sun, Sand & Service": beach cluster + service chain data
+// validation (E08-S1-T10, S4-T10, S5-T10). Mirrors [32]'s pool-cluster checks. ----------
+console.log('\n[37] E08 beach cluster + service chain: data validation + gap-fill fields');
+{
+  const beach = DATA.amenities.filter(a => a.tag === 'beach');
+  ok(beach.length >= 6 && beach.length <= 8, `the beach cluster is a normal 6-8 items (got ${beach.length})`);
+
+  const seenIds = new Set();
+  for (const a of beach) {
+    ok(!seenIds.has(a.id), `beach amenity id is unique: ${a.id}`);
+    seenIds.add(a.id);
+    ok(a.costBase > 0, `${a.id}: costBase > 0`);
+    ok(a.comfort >= 0, `${a.id}: comfort >= 0`);
+    const g = a.costGrowth || C.AMENITY.growthDefault;
+    ok(g > 1, `${a.id}: effective costGrowth > 1 (${g})`);
+  }
+  // the gap-fill: exactly these 4 new beach ids at the DEFAULT growth (no override),
+  // alongside the 3 pre-existing beach_towel/beach_svc/cabana_beach.
+  const newBeachIds = ['beach_umbrella', 'beach_sun_lounger', 'beach_jetski', 'beach_private_stretch'];
+  for (const id of newBeachIds) ok(beach.some(a => a.id === id), `gap-fill beach amenity present: ${id}`);
+  ok(beach.filter(a => !a.costGrowth).length === beach.length,
+    'every beach item uses the DEFAULT costGrowth (~1.5), no override — the steeper curve is service-only');
+
+  // unlockComfort stays in the SAME low band as the pre-existing 3 items — same shipped
+  // shape as the E07 pool cluster (see [32]'s comment), one tier past the zone's own gate.
+  const gate8 = M.accUnlockComfort(8);
+  ok(beach.every(a => a.unlockComfort < gate8), 'the whole beach cluster (existing + gap-fill) resolves before the tier-8 gate');
+
+  // the service-quality chain: its own tag, steeper costGrowth (1.9) than any beach item.
+  const service = DATA.amenities.filter(a => a.tag === 'service');
+  const CHAIN = ['service_selfserve', 'service_waiter', 'service_head_waiter', 'service_maitre_d', 'service_concierge_seed'];
+  ok(service.length === CHAIN.length, `the service chain has exactly ${CHAIN.length} tiers (got ${service.length})`);
+  for (const id of CHAIN) ok(service.some(a => a.id === id), `service tier present: ${id}`);
+  ok(service.every(a => a.costGrowth === 1.9), 'every service tier uses the steeper costGrowth:1.9 override (E08-S4-T2)');
+
+  let prevCost = 0, prevComfort = 0, prevXMult = 0, prevUnlock = 0;
+  for (const id of CHAIN) {
+    const a = service.find(x => x.id === id);
+    ok(a.costBase > prevCost, `${id}: service chain costBase strictly increases (${a.costBase} > ${prevCost})`);
+    ok(a.comfort > prevComfort, `${id}: service chain comfort strictly increases (${a.comfort} > ${prevComfort})`);
+    ok(a.xMult > prevXMult, `${id}: service chain xMult strictly increases (${a.xMult} > ${prevXMult}, dormant/forward-compat only)`);
+    // in-order reveal (E08-S4-T5/T10): ascending unlockComfort IS the chain gate in this
+    // codebase (no separate unlock.requires/STORY_GATES system — see [37]'s comment above)
+    // so promotions surface in the epic's specified order as Comfort climbs.
+    ok(a.unlockComfort > prevUnlock, `${id}: service chain unlockComfort strictly increases (${a.unlockComfort} > ${prevUnlock}) — in-order reveal`);
+    prevCost = a.costBase; prevComfort = a.comfort; prevXMult = a.xMult; prevUnlock = a.unlockComfort;
+  }
+  ok(service.every(a => a.unlockComfort < gate8), 'the whole service chain resolves before the tier-8 gate');
+
+  // staff bridge: ONLY the last tier carries staffHint (E08-S1-T9), and it's flavor-only
+  // — no staff state/mechanic exists yet to "activate" (E08-S4-T10).
+  ok(service.find(a => a.id === 'service_concierge_seed').staffHint === true,
+    'service_concierge_seed carries the staffHint flag as the pre-staff bridge to E11/E19');
+  ok(service.filter(a => a.staffHint).length === 1, 'staffHint is exclusive to the concierge-seed tier in this chain');
+  ok(!('staff' in ST.newGame()), 'no staff state exists yet — the staffHint is pure flavor, it activates nothing (E08-S4-T10)');
+
+  // guardrail: no separate `w_service` Comfort weight / `service` weight field was added —
+  // "better service" shows up as a bigger `comfort` number, same convention as every other
+  // amenity (redundant-weight avoidance per docs/coverage.md E08 notes).
+  ok(C.COMFORT.wService === undefined && C.COMFORT.w_service === undefined,
+    'no new w_service Comfort weight was added to config.COMFORT (superseded — comfort weighting is via wAmen only)');
+  ok(service.every(a => a.service === undefined), 'no service item carries a separate `service` weight field (superseded — comfort only)');
+}
+
+// ---------- 38. E08: Beachfront panel reveal gating — pure logic mirroring ui.js's
+// beachRevealed(s) exactly (mirrors [33]'s pattern one tier later). ----------
+console.log('\n[38] E08 Beachfront panel reveal gating (mirrors ui.js beachRevealed exactly)');
+{
+  const beachRevealed = s => s.accommodation.tier >= 7;
+
+  const fresh = ST.newGame();
+  ok(!beachRevealed(fresh), 'the Beachfront panel stays hidden on a fresh game (tier 0)');
+
+  const almost = ST.newGame();
+  almost.accommodation.tier = 6;
+  ok(!beachRevealed(almost), 'the Beachfront panel stays hidden at tier 6 (the pool tier, not the beach tier)');
+
+  const arrived = ST.newGame();
+  arrived.accommodation.tier = 7;
+  ok(beachRevealed(arrived), 'the Beachfront panel reveals the moment accommodation.tier reaches 7');
+
+  const beyond = ST.newGame();
+  beyond.accommodation.tier = 12;
+  ok(beachRevealed(beyond), 'the Beachfront panel stays revealed at any tier past 7');
+}
+
+// ---------- 39. E08: integration — beach + service amenities raise Comfort and
+// per-second income end-to-end via the Comfort path only (xMult stays dormant, per
+// math.js/amenityScoreTotal — mirrors [34]'s pattern). ----------
+console.log('\n[39] E08 integration: beach + service amenities raise Comfort and cash/s');
+{
+  const ig = ST.newGame();
+  ig.resources.cash = 1e12;
+  E.buyGenerator(ig, 0, 20);
+  ig.accommodation.tier = 7;                       // past every beach/service unlockComfort
+  ig._comfortCache = M.computeComfort(ig, DATA);
+  const prodBefore = M.tierProd(ig, 0);
+  ok(prodBefore > 0, `baseline income established (${fmt(prodBefore)}/s)`);
+
+  // a service promotion specifically, via the shared buyAmenity path — no bespoke
+  // purchase code (E08-S2-T6).
+  const comfortBeforeService = ig._comfortCache;
+  ok(E.buyAmenity(ig, 'service_selfserve'), 'buyAmenity succeeds for the Self-Serve Cart tier');
+  ok(ig.amenities.service_selfserve.level === 1, 'Self-Serve Cart level increments on a successful buy');
+  ok(E.buyAmenity(ig, 'service_maitre_d'), "buyAmenity succeeds for the Maître d' tier");
+  ok(ig.amenities.service_maitre_d.level === 1, "Maître d' level increments on a successful buy");
+  ok(ig._comfortCache > comfortBeforeService, 'buying service tiers raised Comfort');
+
+  const comfortBefore = ig._comfortCache;
+  const prodMid = M.tierProd(ig, 0);
+  let boughtAny = false;
+  for (const a of DATA.amenities.filter(x => x.tag === 'beach' || x.tag === 'service')) {
+    while (E.amenityUnlocked(ig, a.id) && E.amenityCost(ig, a.id) <= ig.resources.cash) {
+      if (E.buyAmenity(ig, a.id)) boughtAny = true; else break;
+    }
+  }
+  ok(boughtAny, 'bought at least one more beach/service amenity across the whole cluster');
+  const prodAfter = M.tierProd(ig, 0);
+  ok(ig._comfortCache >= comfortBefore, 'buying more beach/service amenities never lowers Comfort');
+  ok(prodAfter > prodMid, 'higher Comfort raised per-second cash output via L_comfort end-to-end');
+}
+
+// ---------- 40. E08: tier-7 arrival (4-Star Beach Resort) + beat 10 (Poolside Persona,
+// part) confirmed, plus the distinct "sand, finally" celebrate flash (E08-S6-T4/T8/T10). ----------
+console.log('\n[40] E08 tier-7 arrival + beat 10 (Poolside Persona) gating + celebrate flash');
+{
+  // beat 10 is charisma-gated (pre-existing, E07) — confirm it still fires correctly and
+  // requires beat 9 (accTier:6) first, per checkStory's narrative-monotonicity rule.
+  const b10 = ST.newGame();
+  b10.skills.charisma.level = 5;
+  b10._comfortCache = 1e9;
+  E.checkStory(b10);
+  ok(!b10.story.seen.includes(10), 'beat 10 does NOT fire before beat 9 (accTier 6), even with charisma 5 (narrative monotonicity)');
+
+  b10.accommodation.tier = 6;
+  E.checkStory(b10);
+  ok(b10.story.seen.includes(9), 'beat 9 fires first');
+  ok(b10.story.seen.includes(10), 'beat 10 (Poolside Persona) fires once charisma reaches 5 and beat 9 has fired');
+  ok(b10.story.seen.filter(x => x === 10).length === 1, 'beat 10 is recorded exactly once');
+  E.checkStory(b10); E.checkStory(b10);
+  ok(b10.story.seen.filter(x => x === 10).length === 1, 'repeated checkStory calls do not re-fire beat 10');
+
+  // tier-7 arrival: the distinct "sand, finally" celebratory flash fires alongside the
+  // real tier-up (engine.buyAccommodation), mirroring the tier-4/5/6 flashes.
+  const arr = ST.newGame();
+  arr.accommodation.tier = 6; arr.accommodation.owned = [0, 1, 2, 3, 4, 5, 6];
+  arr._comfortCache = M.accUnlockComfort(7);
+  arr.resources.cash = E.accCost(arr);
+  ok(E.buyAccommodation(arr), 'buyAccommodation succeeds into tier 7 (4-Star Beach Resort)');
+  const notifs = E.drainNotifications(arr);
+  ok(notifs.some(n => n.type === 'celebrate' && /[Ss]and/.test(n.text)),
+    'the tier-7 arrival fires a distinct "sand, finally" celebratory notification alongside the tier-up');
+
+  const reloadedB10 = ST.migrate(JSON.parse(JSON.stringify(b10)));
+  ok(reloadedB10.story.seen.includes(10), 'beat 10 survives a save/reload round-trip');
+}
+
+// ---------- 41. E08: migration backfill for the beach gap-fill + service chain
+// (E08-S9-T1/T2/T9, mirrors [36]'s pattern). ----------
+console.log('\n[41] E08 migration backfill: beach gap-fill + service chain');
+{
+  const newIds = ['beach_umbrella', 'beach_sun_lounger', 'beach_jetski', 'beach_private_stretch',
+    'service_selfserve', 'service_waiter', 'service_head_waiter', 'service_maitre_d', 'service_concierge_seed'];
+  const oldSave = ST.newGame();
+  for (const id of newIds) delete oldSave.amenities[id];
+  const migrated = ST.migrate(JSON.parse(JSON.stringify(oldSave)));
+  ok(newIds.every(id => migrated.amenities[id] && migrated.amenities[id].level === 0),
+    'migration backfills every new beach/service amenity id at level 0 for a save that predates them');
+  E.tick(migrated, 1);
+  ok(Number.isFinite(migrated.resources.cash), 'ticking a migrated pre-E08 save does not crash and cash stays finite');
+  ok(approx(migrated._comfortCache, M.computeComfort(migrated, DATA)),
+    'a reloaded save recomputes Comfort identically to a fresh computeComfort() call — no drift (w_service NOT added, so no NaN risk from a missing term)');
+}
+
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);
 process.exit(fails === 0 ? 0 : 1);

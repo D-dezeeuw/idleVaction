@@ -156,16 +156,36 @@ forbidden to touch; all pool items unlock below `accUnlockComfort(6)` — pre-ex
 | S9 Balance/Cadence Tuning | 0 / 2 / 8 | Done-now: harness re-run + in-band confirm. Superseded: automated cadence/purchase-log/golden tooling (no prior epic built it either). |
 | S10 Save/Migration/QA | 5 / 2 / 3 | Done-now: migration test, validation. Superseded: version bump (generic backfill), backup rotation (E30). |
 
+### E08 — Sun, Sand & Service · **100/100** (present 25, done-now 35, superseded 40)
+Gap-fill; **`config.js`/`math.js` untouched**, first phase on the **stable ROI harness** — added
+9 amenities (4 beach → 7-item cluster + 5-item `service` chain), island stayed **8h26m** (proof
+the drift is gone). Service chain (self-serve → maître d' → concierge-seed, `costGrowth 1.9`)
+foreshadows staff (E19). The high superseded count is the now-familiar pattern: `w_service`
+Comfort weight (forbidden — used higher `comfort` data values instead), service `xMult`→income
+(dormant — task #20), and tooling tasks no prior epic built.
+
+| Story | present/done/superseded | Notes |
+|---|---|---|
+| S1 Beach/Service Data | 1 / 6 / 3 | Done-now: 4 beach + 5 service ids, weights, staff bridge. Superseded: `w_service` field, `unlock.requires` chain, service `xMult` scope. |
+| S2 Service-Quality Engine | 5 / 2 / 3 | Present: generic `buyAmenity`, unbounded Comfort. Done-now: steep `costGrowth 1.9`, unit test. Superseded: `Σ serviceScore`, `w_service` term, `xMult`→× (dormant/forbidden). |
+| S3 Beachfront UI | 1 / 6 / 3 | Done-now: Beachfront card, meter, sand/service split, aria-live, subtotal. Superseded: "+global ×" preview (misleading while dormant), slide animation, DOM snapshot test. |
+| S4 Service Tiers | 1 / 5 / 4 | Done-now: 5 tiers + copy + `costGrowth 1.9` + staff-hint + QA. Superseded: global × grant, `serviceScore` double-reward, `STORY_GATES`, ×-payback tuning. |
+| S5 Sun & Sand Cluster | 1 / 5 / 4 | Done-now: 4 items + capstone + flavor. Superseded: jet-ski novelty × (dormant), chain gating, cadence tooling. |
+| S6 4-Star Beach Resort | 6 / 3 / 1 | Present: tier-7 + gate + beat 10 (pre-existing). Done-now: panel mount, tier-7 celebrate, QA. Superseded: harness arrival-timing tuning. |
+| S7 Beach Club Persona (path) | 1 / 0 / 9 | Superseded: no persona-scoped × authored (per-buy trickle = rejected runaway); trivially reconvergent. |
+| S8 Balance & Tuning | 0 / 2 / 8 | Done-now: harness in-band confirm, inline docs. Superseded: golden/cadence tooling, fit procedure, moot `w_service`/× tuning. |
+| S9 Save/Migration/Offline | 6 / 1 / 3 | Present: generic offline/export/guards. Done-now: pre-E08 fixture migration test. Superseded: version bump, stacked-migration idempotency. |
+| S10 QA/Polish/Juice | 3 / 5 / 2 | Present: formatting, reduced-motion, beat-10 text. Done-now: promotion juice, finiteness, drift check, regression suite. Superseded: unlock-fuzz, path-scope regression. |
+
 ---
 
-## Act II–VI — E08–E30
+## Act II–VI — E09–E30
 
 _Pending — appended as each phase's build pass audits its 100 tasks. Each row will carry the
 same `present / done-now / superseded` disposition and a per-phase tally in the commit + report._
 
 | Epic | Status |
 |---|---|
-| E08 Sun, Sand & Service | pending |
 | E09 Charm Offensive | pending |
 | E10 Body & Soul | pending |
 | E11 Five-Star Frame of Mind | pending |
@@ -192,8 +212,8 @@ same `present / done-now / superseded` disposition and a per-phase tally in the 
 ---
 
 ### Running total
-- **Audited:** 700 / 3,000 tasks (E01–E07) — present 309, done-now 265, superseded 126.
-- **Remaining:** 2,300 tasks (E08–E30).
+- **Audited:** 800 / 3,000 tasks (E01–E08) — present 334, done-now 300, superseded 166.
+- **Remaining:** 2,200 tasks (E09–E30).
 
 ### Deferred balance-tuner backlog (for a consolidated retune, latest at E30)
 - **`savvyPassive()` not ×`L_comfort`** (E06-S7-T4) — a flat sqrt-scaled additive term outside
