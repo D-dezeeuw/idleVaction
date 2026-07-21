@@ -2169,5 +2169,378 @@ console.log('\n[62] E11 harness invariance: concierge OFF by default never moves
   ok(peakLog < 290, `peak log10(cash) (${peakLog.toFixed(1)}) stays far under the double-overflow ceiling (~308)`);
 }
 
+// ---------- 63. E12 config + schema: CLOUT/SPONSOR blocks, state.content/sponsors,
+// combo shape (E12-S1). ----------
+console.log('\n[63] E12 config + schema: CLOUT/SPONSOR blocks, state.content/sponsors/combo');
+{
+  ok(typeof C.CLOUT.vloggerPerk === 'number' && C.CLOUT.vloggerPerk === 0.25,
+    'CLOUT.vloggerPerk is surfaced (extracted from engine.tick, value UNCHANGED at 0.25)');
+  ok(typeof C.CLOUT.vloggerComboBonus === 'number' && C.CLOUT.vloggerComboBonus > 0,
+    'CLOUT.vloggerComboBonus exists (extra combo headroom for the vlogger branch)');
+  ok(typeof C.CLOUT.contentPathNudge === 'number' && C.CLOUT.contentPathNudge > 0,
+    'CLOUT.contentPathNudge exists (one-off path-point nudge per content buy)');
+  ok(C.CLOUT.contentRate === 1.0 && C.CLOUT.charismaBoost === 0.02 && C.CLOUT.comboDecaySec === 30
+    && C.CLOUT.comboPerClick === 0.15 && C.CLOUT.comboMax === 5,
+    'the 5 FITTED CLOUT constants are byte-identical to the pre-E12 shipped values (never retuned)');
+  ok(C.SPONSOR && typeof C.SPONSOR.offerIntervalSec === 'number' && typeof C.SPONSOR.cooldownSec === 'number',
+    'the new SPONSOR config block exists');
+
+  const fresh = ST.newGame();
+  ok(fresh.resources.clout === 0, 'a fresh game starts with 0 Clout');
+  ok(fresh.content && DATA.content.every(c => fresh.content[c.id] && fresh.content[c.id].level === 0 && fresh.content[c.id].boosts === 0),
+    'state.content seeds every content tier at level 0 / boosts 0');
+  ok(fresh.sponsors && fresh.sponsors.active === null && fresh.sponsors.offer === null && fresh.sponsors.totalExpired === 0,
+    'state.sponsors starts with no active/offered deal and a zero expiry counter');
+  ok(fresh._combo === 1, 'combo starts at the idle floor (1) on a fresh game');
+}
+
+// ---------- 64. E12 content-tier + creator gear + sponsor data validation. ----------
+console.log('\n[64] E12 content-tier + creator gear + sponsor data validation');
+{
+  const seen = new Set();
+  let prevCost = 0;
+  for (const c of DATA.content) {
+    ok(!seen.has(c.id), `content id ${c.id} is unique`);
+    seen.add(c.id);
+    for (const k of ['id', 'name', 'costBase', 'costGrowth', 'contentRate', 'boostCostBase', 'boostCostGrowth', 'boostRate', 'flavor']) {
+      ok(c[k] !== undefined, `content ${c.id}: has required key "${k}"`);
+    }
+    ok(c.costBase > prevCost, `content ${c.id}: costBase strictly increasing`);
+    prevCost = c.costBase;
+    ok(c.contentRate > 0, `content ${c.id}: contentRate is positive`);
+  }
+  ok(DATA.content.length === 5, 'exactly 5 content tiers');
+  ok(DATA.content.map(c => c.id).join(',') === 'selfie_post,story_reel,daily_vlog,travel_series,documentary',
+    "content tiers are declared in the epic's chain order (selfie_post -> ... -> documentary)");
+
+  const gear = DATA.amenities.filter(a => a.tag === 'gear');
+  ok(gear.length === 6, 'exactly 6 creator-gear items');
+  for (const g of gear) {
+    ok(g.contentRate > 0, `gear ${g.id}: contentRate is positive`);
+    ok(g.comfort > 0, `gear ${g.id}: comfort is positive`);
+  }
+  ok(gear.every((g, i) => i === 0 || g.costBase > gear[i - 1].costBase), 'creator gear costBase strictly increases down the chain');
+
+  const sponsorIds = new Set();
+  for (const d of DATA.sponsors) {
+    ok(!sponsorIds.has(d.id), `sponsor id ${d.id} is unique`);
+    sponsorIds.add(d.id);
+    for (const k of ['id', 'name', 'mult', 'durationSec', 'requires', 'flavor']) ok(d[k] !== undefined, `sponsor ${d.id}: has required key "${k}"`);
+    ok(d.mult > 1, `sponsor ${d.id}: mult is a real multiplier (>1)`);
+    ok(d.durationSec > 0, `sponsor ${d.id}: durationSec is positive`);
+  }
+}
+
+// ---------- 65. E12 math.cloutRate / contentRateTotal / sponsorMult /
+// effectiveComboMax — formula correctness (E12-S2-T1, S10-T1/T5/T6). ----------
+console.log('\n[65] E12 math.cloutRate / contentRateTotal / sponsorMult / effectiveComboMax — formula correctness');
+{
+  const s = ST.newGame();
+  ok(M.contentRateTotal(s, DATA) === 0, 'contentRateTotal is 0 with no content/gear owned');
+  ok(M.sponsorMult(s) === 1, 'sponsorMult is 1 with no active deal');
+  ok(M.effectiveComboMax(s) === C.CLOUT.comboMax, 'effectiveComboMax == comboMax for a neutral branch');
+  const baseRate = M.cloutRate(s, DATA);
+  ok(approx(baseRate, C.CLOUT.contentRate), 'cloutRate collapses to the bare CLOUT.contentRate at combo=1/no perk/no sponsor/charisma=0');
+
+  // charisma coupling: +0.02·charisma exactly (E12-S10-T6)
+  s.skills.charisma.level = 10;
+  ok(approx(M.cloutRate(s, DATA), C.CLOUT.contentRate * (1 + C.CLOUT.charismaBoost * 10)),
+    'raising Charisma raises cloutRate by exactly the +0.02·charisma factor');
+  s.skills.charisma.level = 0;
+
+  // vlogger perk: exactly ×(1+vloggerPerk)·(1+points·0.05) once points > 0 (E12-S10-T5)
+  ok(M.cloutRate(s, DATA) === baseRate, 'cloutRate is unaffected by branch alone (no vlogger points yet)');
+  s.paths.vlogger.points = 3;
+  const expectedPerk = C.CLOUT.contentRate * (1 + C.CLOUT.vloggerPerk) * (1 + 3 * 0.05);
+  ok(approx(M.cloutRate(s, DATA), expectedPerk), 'cloutRate applies the vlogger perk + path bonus once vlogger points > 0, unchanged otherwise');
+  s.paths.vlogger.points = 0;
+
+  // content tiers + creator gear feed contentRateTotal additively
+  const c0 = DATA.content[0];
+  s.content[c0.id].level = 2;
+  ok(approx(M.contentRateTotal(s, DATA), 2 * c0.contentRate), 'content tier level contributes level·contentRate');
+  s.content[c0.id].boosts = 1;
+  ok(approx(M.contentRateTotal(s, DATA), 2 * c0.contentRate * (1 + c0.boostRate)),
+    "a content boost multiplies that tier's own contribution by (1+boostRate·boosts)");
+  s.content[c0.id].level = 0; s.content[c0.id].boosts = 0;
+
+  const gear0 = DATA.amenities.find(a => a.tag === 'gear');
+  s.amenities[gear0.id].level = 3;
+  ok(approx(M.contentRateTotal(s, DATA), 3 * gear0.contentRate), 'creator gear contributes level·contentRate to the same total');
+  s.amenities[gear0.id].level = 0;
+
+  // sponsor multiplier applies once active
+  s.sponsors.active = { id: 'x', mult: 2.5, expiresAtSec: 999 };
+  ok(M.sponsorMult(s) === 2.5, "sponsorMult reads the active deal's own mult");
+  ok(approx(M.cloutRate(s, DATA), C.CLOUT.contentRate * 2.5), 'cloutRate is multiplied by the active sponsor mult');
+  s.sponsors.active = null;
+
+  // vlogger branch gets extra combo headroom (E12-S7-T2)
+  s.story.branch = 'vlogger';
+  ok(M.effectiveComboMax(s) === C.CLOUT.comboMax + C.CLOUT.vloggerComboBonus, 'effectiveComboMax adds vloggerComboBonus on the vlogger branch');
+}
+
+// ---------- 66. E12 combo: idle floor, ~30s decay, holds at max under sustained
+// tapping, vlogger headroom (E12-S2-T3/T4/T5, S4, S10-T2/T4). ----------
+console.log('\n[66] E12 combo: idle floor, ~30s decay, holds at max under sustained tapping, vlogger headroom');
+{
+  const s = ST.newGame();
+  ok(s._combo === 1, 'combo starts at the idle floor 1');
+  for (let i = 0; i < 100; i++) E.tick(s, 1);
+  ok(s._combo === 1, 'a never-tapping player always sits at comboMult=1 (the idle floor)');
+  ok(s.resources.clout > 0, 'Clout still accrues at the idle floor (never gated on tapping)');
+
+  const tapper = ST.newGame();
+  for (let i = 0; i < 200; i++) E.click(tapper);
+  ok(approx(tapper._combo, C.CLOUT.comboMax), 'sustained tapping saturates combo at exactly comboMax, never past it');
+
+  const span = C.CLOUT.comboMax - 1;
+  E.tick(tapper, C.CLOUT.comboDecaySec / 2);
+  ok(approx(tapper._combo, span / 2 + 1, 1e-6), 'combo decays LINEARLY — exactly halfway back at half of comboDecaySec');
+  E.tick(tapper, C.CLOUT.comboDecaySec / 2);
+  ok(approx(tapper._combo, 1, 1e-6), 'combo fully decays to the floor (1) in exactly comboDecaySec');
+  E.tick(tapper, 5);
+  ok(tapper._combo === 1, 'combo never dips below the floor once decayed');
+
+  // vlogger branch: same taps reach a HIGHER cap, at the SAME decay rate
+  const vlog = ST.newGame();
+  vlog.story.branch = 'vlogger';
+  for (let i = 0; i < 400; i++) E.click(vlog);
+  ok(approx(vlog._combo, C.CLOUT.comboMax + C.CLOUT.vloggerComboBonus), 'the vlogger branch saturates at the HIGHER effective cap');
+  E.tick(vlog, C.CLOUT.comboDecaySec);
+  ok(vlog._combo > 1, "a vlogger's bigger combo tank is NOT fully drained after just the base comboDecaySec window (a longer effective window)");
+}
+
+// ---------- 67. E12 sponsor deals: opt-in offer -> accept -> timed multiplier ->
+// expiry -> cooldown, non-stacking, bounded (E12-S2-T6, Task B, S10-T3). ----------
+console.log('\n[67] E12 sponsor deals: offer -> accept -> timed multiplier -> expiry -> cooldown, non-stacking, bounded');
+{
+  const s = ST.newGame();
+  s.paths.vlogger.points = 1;               // unlocks the Creator Dashboard / sponsor subsystem
+  E.tick(s, 0.1);
+  ok(s.sponsors.offer !== null, 'an offer rolls in almost immediately once the Creator Dashboard is unlocked');
+
+  const offeredId = s.sponsors.offer;
+  const deal = E.sponsorData(offeredId);
+  const otherId = DATA.sponsors.find(d => d.id !== offeredId)?.id;
+  if (otherId) ok(E.acceptSponsor(s, otherId) === false, 'accepting a deal that is NOT the current offer fails');
+
+  const baseline = M.cloutRate(s, DATA);
+  ok(E.acceptSponsor(s, offeredId), 'accepting the current offer succeeds');
+  ok(s.sponsors.active && s.sponsors.active.id === offeredId, 'the accepted deal becomes the single active slot');
+  ok(s.sponsors.offer === null, 'accepting clears the pending offer');
+  ok(approx(M.cloutRate(s, DATA), baseline * deal.mult), "cloutRate is multiplied by exactly the accepted deal's mult");
+
+  E.tick(s, 1);
+  ok(s.sponsors.offer === null, 'no new offer rolls while a deal is active (bounded to ONE active slot)');
+  ok(DATA.sponsors.every(d => E.acceptSponsor(s, d.id) === false), 'no deal can be accepted while one is already active (non-stacking)');
+
+  E.tick(s, deal.durationSec + 1);
+  ok(s.sponsors.active === null, "the active deal expires exactly after its own durationSec");
+  ok(approx(M.sponsorMult(s), 1), 'Clout multiplier returns to 1 once the deal expires');
+  ok(s.sponsors.totalExpired === 1, 'the expiry counter increments exactly once');
+  ok(E.sponsorCooldownRemaining(s, offeredId) > 0, 'the just-expired deal enters its cooldown — cannot be re-offered immediately');
+
+  for (const d of DATA.sponsors) {
+    ok(Number.isFinite(d.mult) && d.mult > 0, `sponsor ${d.id}: mult is a finite positive number (bounded)`);
+    ok(Number.isFinite(d.durationSec) && d.durationSec > 0, `sponsor ${d.id}: durationSec is finite and positive (bounded, timed)`);
+  }
+}
+
+// ---------- 68. E12 harness invariance: content/sponsors never bought/accepted by the
+// harness, island unchanged, Beat 14 lands on the smooth curve (E12-S8-T6/T7/T8/T9,
+// guardrail #3). ----------
+console.log('\n[68] E12 harness invariance: content/sponsors never touched by the max-speed harness, island unchanged');
+{
+  const { s, beatTime, islandAt, peakLog } = runCurve({ dt: 5, maxHours: 40 });
+  ok(DATA.content.every(c => s.content[c.id].level === 0 && s.content[c.id].boosts === 0),
+    "the harness never buys/boosts any content tier (not in its greedy policy) — Clout stays on the pre-E12 baseline formula");
+  ok(s.sponsors.active === null, 'the harness never accepts a sponsor deal — no active multiplier ever appears in the max-speed run');
+  ok(Math.abs(islandAt - 30415) < 1, `harness island time is UNCHANGED by E12 (got ${fmtTime(islandAt)}, expected ~8h26m55s / 30415s)`);
+  ok(peakLog < 290, `peak log10(cash) (${peakLog.toFixed(1)}) stays far under the double-overflow ceiling`);
+
+  ok(beatTime[14] !== undefined, 'Beat 14 (Going Viral) still fires within the harness run');
+  ok(beatTime[13] <= beatTime[14] && beatTime[14] <= beatTime[15],
+    `Beat 14 (${fmtTime(beatTime[14])}) lands between Beat 13 (${fmtTime(beatTime[13])}) and Beat 15 (${fmtTime(beatTime[15])}) on the smooth curve`);
+}
+
+// ---------- 69. E12 Creator Dashboard reveal gating + Going Viral flourish +
+// cross-path hybrid flavor (E12-S3-T6, S6-T4, S7-T6). ----------
+console.log('\n[69] E12 Creator Dashboard reveal gating + Going Viral flourish + cross-path hybrid flavor');
+{
+  const s = ST.newGame();
+  ok(!E.creatorDashboardUnlocked(s), 'a fresh game has the Creator Dashboard locked (no vlogger points, no beat 14, tier < 11)');
+  s.paths.vlogger.points = 0.5;
+  ok(E.creatorDashboardUnlocked(s), 'ANY positive vlogger path investment unlocks the dashboard, however small');
+  E.tick(s, 0.1);
+  const notifs = E.drainNotifications(s);
+  ok(notifs.some(n => n.type === 'unlock' && /Creator Dashboard/.test(n.text)), 'the dashboard reveal fires a one-shot unlock flash');
+  E.tick(s, 0.1);
+  ok(E.drainNotifications(s).every(n => !/Creator Dashboard/.test(n.text)), 'the reveal flash never repeats');
+
+  // Going Viral: layered on Beat 14's OWN existing Comfort gate — fast-track every
+  // gate (tier 11's accScore alone clears beat14's 1.3e6 comfort gate) in one tick.
+  const gv = ST.newGame();
+  gv.accommodation.tier = 11;
+  gv.accommodation.owned = Array.from({ length: 12 }, (_, i) => i);
+  gv.skills.charisma.xp = 1e6;
+  gv.skills.body.xp = 1e7;
+  E.tick(gv, 1);
+  ok(gv.story.seen.includes(14), "Beat 14 (Going Viral) fires once Comfort crosses its gate (and every prior beat's own gate is also met)");
+  ok(gv.story.flags.goingViral, 'the Going Viral flourish fires alongside Beat 14');
+
+  // hybrid path flavor: reachable by ANY mixed build, cosmetic only, never gated on branch
+  const hybrid = ST.newGame();
+  hybrid.paths.vlogger.points = 5; hybrid.paths.traveler.points = 5;
+  E.checkPathHybridFlags(hybrid);
+  ok(hybrid.story.flags.hybridTravelVlog, '"travel vlog" hybrid fires once BOTH vlogger and traveler points cross the threshold');
+  ok(!hybrid.story.flags.hybridSponsoredShill, 'the crypto hybrid does not fire from the traveler combo alone');
+  hybrid.paths.crypto.points = 5;
+  E.checkPathHybridFlags(hybrid);
+  ok(hybrid.story.flags.hybridSponsoredShill, '"sponsored token shill" hybrid fires once vlogger+crypto points cross the threshold');
+}
+
+// ---------- 70. E12 content-tier buy flow (buyContent/buyContentBoost) + creator
+// gear integration (E12-S2-T8, S5-T2/T4/T5/T10). ----------
+console.log('\n[70] E12 content-tier buy flow (buyContent/buyContentBoost) + creator gear integration');
+{
+  const s = ST.newGame();
+  const c0 = DATA.content[0];
+  ok(E.contentUnlocked(s, c0.id), 'the first content tier is unlocked from the start (unlockClout: 0)');
+  ok(E.buyContent(s, c0.id) === false, 'zero cash: buying a content tier fails cleanly');
+  ok(s.resources.cash >= 0, 'cash never goes negative on a failed content buy');
+
+  s.resources.cash = 1e7;
+  const before = M.cloutRate(s, DATA);
+  const pathBefore = s.paths.vlogger.points;
+  ok(E.buyContent(s, c0.id), 'buying an unlocked, affordable content tier succeeds');
+  ok(s.content[c0.id].level === 1, 'content level increments by exactly 1 per buy');
+  ok(s.paths.vlogger.points > pathBefore, 'a content-tier purchase grants a small one-off vlogger path-point nudge (E12-S7-T4)');
+  ok(M.cloutRate(s, DATA) > before, 'cloutRate recomputes higher immediately after a content-tier buy');
+
+  s.resources.cash = 1e12;
+  for (let i = 0; i < 5; i++) {
+    ok(E.buyContent(s, c0.id), `rapid buy #${i + 2} succeeds with ample cash`);
+    ok(s.resources.cash >= 0, 'cash stays non-negative through rapid buys');
+  }
+
+  s.resources.clout = 0;
+  ok(E.buyContentBoost(s, c0.id) === false, 'zero Clout: boosting a content tier fails cleanly (the sink cannot go negative)');
+  s.resources.clout = 1e6;
+  const rateBeforeBoost = M.contentRateTotal(s, DATA);
+  ok(E.buyContentBoost(s, c0.id), 'a Clout-funded content boost succeeds');
+  ok(s.content[c0.id].boosts === 1, 'boosts increments by exactly 1');
+  ok(M.contentRateTotal(s, DATA) > rateBeforeBoost, "the boost raises that tier's own contentRate contribution");
+  ok(s.resources.clout < 1e6, 'the boost actually spent Clout (the sink has real teeth)');
+
+  const gear0 = DATA.amenities.find(a => a.tag === 'gear');
+  s.resources.cash = 1e9;
+  const beforeGearRate = M.contentRateTotal(s, DATA);
+  const comfortBefore = s._comfortCache;
+  ok(E.buyAmenity(s, gear0.id), 'creator gear is bought through the SAME generic buyAmenity(id) — no bespoke gear code');
+  ok(M.contentRateTotal(s, DATA) > beforeGearRate, 'buying creator gear raises contentRateTotal (wired into the SAME Clout formula)');
+  ok(s._comfortCache > comfortBefore, 'creator gear ALSO feeds Comfort like every other amenity (small comfort bump, E12-S1-T8)');
+}
+
+// ---------- 71. E12 migration backfill: state.content + state.sponsors for pre-E12
+// saves, combo floors on load, lapsed sponsor expires (E12-S9-T2/T3/T5/T6/T9/T10). ----------
+console.log('\n[71] E12 migration backfill: state.content/sponsors, combo floors on load, lapsed sponsor expiry');
+{
+  const fresh = ST.newGame();
+  const raw = JSON.parse(JSON.stringify(fresh));
+  delete raw.content;
+  delete raw.sponsors;
+  raw._combo = 4.2;                 // simulate a mid-combo snapshot at the moment of save
+  raw._comboTimer = 99;
+  const migrated = ST.migrate(raw);
+  ok(migrated.content && DATA.content.every(c => migrated.content[c.id] && migrated.content[c.id].level === 0 && migrated.content[c.id].boosts === 0),
+    'migration backfills state.content wholesale for a save that predates it');
+  ok(migrated.sponsors && migrated.sponsors.active === null && migrated.sponsors.offer === null,
+    'migration backfills state.sponsors wholesale for a save that predates it');
+  ok(migrated._combo === 1, 'combo floors to 1 on load regardless of the saved mid-combo snapshot');
+  ok(migrated._comboTimer === 0, 'the dormant _comboTimer also floors on load');
+
+  E.tick(migrated, 1);
+  ok(Number.isFinite(migrated.resources.clout), 'ticking a migrated pre-E12 save keeps Clout finite, no crash');
+
+  // export/import round-trips the new fields
+  const withContent = ST.newGame();
+  withContent.resources.cash = 1e7;
+  E.buyContent(withContent, DATA.content[0].id);
+  withContent.paths.vlogger.points = 1;
+  withContent.sponsors.active = { id: 'energy_drink', mult: 1.5, expiresAtSec: 500 };
+  const roundTripped = ST.importSave(ST.exportSave(withContent));
+  ok(roundTripped.content[DATA.content[0].id].level === 1, 'export/import round-trips content-tier levels');
+  ok(roundTripped.sponsors.active && roundTripped.sponsors.active.id === 'energy_drink', 'export/import round-trips an in-flight sponsor deal');
+
+  // a save with an IN-FLIGHT sponsor deal whose expiry is already in the past
+  const lapsed = ST.newGame();
+  lapsed.paths.vlogger.points = 1;
+  lapsed.sponsors.active = { id: 'energy_drink', mult: 1.5, expiresAtSec: -100 };
+  E.tick(lapsed, 1);
+  ok(lapsed.sponsors.active === null, "a sponsor deal whose expiry has already lapsed expires on the very next tick");
+  ok(lapsed.sponsors.totalExpired === 1, 'the lapsed deal is counted as expired');
+}
+
+// ---------- 72. E12 offline: Clout production via content tiers, combo floors,
+// sponsor expiry, summary fields (E12-S9-T3/T6/T7/T8). ----------
+console.log('\n[72] E12 offline: Clout production via content tiers, combo floors, sponsor expiry, summary fields');
+{
+  const s = ST.newGame();
+  s.settings.offlineEnabled = true;
+  s.resources.cash = 1e8;
+  E.buyContent(s, DATA.content[0].id);   // owns a content tier producing Clout passively
+  s._combo = 4;                          // simulate a mid-combo snapshot right before going away
+  s.paths.vlogger.points = 1;
+  s.sponsors.active = { id: 'energy_drink', mult: 1.5, expiresAtSec: 30 }; // lapses mid-offline
+
+  const beforeClout = s.resources.clout;
+  const rep = E.applyOffline(s, 2 * 3600 * 1000); // 2h away
+  ok(rep !== null, 'applyOffline returns a report for a real elapsed gap');
+  ok(rep.clout > 0, 'Clout accrued while away (content tiers keep producing offline)');
+  ok(s.resources.clout > beforeClout, 'resources.clout actually increased across the offline replay');
+  ok(s._combo === 1, 'combo is back at the idle floor after any decent offline stretch');
+  ok(s.sponsors.active === null, 'the in-flight sponsor deal expired correctly during the offline replay');
+  ok(rep.sponsorsExpired === 1, 'the offline report counts the sponsor expiry');
+}
+
+// ---------- 73. E12 edge: extreme game speed keeps Clout/combo/sponsors finite and
+// correct (E12-S10-T9). ----------
+console.log('\n[73] E12 edge: extreme game speed keeps Clout/combo/sponsors finite and correct');
+{
+  const s = ST.newGame();
+  s.paths.vlogger.points = 1;
+  for (let i = 0; i < 500; i++) E.click(s);          // saturate combo before the hyperspeed jump
+  ok(s._combo > 1, 'combo is above the floor going into the hyperspeed tick');
+  E.tick(s, 100000);                                  // a single, absurdly large dt
+  ok(Number.isFinite(s.resources.clout), 'Clout stays finite after an absurdly large single tick');
+  ok(s._combo === 1, 'combo correctly decays all the way to the floor under a huge dt');
+  ok(Number.isFinite(s.sponsors.nextOfferAtSec) && Number.isFinite(s.sponsors.offerCycle), 'sponsor timers stay finite under a huge dt');
+  ok(s.resources.clout >= 0, 'Clout never goes negative');
+}
+
+// ---------- 74. E12 regression: no lock-in — neutral branch still earns Clout, mixed
+// builds never punished (E12-S7-T8/T9, S10-T10). ----------
+console.log('\n[74] E12 regression: no lock-in — neutral branch still earns Clout, mixed builds never punished');
+{
+  const neutral = ST.newGame();
+  ok(neutral.story.branch === 'neutral', 'sanity: fresh game starts neutral');
+  E.tick(neutral, 1);
+  ok(neutral.resources.clout > 0, 'a neutral-branch player still earns baseline Clout');
+
+  const mixed = ST.newGame();
+  mixed.resources.cash = 1e9;
+  ok(E.buyPathFocus(mixed, 'vlogger'), 'buying vlogger path focus succeeds');
+  ok(E.buyPathFocus(mixed, 'traveler'), 'buying traveler path focus ALSO succeeds — paths are never mutually exclusive');
+  ok(E.buyPathFocus(mixed, 'crypto'), 'buying crypto path focus ALSO succeeds — a mixed build is never punished or stranded');
+  ok(mixed.paths.vlogger.points > 0 && mixed.paths.traveler.points > 0 && mixed.paths.crypto.points > 0,
+    'all three paths carry independent, simultaneous point totals');
+
+  const noPoints = ST.newGame();
+  noPoints.story.branch = 'vlogger';   // branch chosen, but zero points invested
+  ok(approx(M.cloutRate(noPoints, DATA), C.CLOUT.contentRate),
+    'choosing the vlogger branch ALONE (no points) does not change cloutRate — the perk keys on points, not the label');
+}
+
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);
 process.exit(fails === 0 ? 0 : 1);

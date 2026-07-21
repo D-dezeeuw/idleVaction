@@ -8,6 +8,8 @@ import { TREE } from './skilltree.js';
 import { STORY, VIGNETTES } from './story.js';
 import { NPCS } from './npcs.js';
 import { DESTINATIONS, TRANSPORT } from './destinations.js';
+import { CONTENT } from './content.js';
+import { SPONSORS } from './sponsors.js';
 
 export const DATA = {
   generators: GENERATORS,
@@ -22,4 +24,6 @@ export const DATA = {
   npcs: NPCS,
   destinations: DESTINATIONS,
   transport: TRANSPORT,
+  content: CONTENT,
+  sponsors: SPONSORS,
 };

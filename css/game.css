@@ -176,6 +176,30 @@ body { background: var(--iv-bg); color: var(--iv-ink); font-family: system-ui, s
 @keyframes conciergepulse { 0%, 100% { filter: brightness(1); } 30% { filter: brightness(1.6); } }
 @media (prefers-reduced-motion: reduce) { .iv-concierge-flash { animation: none; } }
 
+/* Creator Dashboard (E12 "Lights, Camera, Clout") — combo meter cold -> warm -> viral
+   color states, reusing .iv-comfort-meter's bar shell (mirrors the Energy meter's reuse
+   of the same shell). A brief pulse on every tap ties E10's tap button to the meter
+   visually (E12-S3-T5); a one-shot "going viral" burst fires the first time combo hits
+   its (branch-scoped) effective max (E12-S10-T7). Both reduced-motion gated, mirroring
+   every other pulse/flash in this file. */
+.iv-combo-meter i { background: linear-gradient(90deg, #6ab0ff, var(--iv-accent)); }
+.iv-combo-warm i { background: linear-gradient(90deg, var(--iv-accent), #ff8f3c); }
+.iv-combo-viral i { background: linear-gradient(90deg, #ff8f3c, #ff4d4d); }
+.iv-combo-pulse i { animation: energypulse .4s ease 1; }
+.iv-combo-burst { animation: comboburst .9s ease 1; }
+@keyframes comboburst { 0%, 100% { filter: brightness(1); } 30% { filter: brightness(1.9); } }
+@media (prefers-reduced-motion: reduce) {
+  .iv-combo-pulse i { animation: none; }
+  .iv-combo-burst { animation: none; }
+}
+
+/* content-tier cards + active sponsor card (E12-S3-T3/T4): reuse .iv-btn's block shape
+   (like .iv-dest-owned) rather than a bespoke layout. */
+.iv-content-item { text-align: left; flex: 1 1 160px; max-width: 240px; }
+.iv-sponsor-active { background: #14252c; border-color: var(--iv-good); text-align: left;
+  flex: 1 1 160px; max-width: 240px; }
+.iv-notif.iv-sponsor { border-color: #ff8f3c; }
+
 /* "While you were away" summary (E02-S9-T5): dismissible, mobile-friendly overlay. */
 .iv-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex;
   align-items: center; justify-content: center; z-index: 20; padding: 16px; }

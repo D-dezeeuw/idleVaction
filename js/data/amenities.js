@@ -204,4 +204,25 @@ export const AMENITIES = [
   { id: 'bathrobe',           name: 'Monogrammed Bathrobe',   tag: 'suite', costBase: 1.92e8, comfort: 2900, xMult: 0.12, xScope: 'all', unlockComfort: 180000, flavor: 'Your initials, embroidered, on a robe you will absolutely try to take home.' },
   { id: 'rainfall_shower',    name: 'Rainfall Shower',        tag: 'suite', costBase: 3.84e8, comfort: 3800, xMult: 0.14, xScope: 'all', unlockComfort: 240000, flavor: 'Actual Dutch rain, but warm, and entirely by choice.' },
   { id: 'butler_call_button', name: 'Butler Call Button',     tag: 'suite', costBase: 7.68e8, comfort: 4900, xMult: 0.16, xScope: 'all', unlockComfort: 320000, flavor: 'One press. He already knew.' },
+
+  // --- creator gear (E12 "Lights, Camera, Clout" — the vlogger cluster). tag:'gear'.
+  // Bought through the SAME generic engine.buyAmenity(id) as every other amenity (no
+  // bespoke gear code, E12-S5-T2) — so it also gets checkAmenityUnlocks' "new little
+  // luxury" flash and the concierge's 'amenity' whitelist for free. `contentRate` is a
+  // NEW, genuinely-WIRED field (unlike the dormant xMult/xScope above): it feeds
+  // math.contentRateTotal → math.cloutRate, which is a SECOND currency that never
+  // touches tierProd/tierMultiplier/computeComfort — so wiring it in cannot move the
+  // harness's max-speed island time (Clout is entirely outside the cash multiplier
+  // stack). costBase/comfort follow the small-wins cadence of the surrounding clusters;
+  // this cluster is gated behind the Creator Dashboard reveal (vlogger path points,
+  // Beat 14, or tier-11 band — see engine.creatorDashboardUnlocked), which can occur
+  // very early (buyPathFocus has no Comfort gate), so unlockComfort is kept LOW (unlike
+  // the tier-bracketing convention used by onestar/breakfast/suite) so the first items
+  // are available the moment the dashboard opens, whenever that is. ---
+  { id: 'ring_light',   name: 'Ring Light',        tag: 'gear', costBase: 300,   comfort: 8,  contentRate: 0.3, xMult: 0.02, xScope: 'all', unlockComfort: 0,    flavor: 'Every selfie now has the soft, flattering glow of a mild interrogation.' },
+  { id: 'gimbal',       name: 'Handheld Gimbal',   tag: 'gear', costBase: 900,   comfort: 11, contentRate: 0.6, xMult: 0.03, xScope: 'all', unlockComfort: 100,  flavor: 'Buttery-smooth footage of you tripping over a curb.' },
+  { id: 'clip_mic',     name: 'Clip-On Mic',       tag: 'gear', costBase: 2500,  comfort: 14, contentRate: 1.0, xMult: 0.03, xScope: 'all', unlockComfort: 400,  flavor: 'Crisp audio, so the wind can no longer be blamed for your commentary.' },
+  { id: 'drone',        name: 'Pocket Drone',      tag: 'gear', costBase: 7000,  comfort: 18, contentRate: 1.8, xMult: 0.05, xScope: 'social', unlockComfort: 1200, flavor: 'For the sweeping aerial shot of you looking pensive, which the algorithm demands.' },
+  { id: '4k_camera',    name: '4K Camera',         tag: 'gear', costBase: 18000, comfort: 24, contentRate: 3.0, xMult: 0.06, xScope: 'all', unlockComfort: 3000, flavor: 'Every pore, in stunning clarity. Bold choice.' },
+  { id: 'studio_setup', name: 'Portable Studio Setup', tag: 'gear', costBase: 45000, comfort: 32, contentRate: 5.0, xMult: 0.08, xScope: 'all', unlockComfort: 8000, flavor: 'A backdrop, three lights, and a hotel room that no longer looks like a hotel room.' },
 ];

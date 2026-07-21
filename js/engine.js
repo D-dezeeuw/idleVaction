@@ -50,15 +50,13 @@ export function tick(state, dt) {
   state.stats.lifetimeCash += cashGain;
   state.stats.lifetimeCashThisTree += cashGain;
 
-  // 4) clout (vlogger) with combo decay
+  // 4) clout (vlogger economy, E12 "Lights, Camera, Clout"): combo decay + the sponsor
+  // offer/expiry clock first, then the single pure M.cloutRate() (math.js) is the whole
+  // formula now — nothing here re-derives it inline (see math.cloutRate's comment for
+  // why this is bit-for-bit the same formula as before the extraction).
   decayCombo(state, dt);
-  const vloggerPerk = 1 + 0.25 * Math.sign(state.paths.vlogger.points);
-  const magnetic = 1 + 0.1 * (state.ascension.tree.magnetic || 0);
-  const cloutRate = C.CLOUT.contentRate
-    * (1 + C.CLOUT.charismaBoost * state.skills.charisma.level)
-    * state._combo * vloggerPerk * magnetic
-    * (1 + state.paths.vlogger.points * 0.05);
-  state.resources.clout += cloutRate * dt;
+  tickSponsors(state, dt);
+  state.resources.clout += M.cloutRate(state, DATA) * dt;
 
   // 5) skill XP trickle (idle growth; training is the main driver)
   trickleXp(state, cashGain, dt);
@@ -91,6 +89,10 @@ export function tick(state, dt) {
   checkWellnessReveal(state);
   checkBodyPathFlags(state);
   checkConciergeReveal(state);
+  checkCreatorDashboardReveal(state);
+  checkGoingViral(state);
+  checkPathHybridFlags(state);
+  checkContentUnlocks(state);
 
   // 7) concierge: bounded, off-by-default auto-purchase policy (E11 "Five-Star Frame of
   // Mind") — a no-op instant boolean check whenever state.concierge.on is false, so a
@@ -225,6 +227,72 @@ export function checkBodyPathFlags(state) {
       && !state.story.flags.hybridBodyVlogger) {
     state.story.flags.hybridBodyVlogger = true;
     notify(state, 'vignette', '🎬🏋️ The fit-and-photogenic combo. Sponsors take notice.');
+  }
+}
+
+// ---------- vlogger clout economy (E12 "Lights, Camera, Clout") ----------
+// Small cross-path hybrid flavor flags (E12-S7-T6), mirroring checkBodyPathFlags's
+// pattern exactly one section above — cosmetic only, never touches income math. Any
+// two paths can be invested in independently (buyPathFocus has no exclusivity), so
+// these are genuinely reachable by a mixed build, not gated on a branch choice.
+const HYBRID_PATH_POINTS = 5;
+export function checkPathHybridFlags(state) {
+  if (state.paths.vlogger.points >= HYBRID_PATH_POINTS && state.paths.traveler.points >= HYBRID_PATH_POINTS
+      && !state.story.flags.hybridTravelVlog) {
+    state.story.flags.hybridTravelVlog = true;
+    notify(state, 'vignette', '🎬🗺️ The "travel vlog" hybrid. Footage of every border crossing, tastefully monetized.');
+  }
+  if (state.paths.vlogger.points >= HYBRID_PATH_POINTS && state.paths.crypto.points >= HYBRID_PATH_POINTS
+      && !state.story.flags.hybridSponsoredShill) {
+    state.story.flags.hybridSponsoredShill = true;
+    notify(state, 'vignette', '📉📸 The "sponsored token shill" hybrid. Your bio grows a suspicious number of rocket emojis.');
+  }
+}
+
+// Creator Dashboard reveal gate (E12-S3-T6): the vlogger path has points, OR Beat 14
+// (Going Viral) has fired, OR the tier-11 band is reached — whichever comes first.
+// buyPathFocus has no Comfort gate, so this can trigger very early for a player who
+// dabbles in the vlogger path before ever picking a branch — intentional, mirrors
+// conciergeUnlocked's "OR" pattern (E11) exactly.
+export function creatorDashboardUnlocked(state) {
+  return state.paths.vlogger.points > 0 || state.story.seen.includes(14) || state.accommodation.tier >= 11;
+}
+// one-shot reveal flash (mirrors checkWellnessReveal/checkConciergeReveal's pattern).
+export function checkCreatorDashboardReveal(state) {
+  if (state.story.flags.creatorDashboardRevealed) return;
+  if (!creatorDashboardUnlocked(state)) return;
+  state.story.flags.creatorDashboardRevealed = true;
+  notify(state, 'unlock', '📸 The Creator Dashboard opens: Clout, combo, content, and sponsors circling like gulls.');
+}
+
+// one-shot "Going Viral" flourish (E12-S6-T4/T6, S7-T5): layered on top of Beat 14's
+// OWN existing Comfort gate (data/story.js, unchanged) — mirrors checkPoolTease/
+// checkWellnessReveal's "tie a celebratory flash to an existing gate" convention
+// rather than inventing a new pathPoints-based story gate (no such axis exists
+// anywhere else in data/story.js's requires — see docs/coverage.md E12 notes).
+export function checkGoingViral(state) {
+  if (state.story.flags.goingViral) return;
+  if (!state.story.seen.includes(14)) return;
+  state.story.flags.goingViral = true;
+  const byBranch = {
+    vlogger: '🚀 GOING VIRAL. Somewhere, an algorithm has made a terrible, wonderful decision about you.',
+    crypto: '🚀 A clip of you poolside goes viral for reasons unrelated to your portfolio. You take the exposure anyway.',
+    connoisseur: '🚀 Someone films your wine order. It goes viral. You are, unfortunately, correct about the wine.',
+    traveler: '🚀 A stranger\'s video of your itinerary goes viral. You never even see the clip.',
+  };
+  notify(state, 'celebrate', byBranch[state.story.branch] || '🚀 Somewhere, a clip of you goes viral. You do not fully understand why.');
+}
+
+// one-shot "new content format" flash (mirrors checkAmenityUnlocks exactly, one tier
+// down — content tiers aren't amenities, so they need their own loop over DATA.content).
+export function checkContentUnlocks(state) {
+  for (const c of DATA.content) {
+    const flagKey = 'contentUnlocked_' + c.id;
+    if (state.story.flags[flagKey]) continue;
+    if (contentUnlocked(state, c.id)) {
+      state.story.flags[flagKey] = true;
+      notify(state, 'unlock', `🎥 New content format unlocked: ${c.name}`);
+    }
   }
 }
 
@@ -486,6 +554,104 @@ export function buyPathFocus(state, id) {
   return true;
 }
 
+// ---------- content tiers + the Clout sink (E12 "Lights, Camera, Clout") ----------
+// A small, cash-in/Clout-out cluster, bought through its own generic buy flow (mirrors
+// buyAmenity's shape) — never wired into dev/harness.mjs's greedy policy (see data/
+// content.js's comment), so it cannot move the fitted island time no matter how it's
+// priced.
+export function contentData(id) { return DATA.content.find(c => c.id === id); }
+export function contentUnlocked(state, id) {
+  const c = contentData(id);
+  return state.resources.clout >= (c.unlockClout || 0) || state.content[id].level > 0;
+}
+export function contentCost(state, id) {
+  const c = contentData(id);
+  return c.costBase * Math.pow(c.costGrowth, state.content[id].level) * M.commsCostMult(state);
+}
+export function buyContent(state, id) {
+  if (!contentUnlocked(state, id)) return false;
+  const cost = contentCost(state, id);
+  if (state.resources.cash < cost) return false;
+  state.resources.cash -= cost;
+  state.content[id].level++;
+  // one-off vlogger path-point nudge (E12-S7-T4) — mirrors DEST.visitPathPoints'
+  // "one-off on a discrete purchase, never a per-tick trickle" pattern exactly, so it
+  // can't compound into a runaway the way a continuous trickle would.
+  state.paths.vlogger.points += C.CLOUT.contentPathNudge;
+  return true;
+}
+export function contentBoostCost(state, id) {
+  const c = contentData(id);
+  return c.boostCostBase * Math.pow(c.boostCostGrowth, state.content[id].boosts);
+}
+// the Clout SINK (E12-S2-T8): spend Clout itself to permanently boost one content
+// tier's own contentRate — Clout reinvested into itself, mirroring L_upgrade's shape
+// (1 + boostRate·boosts) but scoped entirely to the Clout economy (never touches cash).
+export function buyContentBoost(state, id) {
+  const cost = contentBoostCost(state, id);
+  if (state.resources.clout < cost) return false;
+  state.resources.clout -= cost;
+  state.content[id].boosts++;
+  return true;
+}
+
+// ---------- sponsor deals: opt-in, timed Clout multipliers (E12 "Lights, Camera,
+// Clout") ----------
+// A deal must be explicitly ACCEPTED via acceptSponsor() — tickSponsors (called from
+// engine.tick) only rolls a new offer and expires an already-active one, it NEVER
+// auto-accepts, so a fresh newGame() (and the harness/selftest playStep, which never
+// call acceptSponsor) never see an active multiplier — see config.SPONSOR's comment.
+export function sponsorData(id) { return DATA.sponsors.find(d => d.id === id); }
+function sponsorRequiresMet(state, req) {
+  if (!req) return true;
+  if (req.clout !== undefined && state.resources.clout < req.clout) return false;
+  if (req.charisma !== undefined && state.skills.charisma.level < req.charisma) return false;
+  return true;
+}
+export function sponsorCooldownRemaining(state, id) {
+  return Math.max(0, (state.sponsors.cooldowns[id] || 0) - state.stats.runSec);
+}
+// paced by config.SPONSOR (E12-S8-T3) — gated behind the Creator Dashboard itself being
+// unlocked, so the whole subsystem stays dormant (no offer ever rolls, no cooldown ever
+// ticks) until the vlogger economy is actually in play, mirroring conciergeTick's
+// off-by-default early-return convention.
+function tickSponsors(state, dt) {
+  if (!creatorDashboardUnlocked(state)) return;
+  const sp = state.sponsors;
+  // expire the active deal once its window is up
+  if (sp.active && state.stats.runSec >= sp.active.expiresAtSec) {
+    const d = sponsorData(sp.active.id);
+    sp.cooldowns[sp.active.id] = state.stats.runSec + (d?.cooldownSec ?? C.SPONSOR.cooldownSec);
+    sp.totalExpired++;
+    notify(state, 'sponsor', `📴 The ${d ? d.name : 'sponsor'} deal wrapped up — Clout back to normal.`);
+    sp.active = null;
+  }
+  // roll (or replace) the pending offer on the config cadence, only while nothing is
+  // currently active — cycles round-robin through whichever deals are off cooldown and
+  // meet their `requires` (E12-S7-T7: better deals gate on higher Clout/Charisma).
+  if (!sp.active && state.stats.runSec >= sp.nextOfferAtSec) {
+    const eligible = DATA.sponsors.filter(d =>
+      (sp.cooldowns[d.id] || 0) <= state.stats.runSec && sponsorRequiresMet(state, d.requires));
+    sp.offer = eligible.length ? eligible[sp.offerCycle % eligible.length].id : null;
+    sp.offerCycle++;
+    sp.nextOfferAtSec = state.stats.runSec + C.SPONSOR.offerIntervalSec;
+  }
+}
+// player-facing accept action (E12-S3-T4/Task B): bounded (a single active slot means
+// non-stacking by construction) and timed (durationSec from the deal's own data),
+// gated on the SAME requires/cooldown checks tickSponsors used to offer it in the
+// first place.
+export function acceptSponsor(state, id) {
+  const d = sponsorData(id);
+  if (!d || state.sponsors.offer !== id || state.sponsors.active) return false;
+  if (!sponsorRequiresMet(state, d.requires)) return false;
+  if ((state.sponsors.cooldowns[id] || 0) > state.stats.runSec) return false;
+  state.sponsors.active = { id, mult: d.mult, expiresAtSec: state.stats.runSec + d.durationSec };
+  state.sponsors.offer = null;
+  notify(state, 'sponsor', `🤝 Deal accepted: ${d.name} — Clout ×${d.mult} for ${d.durationSec}s.`);
+  return true;
+}
+
 export function nextAccTier(state) { return state.accommodation.tier + 1; }
 // cash cost for ANY tier (not just the next one) — used by the ladder panel to price a
 // lookahead window of upcoming tiers, not only the immediately-purchasable one.
@@ -738,7 +904,8 @@ export function checkConciergeReveal(state) {
 export function click(state) {
   state.stats.totalClicks++;
   const boost = C.CLOUT.comboPerClick * (1 + 0.15 * (state.ascension.tree.athletes_frame || 0));
-  state._combo = Math.min(C.CLOUT.comboMax, (state._combo ?? 1) + boost);
+  // vlogger branch gets extra combo headroom (E12-S7-T2/S4-T2) — see M.effectiveComboMax.
+  state._combo = Math.min(M.effectiveComboMax(state), (state._combo ?? 1) + boost);
 
   // soft-cap tap spam (E01-S5-T6): only C.TAP.maxPerSec taps register cash within any
   // rolling 1-second window (measured in sim time, so it holds under GAME_SPEED too).
@@ -784,7 +951,8 @@ export function applyOffline(state, elapsedMs) {
   // reserve-respecting policy while away — this just diffs its own running totals so the
   // "While you were away" summary can report what it bought (nothing extra to compute).
   const before = { cash: state.resources.cash, clout: state.resources.clout,
-    conciergeBought: state.concierge.totalBought, conciergeSpent: state.concierge.totalSpent };
+    conciergeBought: state.concierge.totalBought, conciergeSpent: state.concierge.totalSpent,
+    sponsorsExpired: state.sponsors.totalExpired };
   const total = cappedMs / 1000;
   const step = total / C.OFFLINE_STEPS;
   for (let i = 0; i < C.OFFLINE_STEPS; i++) tick(state, step);
@@ -795,5 +963,9 @@ export function applyOffline(state, elapsedMs) {
     capped: elapsedMs > cappedMs,
     conciergeBought: state.concierge.totalBought - before.conciergeBought,
     conciergeSpent: state.concierge.totalSpent - before.conciergeSpent,
+    // sponsor deals that lapsed while away (E12-S9-T3/T8): the offline macro-loop calls
+    // the SAME tick() the online loop does, so tickSponsors expires any in-flight deal
+    // exactly as it would online — this just diffs the running counter for the summary.
+    sponsorsExpired: state.sponsors.totalExpired - before.sponsorsExpired,
   };
 }
