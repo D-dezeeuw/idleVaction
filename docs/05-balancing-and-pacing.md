@@ -142,33 +142,42 @@ Offline is generous (default 12h cap, configurable, disable-able). Every wait ca
 by the player themselves via `GAME_SPEED`. Pacing comes from the *economy curve*, not from
 withholding — which is exactly why the math has to be this solid.
 
-## 9. Prototype balance status (honest, as-shipped)
+## 9. Balance status & the golden curve (fitted to ~20h)
 
-The prototype ships a **coarse first-pass** tuning, not the final fit. The self-test harness
-(`js/dev/selftest.mjs`) simulates a *greedy, optimal, max-speed* player (buys ~every 2 sim-
-seconds, always the best affordable purchase). Under that adversarial policy it currently
-reaches the Private-Island era in **~4 simulated minutes** — deliberately noted here rather
-than hidden.
+The economy is now **fitted to the ~20-hour target** and the shipped constants land it. The
+journey to get here (told honestly): the first prototype had a **finite-time singularity**
+(cash overflowed `double` in ~9 min — see `docs/math-proof.md`), caused by the milestone term
+scaling as a *power of cash*. That was fixed at the mechanism level (soft-capped milestone,
+`MILESTONE_SOFT_KNEE`/`LIN`), which made the curve monotone and bounded — so the harness-fit
+loop **converges**. It was then fitted by suppressing the polynomial *degree* (steep `GEN.base`
+spacing + small high-tier `GEN.perUnit`) so the run stretches across hours.
 
-Two things to understand about that number:
-1. **It is a lower bound, not the target.** The harness plays perfectly at infinite speed.
-   A real player runs at `GAME_SPEED=1` (10 tps), does **not** buy 40 units every 2s, and
-   spends most of the game **idle/offline**. Real active time is far longer than the harness
-   number. The 20h target is defined for *that* player, not the harness robot.
-2. **Reaching the exact 20h fit is E30's dedicated task** (`docs/epics/epic-30.md`), and it is
-   a *numeric* job, not a redesign: the harness is built, the curve prints per-beat, and every
-   lever is a constant in `config.js` (§2). Tuning = run harness → read miss → nudge the
-   biggest-miss lever → repeat, then freeze a golden file.
+**Golden curve — `node js/dev/harness.mjs`** (greedy *optimal, max-speed* player; robust:
+island lands 17h50m–18h07m across buy-cadences dt = 2…30):
 
-Coarse-tuning already done (each a `config.js` edit, no code change) moved the harness climax
-from ~2min → ~4min purely by widening `GEN.base` spacing and steepening `GEN.growth` — which
-is the whole point: **the foundation is solid and every knob visibly moves the curve.** The
-remaining work is convergence, tracked as real tasks in E30, not architecture.
+```
+Beat  1–2   0s          (Netherlands / motel)
+Beat  3–4   ~33m        (checkout / hostel)
+Beat  5–6   ~1h10m      (first stamp / branch choice)
+Beat  7–10  1h41m–2h55m (1★ → pool)
+Beat 11–13  ~4h38m      (5★ / body / concierge)
+Beat 14–15  ~6h17m      (vlogger / cars)
+Beat 16–18  8h12m–9h08m (boats / jets / 6★)
+Beat 19–21  10h15m–11h38m (butler / household / 7★)
+Beat 22–26  13h27m–14h50m (bungalow → villa → ascension unlock)
+ISLAND (tier 20)         17h 54m      peak log10(cash) = 11.3 (safe; double maxes ~308)
+```
 
-**Update — the singularity was found and fixed (see `docs/math-proof.md`).** A full numerical
-investigation showed the pre-fix curve was a *finite-time singularity* (cash overflowed `double`
-in ~9 min), caused by the milestone term scaling as a power of cash. That is now fixed at the
-mechanism level (soft-capped milestone, `MILESTONE_SOFT_KNEE`/`LIN`): overflow is gone and the
-curve is monotone and bounded, so the harness-fit loop above **converges**. Hitting the exact
-20 h number is the remaining E30 tuning, plus the meta-layer and precision recommendations (P1–P5)
-in the math-proof.
+Because the harness plays *perfectly at infinite speed*, this is a **lower bound** — a real
+player (10 tps, sub-optimal buys, mostly idle/offline) lands **~20h+**, which is the goal. The
+curve is monotone (a story-ordering guard forces beats to fire in narrative order) and every
+beat is now hours apart, not the ~35-second blur of the first pass.
+
+**Remaining polish (tracked in E30, not blocking):**
+- A few beats still *cluster* (a single tier-unlock satisfies 2–3 gate thresholds at once);
+  re-spacing the `STORY_GATES` thresholds smooths this.
+- High tiers (D5–D8) are intentionally *late-relevance* under this fit (tiny `perUnit`); the
+  cleaner long-term model is discrete finite upgrades per tier (`docs/math-proof.md` P1-alt).
+- The meta-layer and precision items (P3/P5 in the math-proof) still apply for the ascension
+  loop and the endgame/NG+ magnitude.
+- Final numbers want **human playtest** data, not just the greedy bot.

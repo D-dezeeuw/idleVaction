@@ -116,6 +116,10 @@ function reqMet(state, r) {
 export function checkStory(state) {
   for (const beat of DATA.story) {
     if (state.story.seen.includes(beat.id)) continue;
+    // Narrative monotonicity: a beat can't fire until the previous beat has. Beats gate on
+    // heterogeneous resources (comfort, tiers, skills), so without this a skill-gated beat
+    // could unlock before an earlier tier-gated one. The gate becomes max(own, prior) time.
+    if (beat.id > 1 && !state.story.seen.includes(beat.id - 1)) continue;
     if (reqMet(state, beat.requires)) {
       state.story.seen.push(beat.id);
       state.story.beat = Math.max(state.story.beat, beat.id);

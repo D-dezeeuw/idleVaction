@@ -61,9 +61,9 @@ ok(s.generators[0].unlocked, 'D1 unlocked at start');
 
 // ---------- 2. purchases ----------
 console.log('\n[2] purchases');
-s.resources.cash = 1000;
+s.resources.cash = 1e5;                 // enough for 10× D1 at the fitted growth=1.8
 const before = s.generators[0].count;
-ok(E.buyGenerator(s, 0, 10), 'can buy 10× D1 with €1000');
+ok(E.buyGenerator(s, 0, 10), 'can buy 10× D1');
 ok(s.generators[0].count === before + 10, 'count increased by 10');
 ok(M.milestoneMult(10) === 2, 'first milestone doubling at 10 buys');
 
@@ -127,7 +127,8 @@ ok(fixed.paths && fixed.paths.vlogger, 'migration backfills missing sections');
 
 // ---------- 6. offline ----------
 console.log('\n[6] offline progress');
-const s2 = ST.newGame(); s2.resources.cash = 1e5; E.buyGenerator(s2, 0, 20); E.buyGenerator(s2, 1, 10);
+const s2 = ST.newGame(); s2.resources.cash = 1e12; E.buyGenerator(s2, 0, 20); E.buyGenerator(s2, 1, 10);
+ok(M.tierProd(s2, 0) > 0, `generators produce income pre-offline (${fmt(M.tierProd(s2, 0))}/s)`);
 const cashPre = s2.resources.cash;
 const rep = E.applyOffline(s2, 3600 * 1000); // 1h away
 ok(rep && rep.cash > 0, `offline awarded cash (+${fmt(rep.cash)} in 1h)`);

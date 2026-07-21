@@ -21,7 +21,7 @@ hand-waving. Two questions drive it:
 
 | Question | Verdict | Evidence |
 |---|---|---|
-| Holds to 20h for one run? | ❌ **No, as originally shipped.** Optimal play reaches the Private Island in **~4 min** and cash **overflows `double` (>1e300) at 9m 26s**. | §2–§4 |
+| Holds to 20h for one run? | ⚠️→✅ **Now yes (fitted).** As *originally shipped* it did not — optimal play hit the island in **~4 min** and cash **overflowed `double` at 9m 26s**. After the P0 fix + a degree-suppression fit, the greedy-optimal harness lands the **island at ~18h** (robust across buy-cadence), peak `1e11` — so casual play is ~20h+. | §2–§6, §10 |
 | Root cause identifiable & fixable? | ✅ **Yes.** The `2^(bought/step)` milestone term scales as **cash^α (α≈0.66)**, which compounds across the 8-tier chain into a **finite-time singularity**. | §3 |
 | Fix verified? | ✅ **Applied.** A soft-capped milestone curve (config-driven) **removes the overflow** (peak 1e52 → no overflow) and **tames the collapse**. Remaining gap to 20h is now a *tractable constant-fit*, not a structural fight. | §5–§6 |
 | Scales with ascensions? | ⚠️ **Mechanically correct** (banked-Legacy accounting is exact; √-prestige verified) but the meta-reward layer is **inconsistent** (additive vs multiplicative) and under-rewarding (~N^0.10). Fixable. | §7 |
@@ -320,7 +320,7 @@ needs ≥ `6·(KNEE+1) = 30` bought to pass the knee — always true past early 
 | # | Change | Type | Status | Effect |
 |---|---|---|---|---|
 | **P0** | Soft-cap the milestone multiplier (knee-then-linear) | 1 function + 2 config knobs | ✅ **applied** | Removes finite-time singularity **and** double overflow; keeps early doublings |
-| **P1** | Fit `base_k`/`growth_k` to a 20 h unlock schedule via the harness loop | tuning (E30) | proposed | Lands the 20 h target; now converges (no singularity) |
+| **P1** | Fit `base_k`/`growth_k`/`perUnit_k` to the 20 h schedule via the harness loop | tuning | ✅ **landed (coarse)** | Greedy-optimal island **~18h** (`node js/dev/harness.mjs`), monotone beats; polish (even gate spacing, playtest) remains E30 |
 | P1-alt | Replace free doublings with finite discrete ×2 upgrades (AdCap model) | data + small engine | optional | Maximum, provably-bounded pacing control |
 | **P2** | `perUnit_k < 1` for higher tiers | 1 config array | proposed | Bounds polynomial coefficients + precision headroom |
 | **P3** | Make the ascension meta layer multiplicative with a target speed-up curve | `math.js` + `config.TREE` | proposed | Ascensions *feel* rewarding; fixes additive/multiplicative split |
