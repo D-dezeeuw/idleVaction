@@ -794,5 +794,170 @@ console.log('\n[25] E05 beat 7 (One Star, Big Dreams) fires exactly at accTier 4
     'the 1-Star arrival fires a distinct celebratory notification alongside the tier-up');
 }
 
+// ---------- 26. E06: comfortMult (L_comfort) — boundary values, monotonic, no NaN,
+// finite at huge Comfort (E06-S8-T4/S10-T1/T3/T4) ----------
+console.log('\n[26] E06 comfortMult (L_comfort): boundary values, no NaN, finite at extremes');
+{
+  const probe = ST.newGame();
+  probe._comfortCache = 0;
+  ok(M.comfortMultiplier(probe) === 1, 'comfortMultiplier(0) == 1 exactly — no divide-by-zero with C0');
+
+  const C0 = C.COMFORT.C0;
+  ok(approx(M.comfortMultiplier({ _comfortCache: C0 }), 1.1204119982655925), 'comfortMultiplier(C0) matches the golden snapshot');
+  ok(approx(M.comfortMultiplier({ _comfortCache: 10 * C0 }), 1.41655707406329), 'comfortMultiplier(10·C0) matches the golden snapshot');
+  ok(approx(M.comfortMultiplier({ _comfortCache: 100 * C0 }), 1.801728549513057), 'comfortMultiplier(100·C0) matches the golden snapshot');
+
+  const huge = M.comfortMultiplier({ _comfortCache: 1e18 });
+  ok(Number.isFinite(huge) && huge > 1, `comfortMultiplier stays finite at huge Comfort (${fmt(huge)})`);
+  ok(Number.isNaN(M.comfortMultiplier({ _comfortCache: -0 })) === false, 'comfortMultiplier never returns NaN at the zero edge');
+}
+
+// ---------- 27. E06: breakfast/room cluster data validation + Comfort-gate bracketing
+// (E06-S1-T3/T10, S5-T1/T2/T3/T4) ----------
+console.log('\n[27] E06 breakfast cluster: data validation + Comfort-gate bracketing');
+{
+  const bfast = DATA.amenities.filter(a => a.tag === 'breakfast');
+  ok(bfast.length >= 6 && bfast.length <= 8, `the breakfast cluster has 6-8 amenities (got ${bfast.length})`);
+  const star1Top = Math.max(...DATA.amenities.filter(a => a.tag === 'onestar').map(a => a.costBase));
+  for (const a of bfast) {
+    ok(a.costBase > star1Top, `${a.id}: costBase (${a.costBase}) sits above the 1-Star cluster's top (${star1Top})`);
+    ok(a.comfort >= 20 && a.comfort <= 50, `${a.id}: comfort (${a.comfort}) within the conservative 20-50 band`);
+    ok(a.xMult > 0 && a.xMult <= 0.05, `${a.id}: xMult (${a.xMult}) is a small, conservative bonus`);
+  }
+  // brackets the tier-5 (2-Star Hotel) Comfort gate: some items help you get there,
+  // some keep small wins flowing right after arrival, all resolve before the tier-6 gate.
+  const gate5 = M.accUnlockComfort(5);
+  const gate6 = M.accUnlockComfort(6);
+  ok(bfast.some(a => a.unlockComfort < gate5), 'at least one breakfast item unlocks BEFORE the tier-5 gate (helps you check in)');
+  ok(bfast.some(a => a.unlockComfort > gate5), 'at least one breakfast item unlocks AFTER the tier-5 gate (keeps wins flowing post-arrival)');
+  ok(bfast.every(a => a.unlockComfort < gate6), 'the whole breakfast cluster resolves before the tier-6 (pool) gate');
+}
+
+// ---------- 28. E06: integration — buying breakfast amenities raises Comfort and
+// per-second income end-to-end (E06-S2-T3/T5, S4-T3/T5, S5-T5/T10) ----------
+console.log('\n[28] E06 integration: buying breakfast amenities raises Comfort and cash/s');
+{
+  const ig = ST.newGame();
+  ig.resources.cash = 1e9;
+  E.buyGenerator(ig, 0, 20);
+  ig.accommodation.tier = 4;
+  ig._comfortCache = M.computeComfort(ig, DATA);
+  const comfortBefore = ig._comfortCache;
+  const prodBefore = M.tierProd(ig, 0);
+  ok(prodBefore > 0, `baseline income established (${fmt(prodBefore)}/s)`);
+
+  let boughtAny = false;
+  for (const a of DATA.amenities.filter(x => x.tag === 'breakfast')) {
+    ig._comfortCache = M.computeComfort(ig, DATA);
+    while (E.amenityUnlocked(ig, a.id) && E.amenityCost(ig, a.id) <= ig.resources.cash) {
+      if (E.buyAmenity(ig, a.id)) boughtAny = true; else break;
+    }
+  }
+  ok(boughtAny, 'bought at least one breakfast amenity');
+  const prodAfter = M.tierProd(ig, 0);
+  ok(ig._comfortCache > comfortBefore, 'buying breakfast amenities raised Comfort');
+  ok(prodAfter > prodBefore, 'higher Comfort raised per-second cash output via L_comfort end-to-end');
+
+  // no bespoke buy logic (E06-S5-T5): breakfast items go through the SAME buyAmenity path.
+  const beforeLevel = ig.amenities.bfast_stale_croissant.level;
+  ok(beforeLevel > 0, 'breakfast items accumulate levels via the shared buyAmenity path, no bespoke code');
+}
+
+// ---------- 29. E06: beat 8 (Continental Breakfast) fires exactly at its Comfort gate;
+// pool tease + Comfort-online flags fire once and persist (E06-S2-T9/S6-T5, S1-T9/S7-T7,
+// S2-T6/S4-T1/S10-T9) ----------
+console.log('\n[29] E06 beat 8 gate + pool tease + Comfort-online one-shots');
+{
+  const b8 = ST.newGame();
+  b8.accommodation.tier = 4;
+  b8.story.seen = [1, 2, 3, 4, 5, 6, 7];
+  b8._comfortCache = 5499;
+  E.checkStory(b8);
+  ok(!b8.story.seen.includes(8), 'beat 8 has NOT fired just below its Comfort gate (5500)');
+
+  b8._comfortCache = 5500;
+  E.checkStory(b8);
+  ok(b8.story.seen.includes(8), 'beat 8 fires the moment Comfort reaches 5500');
+  ok(b8.story.seen.filter(x => x === 8).length === 1, 'beat 8 is recorded exactly once');
+  E.checkStory(b8); E.checkStory(b8);
+  ok(b8.story.seen.filter(x => x === 8).length === 1, 'repeated checkStory calls do not re-fire beat 8');
+
+  // pool tease: fires once beat 8 has landed (before tier 5 is actually owned), never gates.
+  E.checkPoolTease(b8);
+  ok(b8.story.flags.poolTease, 'pool tease flag sets once beat 8 (or tier 5) is reached');
+  const notifsTease = E.drainNotifications(b8);
+  ok(notifsTease.some(n => n.type === 'vignette' && /pool/i.test(n.text)), 'pool tease emits a flavor notification mentioning the pool');
+  E.checkPoolTease(b8);
+  const notifsTease2 = E.drainNotifications(b8);
+  ok(!notifsTease2.some(n => /pool/i.test(n.text)), 'pool tease does not re-fire on a subsequent check');
+
+  // branch-flavored tease copy (E06-S7-T7): adapts by story.branch without ever gating.
+  const teaseVlog = ST.newGame();
+  teaseVlog.story.branch = 'vlogger';
+  teaseVlog.accommodation.tier = 5;
+  E.checkPoolTease(teaseVlog);
+  const vlogNotif = E.drainNotifications(teaseVlog).find(n => /pool/i.test(n.text));
+  ok(vlogNotif && /content/i.test(vlogNotif.text), 'vlogger-branch pool tease copy differs (mentions content)');
+
+  // Comfort-online one-shot (E06-S2-T6/S4-T1): fires once L_comfort crosses the threshold.
+  const co = ST.newGame();
+  co._comfortCache = 0;
+  E.checkComfortOnline(co);
+  ok(!co.story.flags.comfortOnline, 'comfortOnline has NOT fired at Comfort 0 (L_comfort == 1)');
+  ok(!E.drainNotifications(co).length, 'no online-flash notification below the threshold');
+
+  co._comfortCache = M.accUnlockComfort(5); // realistic 2-star-stage Comfort, well past the threshold
+  E.checkComfortOnline(co);
+  ok(co.story.flags.comfortOnline, 'comfortOnline fires once L_comfort crosses COMFORT_ONLINE_MULT');
+  const onlineNotifs = E.drainNotifications(co);
+  ok(onlineNotifs.some(n => n.type === 'celebrate' && /multipl/i.test(n.text)), 'the online moment fires a distinct celebratory notification');
+  E.checkComfortOnline(co);
+  ok(!E.drainNotifications(co).length, 'comfortOnline does not re-fire on a subsequent check');
+
+  // survives reload (E06-S9-T1/T10): recomputed flags persist, never reset to unfired.
+  const reloadedB8 = ST.migrate(JSON.parse(JSON.stringify(b8)));
+  ok(reloadedB8.story.seen.includes(8) && reloadedB8.story.flags.poolTease, 'beat 8 + pool tease survive a save/reload round-trip');
+}
+
+// ---------- 30. E06: stack-order regression — L_comfort folds into tierMultiplier as a
+// clean multiplicative factor, identically regardless of story.branch (E06-S2-T2/T8,
+// S7-T1/T10, S10-T8) ----------
+console.log('\n[30] E06 stack-order regression: L_comfort in tierMultiplier, branch-neutral');
+{
+  for (const branch of ['neutral', 'vlogger', 'traveler', 'crypto', 'connoisseur']) {
+    const stk = ST.newGame();
+    stk.generators[0].bought = 20; stk.generators[0].count = 20;
+    stk.story.branch = branch;
+    stk.skills.charisma.level = 5;
+    stk.paths.vlogger.points = 10; stk.paths.traveler.points = 10;
+    stk._comfortCache = 500;
+
+    const mBefore = M.tierMultiplier(stk, 0);
+    const lBefore = M.comfortMultiplier(stk);
+    stk._comfortCache = 8000;
+    const mAfter = M.tierMultiplier(stk, 0);
+    const lAfter = M.comfortMultiplier(stk);
+
+    ok(approx(mAfter / mBefore, lAfter / lBefore),
+      `[${branch}] tierMultiplier scales by EXACTLY the L_comfort ratio when only Comfort changes — ` +
+      'confirms L_comfort is a clean, branch-neutral factor in the M_k stack (scope "all")');
+  }
+}
+
+// ---------- 31. E06: migration backfill for the new breakfast cluster (E06-S9-T2/T3) ----------
+console.log('\n[31] E06 migration backfill: breakfast cluster');
+{
+  const bfast = DATA.amenities.filter(a => a.tag === 'breakfast');
+  const oldSave = ST.newGame();
+  for (const a of bfast) delete oldSave.amenities[a.id];
+  const migrated = ST.migrate(JSON.parse(JSON.stringify(oldSave)));
+  ok(bfast.every(a => migrated.amenities[a.id] && migrated.amenities[a.id].level === 0),
+    'migration backfills every new breakfast amenity id at level 0 for a save that predates them');
+  E.tick(migrated, 1);
+  ok(Number.isFinite(migrated.resources.cash), 'ticking a migrated pre-E06 save does not crash and cash stays finite');
+  ok(approx(migrated._comfortCache, M.computeComfort(migrated, DATA)),
+    'a reloaded save recomputes Comfort identically to a fresh computeComfort() call — no drift (E06-S9-T10)');
+}
+
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);
 process.exit(fails === 0 ? 0 : 1);
