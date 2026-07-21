@@ -80,6 +80,8 @@ export function tick(state, dt) {
   checkNpcUnlocks(state);
   checkDestinationReveals(state);
   checkStory(state);
+  checkComfortOnline(state);
+  checkPoolTease(state);
 }
 
 function applyTransportUpkeep(state, dt) {
@@ -134,6 +136,36 @@ export function checkAmenityUnlocks(state) {
       notify(state, 'unlock', `✨ New little luxury unlocked: ${a.name}`);
     }
   }
+}
+
+// one-shot "Comfort now pays" signature moment (E06-S2-T6/S4-T1/S10-T9): the Comfort ×
+// readout has existed since E02 (ui.js header/amenities card) — this just flags the
+// first tick where L_comfort actually crosses a meaningful threshold, so the 2-star
+// stage gets a clear "it clicked" beat instead of a number quietly creeping up.
+export function checkComfortOnline(state) {
+  if (state.story.flags.comfortOnline) return;
+  const L = M.comfortMultiplier(state);
+  if (L >= C.COMFORT_ONLINE_MULT) {
+    state.story.flags.comfortOnline = true;
+    notify(state, 'celebrate', `😌 Comfort now multiplies income — ×${L.toFixed(2)} and climbing.`);
+  }
+}
+
+// dormant "next place has a pool" tease (E06-S1-T9/S2-T9/S6-T5/S7-T7): a one-shot flag
+// for E07 to read (state.story.flags.poolTease) once the player reaches the 2-Star
+// Hotel (tier 5) OR beat 8 (Continental Breakfast) fires, whichever comes first. Pure
+// flavor — never gates anything here or in E07.
+export function checkPoolTease(state) {
+  if (state.story.flags.poolTease) return;
+  if (state.accommodation.tier < 5 && !state.story.seen.includes(8)) return;
+  state.story.flags.poolTease = true;
+  const byBranch = {
+    vlogger: '📸 A porter mentions, off-hand: the next place has a pool. Content goldmine.',
+    connoisseur: '🍸 A porter mentions, off-hand: the next place has a pool. A tasteful lap pool, one imagines.',
+    crypto: '📈 A porter mentions, off-hand: the next place has a pool. Diversify into liquidity — literally.',
+    traveler: '🗺️ A porter mentions, off-hand: the next place has a pool. Add it to the itinerary.',
+  };
+  notify(state, 'vignette', byBranch[state.story.branch] || '💧 A porter mentions, off-hand: the next place has a pool. You pretend not to care.');
 }
 
 // ---------- NPCs (E03-S1/S6/S7): recurring cast revealed once you land in the hostel
@@ -423,6 +455,12 @@ export function buyAccommodation(state) {
   // the same accTier:4 gate — this is purely the extra celebratory juice on top.
   if (t === 4) {
     notify(state, 'celebrate', '⭐ One whole star. The receptionist even smiled — at the guest behind you.');
+  }
+  // the 2-Star moment (E06-S6-T5/T7): mirrors the 1-Star flash above. Beat 8 (Continental
+  // Breakfast) itself fires from checkStory() on its own Comfort gate — this is purely
+  // the extra celebratory juice tied to the tier-up specifically.
+  if (t === 5) {
+    notify(state, 'celebrate', '⭐⭐ Two whole stars — a breakfast buffet you will ration into lunch.');
   }
   return true;
 }

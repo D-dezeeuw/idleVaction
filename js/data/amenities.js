@@ -45,6 +45,22 @@ export const AMENITIES = [
   { id: 'star1_shower_cap',     name: 'Individually Wrapped Shower Cap', tag: 'onestar', costBase: 31000, comfort: 30, xMult: 0.04, xScope: 'social', unlockComfort: 1080, flavor: 'Plastic. Crinkly. Yours to keep. You will never use it and never throw it away.' },
   { id: 'star1_wakeup_call',    name: 'Wake-Up Call Service',            tag: 'onestar', costBase: 40000, comfort: 35, xMult: 0.05, xScope: 'all',    unlockComfort: 1300, flavor: 'The front desk rings at 7:00 sharp. You were already awake, dreading it.' },
 
+  // --- Continental Breakfast cluster (E06-S5) — the small-wins engine at the 2-Star
+  // Hotel stage. costBase picks up just above the 1-Star cluster's top (star1_wakeup_call
+  // at 40000); comfort/unlockComfort staggering brackets the tier-5 Comfort gate
+  // (accUnlockComfort(5) ≈ 1960) so the early items help you check into the 2-Star, and
+  // the rest push Comfort on toward beat 8's gate (comfort:5500) — kept conservative
+  // (comfort 20-50, small xMult, ~1.3x costBase ramp matching the E03/E04/E05 clusters)
+  // so this doesn't meaningfully stretch the fitted curve. ---
+  { id: 'bfast_stale_croissant', name: 'Yesterday\'s Croissant',         tag: 'breakfast', costBase: 45000,  comfort: 22, xMult: 0.02, xScope: 'all',    unlockComfort: 900,  flavor: 'Possibly the day before\'s. You dunk it in coffee and call it fresh.' },
+  { id: 'bfast_boiled_egg',      name: 'The Regulation Boiled Egg',      tag: 'breakfast', costBase: 58000,  comfort: 26, xMult: 0.02, xScope: 'all',    unlockComfort: 1100, flavor: 'One per guest. The sign about it is laminated and very serious.' },
+  { id: 'bfast_cheese_slice',    name: 'Individually Wrapped Cheese',    tag: 'breakfast', costBase: 75000,  comfort: 30, xMult: 0.03, xScope: 'all',    unlockComfort: 1400, flavor: 'Orange, rectangular, indestructible. A Dutch breakfast staple, allegedly.' },
+  { id: 'bfast_hagelslag',       name: 'Bowl of Hagelslag',              tag: 'breakfast', costBase: 95000,  comfort: 34, xMult: 0.03, xScope: 'social', unlockComfort: 1800, flavor: 'Chocolate sprinkles on buttered bread — a Dutch human right, photographed accordingly.' },
+  { id: 'bfast_orange_juice',    name: 'Orange Juice (From Concentrate)',tag: 'breakfast', costBase: 125000, comfort: 38, xMult: 0.04, xScope: 'all',    unlockComfort: 2300, flavor: 'Technically orange. Technically juice. Vitamin C is vitamin C.' },
+  { id: 'bfast_filter_coffee',   name: 'Bottomless Filter Coffee',       tag: 'breakfast', costBase: 160000, comfort: 42, xMult: 0.04, xScope: 'all',    unlockComfort: 2900, flavor: 'Filter coffee: technically hot, technically coffee.' },
+  { id: 'bfast_waffle_iron',     name: 'Make-Your-Own Waffle Iron',      tag: 'breakfast', costBase: 205000, comfort: 46, xMult: 0.05, xScope: 'social', unlockComfort: 3600, flavor: 'The queue is long. The waffle is worth it. Everyone photographs theirs.' },
+  { id: 'bfast_fresh_fruit',     name: 'Fresh Fruit Platter (Mostly Melon)', tag: 'breakfast', costBase: 260000, comfort: 50, xMult: 0.05, xScope: 'all', unlockComfort: 4400, flavor: 'Cantaloupe: nature\'s way of saying "we ran out of budget."' },
+
   // --- pool cluster (E07) — the fun showcase ---
   { id: 'floatie_duck',   name: 'Rubber Duck Floatie',  tag: 'pool', costBase: 800,   comfort: 12, xMult: 0.02, xScope: 'social', unlockComfort: 200,  flavor: 'Quack. Iconic.' },
   { id: 'floatie_flamingo',name:'Flamingo Floatie',     tag: 'pool', costBase: 1600,  comfort: 18, xMult: 0.03, xScope: 'social', unlockComfort: 300,  flavor: 'Pink. Judgmental. Photogenic.' },

@@ -154,7 +154,7 @@ spacing + small high-tier `GEN.perUnit`) so the run stretches across hours.
 
 **Golden curve — `node js/dev/harness.mjs`** (greedy *optimal, max-speed* player). The island
 lands in the **15–20h optimal band**; the exact figure drifts as each epic adds legitimate
-content (see the drift note below). Current snapshot (post-E05); beat rows are the approximate
+content (see the drift note below). Current snapshot (post-E06); beat rows are the approximate
 Act-I/II-era shape — run `npm run harness` for the exact live curve:
 
 ```
@@ -167,7 +167,7 @@ Beat 14–15  ~7h01m      (vlogger / cars)
 Beat 16–18  9h07m–10h07m (boats / jets / 6★)
 Beat 19–21  11h21m–12h51m (butler / household / 7★)
 Beat 22–26  14h45m–16h21m (bungalow → villa → ascension unlock)
-ISLAND (tier 20)         17h 41m      peak log10(cash) = 11.3 (safe; double maxes ~308)
+ISLAND (tier 20)         18h 42m      peak log10(cash) = 11.3 (safe; double maxes ~308)
 ```
 
 Because the harness plays *perfectly at infinite speed*, this is a **lower bound** — a real

@@ -60,6 +60,10 @@ export const CONFIG = {
     MULT: 0.4,              // strength of L_comfort
     wAcc: 1.0, wAmen: 1.0, wBody: 8.0,
   },
+  // one-shot "Comfort now multiplies income" flash (E06-S2-T6/S4-T1): fires once
+  // L_comfort first crosses this threshold. Display-only — never touches income math,
+  // so it lives outside the COMFORT block (whose mult/C0 stay the multiplier's sole levers).
+  COMFORT_ONLINE_MULT: 1.5,
 
   // ---- accommodation ladder ----
   ACC: {

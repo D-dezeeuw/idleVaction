@@ -113,16 +113,35 @@ Island 16h42m → **17h41m** (1-star amenity cluster; in-band drift).
 > **Deferred pre-existing gaps** (surfaced by E05, not E05-specific): corrupt-save backup
 > rotation + accommodation tier-clamp on downgrade → scheduled for **E30** (release readiness).
 
+### E06 — Continental Comforts · **100/100** (present 41, done-now 39, superseded 20)
+Gap-fill; **`math.js` untouched** (economy unchanged — `L_comfort`, the Comfort readout,
+tier-5, beat 8 all pre-existing since E02). Added: 8-item `tag:'breakfast'` cluster, a
+branch-flavored **pool tease** flag, a tier-5 celebrate flash, and a one-shot "Comfort now
+pays" flash (`COMFORT_ONLINE_MULT` — **display-only**, never in the income math). Island
+17h41m → **18h42m** (breakfast cluster; in-band).
+
+| Story | present/done/superseded | Notes |
+|---|---|---|
+| S1 Breakfast Menu (data) | 4 / 5 / 1 | Done-now: 8 `bfast_*` ids, weights, tease hook, validation. Superseded: parallel room cluster (one conservative cluster/stage). |
+| S2 Comfort Pays Off (engine) | 6 / 3 / 1 | Present: `comfortMult`/fold/recompute/purity (E02). Done-now: `checkComfortOnline`, tease. Superseded: saturating cap (removed by design). |
+| S3 Comfort Dial (UI) | 3 / 1 / 6 | Present: ×readout, tag-grouped section, tooltips. Superseded: per-button ×preview, room section, saturating-bar viz, aria-live ticker (no aria-live region app-wide — pre-existing gap), redundant "Pool?" card, event-sub re-render (whole-app render is the pattern). |
+| S4 Comfort Starts Paying | 4 / 5 / 1 | Done-now: signature moment + global-scope proof + tease copy + QA. Superseded: in-app formula "help" (no help system; ×N readout suffices). |
+| S5 All-You-Can-Eat (cluster) | 3 / 7 / 0 | Done-now: bloom size/ramp/comfort/xMult/flavor/migration. Present: generic unlock-flash + grouping. |
+| S6 Two Whole Stars (tier 5) | 7 / 2 / 1 | Present: tier-5 ladder/gate/flow/persistence. Done-now: pool foreshadow + celebrate. Superseded: retune of fitted tier-5 cash cost. |
+| S7 Comfort for Everyone (paths) | 3 / 3 / 4 | Done-now: social-tagged items, branch tease, cross-branch QA. **Superseded T4: `savvyPassive()` is NOT ×`L_comfort` today (additive term outside the stack) — balance-tuner call, left alone.** Superseded: connoisseur premium item, per-buy path trickle (runaway risk), hybrid hook. |
+| S8 Calibrating Comfort (balance) | 2 / 4 / 4 | Done-now: golden tests, interaction audit (peak unchanged), snapshot. Superseded: `COMFORT.MULT`/`C0` retune + saturating cap (forbidden/fitted); literal "~1:10" figure (golden-drift accepted). |
+| S9 Comfort on the Books (save) | 6 / 2 / 2 | Present: recompute-on-load, offline `L_comfort`, away summary, export/import. Done-now: fixture + no-drift tests. Superseded: version bump (generic backfill), backup rotation (deferred to E30). |
+| S10 Final Touches (QA) | 3 / 7 / 0 | Done-now: 7 test sections, reduced-motion-safe flash. Present: `fmt()`, button semantics, cleanup. |
+
 ---
 
-## Act II–VI — E06–E30
+## Act II–VI — E07–E30
 
 _Pending — appended as each phase's build pass audits its 100 tasks. Each row will carry the
 same `present / done-now / superseded` disposition and a per-phase tally in the commit + report._
 
 | Epic | Status |
 |---|---|
-| E06 Continental Comforts | pending |
 | E07 Making a Splash | pending |
 | E08 Sun, Sand & Service | pending |
 | E09 Charm Offensive | pending |
@@ -151,5 +170,16 @@ same `present / done-now / superseded` disposition and a per-phase tally in the 
 ---
 
 ### Running total
-- **Audited:** 500 / 3,000 tasks (E01–E05) — present 236, done-now 196, superseded 68.
-- **Remaining:** 2,500 tasks (E06–E30).
+- **Audited:** 600 / 3,000 tasks (E01–E06) — present 277, done-now 235, superseded 88.
+- **Remaining:** 2,400 tasks (E07–E30).
+
+### Deferred balance-tuner backlog (for a consolidated retune, latest at E30)
+- **`savvyPassive()` not ×`L_comfort`** (E06-S7-T4) — a flat sqrt-scaled additive term outside
+  the multiplier stack; whether Comfort should boost it is a design call.
+- **`genUpgradeCost` `50`/`8` constants** (E05) — pre-existing renovation cost curve, never revisited.
+- **Amenity `xMult`/`xScope` fields are schema-only** — declared on every cluster but never read
+  by `math.js`; wiring them in is a multiplier-stack change (deferred).
+- **Drift watch:** greedy island is trending up with each amenity cluster (now 18h42m).
+  **Threshold rule:** if any phase's harness island exceeds **~19.5h**, pause the content loop
+  and run a consolidated `@balance-tuner` retune (nudge `GEN.growth` to reclaim headroom)
+  before continuing. Multiplier-adding epics (E14/E15–17/E19–20) also pull it back down.
