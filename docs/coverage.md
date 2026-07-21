@@ -201,7 +201,18 @@ same `present / done-now / superseded` disposition and a per-phase tally in the 
 - **`genUpgradeCost` `50`/`8` constants** (E05) — pre-existing renovation cost curve, never revisited.
 - **Amenity `xMult`/`xScope` fields are schema-only** — declared on every cluster but never read
   by `math.js`; wiring them in is a multiplier-stack change (deferred).
-- **Drift watch:** greedy island is trending up with each amenity cluster (now 18h42m).
-  **Threshold rule:** if any phase's harness island exceeds **~19.5h**, pause the content loop
-  and run a consolidated `@balance-tuner` retune (nudge `GEN.growth` to reclaim headroom)
-  before continuing. Multiplier-adding epics (E14/E15–17/E19–20) also pull it back down.
+- **~~Drift watch~~ → RESOLVED (post-E07): harness is now ROI-aware.** The old harness bought
+  *every* amenity (completionist), so cosmetic amenities inflated the "optimal" island and it
+  crept 17h54m→19h11m. The balance-tuner switched it to ROI-aware buying: true speed-optimal
+  island is **8h27m**, and it's now **insensitive to amenity count** (5 throwaway cosmetics moved
+  it 15s / 0.05% vs 43m on the old policy). New guard (`docs/05` §9): island **~6–12h**, 26 beats
+  monotone, peak `log10` ≪ 290. Escalate `@balance-tuner` only for a *genuine economy* change
+  (new generator tiers, destination `L_dest`, comfort/cost curves) — **not** for amenities.
+- **⭐ HIGH-PRIORITY finding — amenity `xMult`/`xScope` are DORMANT** (never read by `math.js`/
+  `engine.js`). Amenities' only income effect is their `comfort` weight (log-softcapped, and
+  dominated by `accScore`), so "small wins" are currently a mild *net drag* on a speed-run. The
+  epics repeatedly spec `xMult` (E02–E07 all mark it "superseded: schema-only"). **Planned:** a
+  dedicated balance pass to **wire `xMult` in so small wins are genuinely rewarding** (target
+  roughly ROI-neutral — indulge in floaties without falling behind — never mandatory min-max,
+  never runaway, casual arc stays ~20h). This converts many currently-"superseded" `xMult`
+  tasks across E02–E07 into "done."

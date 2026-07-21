@@ -152,41 +152,60 @@ scaling as a *power of cash*. That was fixed at the mechanism level (soft-capped
 loop **converges**. It was then fitted by suppressing the polynomial *degree* (steep `GEN.base`
 spacing + small high-tier `GEN.perUnit`) so the run stretches across hours.
 
-**Golden curve — `node js/dev/harness.mjs`** (greedy *optimal, max-speed* player). The island
-lands in the **15–20h optimal band**; the exact figure drifts as each epic adds legitimate
-content (see the drift note below). Current snapshot (post-E07); beat rows are the approximate
-Act-I/II-era shape — run `npm run harness` for the exact live curve:
+**Golden curve — `node js/dev/harness.mjs`** (greedy *optimal, max-speed* player, **ROI-aware**).
+The harness measures a genuine **max-speed lower bound**: it reinvests into generators/tiers and
+buys an amenity **only when that amenity pays for itself** (or is needed to clear a Comfort gate) —
+see `amenityWorthBuying` in `js/dev/harness.mjs`. Current snapshot (**post-E07, ROI harness**);
+beat rows are the compressed Act-I/II-era shape — run `npm run harness` for the exact live curve:
 
 ```
 Beat  1–2   0s          (Netherlands / motel)
-Beat  3–4   ~36m        (checkout / hostel)
-Beat  5–6   ~1h22m      (first stamp / branch choice)
-Beat  7–10  1h57m–3h19m (1★ → pool)
-Beat 11–13  ~5h12m      (5★ / body / concierge)
-Beat 14–15  ~7h01m      (vlogger / cars)
-Beat 16–18  9h07m–10h07m (boats / jets / 6★)
-Beat 19–21  11h21m–12h51m (butler / household / 7★)
-Beat 22–26  14h45m–16h21m (bungalow → villa → ascension unlock)
-ISLAND (tier 20)         19h 11m      peak log10(cash) = 11.3 (safe; double maxes ~308)
+Beat  3–4   ~20m        (checkout / hostel)
+Beat  5–6   ~42m        (first stamp / branch choice)
+Beat  7–10  1h02m–1h45m (1★ → pool)
+Beat 11–13  ~2h35m      (concierge / body / 5★)
+Beat 14–15  ~3h18m      (vlogger / cars)
+Beat 16–18  4h05m–4h28m (boats / jets / 6★)
+Beat 19–21  4h55m–5h27m (butler / household / 7★)
+Beat 22–26  6h20m–6h54m (bungalow → villa → ascension unlock)
+ISLAND (tier 20)         8h 27m       peak log10(cash) = 11.3 (safe; double maxes ~308)
 ```
 
-Because the harness plays *perfectly at infinite speed*, this is a **lower bound** — a real
-player (10 tps, sub-optimal buys, mostly idle/offline) lands **~20h+**, which is the goal. The
-curve is monotone (a story-ordering guard forces beats to fire in narrative order) and every
-beat is hours apart, not the ~35-second blur of the first pass.
+Because the harness plays *perfectly at infinite speed and never wastes a euro*, this is a **hard
+lower bound** on active time — a real player (10 tps, sub-optimal buys, and, crucially, *mostly
+idle/offline*) runs several× longer and still lands the **~20h+** arc that `config.js` is fitted
+to (the economy is **unchanged**). The curve is monotone (a story-ordering guard forces beats to
+fire in narrative order) and every beat is a genuine step apart.
 
-**Golden-drift note (amenity-count sensitivity).** The harness's greedy policy buys one level
-of *every* affordable amenity each step, so adding an amenity cluster widens the reinvestment
-"leak" and stretches the curve regardless of unit price — E03's 6-amenity hostel cluster moved
-the island 17h54m → 19h29m. Conversely, a new **global multiplier** the harness buys (E04's
-destinations → `L_dest`) *speeds* income and pulls the curve back: 19h29m → 16h42m. Both are
-**accepted in-band drift**, not regressions: retuning `GEN`/`COMFORT` on every content add would
-churn the fitted constants endlessly. Note destination `mult` values were set well below the
-E04 epic's suggested 1.08–1.20/row (to 1.025–1.04) precisely to stay in-band — the epic range
-collapsed the island to ~12h in the harness and would need a coordinated GEN/COMFORT retune. **Policy:** let the curve breathe inside 15–20h; escalate to `@balance-tuner` for a
-consolidated retune only if a phase pushes greedy island time **past ~20h** (casual would then
-exceed the ~20h+ goal by too much), and do the final consolidated fit at E30. The peak
-`log10(cash)` ceiling (~290) is the hard guardrail and stays the non-negotiable gate.
+> **Why the island dropped 19h11m → 8h27m at E07-and-a-half (harness fix, not an economy change).**
+> The *previous* harness policy bought one level of **every** affordable amenity each step — a
+> *completionist*, not the "max-speed" player the harness docstring claims to measure. In this
+> economy an amenity's only income effect is via Comfort → `L_comfort`, which is (a) log-softcapped
+> and (b) dominated at every tier by the accommodation ladder's own `accScore`; so amenity buying
+> is almost pure **cash leak** that *delays* the island rather than hastening it. That leak — not
+> the tier chain — was quietly doing ~10.7h of the old "pacing," and it grew with every amenity
+> cluster. Making the buy **ROI-aware** removes the artifact and reveals the true speed-optimal
+> lower bound (~8.5h). Casual play still lands ~20h+; that target lives in `config.js`, which we
+> did **not** touch.
+
+**Golden-drift note (now retired for amenities).** The whole reason the old snapshot drifted with
+content was that completionist amenity buying leaked cash *regardless of unit price* — E03's hostel
+cluster alone moved the island 17h54m → 19h29m, and with ~10 more amenity epics ahead (beach, spa,
+yacht, jet, island…) the greedy island was on track to breach 20h purely from **cosmetic count**.
+The ROI harness makes that impossible: a dominated/cosmetic amenity has a vanishing
+`ΔL_comfort/L_comfort`, so its payback is effectively infinite and it is **skipped**. Measured
+directly — dropping **five** throwaway cosmetic amenities (cheap-and-spammy through expensive) into
+the data moved the ROI island by **15s (0.05%)**, versus **43m15s (3.76%)** on the old completionist
+policy. So the **per-phase amenity-cluster drift-watch is retired**: adding amenities no longer
+requires re-baselining this golden. **New guard (simpler):** the greedy ROI island should stay in
+the **~6–12h band**, all **26 reachable beats** should fire monotonically, and **peak `log10(cash)`
+must stay well under ~290** (the hard, non-negotiable magnitude ceiling). Escalate to
+`@balance-tuner` for a `GEN`/`COMFORT`/`ACC` retune only if a *genuine economy* change (new
+generator tiers, destination `L_dest`, comfort/cost curves — **not** new amenities) pushes the
+island outside that band or the magnitude toward the ceiling; do the final consolidated fit at E30.
+Note destination `mult` values were kept well below the E04 epic's suggested 1.08–1.20/row (to
+1.025–1.04) — a legitimate `L_dest` lever that, unlike amenities, *does* move the ROI island and so
+still warrants review when new destination epics land.
 
 **Remaining polish (tracked in E30, not blocking):**
 - A few beats still *cluster* (a single tier-unlock satisfies 2–3 gate thresholds at once);
