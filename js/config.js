@@ -15,13 +15,16 @@ export const CONFIG = {
   // ---- income tier ladder D1..D8 (the multi-level backbone) ----
   // base cost, cost growth per unit, base output per unit
   GEN: {
-    // STEEP base spacing (~×250–1000 per tier): keeps the player on 2–3 income tiers
-    // for a long time (like classic idle games) instead of unlocking all 8 at once,
-    // so the polynomial "degree" (and thus time-growth) rises slowly. Steep growth
-    // slopes make each extra unit bite, stretching time-to-next-purchase.
-    base:    [15, 2000, 6e5, 3e8, 2e11, 1.5e14, 1.2e17, 1e20],
-    growth:  [1.11, 1.14, 1.17, 1.20, 1.23, 1.26, 1.29, 1.32],
-    perUnit: [1, 1, 1, 1, 1, 1, 1, 1],
+    // Fitted for a ~20h main run (greedy-optimal harness → island ≈ 18h, robust across
+    // buying cadence; casual/idle play lands ~20h+). See docs/math-proof.md §6 and the
+    // golden curve in docs/05. The economy grows POLYNOMIALLY with the number of *active*
+    // tiers ("degree"); to stretch the run we keep the degree low by (a) steep base spacing
+    // so high tiers unlock late and (b) small perUnit on high tiers so they matter only in
+    // the late game (they still feed the chain). Steep growth slopes stretch time-to-next
+    // purchase and keep the soft-capped milestone tame. Tune with `node js/dev/harness.mjs`.
+    base:    [15, 6e4, 7e8, 8e11, 8e14, 8e17, 8e20, 8e23],
+    growth:  [1.8, 1.9, 2.0, 2.1, 2.2, 2.3, 2.4, 2.5],
+    perUnit: [1, 0.007, 3e-5, 2e-9, 2e-13, 2e-17, 2e-21, 2e-25],
   },
   MILESTONE_STEP: 10,       // every N buys → tier ×2 (lowered by meta upgrades later)
   MILESTONE_MULT: 2,
@@ -76,8 +79,14 @@ export const CONFIG = {
   TREE: { nodeBase: 5, nodeGrowth: 2.0 },
 
   // ---- pacing / QA (NEVER used to balance — only to pace/test) ----
-  GAME_SPEED_CHOICES: [0.25, 0.5, 1, 2, 5, 10, 100, 1000],
+  // gameSpeed multiplies simulated time in the loop. 1 = natural course; the high presets +
+  // the custom input let QA run the ~20h arc in seconds. The custom field accepts any value
+  // up to GAME_SPEED_MAX (hyperspeed). Effective speed is also bounded by MAX_STEPS_PER_FRAME
+  // (a per-frame tick budget so a huge speed can't hang the tab).
+  GAME_SPEED_CHOICES: [0.25, 0.5, 1, 2, 5, 10, 100, 1000, 10000],
   DEFAULT_GAME_SPEED: 1,
+  GAME_SPEED_MAX: 1e6,
+  MAX_STEPS_PER_FRAME: 20000,   // at 10 tps → 2000 sim-sec/frame → a 20h run in ~0.3s real
 
   SAVE_KEY: 'idlevaction.save.v1',
   SAVE_VERSION: 1,
