@@ -21,14 +21,20 @@ export function unitCost(k, bought) {
   return C.GEN.base[k] * Math.pow(C.GEN.growth[k], bought);
 }
 
+// L_upgrade: per-tier bought "renovation" upgrades (E05's headline layer, wired since
+// E03 via engine.buyGenUpgrade / state.generators[k].upgrades). Additive within its own
+// layer, per the master stacking rule — pure and testable in isolation.
+export function upgradeMult(bought) {
+  return 1 + C.L_UPGRADE_RATE * (bought || 0);
+}
+
 // ---- multiplier stack: additive within a layer, multiplicative across ----
 // scope tags let a bonus target 'all' or specific tiers/tags (e.g. 'social').
 export function tierMultiplier(state, k) {
   const g = state.generators[k];
   const mMilestone = milestoneMult(g.bought);
 
-  // L_upgrade: per-tier bought upgrades (kept simple here as +0.5·upgrades)
-  const L_upgrade = 1 + 0.5 * (g.upgrades || 0);
+  const L_upgrade = upgradeMult(g.upgrades);
 
   // L_path: paths that target social tiers (k=1,2 → followers/sponsors) get a boost
   const social = (k === 1 || k === 2);

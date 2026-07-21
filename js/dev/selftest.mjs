@@ -604,5 +604,195 @@ console.log('\n[19] E04 migration + no free offline purchases');
   ok(off.resources.cash >= 0, 'cash never goes negative offline (transport upkeep clamped)');
 }
 
+// ---------- 20. E05: L_upgrade (upgradeMult) — value at n, additive-within-layer,
+// stack-order regression (E05-S1-T6/S2-T1/S4-T5/S8-T1/S10-T1/T8) ----------
+console.log('\n[20] E05 L_upgrade (upgradeMult): value at n, additive-within-layer, stack-order');
+{
+  ok(M.upgradeMult(0) === 1, 'upgradeMult(0) == 1 (no renovations yet)');
+  ok(approx(M.upgradeMult(1), 1 + C.L_UPGRADE_RATE), `upgradeMult(1) == 1 + L_UPGRADE_RATE (${1 + C.L_UPGRADE_RATE})`);
+  ok(approx(M.upgradeMult(5), 1 + C.L_UPGRADE_RATE * 5), 'upgradeMult(5) == 1 + rate·5 (additive within the layer)');
+  ok(approx(M.upgradeMult(10), 1 + C.L_UPGRADE_RATE * 10), 'upgradeMult(10) == 1 + rate·10');
+  ok(approx(M.upgradeMult(10) - M.upgradeMult(9), M.upgradeMult(1) - M.upgradeMult(0)),
+    'marginal gain per renovation is constant (additive, not compounding, within the layer)');
+
+  // stack-order regression (mirrors [18]'s L_dest check): bumping ONE tier's upgrades
+  // scales that tier's tierMultiplier by exactly the upgradeMult ratio, nothing else.
+  const up = ST.newGame();
+  up.generators[0].bought = 20; up.generators[0].count = 20;
+  const mBefore = M.tierMultiplier(up, 0);
+  const uBefore = M.upgradeMult(up.generators[0].upgrades);
+  up.generators[0].upgrades += 3;
+  const mAfter = M.tierMultiplier(up, 0);
+  const uAfter = M.upgradeMult(up.generators[0].upgrades);
+  ok(approx(mAfter / mBefore, uAfter / uBefore),
+    'tierMultiplier scales by EXACTLY the L_upgrade ratio when only upgrades change — confirms L_upgrade is a clean factor in the M_k stack');
+}
+
+// ---------- 21. E05: buyGenUpgrade cost progression + cheapest-upgrade convenience
+// (E05-S2-T4/S3-T5/S4-T2) ----------
+console.log('\n[21] E05 buyGenUpgrade cost progression + cheapest-upgrade convenience');
+{
+  const gu = ST.newGame();
+  gu.resources.cash = 0;
+  ok(!E.buyGenUpgrade(gu, 0), 'buyGenUpgrade is blocked at zero cash');
+  ok(gu.generators[0].upgrades === 0, 'upgrades unchanged after a blocked buy');
+
+  gu.resources.cash = 1e6;
+  const cost0 = E.genUpgradeCost(gu, 0);
+  ok(approx(cost0, C.GEN.base[0] * 50), 'genUpgradeCost at upgrades=0 equals GEN.base[k]*50 (the documented formula)');
+  ok(E.buyGenUpgrade(gu, 0), 'buyGenUpgrade succeeds with enough cash');
+  ok(gu.generators[0].upgrades === 1, 'upgrades incremented to 1 on a successful buy');
+  const cost1 = E.genUpgradeCost(gu, 0);
+  ok(approx(cost1 / cost0, 8), 'genUpgradeCost grows by exactly ×8 per purchase (the documented growth)');
+
+  // convenience: cheapestGenUpgrade / buyCheapestGenUpgrade route through the SAME
+  // buyGenUpgrade path — no bespoke buy logic (E05-S3-T5 "renovate cheapest").
+  const ch = ST.newGame();
+  ch.resources.cash = 0;
+  ok(!E.buyCheapestGenUpgrade(ch), 'buyCheapestGenUpgrade is blocked at zero cash');
+  ch.resources.cash = 1e6;
+  const pick = E.cheapestGenUpgrade(ch);
+  ok(pick && pick.k === 0, 'cheapestGenUpgrade picks D1 (the only unlocked tier on a fresh game)');
+  ok(approx(pick.cost, E.genUpgradeCost(ch, 0)), 'cheapestGenUpgrade cost matches genUpgradeCost for the picked tier');
+  ok(E.buyCheapestGenUpgrade(ch), 'buyCheapestGenUpgrade succeeds when affordable');
+  ok(ch.generators[0].upgrades === 1, 'buyCheapestGenUpgrade actually bought via the shared buyGenUpgrade path');
+}
+
+// ---------- 22. E05: accommodation ladder — accScore/accUnlockComfort monotonic,
+// tier-up gate (Comfort + cash), renovation persistence across tier-up, save/reload
+// (E05-S1-T10/S2-T5/T8/S4-T6/S6-T3/T9/T10/S10-T2/T3) ----------
+console.log('\n[22] E05 accommodation ladder: accScore/accUnlockComfort monotonic, tier-up gate, persistence');
+{
+  let prevScore = -Infinity, prevUnlock = -Infinity, monoScore = true, monoUnlock = true;
+  for (let i = 0; i < DATA.accommodation.length; i++) {
+    const sc = M.accScore(i), un = M.accUnlockComfort(i);
+    if (sc <= prevScore) monoScore = false;
+    if (i > 0 && un <= prevUnlock) monoUnlock = false;
+    prevScore = sc; prevUnlock = un;
+  }
+  ok(monoScore, 'accScore is strictly increasing across every defined tier');
+  ok(monoUnlock, 'accUnlockComfort is strictly increasing across every defined tier');
+
+  // tier-up gate: blocked below Comfort, blocked below cash, succeeds at exact cost.
+  const tu = ST.newGame();
+  tu.accommodation.tier = 3; tu.accommodation.owned = [0, 1, 2, 3];
+  tu._comfortCache = M.accUnlockComfort(4) - 1;   // just short of the gate
+  tu.resources.cash = 1e12;
+  ok(!E.accUnlocked(tu), 'accUnlocked is false just below the Comfort gate');
+  ok(!E.buyAccommodation(tu), 'buyAccommodation is blocked below the Comfort gate even with plenty of cash');
+  ok(tu.accommodation.tier === 3, 'tier unchanged after a blocked buy');
+
+  tu._comfortCache = M.accUnlockComfort(4);        // exactly at the gate
+  ok(E.accUnlocked(tu), 'accUnlocked is true exactly at the Comfort gate');
+  const cost = E.accCost(tu);
+  tu.resources.cash = cost - 1;
+  ok(!E.buyAccommodation(tu), 'buyAccommodation is blocked one cash short, even with Comfort met');
+  tu.resources.cash = cost;                        // exact cash
+  ok(E.buyAccommodation(tu), 'buyAccommodation succeeds with exactly enough cash and Comfort met (the 1-Star check-in)');
+  ok(tu.accommodation.tier === 4, 'tier advanced to 4 (the 1-Star Hotel)');
+  ok(tu.accommodation.owned.includes(4), 'tier 4 pushed to ownedTiers');
+  ok(approx(tu.resources.cash, 0), 'exact-cash tier-up leaves cash at (approximately) zero, never negative');
+
+  // renovations (generator upgrades) are an entirely separate system from accommodation
+  // tiers — buying a tier never touches them (E05-S4-T6: persist across tier-up).
+  tu.generators[0].upgrades = 3;
+  tu._comfortCache = M.accUnlockComfort(5);
+  tu.resources.cash = E.accCost(tu);
+  E.buyAccommodation(tu);
+  ok(tu.accommodation.tier === 5, 'tier advanced again to 5');
+  ok(tu.generators[0].upgrades === 3, 'renovations (generator upgrades) persist across a tier-up, untouched');
+
+  const reloadedTu = ST.migrate(JSON.parse(JSON.stringify(tu)));
+  ok(reloadedTu.accommodation.tier === 5, 'accommodation tier survives a save/reload round-trip');
+  ok(reloadedTu.generators[0].upgrades === 3, 'generator upgrades survive a save/reload round-trip alongside the tier');
+}
+
+// ---------- 23. E05: ladder-panel-vs-accUnlocked consistency — a pure-logic assertion
+// that the panel's gate can never drift from the real purchase gate (E05-D guardrail) ----------
+console.log('\n[23] E05 ladder-panel-vs-accUnlocked consistency (no drift)');
+{
+  // Mirrors ui.js renderAccommodation's gating exactly: the ONLY tier ever offered as
+  // buyable is nextAccTier(state), and its gate must always read as E.accUnlocked(state)
+  // itself. Checked across a spread of crafted states (early/mid/top tier, at/below the
+  // exact Comfort threshold).
+  const probes = [
+    { tier: 0, comfort: 0 },
+    { tier: 0, comfort: M.accUnlockComfort(1) - 1 },
+    { tier: 0, comfort: M.accUnlockComfort(1) },
+    { tier: 3, comfort: M.accUnlockComfort(4) - 0.01 },
+    { tier: 3, comfort: M.accUnlockComfort(4) },
+    { tier: 19, comfort: M.accUnlockComfort(20) },
+    { tier: 20, comfort: 1e12 },   // top tier: no next tier exists
+  ];
+  let consistent = true;
+  for (const p of probes) {
+    const st = ST.newGame();
+    st.accommodation.tier = p.tier;
+    st._comfortCache = p.comfort;
+    const nextT = E.nextAccTier(st);
+    const panelGateOk = nextT < DATA.accommodation.length && st._comfortCache >= M.accUnlockComfort(nextT);
+    if (panelGateOk !== E.accUnlocked(st)) consistent = false;
+  }
+  ok(consistent, "the ladder panel's next-tier gate matches E.accUnlocked() exactly across owned/next/top-tier states");
+}
+
+// ---------- 24. E05: 1-Star amenity cluster — data validation + migration backfill
+// (E05-S5-T1/T2/T3/T4/T9/T10) ----------
+console.log('\n[24] E05 1-Star amenity cluster: data validation + migration backfill');
+{
+  const star1 = DATA.amenities.filter(a => a.tag === 'onestar');
+  ok(star1.length >= 5, `the 1-Star cluster has at least 5 amenities (got ${star1.length})`);
+  const backpackTop = Math.max(...DATA.amenities.filter(a => a.tag === 'backpack').map(a => a.costBase));
+  for (const a of star1) {
+    ok(a.costBase > backpackTop, `${a.id}: costBase (${a.costBase}) sits above the backpack cluster's top (${backpackTop})`);
+    ok(a.comfort >= 15 && a.comfort <= 35, `${a.id}: comfort (${a.comfort}) within the conservative 15-35 band`);
+    ok(a.xMult > 0 && a.xMult <= 0.05, `${a.id}: xMult (${a.xMult}) is a small, conservative bonus`);
+  }
+  // brackets the tier-4 (1-Star Hotel) Comfort gate: some items help you get there,
+  // some keep small wins flowing right after arrival, all resolve within the stage.
+  const gate4 = M.accUnlockComfort(4);
+  ok(star1.some(a => a.unlockComfort < gate4), 'at least one 1-Star amenity unlocks BEFORE the tier-4 gate (helps you check in)');
+  ok(star1.some(a => a.unlockComfort > gate4), 'at least one 1-Star amenity unlocks AFTER the tier-4 gate (keeps wins flowing post-arrival)');
+  ok(star1.every(a => a.unlockComfort < M.accUnlockComfort(5)), 'the whole 1-Star cluster resolves before the tier-5 gate (stays in its own stage)');
+
+  // migration: an "old" save missing the new star1_* keys still loads cleanly and
+  // backfills them at level 0 (E05-S5-T9, the generic backfill() path).
+  const oldSave = ST.newGame();
+  for (const a of star1) delete oldSave.amenities[a.id];
+  const migrated = ST.migrate(JSON.parse(JSON.stringify(oldSave)));
+  ok(star1.every(a => migrated.amenities[a.id] && migrated.amenities[a.id].level === 0),
+    'migration backfills every new 1-Star amenity id at level 0 for a save that predates them');
+}
+
+// ---------- 25. E05: beat 7 (One Star, Big Dreams) fires exactly at accTier 4, plus
+// the distinct check-in celebration flash (E05-S2-T9/S6-T5/S6-T10/S10-T4/T9) ----------
+console.log('\n[25] E05 beat 7 (One Star, Big Dreams) fires exactly at accTier 4');
+{
+  const b7 = ST.newGame();
+  b7.accommodation.tier = 3;
+  b7._comfortCache = 1e6;
+  E.checkStory(b7);
+  ok(!b7.story.seen.includes(7), 'beat 7 has NOT fired at accTier 3, even with huge Comfort');
+
+  b7.accommodation.tier = 4;
+  E.checkStory(b7);
+  ok(b7.story.seen.includes(7), 'beat 7 fires the moment accommodation.tier reaches 4');
+  ok(b7.story.seen.filter(x => x === 7).length === 1, 'beat 7 is recorded exactly once');
+
+  E.checkStory(b7); E.checkStory(b7);
+  ok(b7.story.seen.filter(x => x === 7).length === 1, 'repeated checkStory calls (e.g. multiple ticks) do not re-fire beat 7');
+
+  // the extra celebratory flash fires alongside the real tier-up (engine.buyAccommodation),
+  // distinct from the generic "Upgraded to" notification.
+  const arr = ST.newGame();
+  arr.accommodation.tier = 3; arr.accommodation.owned = [0, 1, 2, 3];
+  arr._comfortCache = M.accUnlockComfort(4);
+  arr.resources.cash = E.accCost(arr);
+  ok(E.buyAccommodation(arr), 'buyAccommodation succeeds into tier 4');
+  const notifs = E.drainNotifications(arr);
+  ok(notifs.some(n => n.type === 'celebrate' && /One whole star/.test(n.text)),
+    'the 1-Star arrival fires a distinct celebratory notification alongside the tier-up');
+}
+
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);
 process.exit(fails === 0 ? 0 : 1);
