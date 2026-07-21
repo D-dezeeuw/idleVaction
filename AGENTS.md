@@ -66,17 +66,22 @@ git config user.email noreply@anthropic.com
 git config user.name  Claude
 ```
 
-### The squash-merge gotcha
-When a PR is merged with **"Squash and merge"**, GitHub creates a **new** commit on `main`
-authored by you but **committed by `GitHub <noreply@github.com>`** — so that one commit shows
-**Unverified**. It is GitHub's commit, not one you authored.
+### How a merge attributes the commit on `main`
+Whatever method you use, **GitHub re-writes the committer of the commit(s) that land on `main`
+to the account performing the merge** (here, the repo owner, `danny@nekomedia.nl`) and
+web-flow-signs them — so on `main` they show **Verified under the owner's identity**, not
+`noreply@anthropic.com`. Both squash and rebase do this; they differ in history:
 
-- **Do NOT** `--amend`/`rebase`/`reset-author` a squash-merge commit that is already on
-  `origin/main`. Rewriting merged history forks your branch off `main` and forces a divergent
-  push to "fix" a commit GitHub authored. Leave it.
-- **To avoid Unverified commits on `main` going forward, prefer "Rebase and merge"** — your
-  already-correctly-attributed commits land on `main` unchanged and stay Verified. (Or enable a
-  merge-commit signing option in repo settings if you must squash.)
+- **"Squash and merge"** collapses the whole branch into **one** new commit (committed by the
+  merger) — you lose per-commit history.
+- **"Rebase and merge"** replays your commits onto `main`, **preserving per-commit history**;
+  each still gets the merger as committer. **Prefer this** — you keep the history *and* the
+  commits are Verified under the owner.
+- The `noreply@anthropic.com` committer identity matters only for **un-merged feature-branch
+  commits** — that is exactly what the stop-hook checks before a push. Once merged, `main`'s
+  commits carry the owner's identity no matter what committer the branch used.
+- **Never** `--amend`/`rebase`/`reset-author` a merge-result commit already on `origin/main` —
+  it's GitHub's, and rewriting merged history forks your branch off `main`.
 
 ### Fixing an Unverified commit that *you* authored (not yet merged)
 Only when the flagged commit is your own unpushed work:

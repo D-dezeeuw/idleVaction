@@ -1,0 +1,42 @@
+# Deploys the static idleVaction site (index.html + css/ + js/) to GitHub Pages
+# on every push to main, so the live MVP tracks the branch. No build step —
+# the repo root IS the site. Live URL: https://d-dezeeuw.github.io/idlevaction/
+#
+# One-time setup (repo owner): Settings → Pages → Build and deployment →
+# Source → "GitHub Actions". (configure-pages below will also try to enable it
+# automatically the first time this workflow runs.)
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only one live deployment at a time; let a newer push supersede an in-flight one.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Configure Pages
+        uses: actions/configure-pages@v5   # enables Pages (build_type=workflow) if not already
+      - name: Upload site artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'                          # repo root — index.html serves the game
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
