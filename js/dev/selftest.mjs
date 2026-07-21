@@ -7,7 +7,7 @@ import * as ST from '../state.js';
 import * as E from '../engine.js';
 import * as M from '../math.js';
 import * as P from '../prestige.js';
-import { fmt, fmtTime } from '../util.js';
+import { fmt, fmtTime, rng } from '../util.js';
 
 let fails = 0;
 const ok = (cond, msg) => { if (!cond) { console.error('  ✗ FAIL:', msg); fails++; } else console.log('  ✓', msg); };
@@ -312,6 +312,119 @@ console.log('\n[7e] amenity unlock flash: fires once, never repeats');
   E.tick(reloadedFl, 0.01);
   const notifs3 = E.drainNotifications(reloadedFl);
   ok(!notifs3.some(n => /New little luxury unlocked/.test(n.text)), 'flash does not re-fire after a save/reload round-trip');
+}
+
+// ---------- 8. E03: generator-array + NPC data QA (E03-S1-T10, S7-T10) ----------
+console.log('\n[8] E03 data validation: GEN arrays aligned; NPC ids unique + pathSeeds known');
+{
+  ok(C.GEN.base.length === DATA.generators.length, 'GEN.base covers every generator row');
+  ok(C.GEN.growth.length === DATA.generators.length, 'GEN.growth covers every generator row');
+  ok(C.GEN.perUnit.length === DATA.generators.length, 'GEN.perUnit covers every generator row');
+  ok(DATA.generators.length >= 3, 'the ladder covers at least D1-D3 (E03 headline tiers)');
+
+  const seenNpcIds = new Set();
+  for (const n of DATA.npcs) {
+    ok(!seenNpcIds.has(n.id), `npc id is unique: ${n.id}`);
+    seenNpcIds.add(n.id);
+    ok(!n.pathSeed || DATA.paths.some(p => p.id === n.pathSeed),
+      `${n.id}: pathSeed (${n.pathSeed ?? 'none'}) maps to a known build path or is unset`);
+  }
+  ok(DATA.npcs.length >= 3, 'the recurring roster has at least a backpacker, a vlogger, and a regular');
+}
+
+// ---------- 9. E03: bulk-buy parity — bulk cost/bought/milestones match sequential
+// single buys exactly, for random (bought, qty) pairs (E03-S4-T10 / S10-T4). ----------
+console.log('\n[9] E03 bulk-buy parity vs sequential single buys');
+{
+  const rand = rng(20230721);
+  for (let trial = 0; trial < 10; trial++) {
+    const k = 0; // D1 — always unlocked, cheapest to reason about
+    const bought0 = Math.floor(rand() * 40);
+    const qty = 1 + Math.floor(rand() * 15);
+
+    const bulkState = ST.newGame();
+    bulkState.generators[k].bought = bought0;
+    bulkState.generators[k].count = bought0;
+    bulkState.resources.cash = 1e15;
+    const bulkCostAmt = E.genCost(bulkState, k, qty);
+    ok(E.buyGenerator(bulkState, k, qty), `trial ${trial}: bulk buy of ${qty} (from bought=${bought0}) succeeds`);
+
+    const seqState = ST.newGame();
+    seqState.generators[k].bought = bought0;
+    seqState.generators[k].count = bought0;
+    seqState.resources.cash = 1e15;
+    let seqCostSum = 0;
+    for (let i = 0; i < qty; i++) {
+      seqCostSum += E.genCost(seqState, k, 1);
+      E.buyGenerator(seqState, k, 1);
+    }
+
+    ok(approx(bulkCostAmt, seqCostSum, 1e-6),
+      `trial ${trial}: bulkCost(bought=${bought0}, qty=${qty}) equals the sum of ${qty} sequential single-buy costs`);
+    ok(bulkState.generators[k].bought === seqState.generators[k].bought,
+      `trial ${trial}: bought count matches after bulk (${bulkState.generators[k].bought}) vs sequential (${seqState.generators[k].bought})`);
+    ok(approx(bulkState.generators[k].count, seqState.generators[k].count),
+      `trial ${trial}: owned count matches after bulk vs sequential buys`);
+    ok(M.milestoneMult(bulkState.generators[k].bought) === M.milestoneMult(seqState.generators[k].bought),
+      `trial ${trial}: milestone multiplier matches — a batch crossing a boundary applies the same doubling as sequential buys`);
+  }
+}
+
+// ---------- 10. E03: tier chaining — a high tier alone drives a lower tier
+// super-linearly, proving the chain integrates (E03-S2-T10 / S10-T5). ----------
+console.log('\n[10] E03 tier chaining: D3 alone accelerates D1 (chain integrates)');
+{
+  const c = ST.newGame();
+  c.generators[2].count = 1e6;   // seed D3 (index 2) only; D4+ stay at 0 so D3's own count is stable
+  const dt = 5;
+  const d1at = [];
+  for (let i = 0; i < 6; i++) { E.tick(c, dt); d1at.push(c.generators[0].count); }
+  const delta1 = d1at[1] - d1at[0];
+  const deltaLast = d1at[5] - d1at[4];
+  ok(d1at[5] > 0, `D1 (cash tier) count grows purely from the D3→D2→D1 chain (${fmt(d1at[5])})`);
+  ok(deltaLast > delta1 * 1.5,
+    `D1's growth accelerates over equal time steps (Δ1=${fmt(delta1)} → Δ6=${fmt(deltaLast)}) — super-linear, the chain compounds`);
+}
+
+// ---------- 11. E03: NPC roster reveal + neutrality (E03-S6-T9 / S7-T10) ----------
+console.log('\n[11] E03 NPC roster: reveals at hostel arrival, path seeds stay balance-neutral');
+{
+  const early = ST.newGame();
+  early.accommodation.tier = 1;                     // Bug-Infested Motel — not the hostel yet
+  E.checkNpcUnlocks(early);
+  ok(DATA.npcs.every(n => !early.npcsMet[n.id]), 'no NPC is met before accommodation.tier reaches 2 (the hostel)');
+
+  const before = ST.newGame();
+  before.accommodation.tier = 2;                    // hostel arrival
+  before._comfortCache = M.computeComfort(before, DATA);
+  const incomeBefore = M.tierProd(before, 0) + M.savvyPassive(before);
+
+  const after = ST.newGame();
+  after.accommodation.tier = 2;
+  after._comfortCache = M.computeComfort(after, DATA);
+  E.checkNpcUnlocks(after);
+  ok(DATA.npcs.every(n => after.npcsMet[n.id]), 'meeting the roster sets npcsMet for every NPC once accommodation.tier >= 2');
+  ok(DATA.npcs.some(n => n.pathSeed) && DATA.npcs.filter(n => n.pathSeed)
+    .every(n => after.story.flags[n.pathSeed + 'Seed']), 'NPCs with a pathSeed set the matching story.flags.<seed>Seed stub');
+
+  const incomeAfter = M.tierProd(after, 0) + M.savvyPassive(after);
+  ok(approx(incomeAfter, incomeBefore), 'recording NPC path seeds does NOT change per-second income (E03-S7-T10 neutrality)');
+}
+
+// ---------- 12. E03: state.ui.bulkMode persists across save/reload (E03-S1-T6) ----------
+console.log('\n[12] E03 bulk-mode persistence');
+{
+  const bm = ST.newGame();
+  ok(bm.ui && bm.ui.bulkMode === 1, 'a fresh game defaults bulkMode to ×1');
+
+  bm.ui.bulkMode = 'max';
+  const reloadedBm = ST.migrate(JSON.parse(JSON.stringify(bm)));
+  ok(reloadedBm.ui.bulkMode === 'max', 'bulkMode survives a save/reload round-trip (was set to "max")');
+
+  const partialBm = JSON.parse(JSON.stringify(bm));
+  delete partialBm.ui;                              // simulate a pre-E03 save missing `ui` entirely
+  const fixedBm = ST.migrate(partialBm);
+  ok(fixedBm.ui && fixedBm.ui.bulkMode === 1, 'migration backfills a missing `ui` slice with the default bulkMode');
 }
 
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);

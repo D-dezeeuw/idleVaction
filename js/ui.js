@@ -8,7 +8,8 @@ import { fmt, fmtTime, clamp } from './util.js';
 
 let S = null;                 // live state ref (stable across ascension)
 let hooks = {};               // { save, exportSave, importSave, hardReset }
-let buyQty = 1;               // 1 | 10 | 'max'
+// buy quantity (1 | 10 | 'max') now lives in state.ui.bulkMode (E03-S1-T6) so the
+// toggle survives reload instead of being lost as a transient module var.
 
 export function bind(state, h) { S = state; hooks = h; wireEvents(); }
 export function setState(state) { S = state; }
@@ -109,9 +110,13 @@ function renderAccommodation(s) {
 }
 
 function renderGenerators(s) {
+  const buyQty = s.ui.bulkMode;
   const qtyBtns = [1, 10, 'max'].map(q =>
     `<button class="btn btn-sm ${buyQty === q ? 'btn-primary' : ''}" data-action="set-qty" data-arg="${q}">×${q}</button>`).join(' ');
-  let rows = `<div class="iv-qty">Buy ${qtyBtns}</div>`;
+  // chain readout (E03-S4-T8): make the "higher tiers feed lower ones" compounding
+  // legible in one line, without restructuring the rows themselves.
+  let rows = `<div class="iv-qty">Buy ${qtyBtns}</div>
+    <div class="iv-sub iv-chain-legend">🔗 higher tiers feed lower ones → D1 pays out cash</div>`;
   DATA.generators.forEach((g, k) => {
     if (!s.generators[k].unlocked) return;
     const st = s.generators[k];
@@ -197,8 +202,24 @@ function renderSkills(s) {
   el('skills').innerHTML = html;
 }
 
+// Recurring NPC roster (E03-S1-T3/S6-T9/S7-T1): revealed once you're in the hostel
+// bunk (accommodation.tier >= 2). Pure flavor — path seeds are neutral in E03, see
+// engine.checkNpcUnlocks.
+function npcRosterHtml(s) {
+  let html = '<div class="iv-tag">fellow travelers</div><div class="iv-npcs">';
+  for (const npc of DATA.npcs) {
+    html += `<div class="iv-npc" title="${npc.flavor}">
+      <span class="iv-npc-emoji">${npc.emoji}</span> <b>${npc.name}</b>
+      <div class="iv-sub">${npc.flavor}</div>
+    </div>`;
+  }
+  html += '</div>';
+  return html;
+}
+
 function renderPaths(s) {
-  let html = '<div class="iv-amenities">';
+  let html = s.accommodation.tier >= 2 ? npcRosterHtml(s) : '';
+  html += '<div class="iv-amenities">';
   for (const p of DATA.paths) {
     const cost = E.pathCost(s, p.id);
     const pts = s.paths[p.id].points;
@@ -264,7 +285,7 @@ function wireEvents() {
 
 function handle(action, arg) {
   switch (action) {
-    case 'set-qty': buyQty = arg === 'max' ? 'max' : Number(arg); break;
+    case 'set-qty': S.ui.bulkMode = arg === 'max' ? 'max' : Number(arg); break;
     case 'buy-gen': { const [k, q] = arg.split('|'); E.buyGenerator(S, Number(k), q === 'max' ? 'max' : Number(q)); break; }
     case 'buy-gen-upg': E.buyGenUpgrade(S, Number(arg)); break;
     case 'buy-amenity': E.buyAmenity(S, arg); break;

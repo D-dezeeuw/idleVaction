@@ -6,6 +6,7 @@ import { SKILLS, TRAINING } from './skills.js';
 import { PATHS } from './paths.js';
 import { TREE } from './skilltree.js';
 import { STORY, VIGNETTES } from './story.js';
+import { NPCS } from './npcs.js';
 
 export const DATA = {
   generators: GENERATORS,
@@ -17,4 +18,5 @@ export const DATA = {
   tree: TREE,
   story: STORY,
   vignettes: VIGNETTES,
+  npcs: NPCS,
 };
