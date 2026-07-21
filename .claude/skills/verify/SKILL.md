@@ -40,10 +40,10 @@ git log --format='%h  %ce  %s' "origin/$BR..HEAD"                             # 
 git commit --amend --no-edit --reset-author                                  # tip commit
 git rebase --exec "git commit --amend --no-edit --reset-author" "origin/$BR" # earlier commits
 ```
-**Never** `--amend`/`rebase` a squash-merge commit already on `origin/main` (committer
-`GitHub <noreply@github.com>`) — it's GitHub's, and rewriting merged history is wrong. To keep
-future merges Verified, use **"Rebase and merge"** instead of "Squash and merge". Full
-explanation: `AGENTS.md §3`.
+**Never** `--amend`/`rebase`/`reset-author` a commit already on `origin/main`. Phases land via a
+**local merge** (`git checkout main && git merge --no-ff <branch> && git push origin main`) — not
+GitHub rebase/squash-merge, not a PR — so feature commits and the merge commit both keep
+committer `noreply@anthropic.com` and stay Verified. Full explanation: `AGENTS.md §3`.
 
 ## 3. Report
 Print PASS/FAIL per check with the concrete numbers (harness island time + peak log10, or the

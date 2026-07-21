@@ -152,26 +152,37 @@ scaling as a *power of cash*. That was fixed at the mechanism level (soft-capped
 loop **converges**. It was then fitted by suppressing the polynomial *degree* (steep `GEN.base`
 spacing + small high-tier `GEN.perUnit`) so the run stretches across hours.
 
-**Golden curve — `node js/dev/harness.mjs`** (greedy *optimal, max-speed* player; robust:
-island lands 17h50m–18h07m across buy-cadences dt = 2…30):
+**Golden curve — `node js/dev/harness.mjs`** (greedy *optimal, max-speed* player). The island
+lands in the **15–20h optimal band**; the exact figure drifts as each epic adds legitimate
+amenity content (see the drift note below). Current snapshot (post-E03):
 
 ```
 Beat  1–2   0s          (Netherlands / motel)
-Beat  3–4   ~33m        (checkout / hostel)
-Beat  5–6   ~1h10m      (first stamp / branch choice)
-Beat  7–10  1h41m–2h55m (1★ → pool)
-Beat 11–13  ~4h38m      (5★ / body / concierge)
-Beat 14–15  ~6h17m      (vlogger / cars)
-Beat 16–18  8h12m–9h08m (boats / jets / 6★)
-Beat 19–21  10h15m–11h38m (butler / household / 7★)
-Beat 22–26  13h27m–14h50m (bungalow → villa → ascension unlock)
-ISLAND (tier 20)         17h 54m      peak log10(cash) = 11.3 (safe; double maxes ~308)
+Beat  3–4   ~36m        (checkout / hostel)
+Beat  5–6   ~1h22m      (first stamp / branch choice)
+Beat  7–10  1h57m–3h19m (1★ → pool)
+Beat 11–13  ~5h12m      (5★ / body / concierge)
+Beat 14–15  ~7h01m      (vlogger / cars)
+Beat 16–18  9h07m–10h07m (boats / jets / 6★)
+Beat 19–21  11h21m–12h51m (butler / household / 7★)
+Beat 22–26  14h45m–16h21m (bungalow → villa → ascension unlock)
+ISLAND (tier 20)         19h 29m      peak log10(cash) = 11.3 (safe; double maxes ~308)
 ```
 
 Because the harness plays *perfectly at infinite speed*, this is a **lower bound** — a real
 player (10 tps, sub-optimal buys, mostly idle/offline) lands **~20h+**, which is the goal. The
 curve is monotone (a story-ordering guard forces beats to fire in narrative order) and every
-beat is now hours apart, not the ~35-second blur of the first pass.
+beat is hours apart, not the ~35-second blur of the first pass.
+
+**Golden-drift note (amenity-count sensitivity).** The harness's greedy policy buys one level
+of *every* affordable amenity each step, so adding an amenity cluster widens the reinvestment
+"leak" and stretches the curve regardless of unit price — E03's 6-amenity hostel cluster moved
+the island 17h54m → 19h29m (peak magnitude unchanged). This is **accepted in-band drift**, not
+a regression: retuning `GEN`/`COMFORT` on every content add would churn the fitted constants
+endlessly. **Policy:** let the curve breathe inside 15–20h; escalate to `@balance-tuner` for a
+consolidated retune only if a phase pushes greedy island time **past ~20h** (casual would then
+exceed the ~20h+ goal by too much), and do the final consolidated fit at E30. The peak
+`log10(cash)` ceiling (~290) is the hard guardrail and stays the non-negotiable gate.
 
 **Remaining polish (tracked in E30, not blocking):**
 - A few beats still *cluster* (a single tier-unlock satisfies 2–3 gate thresholds at once);

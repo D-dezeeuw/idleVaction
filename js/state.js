@@ -13,15 +13,22 @@ export function newGame() {
   DATA.training.forEach(t => { training[t.id] = { bought: 0 }; });
   const paths = {};
   DATA.paths.forEach(p => { paths[p.id] = { points: 0, focusBought: 0 }; });
+  // npcsMet (E03-S1/S7): one flag per recurring NPC, flipped once on hostel arrival
+  // (accommodation.tier >= 2). Pure flavor bookkeeping — never read by math.js.
+  const npcsMet = {};
+  DATA.npcs.forEach(n => { npcsMet[n.id] = false; });
 
   return {
     version: C.SAVE_VERSION,
     meta: { createdAt: 0, lastSaved: 0, lastSeen: 0, playtimeMs: 0, runStartSec: 0 },
     resources: { cash: 15, comfort: 0, clout: 0, legacy: 0 },
-    generators, amenities, skills, training, paths,
+    generators, amenities, skills, training, paths, npcsMet,
     accommodation: { tier: 0, owned: [0] },
     ascension: { count: 0, legacyBanked: 0, legacySpent: 0, tree: {} },
     story: { beat: 1, seen: [1], branch: 'neutral', flags: {} },
+    // ui.bulkMode (E03-S1-T6): the ×1/×10/max buy-quantity toggle, persisted so the
+    // choice survives reload instead of living in a transient ui.js module var.
+    ui: { bulkMode: 1 },
     settings: { gameSpeed: C.DEFAULT_GAME_SPEED, offlineEnabled: true, debug: false },
     stats: { lifetimeCash: 0, lifetimeCashThisTree: 0, bestComfort: 0, totalClicks: 0, runSec: 0,
       tapWindowSec: 0, tapWindowCount: 0 },

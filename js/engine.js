@@ -67,6 +67,7 @@ export function tick(state, dt) {
   checkUnlocks(state);
   checkAmenityUnlocks(state);
   checkVignettes(state);
+  checkNpcUnlocks(state);
   checkStory(state);
 }
 
@@ -115,6 +116,21 @@ export function checkAmenityUnlocks(state) {
       state.story.flags[flagKey] = true;
       notify(state, 'unlock', `✨ New little luxury unlocked: ${a.name}`);
     }
+  }
+}
+
+// ---------- NPCs (E03-S1/S6/S7): recurring cast revealed once you land in the hostel
+// (accommodation.tier >= 2). Meeting an NPC only records a flag — state.npcsMet and,
+// if the NPC carries one, story.flags.<pathSeed>Seed — it never touches
+// state.paths.*.points or any multiplier layer, so L_path stays neutral (=1) here;
+// E04 is what actually turns the path system on. See E03-S7-T10 (neutrality).
+export function checkNpcUnlocks(state) {
+  if (state.accommodation.tier < 2) return;
+  for (const npc of DATA.npcs) {
+    if (state.npcsMet[npc.id]) continue;
+    state.npcsMet[npc.id] = true;
+    if (npc.pathSeed) state.story.flags[npc.pathSeed + 'Seed'] = true;
+    notify(state, 'vignette', `${npc.emoji} ${npc.name}: "${npc.flavor}"`);
   }
 }
 

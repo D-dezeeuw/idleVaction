@@ -61,6 +61,12 @@ body { background: var(--iv-bg); color: var(--iv-ink); font-family: system-ui, s
 .iv-beatnum { color: var(--iv-sub); font-size: .72rem; } .iv-beattitle { color: var(--iv-accent); font-weight: bold; margin: 2px 0; }
 .iv-beattext { font-size: .85rem; } .iv-choices { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px; }
 
+/* recurring NPC roster (E03-S7): revealed once you're in the hostel bunk. */
+.iv-npcs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.iv-npc { background: #0c151b; border: 1px solid var(--iv-line); border-radius: 6px;
+  padding: 6px 8px; font-size: .78rem; flex: 1 1 150px; max-width: 240px; }
+.iv-npc-emoji { font-size: 1rem; }
+
 .iv-skills, .iv-skill, .iv-path { margin-bottom: 6px; }
 .iv-skill .bar { background: #0c151b; border-radius: 4px; height: 5px; overflow: hidden; margin-top: 3px; }
 .iv-skill .bar i { display: block; height: 100%; background: var(--iv-good); }
