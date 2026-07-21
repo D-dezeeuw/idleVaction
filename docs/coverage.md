@@ -133,16 +133,38 @@ pays" flash (`COMFORT_ONLINE_MULT` — **display-only**, never in the income mat
 | S9 Comfort on the Books (save) | 6 / 2 / 2 | Present: recompute-on-load, offline `L_comfort`, away summary, export/import. Done-now: fixture + no-drift tests. Superseded: version bump (generic backfill), backup rotation (deferred to E30). |
 | S10 Final Touches (QA) | 3 / 7 / 0 | Done-now: 7 test sections, reduced-motion-safe flash. Present: `fmt()`, button semantics, cleanup. |
 
+### E07 — Making a Splash (pool showcase) · **100/100** (present 32, done-now 30, superseded 38)
+Gap-fill; **`config.js` untouched**. The 7-item pool cluster already existed — E07 adds a
+dedicated **Poolside panel** (grouped Floatables / Loungers & Cabana / Cocktail Service) plus
+**4 new amenities** (2 floaties + Mixologist/Butler-Served cocktail tiers) at the drift cap.
+The high superseded count reflects the orchestrator's **≤4-item budget** to hold the 19.5h line
+— seating (S5), path flavor (S8), pacing tooling (S9) deliberately deferred. Island 18h42m →
+**19h11m** (+30min from 4 items; under threshold). Fixed a splash-popup re-render lifecycle bug.
+Accepted flags: `pool_cocktail_3` comfort (170) > `cabana` (110) — premium-pool flavor, `cabana`
+forbidden to touch; all pool items unlock below `accUnlockComfort(6)` — pre-existing quirk.
+
+| Story | present/done/superseded | Notes |
+|---|---|---|
+| S1 Pool Data | 4 / 3 / 3 | Superseded: `zones` registry / id-chain unlock / `zone` field (tag + flat `unlockComfort` suffices). |
+| S2 Pool Engine/Comfort | 6 / 1 / 3 | Superseded: saturating cap (removed by design), `xMult`→`L_path` (schema-only), per-buy dirty-flag cache. |
+| S3 Poolside Panel | 0 / 8 / 2 | Done-now: the panel + reveal-gating + splash juice + aria-live. Superseded: bespoke reveal animation, DOM snapshot test. |
+| S4 Floatables | 4 / 4 / 2 | Done-now: 2 new floaties + integration. Superseded: saturating cap, id-chain gating. |
+| S5 Loungers/Beds/Cabanas | 5 / 0 / 5 | Superseded: **≤4 budget spent on the cocktail chain** (orchestrator guardrail) — no new seating; existing items forbidden to retune. |
+| S6 Cocktail Service Tiers | 1 / 7 / 2 | Done-now: Mixologist + Butler-Served chain (growth 1.8). Superseded: `xMult`→`L_path` wiring, swim-up-bar tier. |
+| S7 3-Star Pool Tier | 5 / 3 / 2 | Present: tier-6 + beat 9. Done-now: Poolside reveal, celebrate. Superseded: "not before tier-up" (panel mounts on poolTease per this phase's spec), stale beat timing. |
+| S8 Poolside Persona (path) | 2 / 0 / 8 | Superseded: whole story — ≤4 budget spent; per-buy path trickle is the rejected runaway pattern. |
+| S9 Balance/Cadence Tuning | 0 / 2 / 8 | Done-now: harness re-run + in-band confirm. Superseded: automated cadence/purchase-log/golden tooling (no prior epic built it either). |
+| S10 Save/Migration/QA | 5 / 2 / 3 | Done-now: migration test, validation. Superseded: version bump (generic backfill), backup rotation (E30). |
+
 ---
 
-## Act II–VI — E07–E30
+## Act II–VI — E08–E30
 
 _Pending — appended as each phase's build pass audits its 100 tasks. Each row will carry the
 same `present / done-now / superseded` disposition and a per-phase tally in the commit + report._
 
 | Epic | Status |
 |---|---|
-| E07 Making a Splash | pending |
 | E08 Sun, Sand & Service | pending |
 | E09 Charm Offensive | pending |
 | E10 Body & Soul | pending |
@@ -170,8 +192,8 @@ same `present / done-now / superseded` disposition and a per-phase tally in the 
 ---
 
 ### Running total
-- **Audited:** 600 / 3,000 tasks (E01–E06) — present 277, done-now 235, superseded 88.
-- **Remaining:** 2,400 tasks (E07–E30).
+- **Audited:** 700 / 3,000 tasks (E01–E07) — present 309, done-now 265, superseded 126.
+- **Remaining:** 2,300 tasks (E08–E30).
 
 ### Deferred balance-tuner backlog (for a consolidated retune, latest at E30)
 - **`savvyPassive()` not ×`L_comfort`** (E06-S7-T4) — a flat sqrt-scaled additive term outside

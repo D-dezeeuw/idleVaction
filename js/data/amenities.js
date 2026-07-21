@@ -70,6 +70,25 @@ export const AMENITIES = [
   { id: 'cocktail_1',     name: 'Poolside Cocktail Cart',tag:'pool', costBase: 20000, comfort: 60, xMult: 0.06, xScope: 'all',    unlockComfort: 1200, flavor: 'The umbrella is bigger than the drink.' },
   { id: 'cabana',         name: 'Private Cabana',       tag: 'pool', costBase: 60000, comfort: 110,xMult: 0.08, xScope: 'all',    unlockComfort: 2000, flavor: 'Shade you own. A first.' },
 
+  // --- pool cluster gap-fill (E07 "Making a Splash", headline poolside cocktail
+  // service tiers) — the DRIFT GUARDRAIL caps this phase at 4 net-new pool amenities
+  // (see docs/coverage.md E07 notes), so this is the whole S4/S6 addition: two more
+  // floatables at the SAME conservative growthDefault (~1.5, no override) continuing
+  // the existing 800→60000 costBase ramp, plus the two-tier cocktail-service chain
+  // ("tap water → mixologist → butler-served") continuing cocktail_1 with a steeper
+  // costGrowth:1.8 (E07-S6-T2) so repeat-buys wall faster than the floaties — a
+  // "premium" cadence. unlockComfort is kept in the SAME low band as the pre-existing
+  // 7 items (200-2000) rather than rebracketed to the tier-6 gate (accUnlockComfort(6)
+  // ≈ 5097) — this cluster already ships that way (unlike onestar/breakfast, which
+  // bracket THEIR tier gates), so new items match the shipped shape, not the epic's
+  // literal (unwritten) intent. comfort-per-costBase continues the existing cluster's
+  // decreasing ratio (see the E07 gap-fill report) — conservative, in-band with the
+  // harness drift threshold (~19.5h). ---
+  { id: 'pool_floatie_pizza', name: 'Pizza Slice Floatie',   tag: 'pool', costBase: 4200,   comfort: 29,  xMult: 0.045, xScope: 'social', unlockComfort: 480,  flavor: 'You are the topping. Mozzarella-adjacent, mostly.' },
+  { id: 'pool_floatie_swan',  name: 'Swan Floatie',          tag: 'pool', costBase: 9000,   comfort: 38,  xMult: 0.05,  xScope: 'social', unlockComfort: 650,  flavor: 'Elegant. Serene. Already deflating on one side.' },
+  { id: 'pool_cocktail_2',    name: 'Mixologist Cart',       tag: 'pool', costBase: 40000,  comfort: 85,  costGrowth: 1.8, xMult: 0.07, xScope: 'social', unlockComfort: 1600, flavor: 'A cart, a shaker, and a man named Sven who takes this very seriously.' },
+  { id: 'pool_cocktail_3',    name: 'Butler-Served Cocktail',tag: 'pool', costBase: 110000, comfort: 170, costGrowth: 1.8, xMult: 0.09, xScope: 'all', unlockComfort: 2800, flavor: 'Butler-served, poolside. Nobody asks how you afford this. You wonder too.', staffHint: true },
+
   // --- beach cluster (E08) ---
   { id: 'beach_towel',  name: 'Monogrammed Towel',    tag: 'beach', costBase: 4e4,  comfort: 40,  xMult: 0.03, xScope: 'all', unlockComfort: 1500, flavor: 'Your initials, in the sand of your soul.' },
   { id: 'beach_svc',    name: 'Beach Cocktail Service',tag:'beach', costBase: 9e4,  comfort: 90,  xMult: 0.07, xScope: 'all', unlockComfort: 2600, flavor: 'They find you. You never move.' },

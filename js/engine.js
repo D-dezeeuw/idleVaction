@@ -462,6 +462,13 @@ export function buyAccommodation(state) {
   if (t === 5) {
     notify(state, 'celebrate', '⭐⭐ Two whole stars — a breakfast buffet you will ration into lunch.');
   }
+  // the pool moment (E07-S7-T7/T10): the 3-Star Hotel arrival IS the headline reveal —
+  // beat 9 (Making a Splash) itself fires from checkStory() on the same accTier:6 gate
+  // (docs/story.js); this is purely the extra "there's a POOL" celebratory flash tied to
+  // the tier-up, mirroring the tier-4/tier-5 flashes above.
+  if (t === 6) {
+    notify(state, 'celebrate', '🏊 There is a POOL. An actual pool. You stand at the edge for a full minute.');
+  }
   return true;
 }
 

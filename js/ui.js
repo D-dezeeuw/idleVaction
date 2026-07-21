@@ -29,6 +29,7 @@ export function render(state) {
   renderTransport(state);
   renderGenerators(state);
   renderAmenities(state);
+  renderPoolside(state);
   renderSkills(state);
   renderPaths(state);
   renderAscension(state);
@@ -278,6 +279,7 @@ function comfortMeterHtml(s) {
 function renderAmenities(s) {
   const byTag = {};
   for (const a of DATA.amenities) {
+    if (a.tag === 'pool') continue; // the dedicated Poolside card (E07) owns this tag
     if (!E.amenityUnlocked(s, a.id)) continue;
     (byTag[a.tag] ||= []).push(a);
   }
@@ -295,6 +297,83 @@ function renderAmenities(s) {
   }
   if (!Object.keys(byTag).length) html += '<em>Get some Comfort to unlock little luxuries…</em>';
   el('amenities').innerHTML = html;
+}
+
+// ---------- Poolside panel (E07 "Making a Splash" — the fun showcase) ----------
+// Reveals once the pool has been teased (checkPoolTease, E06) or the 3-Star Hotel
+// (tier 6) is actually reached — whichever comes first, so the tease-era preview and
+// the tier-6 arrival both land inside the same card. Mirrors mapRevealed()'s pattern.
+function poolRevealed(s) { return !!s.story.flags.poolTease || s.accommodation.tier >= 6; }
+
+// Sub-cluster grouping (E07-S3-T6): every pool item shares tag:'pool' (one Comfort
+// zone for amenityScore/L_comfort purposes), but the panel reads better split into the
+// three themed chains the epic describes. Pure UI grouping — no data-shape change, no
+// new fork of the render/buy pattern (still the same buyAmenity(id) flow as every
+// other amenity card).
+const POOL_GROUPS = [
+  { label: 'Floatables', ids: ['floatie_duck', 'floatie_flamingo', 'floatie_unicorn', 'pool_floatie_pizza', 'pool_floatie_swan'] },
+  { label: 'Loungers & Cabana', ids: ['pool_lounger', 'heated_bed', 'cabana'] },
+  { label: 'Cocktail Service', ids: ['cocktail_1', 'pool_cocktail_2', 'pool_cocktail_3'] },
+];
+
+function renderPoolside(s) {
+  const card = el('poolCard');
+  const reveal = poolRevealed(s);
+  if (card) card.hidden = !reveal;
+  if (!reveal) { if (el('poolside')) el('poolside').innerHTML = ''; return; }
+
+  const poolItems = DATA.amenities.filter(a => a.tag === 'pool');
+  // zone Comfort subtotal (E07-S3-T9): the pool's own raw contribution to Comfort and
+  // its share of the player's current total — legible without a bespoke partial-log
+  // decomposition of L_comfort (Comfort itself is the unbounded sum; see math.js).
+  const poolComfort = poolItems.reduce((sum, a) => sum + (s.amenities[a.id]?.level || 0) * a.comfort, 0);
+  const share = s.resources.comfort > 0 ? 100 * poolComfort / s.resources.comfort : 0;
+  let html = `<div class="iv-sub">💧 Pool Comfort: <b>${fmt(poolComfort)}</b> (${share.toFixed(0)}% of your total Comfort)</div>`;
+
+  let anyVisible = false;
+  for (const grp of POOL_GROUPS) {
+    const visible = poolItems.filter(a => grp.ids.includes(a.id) && E.amenityUnlocked(s, a.id));
+    if (!visible.length) continue;
+    anyVisible = true;
+    html += `<div class="iv-tag">${grp.label}</div><div class="iv-amenities">`;
+    for (const a of visible) {
+      const cost = E.amenityCost(s, a.id);
+      const lvl = s.amenities[a.id].level;
+      html += btn('buy-amenity', a.id,
+        `${a.name} <small>Lv${lvl}</small><br><small>${fmt(cost)} · +${fmt(a.comfort)}😌</small>`,
+        afford(cost), '', a.flavor);
+    }
+    html += '</div>';
+  }
+  if (!anyVisible) html += '<em>The pool is right there. Keep building Comfort — the first floatie is close.</em>';
+  el('poolside').innerHTML = html;
+}
+
+// splash juice (E07-S10-T9): a tiny water-droplet popup on a pool purchase. Unlike
+// showTapPopup (whose button lives in the footer, never touched by the main render
+// cycle), the pool buy button sits INSIDE #poolside, which the very same click's
+// render(S) call re-renders right after this fires — so the popup is appended to
+// document.body at the button's page coordinates (captured before that wipe) rather
+// than as a child of the button, surviving the innerHTML replace. CSS gates the
+// motion behind prefers-reduced-motion (game.css).
+function showSplashPopup(btnEl) {
+  if (!btnEl) return;
+  const rect = btnEl.getBoundingClientRect();
+  const pop = document.createElement('span');
+  pop.className = 'iv-splash-pop';
+  pop.textContent = '💦';
+  pop.style.left = `${rect.left + rect.width / 2 + window.scrollX}px`;
+  pop.style.top = `${rect.top + window.scrollY}px`;
+  document.body.appendChild(pop);
+  setTimeout(() => pop.remove(), 700);
+}
+
+// aria-live purchase ticker (E07-S3-T8): a genuinely persistent live region (declared
+// once in index.html, never wiped by renderPoolside's innerHTML replace) so a text-only
+// content change is what screen readers actually announce.
+function announcePool(text) {
+  const live = el('poolAnnounce');
+  if (live) live.textContent = text;
 }
 
 function renderSkills(s) {
@@ -416,18 +495,25 @@ function wireEvents() {
     if (!b) return;
     const action = b.dataset.action;
     const arg = b.dataset.arg;
-    handle(action, arg);
+    handle(action, arg, b);
     render(S);
   });
 }
 
-function handle(action, arg) {
+function handle(action, arg, btnEl) {
   switch (action) {
     case 'set-qty': S.ui.bulkMode = arg === 'max' ? 'max' : Number(arg); break;
     case 'buy-gen': { const [k, q] = arg.split('|'); E.buyGenerator(S, Number(k), q === 'max' ? 'max' : Number(q)); break; }
     case 'buy-gen-upg': E.buyGenUpgrade(S, Number(arg)); break;
     case 'buy-cheapest-upg': E.buyCheapestGenUpgrade(S); break;
-    case 'buy-amenity': E.buyAmenity(S, arg); break;
+    case 'buy-amenity': {
+      const a = E.amenityData(arg);
+      if (E.buyAmenity(S, arg) && a.tag === 'pool') {
+        announcePool(`Bought ${a.name} (+${fmt(a.comfort)} Comfort)`);
+        showSplashPopup(btnEl);
+      }
+      break;
+    }
     case 'buy-training': E.buyTraining(S, arg); break;
     case 'buy-path': E.buyPathFocus(S, arg); break;
     case 'buy-acc': E.buyAccommodation(S); break;
