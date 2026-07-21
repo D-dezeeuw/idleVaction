@@ -11,6 +11,11 @@ body { background: var(--iv-bg); color: var(--iv-ink); font-family: system-ui, s
 .iv-header { display: flex; flex-wrap: wrap; gap: 12px; font-size: .82rem; }
 .iv-res b { color: var(--iv-accent); }
 
+.iv-onboarding { background: linear-gradient(180deg, #1b2f3a, #16262f); border-bottom: 1px solid var(--iv-line);
+  padding: 8px 14px; font-size: .82rem; color: var(--iv-ink); }
+.iv-onboarding b { color: var(--iv-accent); }
+.iv-onboarding[hidden] { display: none; }
+
 .iv-notifs { position: fixed; right: 10px; top: 62px; z-index: 9; width: min(340px, 80vw); }
 .iv-notif { background: var(--iv-card); border-left: 3px solid var(--iv-accent); padding: 6px 10px; margin-bottom: 6px;
   border-radius: 4px; font-size: .8rem; animation: slidein .25s ease; box-shadow: 0 4px 14px rgba(0,0,0,.35); }
@@ -36,6 +41,7 @@ body { background: var(--iv-bg); color: var(--iv-ink); font-family: system-ui, s
   border-bottom: 1px dashed var(--iv-line); padding: 6px 0; }
 .iv-row-main b { color: var(--iv-ink); } .iv-row-buy { display: flex; gap: 4px; }
 .iv-sub { color: var(--iv-sub); font-size: .72rem; }
+.iv-gen-flavor { font-size: .72rem; margin: 2px 0 0; }
 .iv-qty { margin-bottom: 6px; font-size: .78rem; color: var(--iv-sub); }
 .iv-tag { text-transform: uppercase; letter-spacing: .08em; color: var(--iv-accent); font-size: .68rem; margin: 8px 0 4px; }
 .iv-amenities { display: flex; flex-wrap: wrap; gap: 4px; }
@@ -53,3 +59,7 @@ body { background: var(--iv-bg); color: var(--iv-ink); font-family: system-ui, s
 .iv-controls { position: fixed; bottom: 0; left: 0; right: 0; background: #0c151b; border-top: 1px solid var(--iv-line);
   padding: 8px 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: .78rem; z-index: 6; }
 .iv-speed { color: var(--iv-sub); } .iv-speed button { margin: 0 1px; }
+
+.iv-tap-pop { position: absolute; bottom: 46px; transform: translateX(-50%); color: var(--iv-good);
+  font-weight: bold; font-size: .85rem; pointer-events: none; animation: tapfloat .7s ease-out forwards; }
+@keyframes tapfloat { from { opacity: 1; transform: translate(-50%, 0); } to { opacity: 0; transform: translate(-50%, -22px); } }

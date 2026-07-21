@@ -38,6 +38,12 @@ export const CONFIG = {
   // ---- amenities (the small-wins engine) ----
   AMENITY: { growthDefault: 1.5, comfortWeight: 1.0 },
 
+  // ---- optional tap (E01-S5) ----
+  // Tapping is purely additive, never a gate. maxPerSec caps how many taps register cash
+  // within any rolling 1-second window (see engine.click), so an autoclicker can't
+  // trivialize the economy — the idle rate is always the honest floor.
+  TAP: { maxPerSec: 8 },
+
   // ---- comfort (UNBOUNDED sum; the log multiplier softcaps its *effect*) ----
   COMFORT: {
     C0: 100,                // scale for the log multiplier

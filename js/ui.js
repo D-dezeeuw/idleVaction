@@ -20,6 +20,7 @@ const el = id => document.getElementById(id);
 export function render(state) {
   S = state;
   renderHeader(state);
+  renderOnboarding(state);
   renderNotifications(state);
   renderStory(state);
   renderAccommodation(state);
@@ -46,6 +47,20 @@ function renderHeader(s) {
     <span class="iv-res">🏨 <b>${DATA.accommodation[s.accommodation.tier].name}</b></span>
     <span class="iv-res">🔥 Combo ×${(s._combo ?? 1).toFixed(2)}</span>
   `;
+}
+
+// First-run nudge (E01-S10-T4 / first-purchase guidance): a subtle hint that a fresh,
+// soggy player should buy the first Odd Job or just tap while they wait. Disappears the
+// moment the player acts (buys D1 or taps), never shown again after that.
+function renderOnboarding(s) {
+  const box = el('onboarding');
+  if (!box) return;
+  const acted = s.generators[0].bought > 0 || s.stats.totalClicks > 0;
+  if (acted) { box.hidden = true; box.innerHTML = ''; return; }
+  box.hidden = false;
+  box.innerHTML = `☔ <b>Rain Check:</b> you're soggy, broke, and stuck at a bus stop with
+    €${fmt(s.resources.cash)}. Buy your first <b>Odd Job</b> below to start the cash trickle —
+    or just tap the umbrella in the footer while you wait. Money comes either way.`;
 }
 
 function renderNotifications(s) {
@@ -105,9 +120,10 @@ function renderGenerators(s) {
     const toDouble = C.MILESTONE_STEP - (st.bought % C.MILESTONE_STEP);
     const upgCost = E.genUpgradeCost(s, k);
     rows += `<div class="iv-row">
-      <div class="iv-row-main">
+      <div class="iv-row-main" title="${g.flavor}">
         <b>${g.name}</b> <small>×${st.count | 0}</small>
         <div class="iv-sub">out ×${fmt(mult)} · next double in ${toDouble} · bought ${st.bought}</div>
+        <div class="iv-flavor iv-gen-flavor">${g.flavor}</div>
       </div>
       <div class="iv-row-buy">
         ${btn('buy-gen', `${k}|${buyQty}`, `Buy${buyQty === 'max' ? ` ×${qty}` : ''}<br><small>${fmt(cost)}</small>`, afford(cost) && qty > 0)}
@@ -237,7 +253,7 @@ function handle(action, arg) {
     case 'ascend': if (P.ascend(S)) { setState(S); } break;
     case 'buy-node': P.buyNode(S, arg); break;
     case 'respec': if (confirm('Refund all Legacy and clear the tree?')) P.respec(S); break;
-    case 'click': E.click(S); break;
+    case 'click': showTapPopup(E.click(S)); break;
     case 'set-speed': S.settings.gameSpeed = Number(arg); renderControls(S); break;
     case 'set-speed-custom': {
       const v = Number(document.getElementById('speedInput')?.value);
@@ -253,6 +269,19 @@ function handle(action, arg) {
     case 'reset': if (confirm('Hard reset? This wipes everything.')) hooks.hardReset(); break;
     case 'save': hooks.save(); break;
   }
+}
+
+// tap feedback (E01-S5-T4): a floating "+N" (or a cooldown glyph when soft-capped)
+// over the tap button — pure juice, no game logic.
+function showTapPopup(gain) {
+  const btnEl = document.querySelector('[data-action="click"]');
+  if (!btnEl) return;
+  const pop = document.createElement('span');
+  pop.className = 'iv-tap-pop';
+  pop.textContent = gain > 0 ? `+${fmt(gain)}` : '⏳';
+  pop.style.left = `${btnEl.offsetLeft + btnEl.offsetWidth / 2}px`;
+  btnEl.parentElement.appendChild(pop);
+  setTimeout(() => pop.remove(), 700);
 }
 
 // speed + debug controls live in a fixed footer rendered once

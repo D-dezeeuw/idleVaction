@@ -23,7 +23,8 @@ export function newGame() {
     ascension: { count: 0, legacyBanked: 0, legacySpent: 0, tree: {} },
     story: { beat: 1, seen: [1], branch: 'neutral', flags: {} },
     settings: { gameSpeed: C.DEFAULT_GAME_SPEED, offlineEnabled: true, debug: false },
-    stats: { lifetimeCash: 0, lifetimeCashThisTree: 0, bestComfort: 0, totalClicks: 0, runSec: 0 },
+    stats: { lifetimeCash: 0, lifetimeCashThisTree: 0, bestComfort: 0, totalClicks: 0, runSec: 0,
+      tapWindowSec: 0, tapWindowCount: 0 },
     // transient caches (not strictly needed in save, recomputed each tick)
     _comfortCache: 0, _combo: 1, _comboTimer: 0,
   };
