@@ -106,9 +106,15 @@ function trickleXp(state, cashGain, dt) {
 
 function refreshSkillLevels(state) {
   for (const s of DATA.skills) {
+    const before = state.skills[s.id].level;
     const base = state.ascension.tree.ageless ? 5 * state.ascension.tree.ageless : 0;
     const magnetic = (s.id === 'charisma' && state.ascension.tree.magnetic) ? 2 * state.ascension.tree.magnetic : 0;
-    state.skills[s.id].level = M.levelFromXp(state.skills[s.id].xp) + (s.id === 'body' ? base : 0) + magnetic;
+    const lvl = M.levelFromXp(state.skills[s.id].xp) + (s.id === 'body' ? base : 0) + magnetic;
+    state.skills[s.id].level = lvl;
+    // level-up juice (E09-S2-T4/S3-T6/S10-T1): a distinct, testable event the UI turns
+    // into a toast + bar flash. Fires from BOTH the passive tick trickle and training
+    // buys, since refreshSkillLevels is the one place both paths funnel through.
+    if (lvl > before) notify(state, 'levelup', `✨ ${s.name} L${lvl}!`);
   }
 }
 
@@ -478,6 +484,14 @@ export function buyAccommodation(state) {
   // tick this flips, no separate mount event needed.
   if (t === 7) {
     notify(state, 'celebrate', '🏖️ Sand, finally. A waiter appears before you have finished sitting down.');
+  }
+  // the Boutique Retreat moment (E09-S6-T6/T8, "Charm Offensive" — the Act I → Act II
+  // hinge): the tier-8 arrival IS the headline reveal for this epic — beat 10 (Poolside
+  // Persona) fires separately from checkStory() on its own Charisma-L5 gate
+  // (docs/story.js) — this is purely the extra celebratory flash tied to the tier-up
+  // itself, mirroring the tier-4/5/6/7 flashes above.
+  if (t === 8) {
+    notify(state, 'celebrate', '🛎️ The Boutique Retreat. Small, tasteful, and quietly judging your poncho.');
   }
   return true;
 }

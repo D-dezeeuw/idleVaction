@@ -121,6 +121,15 @@ export function comfortMultiplier(state) {
 
 // ---- skills ----
 export function xpToNext(level) { return C.SKILL.base * Math.pow(C.SKILL.growth, level); }
+// Cumulative XP required to REACH a given level (Σ_{i<level} xpToNext(i)) — a pure,
+// independent helper for the Skills panel's progress bar (E09-S3-T2). Deliberately NOT
+// shared with levelFromXp's own accumulate-as-you-go loop below (which stays untouched,
+// already tested) — this just re-derives the same boundary for display.
+export function cumXpForLevel(level) {
+  let spent = 0;
+  for (let i = 0; i < level; i++) spent += xpToNext(i);
+  return spent;
+}
 export function levelFromXp(xp) {
   let lvl = 0, need = C.SKILL.base, spent = 0;
   while (spent + need <= xp) { spent += need; lvl++; need = xpToNext(lvl); }
@@ -130,6 +139,13 @@ export function commsCostMult(state) {
   return clamp(1 - C.COMMS_DISCOUNT * state.skills.comms.level, 1 - C.COMMS_DISCOUNT_CAP, 1)
        * treeCostMult(state);
 }
+// Pure "what is this level worth right now" preview helpers for the Skills panel
+// (E09-S3-T3/T5, mirrors pathMult()'s preview convention above): tierMultiplier's own
+// L_skill blend and commsCostMult's own clamp (both above) stay the SOLE sources of
+// truth for the real multiplier stack / purchase costs — these just expose the same
+// formulas for display without duplicating (and risking drift from) that logic.
+export function charismaMult(level) { return 1 + C.CHARISMA_RATE * level; }
+export function commsDiscountPct(level) { return clamp(C.COMMS_DISCOUNT * level, 0, C.COMMS_DISCOUNT_CAP); }
 export function savvyPassive(state) {
   return state.skills.savvy.level * C.SAVVY_YIELD * Math.sqrt(Math.max(0, state.stats.lifetimeCash));
 }
