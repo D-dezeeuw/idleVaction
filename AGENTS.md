@@ -66,25 +66,37 @@ git config user.email noreply@anthropic.com
 git config user.name  Claude
 ```
 
-### How a merge attributes the commit on `main`
-Whatever method you use, **GitHub re-writes the committer of the commit(s) that land on `main`
-to the account performing the merge** (here, the repo owner, `danny@nekomedia.nl`) and
-web-flow-signs them — so on `main` they show **Verified under the owner's identity**, not
-`noreply@anthropic.com`. Both squash and rebase do this; they differ in history:
+### Git flow — feature branch → local merge to `main` (NO rebase-merge, NO PR)
+Land every phase with a plain **local merge**, not GitHub's rebase/squash-merge and not a PR.
+The per-phase flow is:
 
-- **"Squash and merge"** collapses the whole branch into **one** new commit (committed by the
-  merger) — you lose per-commit history.
-- **"Rebase and merge"** replays your commits onto `main`, **preserving per-commit history**;
-  each still gets the merger as committer. **Prefer this** — you keep the history *and* the
-  commits are Verified under the owner.
-- The `noreply@anthropic.com` committer identity matters only for **un-merged feature-branch
-  commits** — that is exactly what the stop-hook checks before a push. Once merged, `main`'s
-  commits carry the owner's identity no matter what committer the branch used.
-- **Never** `--amend`/`rebase`/`reset-author` a merge-result commit already on `origin/main` —
-  it's GitHub's, and rewriting merged history forks your branch off `main`.
+1. **Feature branch** — work on the designated branch, based on the latest `main`.
+2. **Implementation** — build the phase.
+3. **Verification & testing** — `npm test` green, `npm run harness` in-band (see §2).
+4. **Bug fixing** — fix whatever verification surfaces; re-verify.
+5. **Commit the feature branch and push** — `git push -u origin <branch>`.
+6. **Merge to `main`, commit and push:**
+   ```bash
+   git checkout main && git fetch origin main && git merge --ff-only origin/main
+   git merge --no-ff <branch> -m "Merge <phase> to main"   # explicit merge commit
+   git push origin main
+   ```
+7. **Re-sync the feature branch** onto the new `main` for the next phase:
+   `git checkout <branch> && git merge --ff-only main` (fast-forward; no force-push needed).
+
+**Why local merge (not rebase-merge):** merging locally keeps every landed commit's committer as
+`noreply@anthropic.com`, so both the feature commits **and** the merge commit are **signed and
+Verified** (the signing key is registered to that email) — on the feature branch *and* on
+`main`. GitHub's rebase/squash-merge instead re-writes committers to the merging account and
+web-flow-signs, which desyncs the feature branch from `main` (forcing force-pushes) and trips the
+stop-hook's `origin/<branch>..HEAD` committer check with false positives. The local flow keeps
+`origin/<branch>..HEAD` empty after each merge and the hook quiet, with no history rewrites.
+
+- **Never** `--amend`/`rebase`/`reset-author` a commit already on `origin/main` — rewriting
+  merged history forks your branch off `main`.
 
 ### Fixing an Unverified commit that *you* authored (not yet merged)
-Only when the flagged commit is your own unpushed work:
+Only when the flagged commit is your own unpushed feature-branch work:
 ```bash
 # tip commit:
 git commit --amend --no-edit --reset-author
@@ -95,11 +107,9 @@ git push -u origin <branch>       # force-with-lease if you rewrote history
 ```
 The `@verifier` agent / `/verify` skill runs this check as part of its pre-push pass.
 
-### Follow-up work after a branch's PR is merged
-A merged PR is finished. For new work, restart the branch from the latest default branch (keep
-the name), commit the fresh work, and push — a force-with-lease is fine because the branch's old
-content is already merged. Don't stack new commits on top of already-merged history expecting the
-old PR to track them; open a new PR.
+### Follow-up work after a branch is merged
+For new work, continue on the same branch re-synced onto the latest `main` (step 7 above),
+commit the fresh work, and push. Don't stack new commits on stale, already-merged history.
 
 ---
 
