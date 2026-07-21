@@ -49,12 +49,36 @@ function playStep(s) {
   if (s.story.seen.includes(6) && s.story.branch === 'neutral') E.applyStoryChoice(s, 6, 'vlogger');
 }
 
+function approx(a, b, rel = 1e-9) { return Math.abs(a - b) <= rel * Math.max(1, Math.abs(b)); }
+function deepFreeze(o) {
+  for (const k of Object.getOwnPropertyNames(o)) {
+    const v = o[k];
+    if (v && typeof v === 'object' && !Object.isFrozen(v)) deepFreeze(v);
+  }
+  return Object.freeze(o);
+}
+
 console.log('\n=== idleVaction self-test ===\n');
+
+// ---------- 0. the shed ledger — schema (E01-S1-T10) ----------
+console.log('[0] state schema (frozen fresh newGame())');
+const schema = deepFreeze(ST.newGame());
+ok(typeof schema.version === 'number' && schema.version === C.SAVE_VERSION, 'schema: version stamped');
+ok(typeof schema.resources.cash === 'number', 'schema: resources.cash is a number');
+ok(schema.generators && schema.generators[0] && typeof schema.generators[0].bought === 'number', 'schema: generators has a D1 slot');
+ok(schema.accommodation.tier === 0, 'schema: accommodation starts at tier 0 (the Soggy Shed)');
+ok(schema.story && typeof schema.story.flags === 'object' && Array.isArray(schema.story.seen) && 'branch' in schema.story, 'schema: story slice (flags/seen/branch) reserved');
+ok(typeof schema.meta.createdAt === 'number' && typeof schema.meta.lastSeen === 'number', 'schema: meta timestamps present');
+ok(schema.stats && typeof schema.stats.totalClicks === 'number' && typeof schema.stats.runSec === 'number', 'schema: stats slice present');
+try { schema.resources.cash = 999; } catch (e) { /* strict-mode frozen assignment throws — that's fine */ }
+ok(schema.resources.cash === 15, 'schema: frozen fresh state resists mutation');
 
 // ---------- 1. determinism / basics ----------
 console.log('[1] basics');
 let s = ST.newGame();
 ok(s.resources.cash === 15, 'new game starts with €15');
+ok(s.story.seen.includes(1) && DATA.story[0].id === 1 && DATA.story[0].title === 'Rain Check', 'beat 1 (Rain Check) has fired on a fresh game, setting the scene');
+ok(E.genCost(s, 0, 1) <= s.resources.cash, 'the first Odd Job is affordable immediately (cold start solved)');
 E.tick(s, 1);
 ok(Number.isFinite(s.resources.cash), 'cash finite after tick');
 ok(s.generators[0].unlocked, 'D1 unlocked at start');
@@ -66,6 +90,45 @@ const before = s.generators[0].count;
 ok(E.buyGenerator(s, 0, 10), 'can buy 10× D1');
 ok(s.generators[0].count === before + 10, 'count increased by 10');
 ok(M.milestoneMult(10) === 2, 'first milestone doubling at 10 buys');
+const boughtNotifs = E.drainNotifications(s);
+ok(boughtNotifs.some(n => /milestone/i.test(n.text)), 'crossing a milestone (bought→10) fires a player-visible notification (E01-S4-T5)');
+
+// ---------- 2b. golden curve snapshot (E01-S8-T9 / S10-T7): D1 cost + milestoneMult
+// at boundary buy counts, pinned against config's current base/growth so a later
+// refactor (not a deliberate retune) can't silently shift the early curve. ----------
+console.log('\n[2b] golden D1 curve (cost + milestone boundaries)');
+ok(M.unitCost(0, 0) === C.GEN.base[0], 'unitCost(0,0) == base cost');
+ok(approx(M.unitCost(0, 9), 2975.3893555200007), 'unitCost(0,9) matches the golden snapshot');
+ok(approx(M.unitCost(0, 10), 5355.700839936001), 'unitCost(0,10) matches the golden snapshot');
+ok(approx(M.unitCost(0, 10) / M.unitCost(0, 9), C.GEN.growth[0]), 'cost grows by exactly growth[0] per unit');
+ok(M.milestoneMult(0) === 1, 'milestoneMult(0) == 1 (no doublings yet)');
+ok(M.milestoneMult(9) === 1, 'milestoneMult(9) == 1 (one buy shy of the first double)');
+ok(M.milestoneMult(10) === 2, 'milestoneMult(10) == 2 (first ×2 lands exactly at buy 10)');
+ok(M.milestoneMult(50) === 24, 'milestoneMult(50) == 24 (soft-capped tail past the knee)');
+
+// ---------- 2c. optional tap — additive + soft-capped (E01-S5) ----------
+console.log('\n[2c] tap: additive and soft-capped');
+const tapState = ST.newGame();
+tapState.resources.cash = 0;
+const firstTap = E.click(tapState);
+ok(firstTap >= 1, `a bare tap grants a small flat gain (+${fmt(firstTap)})`);
+ok(tapState.stats.totalClicks === 1, 'tap increments stats.taps (totalClicks)');
+let cappedAt = -1;
+for (let i = 0; i < C.TAP.maxPerSec + 5; i++) { if (E.click(tapState) === 0) { cappedAt = i; break; } }
+ok(cappedAt >= 0, `tap spam soft-caps at ${C.TAP.maxPerSec}/sec — an autoclicker can't trivialize the economy`);
+E.tick(tapState, 1.1);                  // roll the 1-second window over
+ok(E.click(tapState) > 0, 'tap registers again once the 1-second window rolls over');
+ok(M.tierProd(ST.newGame(), 0) === 0 && E.click(ST.newGame()) >= 1, 'tap works even with zero idle income — never a gate on progress');
+
+// ---------- 2d. number formatter edge cases (E01-S8-T10) ----------
+console.log('\n[2d] number formatter edges');
+ok(fmt(0) === '0.00', 'fmt(0) renders cleanly (no NaN/undefined)');
+ok(fmt(999) === '999', 'fmt(999) stays a plain integer just under the K boundary');
+ok(fmt(1000) === '1.00K', 'fmt(1000) crosses into the K suffix');
+ok(fmt(1e6) === '1.00M', 'fmt(1e6) renders with the M suffix');
+ok(fmt(1e-3) === '0.00', 'fmt(1e-3) degrades to 0.00, never scientific notation for tiny positives');
+ok(fmt(NaN) === '0', 'fmt(NaN) is guarded, never displays "NaN"');
+ok(fmt(-42).startsWith('-'), 'fmt(negative) shows a sign rather than breaking');
 
 // ---------- 3. full run: story-beat curve ----------
 console.log('\n[3] simulated run (greedy policy) — story beat unlock times');

@@ -152,8 +152,16 @@ export function buyGenerator(state, k, qty) {
   const cost = genCost(state, k, qty);
   if (state.resources.cash < cost) return false;
   state.resources.cash -= cost;
+  const boughtBefore = state.generators[k].bought;
   state.generators[k].count += qty;
   state.generators[k].bought += qty;
+  // flash feedback (E01-S4-T5): a purchase that crosses a milestone boundary doubles
+  // (or soft-caps) the tier's output — surface that free-power moment, don't let it be silent.
+  const stepBefore = Math.floor(boughtBefore / C.MILESTONE_STEP);
+  const stepAfter = Math.floor(state.generators[k].bought / C.MILESTONE_STEP);
+  if (stepAfter > stepBefore) {
+    notify(state, 'milestone', `⚡ ${DATA.generators[k].name} milestone! Output ×${M.milestoneMult(state.generators[k].bought)}`);
+  }
   return true;
 }
 
@@ -242,14 +250,24 @@ export function buyAccommodation(state) {
 
 // ---------- clicker (optional; never the fastest path) ----------
 export function click(state) {
+  state.stats.totalClicks++;
+  const boost = C.CLOUT.comboPerClick * (1 + 0.15 * (state.ascension.tree.athletes_frame || 0));
+  state._combo = Math.min(C.CLOUT.comboMax, (state._combo ?? 1) + boost);
+
+  // soft-cap tap spam (E01-S5-T6): only C.TAP.maxPerSec taps register cash within any
+  // rolling 1-second window (measured in sim time, so it holds under GAME_SPEED too).
+  // An autoclicker beyond that still bumps combo/stats but earns no extra cash — tapping
+  // stays a bonus, never the fastest path, and the idle rate is always the honest floor.
+  const sec = Math.floor(state.stats.runSec);
+  if (state.stats.tapWindowSec !== sec) { state.stats.tapWindowSec = sec; state.stats.tapWindowCount = 0; }
+  if (state.stats.tapWindowCount >= C.TAP.maxPerSec) return 0;
+  state.stats.tapWindowCount++;
+
   const perSec = M.tierProd(state, 0) + M.savvyPassive(state);
   const gain = Math.max(1, perSec * 0.10);
   state.resources.cash += gain;
   state.stats.lifetimeCash += gain;
   state.stats.lifetimeCashThisTree += gain;
-  state.stats.totalClicks++;
-  const boost = C.CLOUT.comboPerClick * (1 + 0.15 * (state.ascension.tree.athletes_frame || 0));
-  state._combo = Math.min(C.CLOUT.comboMax, (state._combo ?? 1) + boost);
   return gain;
 }
 
