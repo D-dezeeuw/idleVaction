@@ -31,6 +31,14 @@
 
   <footer id="controls" class="iv-controls"></footer>
 
+  <div id="offlineModal" class="iv-modal-overlay" hidden>
+    <div class="iv-modal">
+      <h3>🌴 While You Were Away</h3>
+      <div id="offlineModalBody"></div>
+      <button class="btn btn-sm iv-btn" data-action="dismiss-offline">Got it</button>
+    </div>
+  </div>
+
   <!-- ES modules; served over HTTPS by GitHub Pages. For LOCAL testing use a server
        (npm run serve) — file:// blocks module loading. -->
   <script type="module" src="js/main.js"></script>

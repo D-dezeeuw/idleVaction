@@ -5,7 +5,7 @@ import { ACCOMMODATION } from './accommodation.js';
 import { SKILLS, TRAINING } from './skills.js';
 import { PATHS } from './paths.js';
 import { TREE } from './skilltree.js';
-import { STORY } from './story.js';
+import { STORY, VIGNETTES } from './story.js';
 
 export const DATA = {
   generators: GENERATORS,
@@ -16,4 +16,5 @@ export const DATA = {
   paths: PATHS,
   tree: TREE,
   story: STORY,
+  vignettes: VIGNETTES,
 };

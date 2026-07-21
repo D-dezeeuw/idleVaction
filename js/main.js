@@ -3,7 +3,6 @@ import { CONFIG as C } from './config.js';
 import * as ST from './state.js';
 import * as E from './engine.js';
 import * as UI from './ui.js';
-import { fmt, fmtTime } from './util.js';
 
 let state = ST.load() || ST.newGame();
 
@@ -15,9 +14,7 @@ if (state.meta.lastSeen) {
   const elapsed = Date.now() - state.meta.lastSeen;
   const rep = E.applyOffline(state, elapsed);
   if (rep && rep.seconds > 30) {
-    setTimeout(() => alert(
-      `While you were away (${fmtTime(rep.seconds)}${rep.capped ? ', capped' : ''}):\n` +
-      `+${fmt(rep.cash)} 💶  +${fmt(rep.clout)} 📣`), 200);
+    setTimeout(() => UI.showOfflineSummary(state, rep), 200);
   }
 }
 

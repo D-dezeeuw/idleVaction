@@ -197,5 +197,122 @@ const rep = E.applyOffline(s2, 3600 * 1000); // 1h away
 ok(rep && rep.cash > 0, `offline awarded cash (+${fmt(rep.cash)} in 1h)`);
 ok(s2.resources.cash > cashPre, 'offline increased cash');
 
+// ---------- 7. E02: amenity data QA (E02-S1-T10) ----------
+console.log('\n[7] amenity data validation');
+{
+  const seenIds = new Set();
+  for (const a of DATA.amenities) {
+    ok(!seenIds.has(a.id), `amenity id is unique: ${a.id}`);
+    seenIds.add(a.id);
+    ok(a.costBase > 0, `${a.id}: costBase > 0`);
+    const g = a.costGrowth || C.AMENITY.growthDefault;
+    ok(g > 1, `${a.id}: effective costGrowth > 1 (${g})`);
+    ok(a.comfort >= 0, `${a.id}: comfort >= 0`);
+  }
+}
+
+// ---------- 7b. buyAmenity progression (E02-S2-T10 / S5-T10) ----------
+console.log('\n[7b] buyAmenity progression');
+{
+  const am = ST.newGame();
+  const bugSpray = DATA.amenities.find(x => x.id === 'bug_spray');
+  am.resources.cash = 0;
+  ok(!E.buyAmenity(am, 'bug_spray'), 'buyAmenity is blocked at zero cash');
+  ok(am.amenities.bug_spray.level === 0, 'level unchanged after a blocked buy');
+
+  am.resources.cash = 1e5;
+  const cost0 = E.amenityCost(am, 'bug_spray');
+  ok(approx(cost0, bugSpray.costBase), 'level-0 cost equals costBase');
+  const comfortBefore = am._comfortCache;
+  ok(E.buyAmenity(am, 'bug_spray'), 'buyAmenity succeeds with enough cash');
+  ok(am.amenities.bug_spray.level === 1, 'level incremented to 1 on a successful buy');
+  ok(am._comfortCache > comfortBefore, 'a successful buy recomputes state._comfortCache upward');
+
+  const cost1 = E.amenityCost(am, 'bug_spray');
+  ok(cost1 > cost0, 'cost rises with level');
+  const growth = bugSpray.costGrowth || C.AMENITY.growthDefault;
+  ok(approx(cost1 / cost0, growth), `cost grows by exactly costGrowth (${growth}) per level`);
+}
+
+// ---------- 7c. Comfort monotonicity + no cliffs (E02-S2-T10 / S8-T9/T10 / S10-T4) ----------
+console.log('\n[7c] Comfort monotonicity and continuity');
+{
+  const mono = ST.newGame(); mono.resources.cash = 1e9;
+  let prevComfort = -Infinity, monoComfort = true;
+  for (let i = 0; i < 20; i++) {
+    E.buyAmenity(mono, 'bug_spray');
+    const c = M.computeComfort(mono, DATA);
+    if (c < prevComfort - 1e-9) monoComfort = false;
+    prevComfort = c;
+  }
+  ok(monoComfort, 'computeComfort is non-decreasing as amenity levels rise');
+
+  const probe = ST.newGame();
+  let prevL = -Infinity, monoL = true, geOne = true;
+  for (const c of [0, 1, 10, 50, 100, 500, 1000, 1e4, 1e5, 1e6, 1e7, 1e9]) {
+    probe._comfortCache = c;
+    const L = M.comfortMultiplier(probe);
+    if (L < 1 - 1e-9) geOne = false;
+    if (L < prevL - 1e-9) monoL = false;
+    prevL = L;
+  }
+  ok(monoL, 'comfortMultiplier is monotonic non-decreasing across a wide range of comfort values');
+  ok(geOne, 'comfortMultiplier (L_comfort) is always >= 1');
+
+  // continuity: a tiny bump in comfort should never produce a big jump in L_comfort
+  // (the log has no cliffs) — checked at several magnitudes.
+  let noCliffs = true;
+  for (const c of [0, 1, 100, 1e4, 1e6, 1e8]) {
+    probe._comfortCache = c;
+    const L1 = M.comfortMultiplier(probe);
+    probe._comfortCache = c + 1e-3;
+    const L2 = M.comfortMultiplier(probe);
+    if (Math.abs(L2 - L1) > 0.01) noCliffs = false;
+  }
+  ok(noCliffs, 'comfortMultiplier is continuous — no cliffs on tiny comfort deltas');
+}
+
+// ---------- 7d. integration: amenities → Comfort → cash/s (E02-S10-T5) ----------
+console.log('\n[7d] integration: buying amenities raises Comfort and cash/s');
+{
+  const ig = ST.newGame();
+  ig.resources.cash = 1e7;
+  E.buyGenerator(ig, 0, 20);
+  ig._comfortCache = M.computeComfort(ig, DATA);
+  const comfortBefore = ig._comfortCache;
+  const prodBefore = M.tierProd(ig, 0);
+  ok(prodBefore > 0, `baseline income established (${fmt(prodBefore)}/s)`);
+
+  let boughtAny = false;
+  for (const a of DATA.amenities.filter(x => x.tag === 'motel')) {
+    while (E.amenityUnlocked(ig, a.id) && E.amenityCost(ig, a.id) <= ig.resources.cash) {
+      if (E.buyAmenity(ig, a.id)) boughtAny = true; else break;
+    }
+  }
+  ok(boughtAny, 'bought at least one motel amenity');
+  const prodAfter = M.tierProd(ig, 0);
+  ok(ig._comfortCache > comfortBefore, 'buying motel amenities raised Comfort');
+  ok(prodAfter > prodBefore, 'higher Comfort raised per-second cash output via L_comfort end-to-end');
+}
+
+// ---------- 7e. amenity-unlock flash fires once (E02-S3-T7 / S5-T5) ----------
+console.log('\n[7e] amenity unlock flash: fires once, never repeats');
+{
+  const fl = ST.newGame();
+  E.tick(fl, 0.01);
+  const notifs1 = E.drainNotifications(fl);
+  const flash1 = notifs1.filter(n => /New little luxury unlocked/.test(n.text));
+  ok(flash1.length > 0, `amenity-unlock flash fires once threshold is met (got ${flash1.length})`);
+
+  E.tick(fl, 0.01);
+  const notifs2 = E.drainNotifications(fl);
+  ok(!notifs2.some(n => /New little luxury unlocked/.test(n.text)), 'flash does not re-fire on a subsequent tick');
+
+  const reloadedFl = ST.migrate(JSON.parse(JSON.stringify(fl)));
+  E.tick(reloadedFl, 0.01);
+  const notifs3 = E.drainNotifications(reloadedFl);
+  ok(!notifs3.some(n => /New little luxury unlocked/.test(n.text)), 'flash does not re-fire after a save/reload round-trip');
+}
+
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);
 process.exit(fails === 0 ? 0 : 1);
