@@ -20,6 +20,11 @@ export function newGame() {
   // destinations (E04-S1): the World Traveler map — every place starts unowned/unvisited.
   const destinations = {};
   DATA.destinations.forEach(d => { destinations[d.id] = { owned: false, visits: 0 }; });
+  // content (E12 "Lights, Camera, Clout"): the content-tier chain — level (bought with
+  // cash, produces Clout/sec) + boosts (bought with Clout, the Clout sink). See data/
+  // content.js / engine.buyContent / engine.buyContentBoost.
+  const content = {};
+  DATA.content.forEach(c => { content[c.id] = { level: 0, boosts: 0 }; });
 
   return {
     version: C.SAVE_VERSION,
@@ -27,7 +32,7 @@ export function newGame() {
     // energy (E10 "Body & Soul"): starts at a full tank (base energyMax at Body level 0)
     // — an optional clicker-fuel resource, see config.ENERGY / math.energyMax.
     resources: { cash: 15, comfort: 0, clout: 0, legacy: 0, energy: C.ENERGY.base },
-    generators, amenities, skills, training, paths, npcsMet, destinations,
+    generators, amenities, skills, training, paths, npcsMet, destinations, content,
     accommodation: { tier: 0, owned: [0] },
     // transport (E04-S1): no ride bought yet — a null activeSlot means no speed bonus
     // and no upkeep drain (engine.tick/engine.destCost both check for it).
@@ -51,6 +56,14 @@ export function newGame() {
       totalSpent: 0,
       tickAccum: 0,
     },
+    // sponsors (E12 "Lights, Camera, Clout"): OPT-IN, timed Clout multipliers. `active`
+    // is a SINGLE slot (never an array) — that's what makes deals non-stacking by
+    // construction, not just by convention. `offer` is the current pending deal id (or
+    // null); `cooldowns` maps a deal id to the runSec it becomes offerable again.
+    // Nothing here auto-applies (see engine.tickSponsors/acceptSponsor) — a fresh
+    // newGame() (and the harness, which never calls acceptSponsor) always has
+    // active:null, so the fitted island time cannot move.
+    sponsors: { active: null, offer: null, offerCycle: 0, nextOfferAtSec: 0, cooldowns: {}, totalExpired: 0 },
     ascension: { count: 0, legacyBanked: 0, legacySpent: 0, tree: {} },
     story: { beat: 1, seen: [1], branch: 'neutral', flags: {} },
     // ui.bulkMode (E03-S1-T6): the ×1/×10/max buy-quantity toggle, persisted so the
@@ -76,8 +89,15 @@ export function migrate(s) {
     if (fn) s = fn(s);
     s.version = next;
   }
-  // fill any missing keys from a fresh game (forward-compat safety net)
-  return backfill(s, newGame());
+  // fill any missing keys from a fresh game (forward-compat safety net) — this alone
+  // already backfills pre-E12 saves' missing `content`/`sponsors` sections wholesale
+  // (E12-S9-T5), the same generic mechanism every prior epic's new fields relied on.
+  s = backfill(s, newGame());
+  // combo floors to the idle baseline on every load (E12-S9-T2/T6): there are no
+  // active taps while away, so a mid-combo snapshot from the moment of the last save
+  // would otherwise hand back an unearned temporary boost.
+  s._combo = 1; s._comboTimer = 0;
+  return s;
 }
 
 function backfill(save, fresh) {

@@ -240,16 +240,35 @@ celebrate flashes.
 | S9 Save/migration/offline | 5 / 5 / 0 | Done-now: `state.concierge` backfill, offline determinism, offline spend summary. |
 | S10 QA/polish/juice | 2 / 8 / 0 | Done-now: 10 selftest sections incl. ROI ranking, budget/reserve, forbidden-actions, offline determinism, **direct harness-island guard**. |
 
+### E12 — Lights, Camera, Clout (Vlogger path) · **100/100** (present 30, done-now 55, superseded 15)
+Gap-fill on pre-existing Clout/combo/perk. `config.js`: extended `CLOUT` (5 fitted keys
+byte-identical; added `vloggerPerk 0.25`=old hardcoded value, `vloggerComboBonus`,
+`contentPathNudge`) + new `SPONSOR` block. Island **8h26m unchanged**. **Twice reverted its own
+invariant violations** (a charisma-XP-from-content trickle vs the island guard; a combo-cash
+trickle vs E10's anti-clicker ratio test) — the regression guards did their job.
+
+| Story | present/done/superseded | Notes |
+|---|---|---|
+| S1 Content Calendar (data) | 4 / 5 / 1 | Done-now: `content.js` (5 tiers), `sponsors.js` (3 deals), `gear` cluster, CLOUT keys. Superseded: `STORY_GATES.P1` (no such axis; beat 14 stays comfort-gated). |
+| S2 Clout Economy (engine) | 4 / 4 / 2 | Done-now: `cloutRate` extraction, sponsor fold-in, Clout sink (`buyContentBoost`). Superseded: charisma-XP-from-content trickle (**reverted** — breaks island guard), pub/sub. |
+| S3 Creator Dashboard (UI) | 0 / 9 / 1 | Done-now: dashboard, Clout+rate readout, combo meter, content/sponsor cards, reveal, aria-live, badge. Superseded: event-subscription render. |
+| S4 Combo Meter | 6 / 2 / 2 | Present: `_combo` model, tap/decay/floor/energy coupling. Done-now: cold→warm→viral bar + burst. Superseded: combo-cash trickle (**reverted** — anti-clicker test), constants (fitted). |
+| S5 Creator Gear | 3 / 6 / 1 | Done-now: 6 `gear` items (contentRate-wired, never cash), tests. Present: generic buy + reveal. Superseded: cadence tooling. |
+| S6 Creator Loft | 0 / 4 / 6 | Done-now: Going-Viral flourish on beat 14. Superseded: literal `creator_loft` accommodation sub-tier (touches `ACC` math — forbidden; deferred to the shared tier-11 hub in E14). |
+| S7 Vlogger Perk (path) | 3 / 6 / 1 | Present: ×1.25 perk, `L_path`, neutral baseline. Done-now: combo headroom, one-off path nudge, hybrid flags, sponsor `requires` scaling. Superseded: respec UI (paths never exclusive). |
+| S8 Balance & Tuning | 4 / 5 / 1 | Present: `PATH`/combo/perk untouched. Done-now: `SPONSOR`/gear/content numbers (harness-invisible), beat-14 timing, bounded-upside tests. Superseded: separate `contentBase` (uses fitted `contentRate`). |
+| S9 Save/Migration/Offline | 5 / 5 / 0 | Present: generic backfill + offline replay. Done-now: combo floor-on-load, offline sponsor-expiry summary, tests. |
+| S10 QA/Polish/Juice | 1 / 9 / 0 | Done-now: formula/decay/expiry/floor/perk unit tests, viral burst, extreme-speed edge, no-lock-in regression. |
+
 ---
 
-## Act II–VI — E12–E30
+## Act II–VI — E13–E30
 
 _Pending — appended as each phase's build pass audits its 100 tasks. Each row will carry the
 same `present / done-now / superseded` disposition and a per-phase tally in the commit + report._
 
 | Epic | Status |
 |---|---|
-| E12 Lights, Camera, Clout | pending |
 | E13 Money Works While You Tan | pending |
 | E14 Acquired Taste | pending |
 | E15 Keys to the Coupe | pending |
@@ -272,8 +291,8 @@ same `present / done-now / superseded` disposition and a per-phase tally in the 
 ---
 
 ### Running total
-- **Audited:** 1,100 / 3,000 tasks (E01–E11) — present 435, done-now 435, superseded 230.
-- **Remaining:** 1,900 tasks (E12–E30).
+- **Audited:** 1,200 / 3,000 tasks (E01–E12) — present 465, done-now 490, superseded 245. **40% done.**
+- **Remaining:** 1,800 tasks (E13–E30).
 
 ### Deferred balance-tuner backlog (for a consolidated retune, latest at E30)
 - **`savvyPassive()` not ×`L_comfort`** (E06-S7-T4) — a flat sqrt-scaled additive term outside

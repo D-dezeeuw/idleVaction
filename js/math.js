@@ -162,6 +162,62 @@ export function energyRegenRate(state) {
   return C.ENERGY.regen * (1 + C.ENERGY.perBody * state.skills.body.level);
 }
 
+// ---- vlogger clout economy (E12 "Lights, Camera, Clout") ----
+// Sum of every owned content tier's OWN contentRate (times its Clout-priced "boost"
+// layer, engine.buyContentBoost) plus any creator-gear (tag:'gear') amenity's
+// contentRate — additive, mirrors amenityScoreTotal's shape exactly. DATA is passed
+// explicitly (same convention as amenityScoreTotal/destMult above) so math.js never
+// imports data/ and the config→util→math→data chain stays acyclic.
+export function contentRateTotal(state, DATA) {
+  let s = 0;
+  for (const c of DATA.content) {
+    const st = state.content[c.id];
+    if (!st) continue;
+    s += st.level * c.contentRate * (1 + c.boostRate * st.boosts);
+  }
+  for (const a of DATA.amenities) {
+    if (a.tag !== 'gear' || !a.contentRate) continue;
+    s += (state.amenities[a.id]?.level || 0) * a.contentRate;
+  }
+  return s;
+}
+
+// the currently-active sponsor's Clout ×, or 1 if none — engine.tickSponsors owns
+// expiry/rolling the offer; this is a pure read of the cached state (mirrors
+// destMultiplier reading state._destCache just above).
+export function sponsorMult(state) {
+  return state.sponsors.active ? state.sponsors.active.mult : 1;
+}
+
+// Extra combo HEADROOM for the vlogger branch (E12-S7-T2, "stronger combo window" —
+// the perk text already shipped in data/paths.js) — ADDED to the fitted
+// CLOUT.comboMax, never replacing it; engine.click is the only reader (engine.
+// decayCombo deliberately keeps using the base comboMax for its decay RATE, unchanged
+// — see config.CLOUT's comment).
+export function effectiveComboMax(state) {
+  return C.CLOUT.comboMax + (state.story.branch === 'vlogger' ? C.CLOUT.vloggerComboBonus : 0);
+}
+
+// dClout/dt (E12-S2-T1): the single pure source of truth for Clout production —
+// previously computed inline in engine.tick; pulled out here, UNCHANGED, so it's
+// testable in isolation (E12-S10-T1). Folds in the base rate + content tiers/gear, the
+// charisma feedback, the active-play combo, the vlogger branch perk + its existing
+// path-point bonus (both preserved bit-for-bit from the original inline formula — see
+// docs/coverage.md E12 notes, "already exist, don't rebuild"), the "Magnetic" ascension
+// perk, and any accepted sponsor deal. Never mutates state, never touches tierProd/
+// tierMultiplier/computeComfort — Clout is a second currency that does not feed the
+// cash multiplier stack, so nothing here can move the harness's island time.
+export function cloutRate(state, DATA) {
+  const base = C.CLOUT.contentRate + contentRateTotal(state, DATA);
+  const charisma = 1 + C.CLOUT.charismaBoost * state.skills.charisma.level;
+  const combo = state._combo ?? 1;
+  const vloggerPerk = 1 + C.CLOUT.vloggerPerk * Math.sign(state.paths.vlogger.points);
+  const magnetic = 1 + 0.1 * (state.ascension.tree.magnetic || 0);
+  const pathBoost = 1 + state.paths.vlogger.points * 0.05;
+  const sponsor = sponsorMult(state);
+  return base * charisma * combo * vloggerPerk * magnetic * pathBoost * sponsor;
+}
+
 // ---- permanent skill tree effects ----
 export function treeIncomeMult(state) {
   const t = state.ascension.tree;

@@ -33,6 +33,7 @@ export function render(state) {
   renderBeachfront(state);
   renderWellness(state);
   renderConcierge(state);
+  renderCreator(state);
   renderSkills(state);
   renderPaths(state);
   renderAscension(state);
@@ -87,6 +88,10 @@ function renderNotifications(s) {
     // line + a brief log-pulse ONLY — no toast, so a busy concierge never spams the
     // notification corner the way a manual purchase never would either.
     if (item.type === 'concierge') { announceConcierge(item.text); pulseConcierge(); continue; }
+    // sponsor accept/expire (E12-S3-T7 "announce Clout gains"): gets BOTH the aria-live
+    // line AND the normal toast below (unlike concierge's muted convention) — these are
+    // rarer, player-initiated/affecting moments, not a busy auto-buyer's chatter.
+    if (item.type === 'sponsor') announceCreator(item.text);
     const d = document.createElement('div');
     d.className = 'iv-notif iv-' + item.type;
     d.textContent = item.text;
@@ -300,6 +305,7 @@ function renderAmenities(s) {
     // players mid-run (a real behavior change, not just a data addition). The new
     // tan/gym/wellness tags ship straight into their own card instead, same as pool did.
     if (a.tag === 'tan' || a.tag === 'gym' || a.tag === 'wellness') continue;
+    if (a.tag === 'gear') continue; // the dedicated Creator Dashboard (E12) owns this tag
     if (!E.amenityUnlocked(s, a.id)) continue;
     (byTag[a.tag] ||= []).push(a);
   }
@@ -565,6 +571,127 @@ function renderConcierge(s) {
     html += '<div class="iv-sub"><em>No purchases yet — turn the concierge on and it will start shopping within its whitelist.</em></div>';
   }
   el('concierge').innerHTML = html;
+}
+
+// ---------- Creator Dashboard (E12 "Lights, Camera, Clout" — the Clout economy's home) ----------
+// Reveals once the vlogger economy is genuinely in play — path points invested, Beat 14
+// has fired, or the tier-11 band is reached — whichever comes first (mirrors
+// engine.creatorDashboardUnlocked exactly, E12-S3-T6).
+function creatorRevealed(s) { return E.creatorDashboardUnlocked(s); }
+
+function announceCreator(text) {
+  const live = el('creatorAnnounce');
+  if (live) live.textContent = text;
+}
+
+// combo meter juice (E12-S3-T2/T5/T8, S4-T8, S10-T7): a brief pulse on every tap (tying
+// E10's tap button to the combo, mirroring energyPulseUntil's convention exactly), plus
+// a ONE-SHOT "going viral" burst the moment combo first reaches its (branch-scoped)
+// effective max — a latch that re-arms once combo drops back under half of that max, so
+// sustained tapping doesn't spam the burst every render.
+let comboPulseUntil = 0;
+function pulseCombo() { comboPulseUntil = Date.now() + 400; }
+let comboBurstUntil = 0;
+let comboWasMaxed = false;
+function checkComboViralBurst(s) {
+  const max = M.effectiveComboMax(s);
+  const combo = s._combo ?? 1;
+  if (combo >= max - 1e-6) {
+    if (!comboWasMaxed) { comboWasMaxed = true; comboBurstUntil = Date.now() + 900; announceCreator('🚀 Combo maxed — going viral!'); }
+  } else if (combo < 1 + (max - 1) * 0.5) {
+    comboWasMaxed = false;
+  }
+}
+// cold -> warm -> viral color states (E12-S4-T8), reusing .iv-comfort-meter's bar shell.
+function comboMeterHtml(s) {
+  const combo = s._combo ?? 1;
+  const max = M.effectiveComboMax(s);
+  const pct = clamp(100 * (combo - 1) / (max - 1), 0, 100);
+  const heat = pct >= 90 ? 'iv-combo-viral' : pct >= 40 ? 'iv-combo-warm' : 'iv-combo-cold';
+  const pulsing = Date.now() < comboPulseUntil;
+  const bursting = Date.now() < comboBurstUntil;
+  return `<div class="iv-comfort-meter iv-combo-meter ${heat}${pulsing ? ' iv-combo-pulse' : ''}${bursting ? ' iv-combo-burst' : ''}"
+      role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct.toFixed(0)}"
+      aria-label="Combo ${combo.toFixed(2)} of max ${max.toFixed(2)}"><i style="width:${pct.toFixed(1)}%"></i></div>
+    <div class="iv-sub">🔥 Combo <b>×${combo.toFixed(2)}</b> / ×${max.toFixed(2)} — tap the footer button to build it, decays over ~${C.CLOUT.comboDecaySec}s idle</div>`;
+}
+
+function renderCreator(s) {
+  const card = el('creatorCard');
+  const reveal = creatorRevealed(s);
+  if (card) card.hidden = !reveal;
+  if (!reveal) { if (el('creator')) el('creator').innerHTML = ''; return; }
+
+  checkComboViralBurst(s);
+  const rate = M.cloutRate(s, DATA);
+  const branch = s.story.branch;
+
+  let html = `<div class="iv-sub">📣 Clout <b>${fmt(s.resources.clout)}</b> <small>(+${fmt(rate)}/s)</small>
+    ${branch === 'vlogger' ? `<span class="iv-badge-maxed" title="Applies whenever you have vlogger path points">Vlogger perk ×${fmt(1 + C.CLOUT.vloggerPerk)} Clout</span>` : ''}</div>`;
+  html += comboMeterHtml(s);
+
+  const pathCost = E.pathCost(s, 'vlogger');
+  html += `<div class="iv-sub">🧭 Vlogger path: <b>${fmt(s.paths.vlogger.points)} pts</b>
+    <small>(social tiers preview ×${fmt(M.pathMult(s.paths.vlogger.points))})</small>
+    ${btn('buy-path', 'vlogger', `Focus<br><small>${fmt(pathCost)}</small>`, afford(pathCost))}</div>`;
+
+  // content tiers: cash in, Clout out — plus a Clout-priced "Boost" (the Clout sink).
+  html += '<div class="iv-tag">content tiers</div><div class="iv-amenities">';
+  for (const c of DATA.content) {
+    if (!E.contentUnlocked(s, c.id)) continue;
+    const cost = E.contentCost(s, c.id);
+    const st = s.content[c.id];
+    const ownRate = st.level * c.contentRate * (1 + c.boostRate * st.boosts);
+    const boostCost = E.contentBoostCost(s, c.id);
+    html += `<div class="iv-btn iv-content-item" title="${c.flavor}">
+      <b>${c.name}</b> <small>Lv${st.level}${st.boosts ? ` · boost ${st.boosts}` : ''}</small>
+      <div class="iv-sub">+${fmt(ownRate)} clout/s</div>
+      <div class="iv-row-buy">
+        ${btn('buy-content', c.id, `Buy<br><small>${fmt(cost)}</small>`, afford(cost))}
+        ${btn('buy-content-boost', c.id, `Boost<br><small>📣${fmt(boostCost)}</small>`, s.resources.clout >= boostCost)}
+      </div>
+    </div>`;
+  }
+  html += '</div>';
+
+  // creator gear (tag:'gear' amenities — same generic buyAmenity flow as every other cluster).
+  const gearVisible = DATA.amenities.filter(a => a.tag === 'gear' && E.amenityUnlocked(s, a.id));
+  if (gearVisible.length) {
+    html += '<div class="iv-tag">creator gear</div><div class="iv-amenities">';
+    for (const a of gearVisible) {
+      const cost = E.amenityCost(s, a.id);
+      const lvl = s.amenities[a.id].level;
+      html += btn('buy-amenity', a.id,
+        `${a.name} <small>Lv${lvl}</small><br><small>${fmt(cost)} · +${fmt(a.comfort)}😌 +${fmt(a.contentRate)}📣/s</small>`,
+        afford(cost), '', a.flavor);
+    }
+    html += '</div>';
+  }
+
+  // sponsor deals: the currently active buff (if any), then every deal card — greyed
+  // out on cooldown, "not offered yet" until it cycles into the offer slot.
+  html += '<div class="iv-tag">sponsor deals</div><div class="iv-amenities">';
+  if (s.sponsors.active) {
+    const d = E.sponsorData(s.sponsors.active.id);
+    const remain = Math.max(0, s.sponsors.active.expiresAtSec - s.stats.runSec);
+    html += `<div class="iv-btn iv-sponsor-active">🤝 <b>${d.name}</b> active — Clout ×${d.mult}
+      <div class="iv-sub">${fmtTime(remain)} left</div></div>`;
+  }
+  for (const d of DATA.sponsors) {
+    if (s.sponsors.active && s.sponsors.active.id === d.id) continue;
+    const isOffer = s.sponsors.offer === d.id;
+    const cooldown = E.sponsorCooldownRemaining(s, d.id);
+    const eligible = isOffer && cooldown <= 0 && !s.sponsors.active;
+    const label = cooldown > 0
+      ? `${d.name} <small>cooldown ${fmtTime(cooldown)}</small>`
+      : isOffer
+        ? `${d.name} <small>×${d.mult} for ${d.durationSec}s</small>`
+        : `${d.name} <small>not offered yet</small>`;
+    html += btn('accept-sponsor', d.id, label, eligible, '', d.flavor);
+  }
+  html += '</div>';
+
+  el('creator').innerHTML = html;
 }
 
 // live footer energy readout, "near the tap button" (E10-S4-T8): #energyMini is a
@@ -847,6 +974,13 @@ function handle(action, arg, btnEl) {
       break;
     }
     case 'buy-path': E.buyPathFocus(S, arg); break;
+    case 'buy-content': E.buyContent(S, arg); break;
+    case 'buy-content-boost': E.buyContentBoost(S, arg); break;
+    case 'accept-sponsor': {
+      const ok = E.acceptSponsor(S, arg);
+      if (ok) { const d = E.sponsorData(arg); announceCreator(`Sponsor deal accepted: ${d.name} — Clout ×${d.mult} for ${d.durationSec}s.`); }
+      break;
+    }
     case 'concierge-toggle': S.concierge.on = !S.concierge.on; break;
     case 'concierge-budget': S.concierge.budgetFrac = Number(arg); break;
     case 'concierge-reserve': {
@@ -868,7 +1002,7 @@ function handle(action, arg, btnEl) {
     case 'ascend': if (P.ascend(S)) { setState(S); } break;
     case 'buy-node': P.buyNode(S, arg); break;
     case 'respec': if (confirm('Refund all Legacy and clear the tree?')) P.respec(S); break;
-    case 'click': { const gain = E.click(S); showTapPopup(gain); if (gain > 0) pulseEnergy(); break; }
+    case 'click': { const gain = E.click(S); showTapPopup(gain); if (gain > 0) { pulseEnergy(); pulseCombo(); } break; }
     case 'set-speed': S.settings.gameSpeed = Number(arg); renderControls(S); break;
     case 'set-speed-custom': {
       const v = Number(document.getElementById('speedInput')?.value);
@@ -909,6 +1043,7 @@ export function showOfflineSummary(state, rep) {
     <div class="iv-offline-row">💶 <b>+${fmt(rep.cash)}</b> cash</div>
     <div class="iv-offline-row">📣 <b>+${fmt(rep.clout)}</b> clout</div>
     ${rep.conciergeBought ? `<div class="iv-offline-row">🛎️ The concierge bought <b>${rep.conciergeBought}</b> item${rep.conciergeBought > 1 ? 's' : ''} for <b>${fmt(rep.conciergeSpent)}</b></div>` : ''}
+    ${rep.sponsorsExpired ? `<div class="iv-offline-row">📴 <b>${rep.sponsorsExpired}</b> sponsor deal${rep.sponsorsExpired > 1 ? 's' : ''} wrapped up while you were away</div>` : ''}
     <div class="iv-sub">😌 Comfort is now ${fmt(state.resources.comfort)} — a bonus of ×${fmt(lComfort)} on income while you were gone.</div>`;
   overlay.hidden = false;
 }

@@ -144,7 +144,51 @@ export const CONFIG = {
   DEST: { costGrowth: 1.15, baseMult: 1.10, visitYield: 15, visitPathPoints: 0.2 },
 
   // ---- vlogger clout ----
-  CLOUT: { contentRate: 1.0, charismaBoost: 0.02, comboDecaySec: 30, comboPerClick: 0.15, comboMax: 5 },
+  // dClout/dt = (contentRate + content-tier/gear contentRate) · (1+charismaBoost·charisma) ·
+  // comboMult · vloggerPerk · pathBoost · magnetic · sponsorMult (math.cloutRate — E12
+  // "Lights, Camera, Clout" pulls the formula that used to live inline in engine.tick out
+  // into a pure, testable function). contentRate/charismaBoost/comboDecaySec/comboPerClick/
+  // comboMax are FITTED (shipped since E10) and stay exactly as they were — never retuned
+  // here (see docs/coverage.md E12 notes). The three keys below are NEW, additive, and
+  // clicker/branch/Clout-economy scoped only — none of them touch tierProd/tierMultiplier/
+  // computeComfort, so none can move the harness's max-speed island time. (A "combo also
+  // gives a small cash trickle" secondary reward — per the epic's S4-T5 — was tried and
+  // DROPPED: at a sustained max-tap rate it broke E10's own anti-clicker ratio invariant
+  // [52] (tap income must stay < 35% of idle income), so Clout stays the combo's ONLY
+  // payoff, matching E10's established "clicker never meaningfully competes with idle
+  // income" contract instead of loosening it. See docs/coverage.md E12 notes.)
+  CLOUT: {
+    contentRate: 1.0, charismaBoost: 0.02, comboDecaySec: 30, comboPerClick: 0.15, comboMax: 5,
+    // vloggerPerk: the branch's signature Clout bonus (×1+vloggerPerk when
+    // paths.vlogger.points>0) — previously an inline `0.25` in engine.tick; surfaced here
+    // per house style (value UNCHANGED, see E12-S1-T6 / docs/coverage.md).
+    vloggerPerk: 0.25,
+    // vloggerComboBonus: extra combo HEADROOM (added to the fitted comboMax, never
+    // replacing it) on the vlogger branch only — math.effectiveComboMax, used by
+    // engine.click's cap. comboDecaySec/comboPerClick (the actual decay RATE) are
+    // untouched, so a vlogger's bigger tank just takes proportionally longer to fully
+    // drain at the SAME rate — an emergent "stronger combo window" (see the perk text
+    // already shipped in data/paths.js) without retuning the shared fitted constant.
+    vloggerComboBonus: 2,
+    // contentPathNudge: a tiny ONE-OFF vlogger path-point nudge per content-tier
+    // PURCHASE (mirrors DEST.visitPathPoints' "one-off on a discrete action, never a
+    // per-tick trickle" pattern exactly) — so it can't compound into the runaway that
+    // pattern was designed to avoid (see DEST's comment above).
+    contentPathNudge: 0.1,
+  },
+
+  // ---- sponsor deals (E12 "Lights, Camera, Clout"): OPT-IN, TIMED Clout multipliers ----
+  // A deal only ever applies once explicitly ACCEPTED (engine.acceptSponsor) — nothing
+  // here auto-applies, so a fresh newGame() and the harness (which never calls
+  // acceptSponsor) are completely unaffected; the fitted ~8h26m island time cannot move
+  // (see docs/coverage.md E12 notes). Non-stacking by construction, not just by config:
+  // state.sponsors.active is a SINGLE slot (never an array), so at most one deal's mult
+  // is ever live at a time. offerIntervalSec paces how often a new offer is rolled once
+  // nothing is active; cooldownSec is the DEFAULT per-deal cooldown after a deal's buff
+  // expires (a deal's own data may override with a longer cooldownSec for a stronger
+  // mult — see data/sponsors.js) — both are pacing/anti-runaway knobs for a currency
+  // (Clout) that never feeds the cash multiplier stack, so neither can move the harness.
+  SPONSOR: { offerIntervalSec: 90, cooldownSec: 180 },
 
   // ---- ascension / legacy ----
   LEGACY_K: 1.0,
