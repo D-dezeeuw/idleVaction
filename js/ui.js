@@ -99,18 +99,61 @@ function renderStory(s) {
     ${choiceHtml}`;
 }
 
+// The shed→island ladder panel (E05-S3-T1..T4): rather than dumping all 21 rows, this
+// shows the owned climb collapsed to a count, the CURRENT tier, and a small lookahead
+// window of upcoming tiers with their Comfort gate + cash cost — so the whole ladder
+// stays legible at a glance without scrolling through tiers decades away. The gating
+// shown here is always E.accUnlocked(s) itself (never a re-derived copy), so the panel
+// can never drift from the real purchase gate (E05-D guardrail).
+const ACC_LOOKAHEAD = 5;
 function renderAccommodation(s) {
   const t = s.accommodation.tier;
-  const nextExists = t + 1 < DATA.accommodation.length;
-  const cost = E.accCost(s);
-  const unlocked = E.accUnlocked(s);
-  const nextName = nextExists ? DATA.accommodation[t + 1].name : '— (top tier)';
-  let line;
-  if (!nextExists) line = '<em>You own the dot on the map. There is nowhere higher.</em>';
-  else if (!unlocked) line = `Next: <b>${nextName}</b> — needs Comfort ${fmt(M.accUnlockComfort(t + 1))} (you: ${fmt(s.resources.comfort)})`;
-  else line = `Next: <b>${nextName}</b> — ${fmt(cost)} ` + btn('buy-acc', '', 'Upgrade', afford(cost));
-  el('accommodation').innerHTML =
-    `<div class="iv-flavor">${DATA.accommodation[t].flavor}</div><div>${line}</div>`;
+  const maxTier = DATA.accommodation.length - 1;
+  const cur = DATA.accommodation[t];
+  const titleEl = el('accTitle');
+  if (titleEl) titleEl.textContent = `🏨 ${cur.name}`;
+
+  let html = `<div class="iv-flavor">${cur.flavor}</div>`;
+  html += '<div class="iv-acc-ladder">';
+  if (t > 0) {
+    html += `<div class="iv-acc-row iv-acc-owned">✅ ${t} earlier stop${t > 1 ? 's' : ''} — from ${DATA.accommodation[0].name}</div>`;
+  }
+  html += `<div class="iv-acc-row iv-acc-current">🏨 <b>${cur.name}</b> <small>tier ${t} · accScore ${fmt(M.accScore(t))}</small></div>`;
+
+  const lastShown = Math.min(maxTier, t + ACC_LOOKAHEAD);
+  for (let i = t + 1; i <= lastShown; i++) {
+    const acc = DATA.accommodation[i];
+    const cost = E.accCostForTier(s, i);
+    const need = M.accUnlockComfort(i);
+    const isNext = i === t + 1;
+    if (isNext) {
+      // the ONLY tier that can ever be bought right now — gate is E.accUnlocked(s)
+      // itself, so this can never disagree with engine.buyAccommodation's own check.
+      const gateOk = E.accUnlocked(s);
+      const pct = clamp(100 * s.resources.comfort / need, 0, 100);
+      html += `<div class="iv-acc-row iv-acc-next" title="${acc.flavor}">
+        <div>➡️ Next: <b>${acc.name}</b> <small>${fmt(cost)}</small></div>
+        <div class="iv-comfort-meter" role="progressbar" aria-valuemin="0" aria-valuemax="100"
+          aria-valuenow="${pct.toFixed(0)}" aria-label="Comfort progress toward ${acc.name}">
+          <i style="width:${pct.toFixed(1)}%"></i>
+        </div>
+        <div class="iv-sub">needs Comfort ≥ ${fmt(need)} — you: ${fmt(s.resources.comfort)}${gateOk ? ' ✅' : ''}</div>
+        ${gateOk ? btn('buy-acc', '', `Check in — ${fmt(cost)}`, afford(cost), 'btn-primary') : ''}
+      </div>`;
+    } else {
+      html += `<div class="iv-acc-row iv-acc-locked" title="${acc.flavor}">
+        🔒 ${acc.name} <small>needs Comfort ≥ ${fmt(need)} · ${fmt(cost)}</small>
+      </div>`;
+    }
+  }
+  const remaining = maxTier - lastShown;
+  if (remaining > 0) {
+    html += `<div class="iv-acc-row iv-acc-more">…and ${remaining} more stop${remaining > 1 ? 's' : ''} up to ${DATA.accommodation[maxTier].name}</div>`;
+  } else if (t >= maxTier) {
+    html += '<div class="iv-acc-row"><em>You own the dot on the map. There is nowhere higher.</em></div>';
+  }
+  html += '</div>';
+  el('accommodation').innerHTML = html;
 }
 
 // Destinations panel + Getting Around row reveal together once the map exists —
@@ -178,8 +221,15 @@ function renderGenerators(s) {
     `<button class="btn btn-sm ${buyQty === q ? 'btn-primary' : ''}" data-action="set-qty" data-arg="${q}">×${q}</button>`).join(' ');
   // chain readout (E03-S4-T8): make the "higher tiers feed lower ones" compounding
   // legible in one line, without restructuring the rows themselves.
+  // renovation legend (E05-S3-T4/S4-T1/T5): L_upgrade already exists as the per-tier
+  // "Upg" purchase — this just names it and shows the flat +N% so the layer is legible,
+  // plus a convenience "renovate cheapest" button over the SAME buyGenUpgrade path.
+  const cheapest = E.cheapestGenUpgrade(s);
+  const renoPct = (C.L_UPGRADE_RATE * 100).toFixed(0);
   let rows = `<div class="iv-qty">Buy ${qtyBtns}</div>
-    <div class="iv-sub iv-chain-legend">🔗 higher tiers feed lower ones → D1 pays out cash</div>`;
+    <div class="iv-sub iv-chain-legend">🔗 higher tiers feed lower ones → D1 pays out cash</div>
+    <div class="iv-sub iv-upg-legend">🔧 Renovations ("Upg"): +${renoPct}% to that tier's own output per purchase, permanently
+      (L_upgrade = 1 + ${C.L_UPGRADE_RATE}·n) ${cheapest ? btn('buy-cheapest-upg', '', `Renovate cheapest <small>${fmt(cheapest.cost)}</small>`, afford(cheapest.cost)) : ''}</div>`;
   DATA.generators.forEach((g, k) => {
     if (!s.generators[k].unlocked) return;
     const st = s.generators[k];
@@ -188,15 +238,18 @@ function renderGenerators(s) {
     const mult = M.tierMultiplier(s, k);
     const toDouble = C.MILESTONE_STEP - (st.bought % C.MILESTONE_STEP);
     const upgCost = E.genUpgradeCost(s, k);
+    const upgMult = M.upgradeMult(st.upgrades);
     rows += `<div class="iv-row">
       <div class="iv-row-main" title="${g.flavor}">
         <b>${g.name}</b> <small>×${st.count | 0}</small>
         <div class="iv-sub">out ×${fmt(mult)} · next double in ${toDouble} · bought ${st.bought}</div>
+        <div class="iv-sub" aria-label="renovation layer: ${st.upgrades} bought, times ${fmt(upgMult)}">
+          🔧 L_upgrade ×${fmt(upgMult)} (${st.upgrades} reno${st.upgrades === 1 ? '' : 's'}) · next +${renoPct}%</div>
         <div class="iv-flavor iv-gen-flavor">${g.flavor}</div>
       </div>
       <div class="iv-row-buy">
         ${btn('buy-gen', `${k}|${buyQty}`, `Buy${buyQty === 'max' ? ` ×${qty}` : ''}<br><small>${fmt(cost)}</small>`, afford(cost) && qty > 0)}
-        ${btn('buy-gen-upg', k, `Upg<br><small>${fmt(upgCost)}</small>`, afford(upgCost))}
+        ${btn('buy-gen-upg', k, `Upg<br><small>${fmt(upgCost)}</small>`, afford(upgCost), '', `+${renoPct}% to ${g.name}'s output — L_upgrade`)}
       </div></div>`;
   });
   el('generators').innerHTML = rows;
@@ -373,6 +426,7 @@ function handle(action, arg) {
     case 'set-qty': S.ui.bulkMode = arg === 'max' ? 'max' : Number(arg); break;
     case 'buy-gen': { const [k, q] = arg.split('|'); E.buyGenerator(S, Number(k), q === 'max' ? 'max' : Number(q)); break; }
     case 'buy-gen-upg': E.buyGenUpgrade(S, Number(arg)); break;
+    case 'buy-cheapest-upg': E.buyCheapestGenUpgrade(S); break;
     case 'buy-amenity': E.buyAmenity(S, arg); break;
     case 'buy-training': E.buyTraining(S, arg); break;
     case 'buy-path': E.buyPathFocus(S, arg); break;

@@ -35,6 +35,16 @@ export const CONFIG = {
   MILESTONE_SOFT_KNEE: 4,
   MILESTONE_SOFT_LIN: 0.5,
 
+  // ---- per-tier "renovation" upgrades: the L_upgrade income layer ----
+  // L_upgrade = 1 + L_UPGRADE_RATE · (upgrades bought for that generator tier), additive
+  // within this one layer (see math.upgradeMult / engine.buyGenUpgrade). This layer has
+  // existed since E03 as an inline `1 + 0.5·n` in math.tierMultiplier; E05 (One Star, Big
+  // Dreams) surfaces it as the headline "renovation" mechanic in the UI — pulling the
+  // constant here (unchanged value) so it isn't a magic number in engine code, per house
+  // style. NOT a second multiplier: accommodation itself has no separate upgrade layer
+  // (that would double-count against this one — see docs/coverage.md E05 notes).
+  L_UPGRADE_RATE: 0.5,
+
   // ---- amenities (the small-wins engine) ----
   AMENITY: { growthDefault: 1.5, comfortWeight: 1.0 },
 

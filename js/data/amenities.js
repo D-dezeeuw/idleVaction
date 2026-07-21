@@ -32,6 +32,19 @@ export const AMENITIES = [
   { id: 'kit_microfiber_towel',   name: 'Microfiber Towel',        tag: 'backpack', costBase: 6800, comfort: 21, xMult: 0.04, xScope: 'social', unlockComfort: 410, flavor: 'Dries in an hour, smells like regret in two.' },
   { id: 'kit_travel_pillow',      name: 'Inflatable Travel Pillow',tag: 'backpack', costBase: 8800, comfort: 24, xMult: 0.05, xScope: 'all',    unlockComfort: 470, flavor: 'It squeaks. It saves your neck. Worth it.' },
 
+  // --- 1-Star Hotel cluster (E05-S5) — the small-wins engine at the 1-Star Hotel stage.
+  // costBase picks up just above the backpack cluster's range; comfort/unlockComfort
+  // staggering brackets the tier-4 Comfort gate (accUnlockComfort(4) ≈ 754) so the first
+  // couple of items help you CHECK IN, and the rest keep small wins flowing right after,
+  // toward tier 5 (accUnlockComfort(5) ≈ 1960) — kept conservative (~1.3× costBase ramp,
+  // matching the E03/E04 clusters) so this doesn't meaningfully stretch the fitted curve. ---
+  { id: 'star1_key_card',       name: 'An Actual Key Card',              tag: 'onestar', costBase: 11000, comfort: 16, xMult: 0.02, xScope: 'all',    unlockComfort: 520,  flavor: 'No more borrowed padlock. A card. That beeps. You feel important.' },
+  { id: 'star1_minibar_water',  name: 'Minibar (Water Only)',            tag: 'onestar', costBase: 14000, comfort: 19, xMult: 0.02, xScope: 'all',    unlockComfort: 620,  flavor: '€6 for water you could get from the tap. You buy it anyway. Growth.' },
+  { id: 'star1_tv_remote',      name: 'TV Remote That Works',            tag: 'onestar', costBase: 18500, comfort: 22, xMult: 0.03, xScope: 'social', unlockComfort: 750,  flavor: 'The TV gets two channels, both in a language you do not speak.' },
+  { id: 'star1_do_not_disturb', name: 'Do Not Disturb Sign',             tag: 'onestar', costBase: 24000, comfort: 26, xMult: 0.03, xScope: 'all',    unlockComfort: 900,  flavor: 'You hang it on the handle like a tiny flag of a nation of one.' },
+  { id: 'star1_shower_cap',     name: 'Individually Wrapped Shower Cap', tag: 'onestar', costBase: 31000, comfort: 30, xMult: 0.04, xScope: 'social', unlockComfort: 1080, flavor: 'Plastic. Crinkly. Yours to keep. You will never use it and never throw it away.' },
+  { id: 'star1_wakeup_call',    name: 'Wake-Up Call Service',            tag: 'onestar', costBase: 40000, comfort: 35, xMult: 0.05, xScope: 'all',    unlockComfort: 1300, flavor: 'The front desk rings at 7:00 sharp. You were already awake, dreading it.' },
+
   // --- pool cluster (E07) — the fun showcase ---
   { id: 'floatie_duck',   name: 'Rubber Duck Floatie',  tag: 'pool', costBase: 800,   comfort: 12, xMult: 0.02, xScope: 'social', unlockComfort: 200,  flavor: 'Quack. Iconic.' },
   { id: 'floatie_flamingo',name:'Flamingo Floatie',     tag: 'pool', costBase: 1600,  comfort: 18, xMult: 0.03, xScope: 'social', unlockComfort: 300,  flavor: 'Pink. Judgmental. Photogenic.' },

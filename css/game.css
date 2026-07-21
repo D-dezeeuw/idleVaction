@@ -22,7 +22,13 @@ body { background: var(--iv-bg); color: var(--iv-ink); font-family: system-ui, s
 .iv-notif.iv-story { border-color: #6ab0ff; } .iv-notif.iv-unlock { border-color: var(--iv-good); }
 .iv-notif.iv-ascend { border-color: #d17bff; } .iv-notif.iv-info { border-color: var(--iv-sub); }
 .iv-notif.iv-vignette { border-color: var(--iv-accent); font-style: italic; }
+/* the 1-Star check-in flash (E05-S6-T5): a bigger, distinct celebratory line — a touch
+   larger + a brief glow, reduced-motion safe. */
+.iv-notif.iv-celebrate { border-color: var(--iv-accent); font-weight: bold; font-size: .88rem;
+  animation: slidein .25s ease, celebrateglow 1.2s ease 1; }
 @keyframes slidein { from { transform: translateX(30px); opacity: 0; } }
+@keyframes celebrateglow { 0%, 100% { box-shadow: 0 4px 14px rgba(0,0,0,.35); } 50% { box-shadow: 0 4px 22px rgba(245,179,1,.55); } }
+@media (prefers-reduced-motion: reduce) { .iv-notif.iv-celebrate { animation: none; } }
 
 .iv-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; padding: 12px; max-width: 1100px; margin: 0 auto; }
 .iv-card { background: var(--iv-card); border: 1px solid var(--iv-line); border-radius: 8px; padding: 10px 12px; }
@@ -56,6 +62,22 @@ body { background: var(--iv-bg); color: var(--iv-ink); font-family: system-ui, s
   height: 10px; overflow: hidden; margin-bottom: 4px; }
 .iv-comfort-meter i { display: block; height: 100%; background: linear-gradient(90deg, var(--iv-good), var(--iv-accent));
   transition: width .4s ease; }
+
+/* accommodation ladder (E05-S3-T1..T3): a windowed shed→island climb — owned tiers
+   collapse to a count, current tier is highlighted, next tier carries its gate + a
+   progress bar, and tiers further ahead sit dimmed/locked. Kept a fixed small window
+   (see ui.js ACC_LOOKAHEAD) rather than scrolling all 21 rows. */
+.iv-acc-ladder { display: flex; flex-direction: column; gap: 4px; }
+.iv-acc-row { background: #0c151b; border: 1px solid var(--iv-line); border-radius: 6px; padding: 5px 8px; font-size: .8rem; }
+.iv-acc-owned { color: var(--iv-sub); font-size: .74rem; }
+.iv-acc-current { border-color: var(--iv-good); }
+.iv-acc-next { border-color: var(--iv-accent); }
+.iv-acc-next .iv-comfort-meter { margin: 4px 0; }
+.iv-acc-locked { opacity: .55; }
+.iv-acc-more { color: var(--iv-sub); font-size: .72rem; text-align: center; }
+
+/* renovation legend (E05-S3-T4/S4-T1): names the existing L_upgrade layer inline. */
+.iv-upg-legend { margin-bottom: 6px; }
 
 .iv-flavor { font-style: italic; color: var(--iv-sub); margin-bottom: 6px; }
 .iv-beatnum { color: var(--iv-sub); font-size: .72rem; } .iv-beattitle { color: var(--iv-accent); font-weight: bold; margin: 2px 0; }

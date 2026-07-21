@@ -327,6 +327,23 @@ export function buyGenUpgrade(state, k) {
   state.generators[k].upgrades++;
   return true;
 }
+// convenience: find the single cheapest affordable renovation (per-tier upgrade) across
+// every unlocked income tier — a UI nicety over the existing buyGenUpgrade path, not a
+// new mechanic (E05-S3-T5 "renovate cheapest"). Returns { k, cost } or null.
+export function cheapestGenUpgrade(state) {
+  let bestK = -1, bestCost = Infinity;
+  for (let k = 0; k < DATA.generators.length; k++) {
+    if (!state.generators[k].unlocked) continue;
+    const cost = genUpgradeCost(state, k);
+    if (cost < bestCost) { bestCost = cost; bestK = k; }
+  }
+  return bestK < 0 ? null : { k: bestK, cost: bestCost };
+}
+export function buyCheapestGenUpgrade(state) {
+  const pick = cheapestGenUpgrade(state);
+  if (!pick || state.resources.cash < pick.cost) return false;
+  return buyGenUpgrade(state, pick.k);
+}
 
 export function amenityData(id) { return DATA.amenities.find(a => a.id === id); }
 export function amenityCost(state, id) {
@@ -378,9 +395,13 @@ export function buyPathFocus(state, id) {
 }
 
 export function nextAccTier(state) { return state.accommodation.tier + 1; }
+// cash cost for ANY tier (not just the next one) — used by the ladder panel to price a
+// lookahead window of upcoming tiers, not only the immediately-purchasable one.
+export function accCostForTier(state, tier) {
+  return M.accScore(tier) * C.ACC.cashMult * M.commsCostMult(state);
+}
 export function accCost(state) {
-  const t = nextAccTier(state);
-  return M.accScore(t) * C.ACC.cashMult * M.commsCostMult(state);
+  return accCostForTier(state, nextAccTier(state));
 }
 export function accUnlocked(state) {
   const t = nextAccTier(state);
@@ -397,6 +418,12 @@ export function buyAccommodation(state) {
   state.accommodation.owned.push(t);
   state._comfortCache = M.computeComfort(state, DATA);
   notify(state, 'unlock', `🏨 Upgraded to: ${DATA.accommodation[t].name}`);
+  // the 1-Star moment (E05-S6-T5/T7): a bigger, distinct arrival flash the moment you
+  // check into tier 4. Beat 7 (One Star, Big Dreams) itself fires from checkStory() on
+  // the same accTier:4 gate — this is purely the extra celebratory juice on top.
+  if (t === 4) {
+    notify(state, 'celebrate', '⭐ One whole star. The receptionist even smiled — at the guest behind you.');
+  }
   return true;
 }
 

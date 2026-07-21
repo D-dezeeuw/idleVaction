@@ -89,16 +89,39 @@ bought by the harness) sped income back toward mid-band, offsetting E03's amenit
 | S9 Save the Itinerary (offline) | 1 / 9 / 0 | Done-now: persist destinations/transport, generic-`backfill` migration (smoke-tested no-crash), offline applies `L_dest` + upkeep, no free unlocks. |
 | S10 Smooth the Trip (QA) | 0 / 8 / 2 | Done-now: `destMult`/`pathMult`/transport-upkeep tests, stack-order regression, edge cases. Superseded: ka-ching sound, reduced-motion animation. |
 
+### E05 — One Star, Big Dreams · **100/100** (present 35, done-now 35, superseded 30)
+A gap-fill. The high superseded count is *correct*: the epic's separate "accommodation
+renovation" upgrade layer is **superseded by the existing generator-tier `L_upgrade`** — a
+parallel income multiplier would double-count and force a retune. Instead the implementer
+extracted the existing inline `0.5` into `CONFIG.L_UPGRADE_RATE` + a pure `math.upgradeMult()`
+(value unchanged, behavior-identical) and surfaced it in a new windowed **ladder panel**.
+Island 16h42m → **17h41m** (1-star amenity cluster; in-band drift).
+
+| Story | present/done/superseded | Notes |
+|---|---|---|
+| S1 Blueprints (data) | 3 / 3 / 4 | Superseded: separate accommodation-upgrade array (would double `L_upgrade`); `ACC.unlock[]` array superseded by the existing continuous `accUnlockComfort` formula. |
+| S2 Renovation Crew (engine) | 7 / 2 / 1 | Done-now: `upgradeMult` extraction, `accCostForTier`. Superseded: multi-scope upgrade array (scope is inherently "which tier"). |
+| S3 The Front Desk (UI) | 2 / 6 / 2 | Done-now: windowed ladder panel (owned/current/next/locked), live Comfort gate, renovation legend + readouts. Superseded: bespoke per-render unlock animation; forking the whole-tree re-render pattern. |
+| S4 Renovations (headline) | 1 / 5 / 4 | Done-now: "Renovate cheapest" button, 1-star celebrate flash. Superseded: discrete named reno rows (don't exist in this model). |
+| S5 One-Star Amenities | 4 / 5 / 1 | Done-now: 6 `tag:'onestar'` amenities (conservative), validation, migration. Superseded: `xMult` wiring (schema-only across the whole codebase; wiring touches the forbidden multiplier stack). |
+| S6 Check-in, One Star | 5 / 4 / 1 | Present: tier-4 gate. Done-now: beat-7 celebrate, cosmetic swap, harness beat-time check. Superseded: retune of the fitted tier-4 cash cost. |
+| S7 Big Dreams, Any Build | 1 / 0 / 9 | Superseded: the whole story premise (path-scoped accommodation-reno bonuses) is the forbidden parallel layer; each synergy is already served by existing systems (`L_path`/`L_skill`, `savvyPassive`/crypto perk, Comfort clusters). |
+| S8 Tuning the Ladder | 3 / 3 / 4 | Done-now: harness in-band confirm, amenity cadence, celebrate-flash test. Superseded: tuning of nonexistent reno rows / `ACC.unlock[]`. |
+| S9 Guest Records (save) | 5 / 1 / 4 | Done-now: 1-star migration backfill. Superseded/flagged: corrupt-save **backup rotation** (T9) and accommodation **tier-clamp on downgrade** (T10) are real *pre-existing, prototype-wide* gaps — flagged for the E30 release-readiness pass, not silently patched. |
+| S10 Polish the Lobby (QA) | 4 / 6 / 0 | Done-now: `upgradeMult`/ladder/gate/beat-7 tests (6 new sections), reduced-motion-guarded glow. |
+
+> **Deferred pre-existing gaps** (surfaced by E05, not E05-specific): corrupt-save backup
+> rotation + accommodation tier-clamp on downgrade → scheduled for **E30** (release readiness).
+
 ---
 
-## Act II–VI — E05–E30
+## Act II–VI — E06–E30
 
 _Pending — appended as each phase's build pass audits its 100 tasks. Each row will carry the
 same `present / done-now / superseded` disposition and a per-phase tally in the commit + report._
 
 | Epic | Status |
 |---|---|
-| E05 One Star, Big Dreams | pending |
 | E06 Continental Comforts | pending |
 | E07 Making a Splash | pending |
 | E08 Sun, Sand & Service | pending |
@@ -128,5 +151,5 @@ same `present / done-now / superseded` disposition and a per-phase tally in the 
 ---
 
 ### Running total
-- **Audited:** 400 / 3,000 tasks (E01–E04) — present 201, done-now 161, superseded 38.
-- **Remaining:** 2,600 tasks (E05–E30).
+- **Audited:** 500 / 3,000 tasks (E01–E05) — present 236, done-now 196, superseded 68.
+- **Remaining:** 2,500 tasks (E06–E30).
