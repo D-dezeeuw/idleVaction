@@ -106,7 +106,32 @@ body { background: var(--iv-bg); color: var(--iv-ink); font-family: system-ui, s
 .iv-skills, .iv-skill, .iv-path { margin-bottom: 6px; }
 .iv-skill .bar { background: #0c151b; border-radius: 4px; height: 5px; overflow: hidden; margin-top: 3px; }
 .iv-skill .bar i { display: block; height: 100%; background: var(--iv-good); }
+.iv-skill-effect b { color: var(--iv-accent); }
 .label { background: #0c151b; color: var(--iv-accent); border-radius: 4px; padding: 1px 6px; font-size: .7rem; }
+
+/* Communication's discount-cap badge (E09-S3-T8): reuses the tree's .iv-maxed accent
+   color as a small inline pill next to the effect readout. */
+.iv-badge-maxed { background: #0c151b; color: var(--iv-good); border: 1px solid var(--iv-good);
+  border-radius: 4px; padding: 1px 6px; font-size: .68rem; margin-left: 4px; }
+
+/* skill level-up juice (E09-S3-T6/S10-T1): the toast reuses the SAME celebrate glow as
+   accommodation-tier arrivals; the bar itself gets a brief brightness pulse on the
+   specific skill that just leveled (see ui.js skillFlash). Both reduced-motion gated. */
+.iv-notif.iv-levelup { border-color: #6ab0ff; font-weight: bold; font-size: .88rem;
+  animation: slidein .25s ease, celebrateglow 1.2s ease 1; }
+.iv-skill-flash .bar i { animation: skillpulse .6s ease 1; }
+@keyframes skillpulse { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(2); } }
+@media (prefers-reduced-motion: reduce) {
+  .iv-notif.iv-levelup { animation: none; }
+  .iv-skill-flash .bar i { animation: none; }
+}
+
+/* training XP-gain popup (E09-S10-T1): mirrors .iv-splash-pop exactly (see ui.js
+   showXpPopup — body-anchored, since the training button's own container re-renders in
+   the same click). */
+.iv-xp-pop { position: absolute; transform: translateX(-50%); color: var(--iv-accent);
+  font-weight: bold; font-size: .8rem; pointer-events: none; z-index: 8; animation: splashfloat .7s ease-out forwards; }
+@media (prefers-reduced-motion: reduce) { .iv-xp-pop { animation: none; opacity: 0; } }
 
 /* path meter (E04-S3-T5): four thin bars, one per build-path archetype. */
 .iv-pathmeter { margin-bottom: 8px; }

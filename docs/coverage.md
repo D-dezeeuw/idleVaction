@@ -177,16 +177,35 @@ Comfort weight (forbidden — used higher `comfort` data values instead), servic
 | S9 Save/Migration/Offline | 6 / 1 / 3 | Present: generic offline/export/guards. Done-now: pre-E08 fixture migration test. Superseded: version bump, stacked-migration idempotency. |
 | S10 QA/Polish/Juice | 3 / 5 / 2 | Present: formatting, reduced-motion, beat-10 text. Done-now: promotion juice, finiteness, drift check, regression suite. Superseded: unlock-fuzz, path-scope regression. |
 
+### E09 — Charm Offensive · **100/100** (est. present 57, done-now 18, superseded 25)
+Gap-fill; skills system pre-existed. `config.js` untouched; `math.js` additions are pure preview
+helpers (`cumXpForLevel`/`charismaMult`/`commsDiscountPct`) — `tierMultiplier`/`commsCostMult`
+unchanged. Island **8h26m unchanged**. Notable: fixed a **real XP-bar display bug** (was `xp %
+need`, wrong once per-level costs differ) and added the missing **level-up detection + toast**.
+(Task tallies below estimated from the implementer's story-level audit; task-level gaps noted.)
+
+| Story | present/done/superseded | Notes |
+|---|---|---|
+| S1 Skills Data Model | 10 / 0 / 0 | `skills.js`/`TRAINING` pre-existed, matches intent. |
+| S2 XP→Level Engine | 8 / 2 / 0 | Done-now: level-up detection/emit (S2-T4 was genuinely missing). |
+| S3 Skills Panel UI | 3 / 7 / 0 | Done-now: live ×/discount readouts, next-level preview, XP-bar fix, level-up flash+toast, aria-live, maxed badge. |
+| S4 Charisma & Communication | 6 / 1 / 3 | Present: formulas, XP sources, copy, persistence. Superseded: story-choice XP grants (T4), exclusive-venue unlock (T5), dialogue-branch unlock (T6) — no story-choice-XP mechanic exists. |
+| S5 Training/Charm-School Cluster | 3 / 0 / 7 | Present: `TRAINING` delivers the XP-nudge goal. Superseded: the literal charm-school *amenity* cluster (would add Comfort items → balance-tuner review; deferred). |
+| S6 Boutique Retreat | 6 / 3 / 1 | Present: tier-8 + beats 10/11. Done-now: tier-8 celebrate + gate/beat-11 tests. Superseded: "salon" social-venue amenity (T3). |
+| S7 Vlogger Lean (path) | 3 / 0 / 7 | Present: compounding/availability/softcap are structurally free. Superseded: vlogger flavor extras (camera-confidence item, persona-beat variant, charm→path trickle = rejected runaway). |
+| S8 Balance & Tuning | 6 / 0 / 4 | Present: constants fitted (untouched). Superseded: golden/cadence tooling, fit procedure. |
+| S9 Save/Migration/Offline | 8 / 1 / 1 | Present: generic backfill + offline replay (tested: deleting `state.skills` still backfills, no NaN). Superseded: skill gains in away-summary (T6, minor). |
+| S10 QA/Polish/Juice | 4 / 4 / 2 | Done-now: level-up juice, cap/boundary/scope tests, fmt, aria-live. Superseded: preview-vs-charged-cost test, story-choice-XP test (mechanic absent). |
+
 ---
 
-## Act II–VI — E09–E30
+## Act II–VI — E10–E30
 
 _Pending — appended as each phase's build pass audits its 100 tasks. Each row will carry the
 same `present / done-now / superseded` disposition and a per-phase tally in the commit + report._
 
 | Epic | Status |
 |---|---|
-| E09 Charm Offensive | pending |
 | E10 Body & Soul | pending |
 | E11 Five-Star Frame of Mind | pending |
 | E12 Lights, Camera, Clout | pending |
@@ -212,8 +231,8 @@ same `present / done-now / superseded` disposition and a per-phase tally in the 
 ---
 
 ### Running total
-- **Audited:** 800 / 3,000 tasks (E01–E08) — present 334, done-now 300, superseded 166.
-- **Remaining:** 2,200 tasks (E09–E30).
+- **Audited:** 900 / 3,000 tasks (E01–E09) — present 391, done-now 318, superseded 191.
+- **Remaining:** 2,100 tasks (E10–E30).
 
 ### Deferred balance-tuner backlog (for a consolidated retune, latest at E30)
 - **`savvyPassive()` not ×`L_comfort`** (E06-S7-T4) — a flat sqrt-scaled additive term outside

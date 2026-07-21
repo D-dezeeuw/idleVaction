@@ -1281,5 +1281,110 @@ console.log('\n[41] E08 migration backfill: beach gap-fill + service chain');
     'a reloaded save recomputes Comfort identically to a fresh computeComfort() call — no drift (w_service NOT added, so no NaN risk from a missing term)');
 }
 
+// ---------- 42. E09 "Charm Offensive": xpToNext/levelFromXp curve round-trip, comms
+// discount clamp, Charisma scope (social-only), buyTraining XP/level-up, tier-8
+// (Boutique Retreat) gate + celebrate, beat 11 (Fork in the Lobby) seed, migration
+// (E09-S2-T10, S4-T10, S6-T10, S9-T2/T3, S10-T1/T2/T3/T4). ----------
+console.log('\n[42] E09 Charm Offensive: skills curve, scope, training, tier-8 + beat 11');
+{
+  // xpToNext/levelFromXp round-trip at several levels: exactly enough cumulative XP
+  // lands EXACTLY at that level; one epsilon short stays at the level below (no
+  // off-by-one rollover at the boundary).
+  for (const lvl of [0, 1, 5, 10, 20]) {
+    const cum = M.cumXpForLevel(lvl);
+    ok(M.levelFromXp(cum) === lvl, `levelFromXp(cumXpForLevel(${lvl})) === ${lvl} exactly at the boundary`);
+    if (lvl > 0) ok(M.levelFromXp(cum - 1e-6) === lvl - 1, `levelFromXp(cumXpForLevel(${lvl}) - epsilon) stays at ${lvl - 1} (no early rollover)`);
+  }
+  ok(approx(M.xpToNext(20), C.SKILL.base * Math.pow(C.SKILL.growth, 20)), 'xpToNext(20) matches SKILL.base·SKILL.growth^20 exactly');
+  ok(approx(M.charismaMult(20), 1.60), 'charismaMult(20) == 1.60 (the documented L20 sample point)');
+
+  // Communication cost discount clamp: never below 0.4 (the -60% floor), even at an
+  // absurd level, and hits the floor exactly at level = CAP/DISCOUNT.
+  const cm = ST.newGame();
+  ok(approx(M.commsCostMult(cm), 1), 'commsCostMult == 1 at comms level 0 (no discount, no tree perk)');
+  cm.skills.comms.level = Math.round(C.COMMS_DISCOUNT_CAP / C.COMMS_DISCOUNT); // exactly at the cap boundary
+  ok(approx(M.commsCostMult(cm), 1 - C.COMMS_DISCOUNT_CAP), 'commsCostMult hits the cap exactly at level = CAP/DISCOUNT');
+  cm.skills.comms.level = 1e5;
+  ok(approx(M.commsCostMult(cm), 0.4), 'commsCostMult floors at exactly 0.4 (the -60% cap) at an absurd comms level, never below');
+  ok(approx(M.commsDiscountPct(1e5), C.COMMS_DISCOUNT_CAP), 'commsDiscountPct clamps at COMMS_DISCOUNT_CAP, never exceeds it');
+
+  // L_skill (Charisma) scope: raises social tiers (D2/D3, tags 'social') but leaves
+  // non-social tiers (D1, D4) completely untouched (E09-S10-T4 scope regression).
+  const sc = ST.newGame();
+  sc.generators[0].bought = 20; sc.generators[0].count = 20;
+  sc.generators[3].bought = 5; sc.generators[3].count = 5;
+  const d1Before = M.tierMultiplier(sc, 0), d2Before = M.tierMultiplier(sc, 1), d4Before = M.tierMultiplier(sc, 3);
+  sc.skills.charisma.level = 20;
+  const d1After = M.tierMultiplier(sc, 0), d2After = M.tierMultiplier(sc, 1), d4After = M.tierMultiplier(sc, 3);
+  ok(approx(d1After, d1Before), 'Charisma leaves D1 (non-social, tag "content") tierMultiplier completely unchanged');
+  ok(approx(d4After, d4Before), 'Charisma leaves D4 (non-social, tag "business") tierMultiplier completely unchanged');
+  ok(approx(d2After / d2Before, 1 + C.CHARISMA_RATE * 20), 'Charisma raises D2 (social) tierMultiplier by EXACTLY 1 + CHARISMA_RATE·level');
+
+  // buyTraining: spends cash, grants XP to the trained skill, and can level up — through
+  // the shared buyTraining path (no bespoke purchase logic).
+  const tr = ST.newGame();
+  tr.resources.cash = 0;
+  ok(!E.buyTraining(tr, 'train_charisma'), 'buyTraining is blocked at zero cash');
+  ok(tr.skills.charisma.xp === 0, 'XP unchanged after a blocked buy');
+  tr.resources.cash = 1e6;
+  const xpBefore = tr.skills.charisma.xp, lvlBefore = tr.skills.charisma.level;
+  ok(E.buyTraining(tr, 'train_charisma'), 'buyTraining succeeds once affordable');
+  ok(tr.skills.charisma.xp > xpBefore, 'buyTraining grants XP to the trained skill');
+  ok(tr.training.train_charisma.bought === 1, 'buyTraining increments the training purchase count');
+  ok(tr.skills.charisma.level > lvlBefore, 'a single training purchase already levels up the skill (buyTraining -> refreshSkillLevels wiring)');
+  const luNotifs = E.drainNotifications(tr);
+  ok(luNotifs.some(n => n.type === 'levelup' && /Charisma/.test(n.text)),
+    'a training purchase that crosses a level boundary fires a distinct levelup notification (E09-S10-T1 juice)');
+
+  // tier-8 (Boutique Retreat): gate + distinct celebrate flash, mirroring tier 4/5/6/7.
+  const t8 = ST.newGame();
+  t8.accommodation.tier = 7; t8.accommodation.owned = [0, 1, 2, 3, 4, 5, 6, 7];
+  t8._comfortCache = M.accUnlockComfort(8) - 1;
+  t8.resources.cash = 1e18;
+  ok(!E.accUnlocked(t8), 'tier 8 (Boutique Retreat) is locked just below its Comfort gate');
+  ok(!E.buyAccommodation(t8), 'buyAccommodation is blocked below the tier-8 gate even with huge cash');
+
+  t8._comfortCache = M.accUnlockComfort(8);
+  ok(E.accUnlocked(t8), 'tier 8 unlocks exactly at its Comfort gate');
+  ok(E.buyAccommodation(t8), 'buyAccommodation succeeds into tier 8 (Boutique Retreat)');
+  ok(t8.accommodation.tier === 8, 'accommodation.tier advances to 8');
+  ok(t8.accommodation.owned.includes(8), 'tier 8 pushed to ownedTiers');
+  ok(approx(M.accScore(8), C.ACC.base * Math.pow(C.ACC.growth, 8)), 'accScore(8) == ACC.base·ACC.growth^8 (the documented formula)');
+  const t8notifs = E.drainNotifications(t8);
+  ok(t8notifs.some(n => n.type === 'celebrate' && /Boutique/i.test(n.text)),
+    'the tier-8 arrival fires a distinct celebratory notification alongside the tier-up');
+
+  // beat 11 (Fork in the Lobby) seed: fires once its Comfort gate is met, after beat 10,
+  // and persists across a save/reload round-trip — never double-fires.
+  const b11 = ST.newGame();
+  b11.skills.charisma.level = 5;
+  b11.accommodation.tier = 7;
+  b11._comfortCache = 2.2e5 - 1;
+  E.checkStory(b11);
+  ok(!b11.story.seen.includes(11), 'beat 11 has NOT fired just below its Comfort gate (2.2e5)');
+
+  b11._comfortCache = 2.2e5;
+  E.checkStory(b11);
+  ok(b11.story.seen.includes(10), 'beat 10 fires first (narrative monotonicity)');
+  ok(b11.story.seen.includes(11), 'beat 11 (Fork in the Lobby) fires once Comfort reaches 2.2e5');
+  ok(b11.story.seen.filter(x => x === 11).length === 1, 'beat 11 is recorded exactly once');
+  E.checkStory(b11); E.checkStory(b11);
+  ok(b11.story.seen.filter(x => x === 11).length === 1, 'repeated checkStory calls do not re-fire beat 11');
+
+  const reloadedB11 = ST.migrate(JSON.parse(JSON.stringify(b11)));
+  ok(reloadedB11.story.seen.includes(11), 'beat 11 survives a save/reload round-trip');
+
+  // migration: a pre-E09 save missing state.skills entirely backfills to level 0 /
+  // neutral multipliers, no NaN (E09-S9-T2/T3).
+  const oldSkillsSave = ST.newGame();
+  delete oldSkillsSave.skills;
+  const migratedSkills = ST.migrate(JSON.parse(JSON.stringify(oldSkillsSave)));
+  ok(migratedSkills.skills && migratedSkills.skills.charisma.level === 0 && migratedSkills.skills.comms.level === 0,
+    'migration backfills a missing state.skills entirely, defaulting every skill to level 0');
+  E.tick(migratedSkills, 1);
+  ok(Number.isFinite(migratedSkills.resources.cash), 'ticking a migrated pre-E09 (no skills) save does not crash and cash stays finite');
+  ok(approx(M.commsCostMult(migratedSkills), 1), 'a migrated save with comms level 0 has a neutral (×1) cost multiplier — no NaN');
+}
+
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);
 process.exit(fails === 0 ? 0 : 1);

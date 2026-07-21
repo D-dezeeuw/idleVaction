@@ -76,6 +76,10 @@ function renderNotifications(s) {
   if (!n.length) return;
   const box = el('notifs');
   for (const item of n) {
+    // skill level-up juice (E09-S3-T6/T7/S10-T1): turn the engine's 'levelup' event into
+    // a bar-flash trigger + an aria-live announcement, on top of the toast every notif
+    // type already gets below.
+    if (item.type === 'levelup') { noteSkillLevelUp(item.text); announceSkill(item.text); }
     const d = document.createElement('div');
     d.className = 'iv-notif iv-' + item.type;
     d.textContent = item.text;
@@ -439,6 +443,22 @@ function showSplashPopup(btnEl, emoji = '💦') {
   setTimeout(() => pop.remove(), 700);
 }
 
+// training XP-gain popup (E09-S10-T1 "training feel"): mirrors showSplashPopup's
+// body-anchored floating-text trick exactly — the training button's own container
+// (#skills) re-renders in this very same click, so the popup is appended to <body> at
+// the button's captured coordinates rather than as its child.
+function showXpPopup(btnEl, text) {
+  if (!btnEl) return;
+  const rect = btnEl.getBoundingClientRect();
+  const pop = document.createElement('span');
+  pop.className = 'iv-xp-pop';
+  pop.textContent = text;
+  pop.style.left = `${rect.left + rect.width / 2 + window.scrollX}px`;
+  pop.style.top = `${rect.top + window.scrollY}px`;
+  document.body.appendChild(pop);
+  setTimeout(() => pop.remove(), 700);
+}
+
 // aria-live purchase tickers (E07-S3-T8, extended E08-S3-T7): genuinely persistent live
 // regions (declared once in index.html, never wiped by the panel's innerHTML replace) so
 // a text-only content change is what screen readers actually announce.
@@ -451,16 +471,60 @@ function announceBeach(text) {
   if (live) live.textContent = text;
 }
 
+// skill level-up flash (E09-S3-T6/S10-T1): a brief bar pulse on the skill that just
+// leveled, detected from the drained 'levelup' notification text itself (no new state
+// field — same category as the transient module state above showTapPopup/showSplashPopup
+// use). Motion is entirely gated in CSS (prefers-reduced-motion).
+const skillFlash = {};
+function noteSkillLevelUp(text) {
+  const m = /^✨ (.+) L(\d+)!$/.exec(text);
+  if (m) skillFlash[m[1]] = Date.now() + 900;
+}
+let commsMaxedAnnounced = false; // one-shot aria-live nudge (E09-S3-T8/S10-T7), see renderSkills
+function announceSkill(text) {
+  const live = el('skillAnnounce');
+  if (live) live.textContent = text;
+}
+
+// live effect readouts + next-level preview (E09-S3-T3/T5/T8): makes the "charm → money,
+// comms → cheaper" link explicit at the point of training. tierMultiplier's own L_skill
+// blend and commsCostMult's own clamp stay the real math (math.js) — this just reads the
+// SAME preview helpers (M.charismaMult / M.commsDiscountPct) the panel and the tests share.
+function skillEffectReadout(sk, st) {
+  if (sk.id === 'charisma') {
+    const mult = M.charismaMult(st.level);
+    const next = M.charismaMult(st.level + 1);
+    return `<div class="iv-sub iv-skill-effect">📣 Social income <b>×${fmt(mult)}</b> (L${st.level}) on Followers &amp; Sponsor Slides
+      <br><small>next level: +${((next - mult) * 100).toFixed(0)}% social income</small></div>`;
+  }
+  if (sk.id === 'comms') {
+    const pct = M.commsDiscountPct(st.level);
+    const nextPct = M.commsDiscountPct(st.level + 1);
+    const maxed = pct >= C.COMMS_DISCOUNT_CAP - 1e-9;
+    if (maxed && !commsMaxedAnnounced) { commsMaxedAnnounced = true; announceSkill('Communication discount maxed at −60%.'); }
+    return `<div class="iv-sub iv-skill-effect">💸 All purchases <b>−${(pct * 100).toFixed(1)}%</b>
+      ${maxed ? '<span class="iv-badge-maxed">MAXED −60%</span>'
+              : `<br><small>next level: −${((nextPct - pct) * 100).toFixed(2)}% more (cap −${(C.COMMS_DISCOUNT_CAP * 100).toFixed(0)}%)</small>`}</div>`;
+  }
+  return '';
+}
+
 function renderSkills(s) {
   let html = '<div class="iv-skills">';
   for (const sk of DATA.skills) {
     const st = s.skills[sk.id];
     const need = M.xpToNext(st.level);
-    const into = st.xp; // rough display
-    html += `<div class="iv-skill">
+    const intoLevel = Math.max(0, st.xp - M.cumXpForLevel(st.level));
+    const pct = clamp(100 * intoLevel / need, 0, 100);
+    const justLeveled = skillFlash[sk.name] && Date.now() < skillFlash[sk.name];
+    html += `<div class="iv-skill${justLeveled ? ' iv-skill-flash' : ''}">
       <b>${sk.name}</b> <span class="label">Lv ${st.level}</span>
       <div class="iv-sub">${sk.effect}</div>
-      <div class="bar"><i style="width:${Math.min(100, 100 * (into % need) / need)}%"></i></div>
+      ${skillEffectReadout(sk, st)}
+      <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct.toFixed(0)}"
+        aria-label="${sk.name} progress: ${fmt(intoLevel)} of ${fmt(need)} XP to level ${st.level + 1}">
+        <i style="width:${pct.toFixed(1)}%"></i>
+      </div>
     </div>`;
   }
   html += '</div><div class="iv-tag">training</div><div class="iv-amenities">';
@@ -596,7 +660,14 @@ function handle(action, arg, btnEl) {
       }
       break;
     }
-    case 'buy-training': E.buyTraining(S, arg); break;
+    case 'buy-training': {
+      // XP-gain feedback (E09-S10-T1 "training feel"): a floating "+Nxp" popup on a
+      // successful buy, on top of the level-up flash/toast a crossed boundary already
+      // triggers via engine.refreshSkillLevels's 'levelup' notification.
+      const t = E.trainingData(arg);
+      if (E.buyTraining(S, arg)) showXpPopup(btnEl, `+${fmt(t.xp)}xp`);
+      break;
+    }
     case 'buy-path': E.buyPathFocus(S, arg); break;
     case 'buy-acc': E.buyAccommodation(S); break;
     case 'buy-dest': E.buyDestination(S, arg); break;
