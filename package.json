@@ -1,0 +1,14 @@
+{
+  "name": "idlevaction",
+  "version": "0.1.0",
+  "description": "From soggy Dutch motel to private-island mogul — a player-directed idle game.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node js/dev/selftest.mjs",
+    "serve": "python3 -m http.server 8080"
+  },
+  "//": "type:module is ONLY for local tooling/tests (node --check, selftest). GitHub Pages ignores this file; the browser loads index.html + <script type=module> statically. There are ZERO runtime dependencies.",
+  "keywords": ["idle", "game", "incremental", "vanilla-js", "github-pages"],
+  "license": "SEE LICENSE IN LICENSE"
+}
