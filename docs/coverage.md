@@ -69,7 +69,7 @@ The E01 *mechanics* are all real; the pass filled the missing juice/QA.
 | S9 Save / migration / offline | 8 / 2 / 0 | New fields via generic `backfill()`. Done-now: `npcsMet`/`bulkMode` persistence + reload test. |
 | S10 QA / polish / juice | 3 / 6 / 1 | Done-now: bulk-math, chaining, NPC, persistence tests + validation. Superseded: cosmetic juice (per-row milestone flash, ripple). |
 
-### E04 — The Backpacker Circuit · **100/100** (present 20, done-now 72, superseded 8)
+### E04 — The Backpacker Circuit · **100/100** (present 20, done-now 68, superseded 12)
 A real build (destinations, transport, and the `L_dest` global multiplier are net-new). Notable
 balance discipline: destination `mult` was set **below** the epic's 1.08–1.20 range (to
 1.025–1.04, product ≈1.29) because the harness showed the epic range collapses island time to
@@ -128,5 +128,5 @@ same `present / done-now / superseded` disposition and a per-phase tally in the 
 ---
 
 ### Running total
-- **Audited:** 400 / 3,000 tasks (E01–E04) — present 201, done-now 165, superseded 34.
+- **Audited:** 400 / 3,000 tasks (E01–E04) — present 201, done-now 161, superseded 38.
 - **Remaining:** 2,600 tasks (E05–E30).
