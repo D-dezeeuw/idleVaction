@@ -238,7 +238,12 @@ function handle(action, arg) {
     case 'buy-node': P.buyNode(S, arg); break;
     case 'respec': if (confirm('Refund all Legacy and clear the tree?')) P.respec(S); break;
     case 'click': E.click(S); break;
-    case 'set-speed': S.settings.gameSpeed = Number(arg); break;
+    case 'set-speed': S.settings.gameSpeed = Number(arg); renderControls(S); break;
+    case 'set-speed-custom': {
+      const v = Number(document.getElementById('speedInput')?.value);
+      if (Number.isFinite(v) && v >= 0) S.settings.gameSpeed = Math.min(v, C.GAME_SPEED_MAX);
+      renderControls(S); break;
+    }
     case 'toggle-debug': S.settings.debug = !S.settings.debug; renderDebug(); break;
     case 'dbg-cash': S.resources.cash += 1e6 * Math.pow(1000, Number(arg)); break;
     case 'dbg-comfort': S.stats.lifetimeCash += 1e9; S.skills.body.xp += 5000; break;
@@ -257,7 +262,10 @@ export function renderControls(state) {
     `<button class="btn btn-sm ${state.settings.gameSpeed === v ? 'btn-primary' : ''}" data-action="set-speed" data-arg="${v}">${v}×</button>`).join('');
   el('controls').innerHTML = `
     <button class="btn btn-lg btn-primary" data-action="click">👆 Tap (small gain + combo)</button>
-    <span class="iv-speed">Speed: ${speeds}</span>
+    <span class="iv-speed">Speed <b>${state.settings.gameSpeed}×</b>: ${speeds}
+      <input id="speedInput" type="number" min="0" step="1" value="${state.settings.gameSpeed}"
+        style="width:74px" title="Custom pace — 1 = natural course, high = hyperspeed for testing">
+      ${btn('set-speed-custom', '', 'Set×')}</span>
     ${btn('save', '', '💾 Save')}
     ${btn('export', '', 'Export')}
     ${btn('import', '', 'Import')}

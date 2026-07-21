@@ -79,8 +79,14 @@ export const CONFIG = {
   TREE: { nodeBase: 5, nodeGrowth: 2.0 },
 
   // ---- pacing / QA (NEVER used to balance — only to pace/test) ----
-  GAME_SPEED_CHOICES: [0.25, 0.5, 1, 2, 5, 10, 100, 1000],
+  // gameSpeed multiplies simulated time in the loop. 1 = natural course; the high presets +
+  // the custom input let QA run the ~20h arc in seconds. The custom field accepts any value
+  // up to GAME_SPEED_MAX (hyperspeed). Effective speed is also bounded by MAX_STEPS_PER_FRAME
+  // (a per-frame tick budget so a huge speed can't hang the tab).
+  GAME_SPEED_CHOICES: [0.25, 0.5, 1, 2, 5, 10, 100, 1000, 10000],
   DEFAULT_GAME_SPEED: 1,
+  GAME_SPEED_MAX: 1e6,
+  MAX_STEPS_PER_FRAME: 20000,   // at 10 tps → 2000 sim-sec/frame → a 20h run in ~0.3s real
 
   SAVE_KEY: 'idlevaction.save.v1',
   SAVE_VERSION: 1,

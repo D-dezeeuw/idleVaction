@@ -49,7 +49,8 @@ function frame(now) {
   real = Math.min(real, C.MAX_FRAME_MS);
   acc += real * state.settings.gameSpeed;
   let steps = 0;
-  while (acc >= TICK && steps < 10000) { E.tick(state, TICK / 1000); acc -= TICK; steps++; }
+  while (acc >= TICK && steps < C.MAX_STEPS_PER_FRAME) { E.tick(state, TICK / 1000); acc -= TICK; steps++; }
+  if (steps >= C.MAX_STEPS_PER_FRAME) acc = 0;   // hyperspeed: drop backlog, don't spiral
 
   if (now - lastRender > 1000 / C.RENDER_FPS) { UI.render(state); lastRender = now; }
   if (now - lastSave > C.AUTOSAVE_SEC * 1000) { ST.save(state); lastSave = now; }

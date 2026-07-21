@@ -294,3 +294,55 @@ Define milestone times `T_target(beat)` (see `docs/05`). The balance harness sim
 4. `COMFORT_MULT`, `C0` — global multiplier strength.
 5. `LEGACY_K`, `LEGACY_SCALE` — prestige loop length.
 6. `GAME_SPEED` — the player/QA time knob (never used to *balance*, only to *pace/test*).
+
+---
+
+## 11. Common progression curves (which curve, where — and the "parabola" question)
+
+Short answer to *"isn't it a parabola instead of linear?"*: **it's definitely not linear —
+and you're half-right.** There are two different axes and they use two different curves:
+
+- **Cost vs. purchase count** is **geometric / exponential** (`base · growth^n`). This is *the*
+  backbone of the genre.
+- **Cash vs. time** is **polynomial** — and a polynomial of degree 2 *is a parabola*. Our tier
+  chain makes `cash(t)` a polynomial whose **degree = the number of active income tiers**
+  (`docs/01 §1.1`). Two active tiers → parabola; three → cubic; etc. The 20h fit deliberately
+  keeps the degree low (~2–3), so for most of the run cash-over-time really is parabola-ish.
+
+So "parabola" is the right instinct for the **production/time** curve; "exponential" is the
+right answer for the **cost** curve. The one thing it is *not* is linear.
+
+### The full toolbox (and where each is used)
+
+| Curve | Formula | Shape | Where we use it |
+|---|---|---|---|
+| **Linear** | `y = a·n` | straight | *only* for small additive bonuses **inside** a multiplier layer (e.g. `L_upgrade = 1 + 0.5·n`). Never for costs — a linear cost is trivially outrun. |
+| **Quadratic / parabola** | `y = a·n²` | ∪ | `cash(t)` when **2 tiers** are active — the natural early/mid pacing shape. |
+| **Polynomial (degree D)** | `y ≈ a·tᴰ / D!` | steepening | `cash(t)` with **D active tiers**. Raising D (buying a new tier) is how the curve accelerates; the fit keeps D low to stretch the run. |
+| **Geometric / exponential** | `y = base·rⁿ` | explosive | **every cost curve** (`cost_k(n)=base·growth^n`, `growth≈1.1–1.5`) and the *amenity/skill/training* costs. This is what guarantees "always a next goal, never trivial." |
+| **Logarithmic** | `y = 1 + a·log₁₀(1+x/x₀)` | flattening | **soft global multipliers**: `L_comfort` (Comfort→income). Diminishing but never-ending — safe to stack. |
+| **Square root (power < 1)** | `y = k·√x` | flattening | **prestige** payout: `legacyGain ∝ √(lifetimeCash)`. 4× the run → 2× the reward: worthwhile but self-limiting. Also `savvy passive ∝ √(cash)`. |
+| **Sub-linear power** | `y = 1 + a·x^0.85` | gentle | **path** bonuses (`L_path`) — early points feel great, whales don't run away. |
+| **Logistic / saturating** | `y = cap·x/(x+cap)` | S→plateau | a harder soft cap (approaches `cap`). Available for path/energy caps. *(Comfort itself was switched from this to unbounded so it can gate billion-scale story beats — see math-proof.)* |
+
+### Why the *combination* is the whole trick
+
+Pacing tension = **exponential costs racing polynomial/exponential income**. Because
+`cost_k(n)=base·growth^n` outruns the linear `count` in production, the *time to afford the
+next unit* naturally stretches — that's the self-correcting "idle" rhythm. The multiplier
+layers (log/sqrt/sub-linear, all **softcapped**) then nudge the coefficients without turning
+the whole thing into a runaway. The one curve we must **never** let sneak in is *income scaling
+as a positive power of cash* — that's exactly the finite-time singularity the soft-capped
+milestone prevents (see `docs/math-proof.md`).
+
+### As code (each curve, one line — see also `docs/07-code-snippets.md`)
+
+```js
+const linear      = (a, n)            => a * n;                       // additive-in-layer only
+const parabola    = (a, n)            => a * n * n;                   // cash(t), 2 active tiers
+const geometric   = (base, r, n)      => base * Math.pow(r, n);      // EVERY cost curve
+const logSoftcap  = (a, x, x0)        => 1 + a * Math.log10(1 + x / x0);   // L_comfort
+const sqrtPrestige= (k, x)            => k * Math.sqrt(x);           // legacyGain
+const subLinear   = (a, x, e = 0.85)  => 1 + a * Math.pow(x, e);     // L_path
+const logistic    = (cap, x)          => cap * x / (x + cap);        // saturating soft cap
+```

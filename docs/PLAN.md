@@ -29,7 +29,10 @@ Full conventions: **[`docs/06-plan-format.md`](06-plan-format.md)**.
 5. **[`04-ascension-and-skill-tree.md`](04-ascension-and-skill-tree.md)** — ascension loop, Legacy currency, the permanent **physique/character** skill tree, second prestige layer.
 6. **[`05-balancing-and-pacing.md`](05-balancing-and-pacing.md)** — the 20h pacing contract, the 12 tuning levers, the balance harness, softcaps, the fun-cadence spec, the BigNumber swap, and the **honest prototype balance status**.
 7. **[`06-plan-format.md`](06-plan-format.md)** — the agile mapping & per-file structure.
-8. **[`math-proof.md`](math-proof.md)** — a measured investigation of the economy at scale: does one run hold to 20h, does it scale with ascensions/skill trees, precision — with the root-cause derivation of the finite-time singularity, the verified soft-cap fix, and prioritized improvements (P0 applied, P1–P5 proposed).
+8. **[`07-code-snippets.md`](07-code-snippets.md)** — concrete JS for every complex part (the game loop + pace modifier, cost/production curves, the soft-capped milestone, the multiplier stack, Comfort, skills, prestige, offline, save/migrate, the harness) — mirrored from `js/**`.
+9. **[`math-proof.md`](math-proof.md)** — a measured investigation of the economy at scale: does one run hold to 20h (**yes — fitted to island ≈ 18h**), does it scale with ascensions/skill trees, precision — with the root-cause derivation of the finite-time singularity, the verified soft-cap fix, and prioritized improvements (P0 + P1 applied, P2–P5 proposed).
+
+> **Common progression curves** (linear vs. parabola vs. geometric vs. log/√/logistic — and *which* the game uses *where*) are explained in **[`01-math-foundation.md §11`](01-math-foundation.md)**. Short version: **costs are geometric/exponential**, **cash-over-time is polynomial (a parabola at 2 active tiers)** — never linear.
 
 ## The 30 epics (phases)
 
@@ -72,16 +75,21 @@ A vertical slice implementing the core of the above lives at repo root and **run
 
 - `index.html` + `css/game.css` + `js/**` — vanilla ES modules, Spectre.css from CDN, no build.
 - Implements: the tick loop, 8-tier income ladder, amenities/Comfort, the 5 skills, 4 paths,
-  the 30 story beats with the branch choice, accommodation ladder, **ascension + Legacy + the
-  permanent skill tree**, **offline progress**, save/load/export/import/migrate, a **GAME_SPEED**
-  pacing control, a debug/grant panel, and an optional clicker.
+  the 30 story beats (monotonic, with the branch choice), accommodation ladder, **ascension +
+  Legacy + the permanent skill tree**, **offline progress**, save/load/export/import/migrate, a
+  **pace modifier** (`GAME_SPEED` presets `0.25…10000×` + a custom input up to `1e6×` for
+  hyperspeed testing), a debug/grant panel, and an optional clicker.
 - **Run it:** `npm run serve` then open `http://localhost:8080` (or push to GitHub Pages).
-- **Verify the math headlessly:** `npm test` → runs `js/dev/selftest.mjs` (the balance harness),
-  which prints the story-beat time curve and asserts economy growth, ladder climb, ascension,
-  tree, save round-trip, and offline correctness. Currently **all pass**.
+- **Verify headlessly:**
+  - `npm test` → `js/dev/selftest.mjs` asserts economy growth, ladder climb, ascension, tree,
+    save round-trip, offline. **All pass.**
+  - `npm run harness` → `js/dev/harness.mjs` prints the full **~20h pacing curve** (greedy-
+    optimal island ≈ **18h**; beats spread monotonically; peak cash `1e11`, safely inside `double`).
 
-> The prototype is a *foundation demo*, not a finished balanced build — see the honest
-> **§9 balance status** in `docs/05`. Exact 20h tuning is E30, with the harness already in place.
+> **Balance status:** the economy is **fitted to the ~20h target** (`docs/05 §9` has the golden
+> curve). It got there through a real fix — the first pass was a finite-time singularity, now
+> corrected (`docs/math-proof.md`). Remaining polish (even gate spacing, playtest, the ascension
+> meta-layer, endgame precision) is tracked in E30 and the math-proof's P2–P5.
 
 ## Design pillars (traceability)
 
