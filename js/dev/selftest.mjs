@@ -959,5 +959,153 @@ console.log('\n[31] E06 migration backfill: breakfast cluster');
     'a reloaded save recomputes Comfort identically to a fresh computeComfort() call — no drift (E06-S9-T10)');
 }
 
+// ---------- 32. E07: pool cluster data validation + gap-fill fields (E07-S1-T10,
+// S4-T1/T6, S6-T1/T2/T7) — the drift-guardrail-capped ≤4 net-new pool amenities. ----------
+console.log('\n[32] E07 pool cluster: data validation + gap-fill fields');
+{
+  const pool = DATA.amenities.filter(a => a.tag === 'pool');
+  ok(pool.length >= 8 && pool.length <= 11, `the pool cluster has 8-11 amenities (got ${pool.length})`);
+
+  const seenIds = new Set();
+  for (const a of pool) {
+    ok(!seenIds.has(a.id), `pool amenity id is unique: ${a.id}`);
+    seenIds.add(a.id);
+    ok(a.costBase > 0, `${a.id}: costBase > 0`);
+    ok(a.comfort >= 0, `${a.id}: comfort >= 0`);
+    const g = a.costGrowth || C.AMENITY.growthDefault;
+    ok(g > 1, `${a.id}: effective costGrowth > 1 (${g})`);
+  }
+
+  // the ≤4-item drift-guardrail gap-fill (E07 gap-fill report): exactly these new ids,
+  // the two floatables at the DEFAULT growth, the two-tier cocktail chain steeper.
+  const newIds = ['pool_floatie_pizza', 'pool_floatie_swan', 'pool_cocktail_2', 'pool_cocktail_3'];
+  ok(newIds.length <= 4, 'the E07 gap-fill adds at most 4 net-new pool amenities (drift guardrail)');
+  for (const id of newIds) ok(pool.some(a => a.id === id), `gap-fill amenity present: ${id}`);
+
+  const floaties = pool.filter(a => ['pool_floatie_pizza', 'pool_floatie_swan'].includes(a.id));
+  ok(floaties.every(a => !a.costGrowth), 'the new floatables use the DEFAULT costGrowth (~1.5), no override');
+
+  const cocktailChain = pool.filter(a => ['cocktail_1', 'pool_cocktail_2', 'pool_cocktail_3'].includes(a.id));
+  ok(cocktailChain.slice(1).every(a => a.costGrowth === 1.8),
+    'the new cocktail-service tiers use a steeper costGrowth (1.8) than the floaties (E07-S6-T2)');
+  let prevCost = 0, prevComfort = 0;
+  for (const a of cocktailChain) {
+    ok(a.costBase > prevCost, `${a.id}: cocktail chain costBase strictly increases (${a.costBase} > ${prevCost})`);
+    ok(a.comfort > prevComfort, `${a.id}: cocktail chain comfort strictly increases (${a.comfort} > ${prevComfort})`);
+    prevCost = a.costBase; prevComfort = a.comfort;
+  }
+
+  // unlockComfort stays in the SAME low band as the pre-existing 7 items — this
+  // cluster ships far below its own tier's Comfort gate (unlike onestar/breakfast,
+  // which bracket THEIR tier gates) — so every pool item resolves well before tier 7.
+  const gate7 = M.accUnlockComfort(7);
+  ok(pool.every(a => a.unlockComfort < gate7), 'the whole pool cluster (existing + gap-fill) resolves before the tier-7 gate');
+}
+
+// ---------- 33. E07: Poolside panel reveal gating — pure logic mirroring ui.js's
+// poolRevealed(s) exactly (E07-S7-T3/T7/T10, mirrors the E05-S3 "no drift" pattern). ----------
+console.log('\n[33] E07 Poolside panel reveal gating (mirrors ui.js poolRevealed exactly)');
+{
+  const poolRevealed = s => !!s.story.flags.poolTease || s.accommodation.tier >= 6;
+
+  const fresh = ST.newGame();
+  ok(!poolRevealed(fresh), 'the Poolside panel stays hidden on a fresh game (no tease, tier 0)');
+
+  const teased = ST.newGame();
+  teased.story.flags.poolTease = true;
+  ok(poolRevealed(teased), 'the Poolside panel reveals once story.flags.poolTease is set (pre-tier-6 preview)');
+
+  const arrived = ST.newGame();
+  arrived.accommodation.tier = 6;
+  ok(poolRevealed(arrived), 'the Poolside panel reveals once accommodation.tier reaches 6, even without the tease flag');
+
+  const both = ST.newGame();
+  both.story.flags.poolTease = true;
+  both.accommodation.tier = 6;
+  ok(poolRevealed(both), 'the Poolside panel stays revealed once both conditions hold');
+}
+
+// ---------- 34. E07: integration — the gap-fill cocktail tiers (and the pool cluster
+// as a whole) raise Comfort and per-second income end-to-end (E07-S2-T1/T7, S6-T1/T9). ----------
+console.log('\n[34] E07 integration: pool amenities (existing + gap-fill) raise Comfort and cash/s');
+{
+  const ig = ST.newGame();
+  ig.resources.cash = 1e9;
+  E.buyGenerator(ig, 0, 20);
+  ig.accommodation.tier = 6;                       // well past every pool unlockComfort
+  ig._comfortCache = M.computeComfort(ig, DATA);
+  const prodBefore = M.tierProd(ig, 0);
+  ok(prodBefore > 0, `baseline income established (${fmt(prodBefore)}/s)`);
+
+  // the two new cocktail tiers specifically, via the shared buyAmenity path — no
+  // bespoke purchase code (E07-S6-T1/T9).
+  const comfortBeforeCocktail = ig._comfortCache;
+  ok(E.buyAmenity(ig, 'pool_cocktail_2'), 'buyAmenity succeeds for the new Mixologist Cart tier');
+  ok(ig.amenities.pool_cocktail_2.level === 1, 'Mixologist Cart level increments on a successful buy');
+  ok(E.buyAmenity(ig, 'pool_cocktail_3'), 'buyAmenity succeeds for the new Butler-Served Cocktail tier');
+  ok(ig.amenities.pool_cocktail_3.level === 1, 'Butler-Served Cocktail level increments on a successful buy');
+  ok(ig._comfortCache > comfortBeforeCocktail, 'buying the new cocktail tiers raised Comfort');
+
+  const comfortBefore = ig._comfortCache;
+  const prodMid = M.tierProd(ig, 0);
+  let boughtAny = false;
+  for (const a of DATA.amenities.filter(x => x.tag === 'pool')) {
+    while (E.amenityUnlocked(ig, a.id) && E.amenityCost(ig, a.id) <= ig.resources.cash) {
+      if (E.buyAmenity(ig, a.id)) boughtAny = true; else break;
+    }
+  }
+  ok(boughtAny, 'bought at least one more pool amenity across the whole cluster');
+  const prodAfter = M.tierProd(ig, 0);
+  ok(ig._comfortCache >= comfortBefore, 'buying more pool amenities never lowers Comfort');
+  ok(prodAfter > prodMid, 'higher Comfort raised per-second cash output via L_comfort end-to-end');
+}
+
+// ---------- 35. E07: beat 9 (Making a Splash) fires exactly at accTier 6, plus the
+// distinct "there is a POOL" arrival flash, once + persisted (E07-S2-T9, S7-T4/T10). ----------
+console.log('\n[35] E07 beat 9 (Making a Splash) fires exactly at accTier 6 + pool celebrate flash');
+{
+  const b9 = ST.newGame();
+  b9.accommodation.tier = 5;
+  b9._comfortCache = 1e9;
+  E.checkStory(b9);
+  ok(!b9.story.seen.includes(9), 'beat 9 has NOT fired at accTier 5, even with huge Comfort');
+
+  b9.accommodation.tier = 6;
+  E.checkStory(b9);
+  ok(b9.story.seen.includes(9), 'beat 9 fires the moment accommodation.tier reaches 6');
+  ok(b9.story.seen.filter(x => x === 9).length === 1, 'beat 9 is recorded exactly once');
+  E.checkStory(b9); E.checkStory(b9);
+  ok(b9.story.seen.filter(x => x === 9).length === 1, 'repeated checkStory calls do not re-fire beat 9');
+
+  // the extra celebratory flash fires alongside the real tier-up (engine.buyAccommodation),
+  // distinct from the generic "Upgraded to" notification (mirrors the tier-4/5 flashes).
+  const arr = ST.newGame();
+  arr.accommodation.tier = 5; arr.accommodation.owned = [0, 1, 2, 3, 4, 5];
+  arr._comfortCache = M.accUnlockComfort(6);
+  arr.resources.cash = E.accCost(arr);
+  ok(E.buyAccommodation(arr), 'buyAccommodation succeeds into tier 6');
+  const notifs = E.drainNotifications(arr);
+  ok(notifs.some(n => n.type === 'celebrate' && /POOL/.test(n.text)),
+    'the 3-Star arrival fires a distinct "there is a POOL" celebratory notification alongside the tier-up');
+
+  const reloadedB9 = ST.migrate(JSON.parse(JSON.stringify(b9)));
+  ok(reloadedB9.story.seen.includes(9), 'beat 9 survives a save/reload round-trip');
+}
+
+// ---------- 36. E07: migration backfill for the pool gap-fill cluster (E07-S10-T2). ----------
+console.log('\n[36] E07 migration backfill: pool gap-fill cluster');
+{
+  const newIds = ['pool_floatie_pizza', 'pool_floatie_swan', 'pool_cocktail_2', 'pool_cocktail_3'];
+  const oldSave = ST.newGame();
+  for (const id of newIds) delete oldSave.amenities[id];
+  const migrated = ST.migrate(JSON.parse(JSON.stringify(oldSave)));
+  ok(newIds.every(id => migrated.amenities[id] && migrated.amenities[id].level === 0),
+    'migration backfills every new pool amenity id at level 0 for a save that predates them');
+  E.tick(migrated, 1);
+  ok(Number.isFinite(migrated.resources.cash), 'ticking a migrated pre-E07 save does not crash and cash stays finite');
+  ok(approx(migrated._comfortCache, M.computeComfort(migrated, DATA)),
+    'a reloaded save recomputes Comfort identically to a fresh computeComfort() call — no drift');
+}
+
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);
 process.exit(fails === 0 ? 0 : 1);
