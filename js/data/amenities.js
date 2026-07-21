@@ -21,6 +21,17 @@ export const AMENITIES = [
   { id: 'hostel_hot_shower',    name: 'Reliably Hot Shower',    tag: 'hostel', costBase: 1700, comfort: 15, xMult: 0.02, xScope: 'all',    unlockComfort: 170, flavor: 'Hot water, on demand. You almost cry. Fine — you do cry.' },
   { id: 'hostel_wifi',          name: 'Wi-Fi That Reaches Bunk 7', tag: 'hostel', costBase: 2100, comfort: 17, xMult: 0.03, xScope: 'social', unlockComfort: 190, flavor: 'One bar. Just enough to like a photo. A society runs on less.' },
 
+  // --- backpack cluster (E04-S5) — the small-wins engine at the guesthouse stage.
+  // costBase sits just above the hostel cluster's range; comfort/staggering kept at
+  // the conservative end of the epic's suggested bands (see the E03 hostel-cluster note
+  // on golden-drift) so this doesn't meaningfully stretch the fitted ~20h curve. ---
+  { id: 'kit_poncho',             name: 'Emergency Poncho',        tag: 'backpack', costBase: 2400, comfort: 12, xMult: 0.02, xScope: 'all',    unlockComfort: 210, flavor: 'Neon yellow, waterproof, your national colors basically.' },
+  { id: 'kit_stroopwafel_stash',  name: 'Stroopwafel Stash',       tag: 'backpack', costBase: 3100, comfort: 14, xMult: 0.02, xScope: 'social', unlockComfort: 250, flavor: 'Emergency rations and social currency, both. Never offer the last one.' },
+  { id: 'kit_earplugs',           name: 'Backpacker Earplugs',     tag: 'backpack', costBase: 4000, comfort: 16, xMult: 0.03, xScope: 'all',    unlockComfort: 300, flavor: 'For the bunkmate who snores in three languages.' },
+  { id: 'kit_padlock',            name: 'Combination Padlock',     tag: 'backpack', costBase: 5200, comfort: 18, xMult: 0.03, xScope: 'all',    unlockComfort: 350, flavor: 'You changed the code from 0000. Growth.' },
+  { id: 'kit_microfiber_towel',   name: 'Microfiber Towel',        tag: 'backpack', costBase: 6800, comfort: 21, xMult: 0.04, xScope: 'social', unlockComfort: 410, flavor: 'Dries in an hour, smells like regret in two.' },
+  { id: 'kit_travel_pillow',      name: 'Inflatable Travel Pillow',tag: 'backpack', costBase: 8800, comfort: 24, xMult: 0.05, xScope: 'all',    unlockComfort: 470, flavor: 'It squeaks. It saves your neck. Worth it.' },
+
   // --- pool cluster (E07) — the fun showcase ---
   { id: 'floatie_duck',   name: 'Rubber Duck Floatie',  tag: 'pool', costBase: 800,   comfort: 12, xMult: 0.02, xScope: 'social', unlockComfort: 200,  flavor: 'Quack. Iconic.' },
   { id: 'floatie_flamingo',name:'Flamingo Floatie',     tag: 'pool', costBase: 1600,  comfort: 18, xMult: 0.03, xScope: 'social', unlockComfort: 300,  flavor: 'Pink. Judgmental. Photogenic.' },

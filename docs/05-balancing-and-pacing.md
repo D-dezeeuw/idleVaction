@@ -154,7 +154,8 @@ spacing + small high-tier `GEN.perUnit`) so the run stretches across hours.
 
 **Golden curve — `node js/dev/harness.mjs`** (greedy *optimal, max-speed* player). The island
 lands in the **15–20h optimal band**; the exact figure drifts as each epic adds legitimate
-amenity content (see the drift note below). Current snapshot (post-E03):
+content (see the drift note below). Current snapshot (post-E04); beat rows are the approximate
+Act-I/II-era shape — run `npm run harness` for the exact live curve:
 
 ```
 Beat  1–2   0s          (Netherlands / motel)
@@ -166,7 +167,7 @@ Beat 14–15  ~7h01m      (vlogger / cars)
 Beat 16–18  9h07m–10h07m (boats / jets / 6★)
 Beat 19–21  11h21m–12h51m (butler / household / 7★)
 Beat 22–26  14h45m–16h21m (bungalow → villa → ascension unlock)
-ISLAND (tier 20)         19h 29m      peak log10(cash) = 11.3 (safe; double maxes ~308)
+ISLAND (tier 20)         16h 42m      peak log10(cash) = 11.3 (safe; double maxes ~308)
 ```
 
 Because the harness plays *perfectly at infinite speed*, this is a **lower bound** — a real
@@ -177,9 +178,12 @@ beat is hours apart, not the ~35-second blur of the first pass.
 **Golden-drift note (amenity-count sensitivity).** The harness's greedy policy buys one level
 of *every* affordable amenity each step, so adding an amenity cluster widens the reinvestment
 "leak" and stretches the curve regardless of unit price — E03's 6-amenity hostel cluster moved
-the island 17h54m → 19h29m (peak magnitude unchanged). This is **accepted in-band drift**, not
-a regression: retuning `GEN`/`COMFORT` on every content add would churn the fitted constants
-endlessly. **Policy:** let the curve breathe inside 15–20h; escalate to `@balance-tuner` for a
+the island 17h54m → 19h29m. Conversely, a new **global multiplier** the harness buys (E04's
+destinations → `L_dest`) *speeds* income and pulls the curve back: 19h29m → 16h42m. Both are
+**accepted in-band drift**, not regressions: retuning `GEN`/`COMFORT` on every content add would
+churn the fitted constants endlessly. Note destination `mult` values were set well below the
+E04 epic's suggested 1.08–1.20/row (to 1.025–1.04) precisely to stay in-band — the epic range
+collapsed the island to ~12h in the harness and would need a coordinated GEN/COMFORT retune. **Policy:** let the curve breathe inside 15–20h; escalate to `@balance-tuner` for a
 consolidated retune only if a phase pushes greedy island time **past ~20h** (casual would then
 exceed the ~20h+ goal by too much), and do the final consolidated fit at E30. The peak
 `log10(cash)` ceiling (~290) is the hard guardrail and stays the non-negotiable gate.

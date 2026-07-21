@@ -7,6 +7,7 @@ import * as ST from '../state.js';
 import * as E from '../engine.js';
 import * as M from '../math.js';
 import * as P from '../prestige.js';
+import { validateDestinations } from '../data/destinations.js';
 import { fmt, fmtTime, rng } from '../util.js';
 
 let fails = 0;
@@ -25,6 +26,13 @@ function playStep(s) {
   // 2) small-win amenities (each < 30% of current cash)
   for (const a of DATA.amenities)
     if (E.amenityUnlocked(s, a.id) && E.amenityCost(s, a.id) <= s.resources.cash * 0.3) E.buyAmenity(s, a.id);
+
+  // 2b) destinations & transport (E04-S8-T6): mirrors the harness policy so this
+  // simulated run also reflects L_dest instead of leaving it stuck at 1.
+  for (const d of DATA.destinations)
+    if (!s.destinations[d.id].owned && E.destUnlocked(s, d.id) && E.destCost(s, d.id) <= s.resources.cash * 0.4) E.buyDestination(s, d.id);
+  for (const t of DATA.transport)
+    if (!s.transport.owned.includes(t.id) && t.costBase * M.commsCostMult(s) <= s.resources.cash * 0.2) E.buyTransport(s, t.id);
 
   // 3) personal growth (cheap fraction of cash)
   for (const t of DATA.training) if (E.trainingCost(s, t.id) <= s.resources.cash * 0.08) E.buyTraining(s, t.id);
@@ -425,6 +433,175 @@ console.log('\n[12] E03 bulk-mode persistence');
   delete partialBm.ui;                              // simulate a pre-E03 save missing `ui` entirely
   const fixedBm = ST.migrate(partialBm);
   ok(fixedBm.ui && fixedBm.ui.bulkMode === 1, 'migration backfills a missing `ui` slice with the default bulkMode');
+}
+
+// ---------- 13. E04: destination/transport data validation (E04-S1-T10) ----------
+console.log('\n[13] E04 destination/transport data validation');
+{
+  let threw = false;
+  try { validateDestinations(); } catch (e) { threw = true; }
+  ok(!threw, 'validateDestinations() passes on the shipped DESTINATIONS array');
+
+  const seenIds = new Set();
+  for (const d of DATA.destinations) {
+    ok(!seenIds.has(d.id), `destination id is unique: ${d.id}`);
+    seenIds.add(d.id);
+    ok(d.mult >= 1, `${d.id}: mult >= 1 (${d.mult})`);
+    ok(!!d.region && !!d.tag, `${d.id}: region + tag present`);
+  }
+  const seenT = new Set();
+  for (const t of DATA.transport) {
+    ok(!seenT.has(t.id), `transport id is unique: ${t.id}`);
+    seenT.add(t.id);
+    ok(t.costBase > 0 && t.speed >= 0 && t.upkeep >= 0, `${t.id}: costBase/speed/upkeep sane`);
+  }
+}
+
+// ---------- 14. E04: destMult (L_dest) — product math, monotonic, >= 1 (E04-S2-T1/S10-T1) ----------
+console.log('\n[14] E04 destMult (L_dest)');
+{
+  const d = ST.newGame();
+  ok(M.destMult(d, DATA) === 1, 'destMult == 1 with zero destinations owned');
+
+  const first = DATA.destinations[0];
+  d.destinations[first.id].owned = true;
+  ok(approx(M.destMult(d, DATA), first.mult), 'destMult equals the single owned destination\'s mult');
+
+  let expected = 1, prev = 1;
+  let monotonic = true;
+  for (const dest of DATA.destinations) {
+    d.destinations[dest.id].owned = true;
+    expected *= dest.mult;
+    const got = M.destMult(d, DATA);
+    if (got < prev - 1e-9) monotonic = false;
+    prev = got;
+  }
+  ok(approx(prev, expected), 'destMult with ALL destinations owned equals the product of every row\'s mult');
+  ok(monotonic, 'destMult is monotonic non-decreasing as more destinations are owned');
+  ok(prev >= 1, 'destMult (L_dest) is always >= 1');
+}
+
+// ---------- 15. E04: pathMult (L_path preview) — softcap shape (E04-S2-T3/S10-T2) ----------
+console.log('\n[15] E04 pathMult softcap shape');
+{
+  ok(M.pathMult(0) === 1, 'pathMult(0) == 1 (no bonus with zero points)');
+  ok(approx(M.pathMult(1), 1 + C.PATH.rate * Math.pow(1, C.PATH.softcapExp)), 'pathMult(1) matches 1 + rate·1^0.85 exactly');
+  ok(approx(M.pathMult(100), 1 + C.PATH.rate * Math.pow(100, C.PATH.softcapExp)), 'pathMult(100) matches 1 + rate·100^0.85 exactly');
+  ok(M.pathMult(100) > M.pathMult(1) && M.pathMult(1) > M.pathMult(0), 'pathMult is strictly increasing across 0/1/100');
+  const marginalLow = M.pathMult(2) - M.pathMult(1);
+  const marginalHigh = M.pathMult(101) - M.pathMult(100);
+  ok(marginalHigh < marginalLow, 'marginal pathMult gain diminishes at high points (the softcap: early points feel great, late points taper)');
+}
+
+// ---------- 16. E04: buyDestination — afford-gate, double-buy block, chain, L_dest,
+// save/load round-trip (E04-S2-T4/S4-T10/S10-T3/T4) ----------
+console.log('\n[16] E04 buyDestination');
+{
+  const bd = ST.newGame();
+  const first = DATA.destinations[0];
+  const second = DATA.destinations[1];
+
+  bd.resources.cash = 0;
+  ok(!E.buyDestination(bd, first.id), 'buyDestination is blocked at zero cash');
+
+  ok(!E.destUnlocked(bd, second.id), 'the second destination is locked until the first is owned (unlockAfter chain)');
+  ok(!E.buyDestination(bd, second.id), 'buying an unreachable (chain-locked) destination is rejected');
+
+  const cost = E.destCost(bd, first.id);
+  bd.resources.cash = cost;                       // exact cash — must still succeed
+  ok(E.buyDestination(bd, first.id), 'buyDestination succeeds with exactly enough cash');
+  ok(bd.destinations[first.id].owned, 'destination flips to owned');
+  ok(approx(bd.resources.cash, 0), 'exact-cash buy leaves cash at (approximately) zero, never negative');
+  ok(approx(M.destMultiplier(bd), first.mult), 'L_dest (state._destCache) recomputes to reflect the new owned place');
+
+  bd.resources.cash = 1e12;
+  ok(!E.buyDestination(bd, first.id), 're-buying an already-owned destination is blocked (idempotent)');
+  ok(approx(bd.resources.cash, 1e12), 'a blocked re-buy does not deduct cash');
+
+  const reloaded = ST.migrate(JSON.parse(JSON.stringify(bd)));
+  ok(reloaded.destinations[first.id].owned, 'owned destinations survive a save/reload round-trip');
+  ok(approx(M.destMult(reloaded, DATA), first.mult), 'L_dest recomputes correctly from a reloaded save');
+}
+
+// ---------- 17. E04: transport — buy gate, upkeep drain (clamped >= 0), idempotent
+// re-select (E04-S1-T3/S2-T7/T8/S10-T3/T4) ----------
+console.log('\n[17] E04 transport');
+{
+  const tr = ST.newGame();
+  const bus = DATA.transport.find(t => t.id === 'bus');
+  tr.resources.cash = 0;
+  ok(!E.buyTransport(tr, 'bus'), 'buyTransport is blocked at zero cash');
+
+  tr.resources.cash = 1e7;
+  ok(E.buyTransport(tr, 'bus'), 'buyTransport succeeds once affordable');
+  ok(tr.transport.owned.includes('bus') && tr.transport.activeSlot === 'bus', 'bus is owned and active');
+
+  const cashBeforeReselect = tr.resources.cash;
+  ok(E.buyTransport(tr, 'bus'), 're-selecting an already-owned ride succeeds (idempotent switch)');
+  ok(approx(tr.resources.cash, cashBeforeReselect), 're-selecting an owned ride does not charge cash again');
+
+  // upkeep drains cash in tick, clamped so it never goes negative
+  const up = ST.newGame();
+  up.transport.owned = ['bus']; up.transport.activeSlot = 'bus';
+  up.resources.cash = bus.upkeep * 2;             // just enough for 2 ticks of upkeep
+  const before = up.resources.cash;
+  E.tick(up, 1);
+  ok(up.resources.cash < before, 'transport upkeep drains cash over a tick while a ride is active');
+  E.tick(up, 1000);                               // far more upkeep than remaining cash
+  ok(up.resources.cash >= 0, 'transport upkeep never drives cash negative (clamped)');
+}
+
+// ---------- 18. E04: stack-order regression — L_dest folds in as a clean multiplicative
+// factor of the documented tierMultiplier stack (E04-S2-T2/S10-T8) ----------
+console.log('\n[18] E04 stack-order regression: L_dest in tierMultiplier');
+{
+  const stk = ST.newGame();
+  stk.generators[0].bought = 20; stk.generators[0].count = 20;
+  stk._comfortCache = 1000;
+  stk.skills.charisma.level = 5;
+  stk.paths.vlogger.points = 10; stk.paths.traveler.points = 10;
+
+  const mBefore = M.tierMultiplier(stk, 0);
+  const dBefore = M.destMultiplier(stk);
+
+  stk.destinations['dest_ardennes_daytrip'].owned = true;
+  stk.destinations['dest_paris_hostel'].owned = true;
+  stk._destCache = M.destMult(stk, DATA);
+
+  const mAfter = M.tierMultiplier(stk, 0);
+  const dAfter = M.destMultiplier(stk);
+
+  ok(approx(mAfter / mBefore, dAfter / dBefore),
+    'tierMultiplier scales by EXACTLY the L_dest ratio when only destinations change — confirms ' +
+    'M_k = milestoneMult·L_upgrade·L_path·L_skill·L_comfort·L_dest·L_ascension·L_tree, with L_dest a clean factor');
+}
+
+// ---------- 19. E04: migration — an E03-shaped save (no destinations/transport) loads
+// cleanly, defaults everything unowned, and never free-buys offline (E04-S9) ----------
+console.log('\n[19] E04 migration + no free offline purchases');
+{
+  const e03save = ST.newGame();
+  delete e03save.destinations;
+  delete e03save.transport;
+  const migrated = ST.migrate(JSON.parse(JSON.stringify(e03save)));
+  ok(migrated.destinations && DATA.destinations.every(d => migrated.destinations[d.id] && migrated.destinations[d.id].owned === false),
+    'migration backfills state.destinations (all unowned) for a pre-E04 save');
+  ok(migrated.transport && Array.isArray(migrated.transport.owned) && migrated.transport.activeSlot === null,
+    'migration backfills state.transport (empty, no active ride) for a pre-E04 save');
+  E.tick(migrated, 1);
+  ok(Number.isFinite(migrated.resources.cash), 'ticking a migrated E03-shaped save does not crash and cash stays finite');
+
+  // offline never auto-buys, even flush with cash; L_dest/upkeep still apply while away
+  const off = ST.newGame();
+  off.resources.cash = 1e9;
+  off.destinations['dest_ardennes_daytrip'].owned = true;
+  off._destCache = M.destMult(off, DATA);
+  off.transport.owned = ['bus']; off.transport.activeSlot = 'bus';
+  const rep = E.applyOffline(off, 3600 * 1000);
+  ok(DATA.destinations.slice(1).every(d => !off.destinations[d.id].owned),
+    'offline never auto-buys a new destination, no matter how much cash is available');
+  ok(rep && Number.isFinite(rep.cash), 'offline still resolves normally with an owned destination + active transport present');
+  ok(off.resources.cash >= 0, 'cash never goes negative offline (transport upkeep clamped)');
 }
 
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);

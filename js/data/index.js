@@ -7,6 +7,7 @@ import { PATHS } from './paths.js';
 import { TREE } from './skilltree.js';
 import { STORY, VIGNETTES } from './story.js';
 import { NPCS } from './npcs.js';
+import { DESTINATIONS, TRANSPORT } from './destinations.js';
 
 export const DATA = {
   generators: GENERATORS,
@@ -19,4 +20,6 @@ export const DATA = {
   story: STORY,
   vignettes: VIGNETTES,
   npcs: NPCS,
+  destinations: DESTINATIONS,
+  transport: TRANSPORT,
 };

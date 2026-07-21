@@ -17,13 +17,19 @@ export function newGame() {
   // (accommodation.tier >= 2). Pure flavor bookkeeping — never read by math.js.
   const npcsMet = {};
   DATA.npcs.forEach(n => { npcsMet[n.id] = false; });
+  // destinations (E04-S1): the World Traveler map — every place starts unowned/unvisited.
+  const destinations = {};
+  DATA.destinations.forEach(d => { destinations[d.id] = { owned: false, visits: 0 }; });
 
   return {
     version: C.SAVE_VERSION,
     meta: { createdAt: 0, lastSaved: 0, lastSeen: 0, playtimeMs: 0, runStartSec: 0 },
     resources: { cash: 15, comfort: 0, clout: 0, legacy: 0 },
-    generators, amenities, skills, training, paths, npcsMet,
+    generators, amenities, skills, training, paths, npcsMet, destinations,
     accommodation: { tier: 0, owned: [0] },
+    // transport (E04-S1): no ride bought yet — a null activeSlot means no speed bonus
+    // and no upkeep drain (engine.tick/engine.destCost both check for it).
+    transport: { owned: [], activeSlot: null },
     ascension: { count: 0, legacyBanked: 0, legacySpent: 0, tree: {} },
     story: { beat: 1, seen: [1], branch: 'neutral', flags: {} },
     // ui.bulkMode (E03-S1-T6): the ×1/×10/max buy-quantity toggle, persisted so the
@@ -33,7 +39,7 @@ export function newGame() {
     stats: { lifetimeCash: 0, lifetimeCashThisTree: 0, bestComfort: 0, totalClicks: 0, runSec: 0,
       tapWindowSec: 0, tapWindowCount: 0 },
     // transient caches (not strictly needed in save, recomputed each tick)
-    _comfortCache: 0, _combo: 1, _comboTimer: 0,
+    _comfortCache: 0, _destCache: 1, _combo: 1, _comboTimer: 0,
   };
 }
 
