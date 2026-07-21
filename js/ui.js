@@ -34,6 +34,7 @@ export function render(state) {
   renderWellness(state);
   renderConcierge(state);
   renderCreator(state);
+  renderCrypto(state);
   renderSkills(state);
   renderPaths(state);
   renderAscension(state);
@@ -92,6 +93,10 @@ function renderNotifications(s) {
     // line AND the normal toast below (unlike concierge's muted convention) — these are
     // rarer, player-initiated/affecting moments, not a busy auto-buyer's chatter.
     if (item.type === 'sponsor') announceCreator(item.text);
+    // market boom/crash announcements (E13-S3-T2/S10-T7): gets BOTH the aria-live line
+    // AND the normal toast below, mirroring sponsor's convention exactly — rare,
+    // exciting, market-moving events, not a busy auto-buyer's chatter.
+    if (item.type === 'boom' || item.type === 'crash') announceCrypto(item.text);
     const d = document.createElement('div');
     d.className = 'iv-notif iv-' + item.type;
     d.textContent = item.text;
@@ -102,7 +107,10 @@ function renderNotifications(s) {
 }
 
 function renderStory(s) {
-  const latest = DATA.story.filter(b => s.story.seen.includes(b.id)).slice(-1)[0] || DATA.story[0];
+  const latestBeat = DATA.story.filter(b => s.story.seen.includes(b.id)).slice(-1)[0] || DATA.story[0];
+  // branch-flavored copy (E13 Task D, "Whale Watching"): swaps in latestBeat.variants[branch]
+  // when one exists — see engine.beatCopy.
+  const latest = E.beatCopy(s, latestBeat);
   let choiceHtml = '';
   const choiceBeat = DATA.story.find(b => b.choice && s.story.seen.includes(b.id) && s.story.branch === 'neutral');
   if (choiceBeat) {
@@ -111,7 +119,7 @@ function renderStory(s) {
       '</div>';
   }
   el('story').innerHTML = `
-    <div class="iv-beatnum">Beat ${latest.id} / 30 — Branch: <b>${s.story.branch}</b></div>
+    <div class="iv-beatnum">Beat ${latestBeat.id} / 30 — Branch: <b>${s.story.branch}</b></div>
     <div class="iv-beattitle">${latest.title}</div>
     <div class="iv-beattext">${latest.text}</div>
     ${choiceHtml}`;
@@ -694,6 +702,89 @@ function renderCreator(s) {
   el('creator').innerHTML = html;
 }
 
+// ---------- Crypto Poolside Lounge (E13 "Money Works While You Tan") ----------
+// Reveals once the crypto economy is genuinely in play — mirrors engine.cryptoDeskUnlocked
+// exactly (path points, Beat 14, or the tier-11 band, whichever comes first — the SAME
+// OR contract as creatorRevealed one section above).
+function cryptoRevealed(s) { return E.cryptoDeskUnlocked(s); }
+
+function announceCrypto(text) {
+  const live = el('cryptoAnnounce');
+  if (live) live.textContent = text;
+}
+
+const MARKET_PHASE_LABEL = { boom: '📈 BOOM', crash: '📉 CRASH', chop: '📊 CHOP' };
+// live ticker + event banner (E13-S3-T2/T3, S10-T6): reads state.market directly (no
+// bespoke recompute) — colour/heat only, no flashing text during a crash (the banner
+// itself is a plain labeled div; any motion is CSS-gated behind prefers-reduced-motion,
+// same convention as every other pulse/flash in this file).
+function marketTickerHtml(s) {
+  const mult = M.marketMult(s, DATA);
+  const pct = (mult - 1) * 100;
+  const arrow = pct > 0.5 ? '▲' : pct < -0.5 ? '▼' : '►';
+  const heat = pct > 0.5 ? 'iv-ticker-up' : pct < -0.5 ? 'iv-ticker-down' : 'iv-ticker-flat';
+  let banner = '';
+  const mkt = s.market;
+  if (mkt.phase !== 'calm') {
+    const remain = Math.max(0, mkt.expiresAtSec - s.stats.runSec);
+    const label = mkt.eventId === 'whale_boom' ? '🐋 WHALE PUMP' : (MARKET_PHASE_LABEL[mkt.phase] || mkt.phase);
+    banner = `<div class="iv-market-banner iv-market-${mkt.phase}">${label} — market ×${fmt(mkt.mult)} · ${fmtTime(remain)} left</div>`;
+  }
+  return `<div class="iv-market-ticker ${heat}">
+      <span aria-label="Market multiplier ${mult.toFixed(2)} times">${arrow} market ×${mult.toFixed(2)}</span>
+    </div>${banner}`;
+}
+
+function renderCrypto(s) {
+  const card = el('cryptoCard');
+  const reveal = cryptoRevealed(s);
+  if (card) card.hidden = !reveal;
+  if (!reveal) { if (el('crypto')) el('crypto').innerHTML = ''; return; }
+
+  const netWorth = M.cryptoNetWorth(s, DATA);
+  const yieldPerSec = M.cryptoYieldPerSec(s, DATA);
+  let html = marketTickerHtml(s);
+  html += `<div class="iv-sub">💼 Portfolio value: <b>${fmt(M.cryptoHoldingsValue(s, DATA))}</b> · net worth (cash + portfolio): <b>${fmt(netWorth)}</b></div>`;
+  html += `<div class="iv-sub">📈 Money while you tan (coin yield): <b>+${fmt(yieldPerSec)}/s</b>
+    <small>(path preview ×${fmt(M.pathMult(s.paths.crypto.points))})</small></div>`;
+
+  html += '<div class="iv-tag">holdings</div><div class="iv-amenities">';
+  for (const c of DATA.crypto.coins) {
+    const held = s.crypto.holdings[c.id] || 0;
+    const cost = E.coinCost(s, c.id, 1);
+    html += `<div class="iv-btn iv-content-item" title="${c.flavor}">
+      <b>${c.name}</b> <small>${c.ticker}</small> — held <b>${fmt(held)}</b>
+      <div class="iv-sub">+${fmt(c.yieldPerUnit)}/unit/s</div>
+      <div class="iv-row-buy">
+        ${btn('buy-coin', c.id, `Buy 1<br><small>${fmt(cost)}</small>`, afford(cost))}
+        ${btn('sell-coin', c.id, 'Sell 1', held > 0)}
+      </div>
+    </div>`;
+  }
+  html += '</div>';
+
+  html += '<div class="iv-tag">hedges (Task B: bound the downside)</div><div class="iv-amenities">';
+  for (const h of DATA.crypto.hedges) {
+    const owned = !!s.crypto.hedges[h.id];
+    html += btn('buy-hedge', h.id,
+      `${h.name} ${owned ? '✅' : ''}<br><small>${owned ? 'owned' : fmt(h.cost)} · crash damp +${(h.crashDamp * 100).toFixed(0)}%</small>`,
+      owned || afford(h.cost), owned ? 'btn-primary' : '', h.flavor);
+  }
+  const unshakeableRank = s.ascension.tree.unshakeable || 0;
+  if (unshakeableRank > 0) {
+    html += `<div class="iv-sub">🛡️ Unshakeable (tree, rank ${unshakeableRank}) is already halving crash depth per rank.</div>`;
+  }
+  html += '</div>';
+
+  if (s.market.eventLog && s.market.eventLog.length) {
+    html += '<div class="iv-tag">recent market moves</div>';
+    for (const e of s.market.eventLog) {
+      html += `<div class="iv-sub">${fmtTime(e.t)} — ${e.id === 'whale_boom' ? '🐋 whale pump' : e.kind} ×${e.mult.toFixed(2)} (${e.dur}s)</div>`;
+    }
+  }
+  el('crypto').innerHTML = html;
+}
+
 // live footer energy readout, "near the tap button" (E10-S4-T8): #energyMini is a
 // persistent node created once by renderControls's template (like the aria-live
 // regions above) and refreshed here on every render() cycle, since renderControls
@@ -781,7 +872,7 @@ function announceSkill(text) {
 // comms → cheaper" link explicit at the point of training. tierMultiplier's own L_skill
 // blend and commsCostMult's own clamp stay the real math (math.js) — this just reads the
 // SAME preview helpers (M.charismaMult / M.commsDiscountPct) the panel and the tests share.
-function skillEffectReadout(sk, st) {
+function skillEffectReadout(s, sk, st) {
   if (sk.id === 'charisma') {
     const mult = M.charismaMult(st.level);
     const next = M.charismaMult(st.level + 1);
@@ -808,6 +899,18 @@ function skillEffectReadout(sk, st) {
       😌 Comfort contribution <b>+${fmt(contrib)}</b>
       <br><small>next level: +${fmt(nextContrib - contrib)} more Comfort</small></div>`;
   }
+  if (sk.id === 'savvy') {
+    // Savvy surfacing (E13 Task C): the live passive dCash/dt (math.savvyPassive,
+    // UNCHANGED formula — see docs/coverage.md "already exists, don't rebuild") and the
+    // crypto branch's perk on top of it (engine.cryptoSavvyPerk, same extracted-not-
+    // retuned 0.3 the tick loop itself uses).
+    const perk = E.cryptoSavvyPerk(s);
+    const passive = M.savvyPassive(s) * perk;
+    return `<div class="iv-sub iv-skill-effect" title="Passive cash trickle: savvy level × SAVVY_YIELD × √(lifetime cash) — sub-linear, never replaces active buys.">
+      💤 Money while you tan: <b>+${fmt(passive)}/s</b> passive
+      ${s.paths.crypto.points > 0 ? `<span class="iv-badge-maxed" title="Applies whenever you have crypto path points">Crypto perk ×${perk.toFixed(1)}</span>` : ''}
+      <br><small>scales with √(lifetime cash) — climbs slower than active income, always supportive</small></div>`;
+  }
   return '';
 }
 
@@ -822,7 +925,7 @@ function renderSkills(s) {
     html += `<div class="iv-skill${justLeveled ? ' iv-skill-flash' : ''}">
       <b>${sk.name}</b> <span class="label">Lv ${st.level}</span>
       <div class="iv-sub">${sk.effect}</div>
-      ${skillEffectReadout(sk, st)}
+      ${skillEffectReadout(s, sk, st)}
       <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct.toFixed(0)}"
         aria-label="${sk.name} progress: ${fmt(intoLevel)} of ${fmt(need)} XP to level ${st.level + 1}">
         <i style="width:${pct.toFixed(1)}%"></i>
@@ -974,6 +1077,9 @@ function handle(action, arg, btnEl) {
       break;
     }
     case 'buy-path': E.buyPathFocus(S, arg); break;
+    case 'buy-coin': E.buyCoin(S, arg, 1); break;
+    case 'sell-coin': E.sellCoin(S, arg, 1); break;
+    case 'buy-hedge': E.buyHedge(S, arg); break;
     case 'buy-content': E.buyContent(S, arg); break;
     case 'buy-content-boost': E.buyContentBoost(S, arg); break;
     case 'accept-sponsor': {
@@ -1021,6 +1127,19 @@ function handle(action, arg, btnEl) {
       break;
     }
     case 'dbg-path': for (const p of DATA.paths) S.paths[p.id].points += 10; break;
+    // crypto debug hooks (E13-S10-T8): force-boom/crash, reseed, +Savvy XP — QA-only,
+    // bypassing the seeded scheduler on purpose so downstream testing doesn't need to
+    // grind the market's own cadence for real.
+    case 'dbg-crypto-boom':
+      S.market.phase = 'boom'; S.market.eventId = 'debug_boom'; S.market.mult = 4;
+      S.market.expiresAtSec = S.stats.runSec + 30; break;
+    case 'dbg-crypto-crash':
+      S.market.phase = 'crash'; S.market.eventId = 'debug_crash'; S.market.mult = 0.35;
+      S.market.expiresAtSec = S.stats.runSec + 30; break;
+    case 'dbg-crypto-reseed':
+      S.market.seed = Date.now() >>> 0; S.market.cursor = 0;
+      S.market.phase = 'calm'; S.market.mult = 1; S.market.nextEventT = S.stats.runSec; break;
+    case 'dbg-savvy': S.skills.savvy.xp += 5000; break;
     case 'export': hooks.exportSave(); break;
     case 'import': hooks.importSave(); break;
     case 'reset': if (confirm('Hard reset? This wipes everything.')) hooks.hardReset(); break;
@@ -1044,6 +1163,7 @@ export function showOfflineSummary(state, rep) {
     <div class="iv-offline-row">📣 <b>+${fmt(rep.clout)}</b> clout</div>
     ${rep.conciergeBought ? `<div class="iv-offline-row">🛎️ The concierge bought <b>${rep.conciergeBought}</b> item${rep.conciergeBought > 1 ? 's' : ''} for <b>${fmt(rep.conciergeSpent)}</b></div>` : ''}
     ${rep.sponsorsExpired ? `<div class="iv-offline-row">📴 <b>${rep.sponsorsExpired}</b> sponsor deal${rep.sponsorsExpired > 1 ? 's' : ''} wrapped up while you were away</div>` : ''}
+    ${rep.cryptoYield ? `<div class="iv-offline-row">📈 <b>+${fmt(rep.cryptoYield)}</b> from your portfolio tanning without you${rep.marketEvents ? ` — ${rep.marketEvents} market event${rep.marketEvents > 1 ? 's' : ''} survived` : ''}</div>` : ''}
     <div class="iv-sub">😌 Comfort is now ${fmt(state.resources.comfort)} — a bonus of ×${fmt(lComfort)} on income while you were gone.</div>`;
   overlay.hidden = false;
 }
@@ -1095,5 +1215,9 @@ function renderDebug() {
     ${btn('dbg-comfort', '', '+comfort/body')}
     ${btn('dbg-legacy', '', '+100 Legacy')}
     ${btn('dbg-dest', '', '+dest (E04 QA)')}
-    ${btn('dbg-path', '', '+10 path pts (all)')}`;
+    ${btn('dbg-path', '', '+10 path pts (all)')}
+    ${btn('dbg-crypto-boom', '', 'force boom')}
+    ${btn('dbg-crypto-crash', '', 'force crash')}
+    ${btn('dbg-crypto-reseed', '', 'reseed market')}
+    ${btn('dbg-savvy', '', '+5000 savvy xp')}`;
 }

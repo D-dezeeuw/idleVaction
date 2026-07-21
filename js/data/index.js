@@ -10,6 +10,7 @@ import { NPCS } from './npcs.js';
 import { DESTINATIONS, TRANSPORT } from './destinations.js';
 import { CONTENT } from './content.js';
 import { SPONSORS } from './sponsors.js';
+import { COINS, MARKET_EVENTS, HEDGES } from './crypto.js';
 
 export const DATA = {
   generators: GENERATORS,
@@ -26,4 +27,7 @@ export const DATA = {
   transport: TRANSPORT,
   content: CONTENT,
   sponsors: SPONSORS,
+  // crypto (E13 "Money Works While You Tan"): coins/events/hedges grouped under one
+  // namespace (mirrors how `transport`/`destinations` share the World Traveler epic).
+  crypto: { coins: COINS, events: MARKET_EVENTS, hedges: HEDGES },
 };

@@ -225,4 +225,23 @@ export const AMENITIES = [
   { id: 'drone',        name: 'Pocket Drone',      tag: 'gear', costBase: 7000,  comfort: 18, contentRate: 1.8, xMult: 0.05, xScope: 'social', unlockComfort: 1200, flavor: 'For the sweeping aerial shot of you looking pensive, which the algorithm demands.' },
   { id: '4k_camera',    name: '4K Camera',         tag: 'gear', costBase: 18000, comfort: 24, contentRate: 3.0, xMult: 0.06, xScope: 'all', unlockComfort: 3000, flavor: 'Every pore, in stunning clarity. Bold choice.' },
   { id: 'studio_setup', name: 'Portable Studio Setup', tag: 'gear', costBase: 45000, comfort: 32, contentRate: 5.0, xMult: 0.08, xScope: 'all', unlockComfort: 8000, flavor: 'A backdrop, three lights, and a hotel room that no longer looks like a hotel room.' },
+
+  // --- Laptop-On-A-Lounger cluster (E13 "Money Works While You Tan" — the Crypto
+  // Poolside Lounger's small-wins cadence). tag:'cryptogear'. Bought through the SAME
+  // generic engine.buyAmenity(id) as every other amenity (no bespoke code, E13-S5-T2) —
+  // gated behind the Crypto Desk reveal (crypto path points, Beat 14, or tier-11 band —
+  // see engine.cryptoDeskUnlocked), which can occur very early (buyPathFocus has no
+  // Comfort gate), so unlockComfort is kept LOW like the gear cluster's convention
+  // rather than bracketing a tier gate. costBase sits above the current top amenity
+  // (butler_call_button @ 7.68e8), continuing the SAME ~2x-per-step ramp as the suite
+  // cluster (per the epic's own "ramping ~2x per step"), with a similarly DECLINING
+  // comfort/cost ratio so the ROI-aware harness (harness.mjs's amenityWorthBuying)
+  // treats it exactly like every prior gap-fill cluster — cannot move the fitted
+  // pacing curve (see docs/coverage.md E13 notes / the harness-invariance test). ---
+  { id: 'laptop_cooling_fan',   name: 'Laptop Cooling Fan',      tag: 'cryptogear', costBase: 1.5e9, comfort: 6300,  xMult: 0.05, xScope: 'all', unlockComfort: 0,     flavor: 'The chart never stops. Neither should the airflow.' },
+  { id: 'waterproof_keyboard',  name: 'Waterproof Keyboard',     tag: 'cryptogear', costBase: 3e9,   comfort: 8200,  xMult: 0.06, xScope: 'all', unlockComfort: 500,   flavor: 'Splash-proof, spill-proof, panic-sell-proof (not guaranteed).' },
+  { id: 'mai_tai_iv_drip',      name: 'Mai Tai IV Drip',         tag: 'cryptogear', costBase: 6e9,   comfort: 10600, xMult: 0.07, xScope: 'all', unlockComfort: 2000,  flavor: 'Hydration is a hedge too.' },
+  { id: 'spf_screen_hood',      name: 'SPF Screen Hood',         tag: 'cryptogear', costBase: 1.2e10,comfort: 13800, xMult: 0.08, xScope: 'all', unlockComfort: 6000,  flavor: 'You can finally see the candles. And the sun. Mostly the candles.' },
+  { id: 'mechanical_keyboard',  name: 'Mechanical Keyboard',     tag: 'cryptogear', costBase: 2.4e10,comfort: 17900, xMult: 0.10, xScope: 'all', unlockComfort: 15000, flavor: 'Loud enough that the concierge assumes you are working.' },
+  { id: 'umbrella_second_monitor', name: 'Umbrella-Mounted Second Monitor', tag: 'cryptogear', costBase: 4.8e10, comfort: 23300, xMult: 0.12, xScope: 'all', unlockComfort: 30000, flavor: 'One screen for the pool. One for the portfolio. Priorities.' },
 ];

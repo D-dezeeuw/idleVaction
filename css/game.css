@@ -200,6 +200,17 @@ body { background: var(--iv-bg); color: var(--iv-ink); font-family: system-ui, s
   flex: 1 1 160px; max-width: 240px; }
 .iv-notif.iv-sponsor { border-color: #ff8f3c; }
 
+/* Crypto Poolside Lounge (E13 "Money Works While You Tan"): a live ticker (up/down/flat
+   colour, no flashing) + a labeled boom/crash banner. Colour is the only "juice" here —
+   the banner itself never flashes, so a crash reads calmly even for prefers-reduced-motion. */
+.iv-notif.iv-boom { border-color: var(--iv-good); } .iv-notif.iv-crash { border-color: #ff4d4d; }
+.iv-market-ticker { font-weight: bold; margin-bottom: 4px; font-size: .9rem; }
+.iv-ticker-up { color: var(--iv-good); } .iv-ticker-down { color: #ff6b6b; } .iv-ticker-flat { color: var(--iv-sub); }
+.iv-market-banner { border-radius: 6px; padding: 5px 8px; margin-bottom: 6px; font-size: .8rem; font-weight: bold; }
+.iv-market-boom { background: #123a24; border: 1px solid var(--iv-good); color: var(--iv-good); }
+.iv-market-crash { background: #3a1414; border: 1px solid #ff4d4d; color: #ff8080; }
+.iv-market-chop { background: #14252c; border: 1px solid var(--iv-line); color: var(--iv-sub); }
+
 /* "While you were away" summary (E02-S9-T5): dismissible, mobile-friendly overlay. */
 .iv-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex;
   align-items: center; justify-content: center; z-index: 20; padding: 16px; }

@@ -2,7 +2,7 @@
 // All functions take (state, ...) and return numbers. No mutation, no globals.
 
 import { CONFIG as C } from './config.js';
-import { clamp } from './util.js';
+import { clamp, rng } from './util.js';
 
 // ---- tier ladder ----
 // Soft-capped milestone multiplier. The n-th unit's cost is base·growth^n, so a greedy
@@ -228,6 +228,88 @@ export function treeIncomeMult(state) {
 export function treeCostMult(state) {
   const t = state.ascension.tree;
   return Math.max(0.4, Math.pow(0.97, t.silver_tongue || 0)); // -3%/rank, floor 40%
+}
+
+// ---- crypto portfolio + seeded market (E13 "Money Works While You Tan") ----
+// Everything below only ever scales crypto coin YIELD (a cash source that is exactly
+// zero while no coin is held) — never tierProd/tierMultiplier/savvyPassive, so none of
+// it can move the harness's max-speed island time (see engine.js's cryptoActive gate).
+
+// current buy price of the NEXT unit at a given held-count (mirrors math.unitCost's
+// shape for the D1..D8 ladder, scoped to one coin row).
+export function coinUnitCost(coin, held) {
+  return coin.costBase * Math.pow(coin.costGrowth, held);
+}
+// "what would it cost to rebuy this stack right now" — a simple, consistent portfolio
+// value for the UI/tests (NOT fed into savvyPassive's sqrt(lifetimeCash) — that formula
+// is untouched, see docs/coverage.md E13 notes: "already exists, don't rebuild").
+export function cryptoHoldingsValue(state, DATA) {
+  let v = 0;
+  for (const c of DATA.crypto.coins) {
+    const held = state.crypto.holdings[c.id] || 0;
+    if (held <= 0) continue;
+    v += held * coinUnitCost(c, Math.max(0, held - 1));
+  }
+  return v;
+}
+// wallet cash + portfolio value — a display-only "net worth" readout (E13-S2-T3's
+// intent), kept entirely separate from savvyPassive's own lifetimeCash input.
+export function cryptoNetWorth(state, DATA) {
+  return state.resources.cash + cryptoHoldingsValue(state, DATA);
+}
+
+// one-time cash HEDGES (data/crypto.js) sum toward, but are capped short of, full crash
+// immunity; combined multiplicatively with the Unshakeable ascension node (data/
+// skilltree.js) so rank 1 alone exactly halves crash DEPTH (1 - rawMult) — see
+// engine.marketTick, which applies this to a freshly-drawn crash event's magnitude.
+export function crashDampTotal(state, DATA) {
+  let hedgeDamp = 0;
+  for (const h of DATA.crypto.hedges) if (state.crypto.hedges[h.id]) hedgeDamp += h.crashDamp;
+  hedgeDamp = Math.min(hedgeDamp, 0.9);
+  const rank = state.ascension.tree.unshakeable || 0;
+  const unshakeableDamp = 1 - Math.pow(0.5, rank);
+  const total = 1 - (1 - hedgeDamp) * (1 - unshakeableDamp);
+  return Math.min(total, C.MARKET.maxCrashDamp);
+}
+// HEDGES' varianceDamp shrinks the baseline "chop" jitter (below) — additive, capped.
+export function varianceDampTotal(state, DATA) {
+  let d = 0;
+  for (const h of DATA.crypto.hedges) if (state.crypto.hedges[h.id]) d += h.varianceDamp;
+  return Math.min(d, 0.8);
+}
+
+// A slow, SEEDED wobble — always present while the market is active, so the ticker
+// never sits dead flat between scheduled events (E13-S4-T4). Pure function of
+// (state.market.seed, state.stats.runSec): a deterministic step index (not wall-clock),
+// so online ticks and an offline macro-step replay draw the identical wobble for the
+// same runSec. Uses a cursor namespace disjoint from engine.marketTick's own
+// state.market.cursor counter (offset 1e6) so the two seeded streams never collide.
+const MARKET_JITTER_PERIOD_SEC = 20;
+export function marketBaselineJitter(state, DATA) {
+  const idx = Math.floor((state.stats.runSec || 0) / MARKET_JITTER_PERIOD_SEC);
+  const r = rng(state.market.seed, 1e6 + idx);
+  const damp = 1 - varianceDampTotal(state, DATA);
+  return 1 + (r * 2 - 1) * C.MARKET.tickVolatility * damp;
+}
+// marketMult = baseline jitter · the currently active event's (already-damped) mult —
+// clamped to config.MARKET's floor/cap regardless, so a crash never zeroes income and a
+// boom never runs away (E13-S4-T3/T10, "keep crashes bounded regardless").
+export function marketMult(state, DATA) {
+  const jitter = marketBaselineJitter(state, DATA);
+  const eventMult = state.market.mult ?? 1;
+  return clamp(jitter * eventMult, C.MARKET.crashFloor, C.MARKET.boomCap);
+}
+
+// dCash/dt from owned coins alone — EXACTLY zero with no holdings (no sqrt/log
+// weirdness possible), scaled by the existing generic single-path softcap preview
+// (pathMult, reused rather than forking a second L_path formula into tierMultiplier)
+// and by the live marketMult. Feeds engine.tick's cashGain (and, via the existing
+// trickleXp, ordinary Savvy XP) — never a second currency.
+export function cryptoYieldPerSec(state, DATA) {
+  let base = 0;
+  for (const c of DATA.crypto.coins) base += (state.crypto.holdings[c.id] || 0) * c.yieldPerUnit;
+  if (base <= 0) return 0;
+  return base * pathMult(state.paths.crypto.points) * marketMult(state, DATA);
 }
 
 // ---- prestige ----

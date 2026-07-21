@@ -32,4 +32,12 @@ export const TREE = [
     effect: 'Begin each run at accommodation tier +1 per rank.', requires: ['legacy_investor:2'] },
   { id: 'second_wind',   branch: 'meta', name: 'Second Wind', maxRank: 3,
     effect: 'First 5 minutes of a run ×5 income per rank window.', requires: [] },
+  // Unshakeable (E13 "Money Works While You Tan" — Task B risk mitigation): halves
+  // crypto crash DEPTH per rank (not a flat reduction — see math.crashDampTotal), so
+  // rank 1 alone cuts a crash's income loss in half; stacks with HEDGES multiplicatively
+  // toward, but never past, config.MARKET.maxCrashDamp (bounded downside, never full
+  // immunity). Purely a crypto-lane effect — never read by tierProd/tierMultiplier/
+  // computeComfort, so it cannot move the harness's max-speed island time.
+  { id: 'unshakeable',   branch: 'meta', name: 'Unshakeable', maxRank: 3,
+    effect: 'Crypto crash depth −50% per rank (stacks toward, never past, full immunity).', requires: [] },
 ];
