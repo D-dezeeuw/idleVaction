@@ -1064,16 +1064,37 @@ function renderPaths(s) {
     }
     html += '</div>';
   } else {
-    const cost = E.pathCost(s, chosen.id);
-    const pts = s.paths[chosen.id].points;
-    html += `<div class="iv-path">
-      <b>${chosen.name}</b> <span class="label">${fmt(pts)} pts · ×${fmt(M.pathMult(pts))}</span>
-      <div class="iv-sub">${chosen.identity}<br><i>Perk:</i> ${chosen.perk}</div>
-      ${btn('buy-path', chosen.id, `Focus<br><small>${fmt(cost)}</small>`, afford(cost))}
-    </div>`;
-    html += pathTrackHtml(s, chosen);
-    const others = DATA.paths.filter(p => p.id !== chosen.id).map(p => p.name).join(' · ');
-    html += `<div class="iv-sub">🚪 Roads not taken this life: ${others} — another generation, perhaps.</div>`;
+    // every OPENED road (the branch first, then Jack of All Trades side-roads) gets a
+    // full card + staged track; an openable-but-unopened road (a free Jack slot) gets
+    // an invitation card; the rest collapse into the roads-not-taken footer.
+    const jack = s.ascension.tree.jack_of_trades || 0;
+    const ordered = [chosen, ...DATA.paths.filter(p => p.id !== chosen.id)];
+    const notTaken = [];
+    for (const p of ordered) {
+      const opened = E.pathReceives(s, p.id);
+      if (opened) {
+        const cost = E.pathCost(s, p.id);
+        const pts = s.paths[p.id].points;
+        html += `<div class="iv-path">
+          <b>${p.name}</b> ${p.id === chosen.id ? '' : '<span class="label">side-road 🃏</span>'} <span class="label">${fmt(pts)} pts · ×${fmt(M.pathMult(pts))}</span>
+          <div class="iv-sub">${p.identity}<br><i>Perk:</i> ${p.perk}</div>
+          ${btn('buy-path', p.id, `Focus<br><small>${fmt(cost)}</small>`, afford(cost))}
+        </div>`;
+        html += pathTrackHtml(s, p);
+      } else if (E.canFocusPath(s, p.id)) {
+        const cost = E.pathCost(s, p.id);
+        html += `<div class="iv-path">
+          <b>${p.name}</b> <span class="label">🃏 open this road</span>
+          <div class="iv-sub">${p.identity}<br>Jack of All Trades: a first Focus here claims one of your ${jack} extra road${jack > 1 ? 's' : ''}.</div>
+          ${btn('buy-path', p.id, `Open — Focus<br><small>${fmt(cost)}</small>`, afford(cost))}
+        </div>`;
+      } else if (p.id !== chosen.id) {
+        notTaken.push(p.name);
+      }
+    }
+    if (notTaken.length) {
+      html += `<div class="iv-sub">🚪 Roads not taken this life: ${notTaken.join(' · ')} — another generation, perhaps${jack ? '' : ' (or a Jack of All Trades, deep in the tree)'}.</div>`;
+    }
   }
   el('paths').innerHTML = html;
 }

@@ -135,6 +135,22 @@ the fantasy of self-transformation**:
 | **Legacy Investor** | `legacyGain` ×1.15 | each trip teaches you more |
 | **Head Start** | begin run at accommodation tier +1/rank | skip the shed eventually |
 | **Second Wind** | first N minutes of a run ×5 income | fast openings |
+| **Jack of All Trades** | open +1 extra path per rank after committing (max 3 → all four roads) | one life, many trades — the earned exception to one-road-per-life |
+
+**Jack of All Trades — the earned path-mixing exception.** The committed-path contract
+(`docs/01 §5`: one road per life, chosen at the beat-6 crossroads, nudges/focus no-op
+elsewhere) is deliberately absolute for early lineages; this node is the ONLY way to mix
+roads within one life. Each rank lets a committed run **open** one extra path — claimed
+by the first Focus purchase into it (a stray nudge can never spend the slot) — after
+which that side-road earns points, walks its own staged track, and stacks its unique
+stage bonuses alongside the primary's. Depth by construction: prerequisites span **all
+three branches** (`sun_kissed:1` + `silver_tongue:1` + `legacy_investor:1` = 15 Legacy)
+plus its own 5/10/20 rank costs — ~20 Legacy minimum against the metered ~11.8·√N arc,
+i.e. around **ascension 3** for a dedicated saver, 4–5 for a spread build, never run 1.
+The primary crossroads stays single (Jack adds side-roads, never a second story voice),
+the cross-path hybrid flavors (travel-vlog & co.) become its cosmetic payoff, and the
+stage-bonus layer stays bounded (at rank 3 the ceiling is the fixed sum of all four
+data tracks — `docs/math-proof.md §13`).
 
 Nodes gate one another (`requires: ['sun_kissed>=3']`) so the tree has meaningful order and
 respec-worthy decisions. **Respec** allowed for a Legacy fee (or free before layer-2 unlock)

@@ -212,7 +212,7 @@ Each row: **goal**, accommodation tier(s), **new system(s)**, story beats, path 
 ### E26 — Who You Become (Permanent Skill Tree)
 - **Goal:** The **permanent skill tree** — physique & character nodes that persist across resets.
 - **Tier:** n/a (meta). **Beats:** 27 (*Who You Become*).
-- **New systems:** `skilltree.js` (Physique/Character/Meta branches), node ranks, requires-gates, respec, tree→story flags.
+- **New systems:** `skilltree.js` (Physique/Character/Meta branches), node ranks, requires-gates, respec, tree→story flags; **Jack of All Trades** (deep META node, prereqs across all three branches): the earned exception that re-opens path mixing — +1 side-road per rank (`docs/04 §4.3`).
 - **Path:** all (nodes synergize per branch). **Math:** `costLegacy=nodeBase·nodeGrowth^rank`; effects feed `L_tree`, `L_ascension`, milestone step.
 
 ### E27 — The Island Listing

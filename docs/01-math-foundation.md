@@ -185,7 +185,9 @@ Four archetypes — **one committed road per run/life** (design directive, super
 original "any mix" model): the beat-6 crossroads choice sets `story.branch`, focus and
 every path-point nudge flow ONLY into that path (`engine.buyPathFocus`/`addPathPoints`),
 and the ascension hard reset hands the choice back — each generation of the lineage can
-walk a different road. Variety across paths now lives *between lives*, not within one:
+walk a different road. Variety across paths now lives *between lives*, not within one —
+with ONE earned exception: the **Jack of All Trades** tree node (`docs/04 §4.3`, deep in
+the tree, ~a couple of ascensions) opens +1 extra road per rank within a life:
 
 | Path | Fantasy | Mechanical identity |
 |---|---|---|
