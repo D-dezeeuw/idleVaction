@@ -177,6 +177,12 @@ export function newGame() {
     // the ascension keep-list, so each life re-buys deeds (a hard reset zeroes ownership, S4-T7).
     property: newPropertySlice(),
     ascension: { count: 0, legacyBanked: 0, legacySpent: 0, tree: {} },
+    // legend (E29): the SECOND prestige layer. points spent in the meta-meta shop (perks map);
+    // count/banked mirror ascension's accounting. Survives the Legend reset itself (only Legacy +
+    // the tree + ascension.count wipe). 0/{} ⇒ L_legend 1, so the harness (never Legends) is unmoved.
+    legend: { count: 0, points: 0, banked: 0, perks: {} },
+    // ngPlus (E29): the New Game+ cycle counter. 0 ⇒ no gate hardening, no NG+ income × (neutral).
+    ngPlus: 0,
     // lineage (E25-A): cosmetic retirement/album bookkeeping. Carried across ascension by
     // prestige.ascend (the keep-list) — never read by any income path.
     lineage: newLineage(),
@@ -186,7 +192,10 @@ export function newGame() {
     ui: { bulkMode: 1 },
     settings: { gameSpeed: C.DEFAULT_GAME_SPEED, offlineEnabled: true, debug: false },
     stats: { lifetimeCash: 0, lifetimeCashThisTree: 0, bestComfort: 0, totalClicks: 0, runSec: 0,
-      tapWindowSec: 0, tapWindowCount: 0, overflowLost: 0 },
+      tapWindowSec: 0, tapWindowCount: 0, overflowLost: 0,
+      // E29: cumulative Legacy ever earned across ALL ascensions — the √-base for legendGain.
+      // Survives the Legend reset (it is the record the next layer telescopes on). 0 for the harness.
+      totalLegacyEverEarned: 0 },
     // transient caches (not strictly needed in save, recomputed each tick). _exclCache is
     // the connoisseur exclusivity score (E14) — a derived cache like _comfortCache, so no
     // persisted state.exclusivity is needed (S9-T1 satisfied by the cache); backfill adds it
@@ -195,7 +204,7 @@ export function newGame() {
     // so its NEUTRAL value is 1 — engine.tick recomputes it every tick via logisticsMult
     // (exactly 1 while nothing is equipped). Seeded to 1 (NOT 0) so any tierMultiplier read
     // before the first tick multiplies by the identity, never zeroes income.
-    _comfortCache: 0, _destCache: 1, _combo: 1, _comboTimer: 0, _pathBonus: {}, _exclCache: 0, _logiCache: 1, _staffMult: 1,
+    _comfortCache: 0, _destCache: 1, _combo: 1, _comboTimer: 0, _pathBonus: {}, _exclCache: 0, _logiCache: 1, _staffMult: 1, _estateMult: 1, _legendMult: 1,
   };
 }
 

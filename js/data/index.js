@@ -18,6 +18,7 @@ import { BOATS, CREW, JETS } from './logistics.js';
 import { STAFF_DATA } from './staff.js';
 import { PROPERTIES, PROPERTY_UPGRADES, GROUNDS } from './property.js';
 import { BUILDINGS } from './island.js';
+import { LEGEND_PERKS } from './legend.js';
 
 export const DATA = {
   generators: GENERATORS,
@@ -70,4 +71,7 @@ export const DATA = {
   // island buildings (E28 "Building Paradise"): generator+amenity hybrids that host paying guests.
   // validateIsland lives in data/island.js. All gated on owning the island (E27) — harness-neutral.
   buildings: BUILDINGS,
+  // legend perks (E29 "Empire of Leisure"): the meta-meta shop bought with Legend points. Neutral
+  // until a perk is bought; validateLegend lives in data/legend.js. Harness never Legends → L_legend 1.
+  legendPerks: LEGEND_PERKS,
 };

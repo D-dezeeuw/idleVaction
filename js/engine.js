@@ -84,6 +84,9 @@ export function tick(state, dt) {
   // E23 property×staff synergy (L_estate): 1 unless estate staff are assigned to owned grounds
   // (sqrt-softened). The harness owns no property and hires no one, so this stays 1 — island unmoved.
   state._estateMult = M.estateSynergy(state, DATA);
+  // E29 Legend meta-meta income × (L_legend): 1 unless a shop income perk is bought (harness never
+  // Legends). Cached before the tierProd snapshot, like _staffMult/_estateMult.
+  state._legendMult = M.computeLegendMult(state, DATA);
 
   const rt = runtimeMult(state);
 
@@ -1797,7 +1800,8 @@ export function nextAccTier(state) { return state.accommodation.tier + 1; }
 // ascGateMult raises the ladder's CASH gates each ascension (parabolic in tier — see
 // config.ASCEND_GATE / docs/math-proof.md §12); the Comfort unlock gate is untouched.
 export function accCostForTier(state, tier) {
-  return M.accScore(tier) * C.ACC.cashMult * M.ascGateMult(state, tier) * M.commsCostMult(state);
+  // E29 NG+ hardens the CASH gate by gateScale^ngPlus (1 at ngPlus 0 ⇒ bit-identical for the harness).
+  return M.accScore(tier) * C.ACC.cashMult * M.ascGateMult(state, tier) * M.ngPlusGateMult(state) * M.commsCostMult(state);
 }
 export function accCost(state) {
   return accCostForTier(state, nextAccTier(state));

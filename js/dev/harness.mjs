@@ -16,6 +16,7 @@ import { validateBank } from '../data/bank.js';
 import { validatePaths } from '../data/paths.js';
 import { validateProperty } from '../data/property.js';
 import { validateIsland } from '../data/island.js';
+import { validateLegend } from '../data/legend.js';
 import { fmt, fmtTime } from '../util.js';
 
 // ---- ROI-aware amenity buying (the max-speed player, not a completionist) ----
@@ -126,6 +127,7 @@ function report() {
   validatePaths();          // dev schema guard: staged tracks (thresholds, bonus vocabulary)
   validateProperty();       // dev schema guard (E22): property tree ids/parents/costGrowth
   validateIsland();         // dev schema guard (E28): building ids/costs/upkeep
+  validateLegend();         // dev schema guard (E29): legend perk ids/kinds/costs
   const { beatTime, islandAt, peakLog, dblAtIsland } = runCurve({ dt: 5, maxHours: 40 });
   console.log('\n=== idleVaction balance-fit curve (greedy optimal, LOWER bound on real time) ===\n');
   const beats = Object.keys(beatTime).map(Number).sort((a, b) => a - b);
