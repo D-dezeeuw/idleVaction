@@ -3107,5 +3107,72 @@ console.log('\n[87] staged path tracks: thresholds, stage reveals, unique per-pa
   ok(Object.keys(M.computePathBonuses(a, DATA)).length === 0, 'no stage bonuses survive into the new life');
 }
 
+// ---------- 88. Jack of All Trades (tree node): the earned exception to the
+// committed-path contract — each rank opens ONE extra road after committing; deep in
+// the tree (one prerequisite from every branch) so it takes a couple of ascensions.
+// ----------
+console.log('\n[88] Jack of All Trades: earned path mixing, slot caps, depth, reset behavior');
+{
+  const node = DATA.tree.find(n => n.id === 'jack_of_trades');
+  ok(!!node && node.maxRank === 3, 'the jack_of_trades node exists (maxRank 3 — at most all four roads)');
+  const reqBranches = new Set(node.requires.map(r => DATA.tree.find(n => n.id === r.split(':')[0]).branch));
+  ok(reqBranches.size === 3, 'DEPTH by construction: prerequisites span all three tree branches (physique + character + meta)');
+  // reachability arithmetic: prereqs + rank 1 cost ≈ 20 Legacy against the ~11.8·√N
+  // metered arc → around ascension 3 for a dedicated saver — "a couple", never run 1.
+  const prereqCost = node.requires.length * C.TREE.nodeBase + C.TREE.nodeBase;
+  ok(prereqCost >= 20, `minimum spend to reach rank 1 (${prereqCost} Legacy) exceeds any single ascension's payout (~11)`);
+
+  // without Jack: the committed-path contract is untouched
+  const noJack = ST.newGame();
+  noJack.story.branch = 'vlogger'; noJack.resources.cash = 1e9; noJack.bank.tier = C.BANK.tiers - 1;
+  ok(!E.buyPathFocus(noJack, 'crypto'), 'without the node, secondary focus stays a hard no-op');
+
+  // with rank 1: exactly ONE extra road, claimed by the first focus purchase
+  const j = ST.newGame();
+  j.story.branch = 'vlogger'; j.resources.cash = 1e9; j.bank.tier = C.BANK.tiers - 1;
+  j.ascension.tree.jack_of_trades = 1;
+  ok(E.canFocusPath(j, 'crypto') && E.canFocusPath(j, 'traveler'), 'rank 1: any secondary is OPENABLE while the slot is free');
+  ok(E.buyPathFocus(j, 'crypto'), 'rank 1: the first secondary focus purchase succeeds and claims the slot');
+  ok(j.paths.crypto.points === 1, 'the starter point lands on the newly-opened road');
+  ok(!E.buyPathFocus(j, 'traveler'), 'rank 1: a SECOND secondary is blocked — the slot is spent');
+  ok(E.buyPathFocus(j, 'crypto'), 'the opened side-road stays investable');
+  ok(E.buyPathFocus(j, 'vlogger'), 'the primary road is never affected by Jack accounting');
+  j.ascension.tree.jack_of_trades = 2;
+  ok(E.buyPathFocus(j, 'traveler'), 'rank 2: a second side-road opens');
+
+  // nudges follow opened roads only — and never open one by themselves
+  const n = ST.newGame();
+  n.story.branch = 'vlogger'; n.resources.cash = 1e9; n.bank.tier = C.BANK.tiers - 1;
+  n.ascension.tree.jack_of_trades = 1;
+  E.buyCoin(n, DATA.crypto.coins[0].id, 1);
+  ok(n.paths.crypto.points === 0, 'a nudge alone never opens a road (a stray coin buy cannot spend the Jack slot)');
+  ok(E.buyPathFocus(n, 'crypto'), 'opening explicitly via focus…');
+  const ptsBefore = n.paths.crypto.points;
+  E.buyCoin(n, DATA.crypto.coins[0].id, 1);
+  ok(n.paths.crypto.points > ptsBefore, '…after which nudges credit the opened side-road too');
+
+  // the side-road's staged track + bonuses genuinely apply (the mixing payoff)
+  const m = ST.newGame();
+  m.story.branch = 'vlogger'; m.resources.cash = 1e12; m.bank.tier = C.BANK.tiers - 1;
+  m.ascension.tree.jack_of_trades = 1;
+  E.buyPathFocus(m, 'traveler');
+  E.addPathPoints(m, 'traveler', 4);            // 5 total → traveler stage 1
+  ok(m.story.flags.pathStage_traveler_5 === true, "the side-road's staged track fires at its threshold");
+  ok(M.pathBonus(m, 'destDiscount') > 0, "the side-road's unique stage bonus is live alongside the primary's");
+  E.addPathPoints(m, 'vlogger', 5);
+  ok(m.story.flags.pathStage_vlogger_5 === true && M.pathBonus(m, 'comboMax') === 1,
+    'primary and side-road tracks run in parallel — the actual "mix paths" payoff');
+  E.tick(m, 1);
+  ok(m.story.flags.hybridTravelVlog === true,
+    'the dormant cross-path hybrid flavor fires again through Jack — two roads ≥5 points in one life');
+
+  // ascension: the node persists (it IS a tree ability), the opened roads do not
+  m.stats.lifetimeCashThisTree = 1e10; m.stats.runSec = 300; m.accommodation.tier = 12;
+  ok(P.ascend(m), 'ascend() succeeds');
+  ok(m.ascension.tree.jack_of_trades === 1, 'Jack persists across ascension — it is an ability bought with points');
+  ok(m.paths.traveler.focusBought === 0 && m.story.branch === 'neutral',
+    'the opened side-roads reset with the run — the next life re-commits and re-opens');
+}
+
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);
 process.exit(fails === 0 ? 0 : 1);

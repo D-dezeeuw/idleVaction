@@ -593,6 +593,21 @@ the Verified Blue social bonus nets ~22 minutes across the mid-game; peak `log10
 re-choice, cross-path nudges are no-ops), `[87]` (thresholds fire exactly at X points,
 stage bonuses are unique per path, the hard reset clears the track).
 
+**The earned exception — Jack of All Trades (tree node, `docs/04 §4.3`).** Path mixing
+returns as a META-tree ability: each rank lets a committed life OPEN one extra road
+(claimed only by an explicit Focus purchase — `engine.canFocusPath`; nudges can never
+spend a slot), after which that side-road earns points, walks its own staged track, and
+stacks its bonuses (`math.computePathBonuses` aggregates every opened road). Depth by
+construction: prerequisites span all three tree branches (15 Legacy) plus 5/10/20 rank
+costs — ~20 Legacy minimum against the ~11.8·√N metered arc ⇒ around ascension 3
+earliest, per the design directive ("only deep in the tree"). **Boundedness is
+preserved:** at max rank the stage layer's ceiling is the fixed sum of ALL FOUR data
+tracks — a constant, independent of time/cash/points — and the harness pins cannot move
+(the greedy bot never buys tree nodes; the ascension probe's policy never diversifies —
+both re-verified green). The dormant cross-path hybrid flavors become this node's
+cosmetic payoff. Tests: `selftest [88]` (slot caps per rank, explicit-open-only, side-
+road tracks/bonuses live, node persists across ascension while opened roads reset).
+
 ---
 
 ### Appendix — reproduce

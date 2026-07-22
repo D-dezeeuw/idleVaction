@@ -373,6 +373,11 @@ What shipped:
   first. **Baseline re-pin:** greedy island 8h37m00s → **8h15m05s (29 705 s)** (the
   bot's committed vlogger earns the stage bonuses); ascension band re-fit 8h40m–10h40m
   across five ascensions, all ≥ 8h with the early-fast/late-slow parabola intact.
+- **Jack of All Trades** (follow-up directive): the earned exception, as a META-tree
+  node — +1 openable side-road per rank (max 3), claimed only by an explicit Focus
+  purchase; side-roads earn points, walk their tracks, stack their bonuses; prereqs
+  span all three tree branches (~20 Legacy minimum ⇒ ~ascension 3+); hybrids become
+  its cosmetic payoff; harness pins unmoved (bots never buy tree nodes). Tests **[88]**.
 
 ## Act II–VI — E14–E30
 

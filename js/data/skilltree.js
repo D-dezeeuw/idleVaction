@@ -32,6 +32,20 @@ export const TREE = [
     effect: 'Begin each run at accommodation tier +1 per rank.', requires: ['legacy_investor:2'] },
   { id: 'second_wind',   branch: 'meta', name: 'Second Wind', maxRank: 3,
     effect: 'First 5 minutes of a run ×5 income per rank window.', requires: [] },
+  // Jack of All Trades: re-opens path MIXING, deep in the tree — the committed-path
+  // contract (one road per life, engine.buyPathFocus/addPathPoints) is deliberately
+  // absolute for early lineages, and this node is the earned exception: each rank lets
+  // a committed life OPEN one extra road (focus + nudges + its staged track/bonuses).
+  // The primary crossroads choice stays single — Jack adds side-roads, never a second
+  // "main" branch voice. Depth by construction: one prerequisite from EACH branch
+  // (physique + character + meta = 15 Legacy) plus its own 5/10/20 rank costs, against
+  // the metered ~11.8·√N Legacy arc → rank 1 lands around ascension 3 for a dedicated
+  // saver, 4-5 for a spread build — "a couple of ascensions", never run 1. This is
+  // also what makes the dormant cross-path hybrid flags (engine.checkPathHybridFlags)
+  // legitimately reachable within a single life again.
+  { id: 'jack_of_trades', branch: 'meta', name: 'Jack of All Trades', maxRank: 3,
+    effect: 'Open +1 extra path per rank after committing — mix roads within one life.',
+    requires: ['sun_kissed:1', 'silver_tongue:1', 'legacy_investor:1'] },
   // Unshakeable (E13 "Money Works While You Tan" — Task B risk mitigation): halves
   // crypto crash DEPTH per rank (not a flat reduction — see math.crashDampTotal), so
   // rank 1 alone cuts a crash's income loss in half; stacks with HEDGES multiplicatively

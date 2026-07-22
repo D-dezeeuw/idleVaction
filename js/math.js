@@ -94,22 +94,28 @@ export function pathMult(points) {
 }
 
 // ---- committed-path stage bonuses (the branching-track layer) ----
-// Aggregates the CHOSEN path's reached stages (data/paths.js `stages`, thresholds in
-// points) into one flat {key: sum} bag. Only story.branch's own track counts — points
-// can't accrue elsewhere anyway (engine.addPathPoints), so path-hopping earns nothing.
-// Every value is a sum of flat data constants (validatePaths enforces the vocabulary),
-// so this layer is bounded by construction. DATA passed explicitly (house convention);
-// engine.tick caches the result as state._pathBonus (recomputed after any point/branch
-// change), and pathBonus() below is the cheap accessor the hot paths read — mirroring
-// the _comfortCache/_destCache pattern exactly.
+// Aggregates every OPENED road's reached stages (data/paths.js `stages`, thresholds in
+// points) into one flat {key: sum} bag: the committed branch always, plus — with the
+// Jack of All Trades tree node — any secondary path explicitly opened via a focus
+// purchase (focusBought > 0; mirrors engine.pathReceives, which is what gates the
+// points themselves). Points can't accrue on unopened roads (engine.addPathPoints), so
+// path-hopping earns nothing. Every value is a sum of flat data constants
+// (validatePaths enforces the vocabulary) over at most the four data tracks, so this
+// layer is bounded by construction even at Jack rank 3. DATA passed explicitly (house
+// convention); engine.tick caches the result as state._pathBonus (recomputed after any
+// point/branch change), and pathBonus() below is the cheap accessor the hot paths read
+// — mirroring the _comfortCache/_destCache pattern exactly.
 export function computePathBonuses(state, DATA) {
   const out = {};
-  const chosen = DATA.paths.find(p => p.id === state.story.branch);
-  if (!chosen) return out;
-  const pts = state.paths[chosen.id].points;
-  for (const st of chosen.stages) {
-    if (pts < st.at) break;
-    for (const [k, v] of Object.entries(st.bonus)) out[k] = (out[k] || 0) + v;
+  const jack = state.ascension.tree.jack_of_trades || 0;
+  for (const p of DATA.paths) {
+    const primary = p.id === state.story.branch;
+    if (!primary && !(jack > 0 && state.paths[p.id].focusBought > 0)) continue;
+    const pts = state.paths[p.id].points;
+    for (const st of p.stages) {
+      if (pts < st.at) break;
+      for (const [k, v] of Object.entries(st.bonus)) out[k] = (out[k] || 0) + v;
+    }
   }
   return out;
 }

@@ -102,7 +102,9 @@ directive):** the beat-6 crossroads is answered ONCE per run/life — focus and 
 points flow only into the chosen road, so there is no mid-run hopping. The ascension
 hard reset (retirement, `docs/04 §1b`) hands the choice back: the heir may walk a
 different road, which is where build variety now lives. Every branch still passes the
-same 30 gates, so no life is ever stranded.
+same 30 gates, so no life is ever stranded. The one earned exception: the **Jack of All
+Trades** tree node (`docs/04 §4.3` — deep in the tree, a couple of ascensions in) lets
+a committed life open extra side-roads; the crossroads voice stays single.
 
 - **`traveler` — The Grand Tourist.** Perk: destinations `−15%` cost, `+1` transport slot.
   Fantasy: "been everywhere, seen everything." Beat variants emphasize maps, stamps, logistics.

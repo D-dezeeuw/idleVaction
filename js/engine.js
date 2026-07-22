@@ -283,11 +283,10 @@ export function checkBodyPathFlags(state) {
 // ---------- vlogger clout economy (E12 "Lights, Camera, Clout") ----------
 // Small cross-path hybrid flavor flags (E12-S7-T6), mirroring checkBodyPathFlags's
 // pattern exactly one section above — cosmetic only, never touches income math.
-// NOTE: under the committed-path contract (one path per life, points only accrue to
-// story.branch) these can no longer fire within a single run — they are DORMANT in
-// normal play, kept because debug grants/legacy saves can still reach them and because
-// the lineage plan (E25-A) intends to re-earn them ACROSS generations (a vlogger
-// parent + traveler child = the family's travel-vlog hybrid).
+// NOTE: under the committed-path contract (one path per life) these need TWO paths at
+// ≥5 points, which a plain run can no longer produce — they are the flavor payoff of
+// the Jack of All Trades tree node (open a second road, invest it to 5) and, later,
+// the lineage plan's cross-generation hybrids (E25-A: vlogger parent + traveler child).
 const HYBRID_PATH_POINTS = 5;
 export function checkPathHybridFlags(state) {
   if (state.paths.vlogger.points >= HYBRID_PATH_POINTS && state.paths.traveler.points >= HYBRID_PATH_POINTS
@@ -521,12 +520,33 @@ export function applyStoryChoice(state, beatId, set) {
 }
 
 // ---------- committed-path points + staged tracks (data/paths.js `stages`) ----------
-// The ONLY way path points accrue: credits land solely on the life's chosen road
-// (story.branch), so cross-path nudges (destination affinities for non-travelers, coin
-// buys for non-crypto lives, …) are simply no-ops — hopping earns nothing. Refreshes
-// the per-tick _pathBonus/_comfortCache caches and fires any newly-reached stage.
+// Which roads can RECEIVE points this life: the committed branch always; a secondary
+// path only when the Jack of All Trades tree node (data/skilltree.js) is owned AND that
+// road was explicitly OPENED via a focus purchase (focusBought > 0) — nudges alone can
+// never open a road, so a stray coin buy can't silently spend a Jack slot.
+export function pathReceives(state, id) {
+  if (state.story.branch === id) return true;
+  return (state.ascension.tree.jack_of_trades || 0) > 0 && state.paths[id].focusBought > 0;
+}
+// Can a focus purchase go into this path right now? The committed branch always; with
+// Jack of All Trades, an already-opened secondary always, and a NEW secondary only
+// while fewer than `rank` are open. Before commitment: nothing (the crossroads first).
+export function canFocusPath(state, id) {
+  if (state.story.branch === id) return true;
+  if (state.story.branch === 'neutral') return false;
+  const jack = state.ascension.tree.jack_of_trades || 0;
+  if (jack <= 0) return false;
+  if (state.paths[id].focusBought > 0) return true;
+  const openedSecondaries = DATA.paths.filter(p =>
+    p.id !== state.story.branch && state.paths[p.id].focusBought > 0).length;
+  return openedSecondaries < jack;
+}
+// The ONLY way path points accrue: credits land solely on roads the life has genuinely
+// opened (pathReceives), so cross-path nudges (destination affinities for
+// non-travelers, coin buys for non-crypto lives, …) are simply no-ops — hopping earns
+// nothing. Refreshes the _pathBonus/_comfortCache caches and fires newly-reached stages.
 export function addPathPoints(state, id, n) {
-  if (!(n > 0) || state.story.branch !== id) return false;
+  if (!(n > 0) || !pathReceives(state, id)) return false;
   state.paths[id].points += n;
   state._pathBonus = M.computePathBonuses(state, DATA);
   checkPathStages(state);
@@ -536,17 +556,19 @@ export function addPathPoints(state, id, n) {
 // Stage reveal: each reached threshold fires once per run (story.flags — wiped by the
 // ascension hard reset, so every life re-walks its track), announces the path's story
 // continuation (`desc`), and its flat bonus is live via the recomputed _pathBonus.
+// Iterates every road the life has opened (the branch + Jack side-roads).
 export function checkPathStages(state) {
-  const p = DATA.paths.find(x => x.id === state.story.branch);
-  if (!p) return;
-  const pts = state.paths[p.id].points;
-  for (const st of p.stages) {
-    if (pts < st.at) break;
-    const flagKey = `pathStage_${p.id}_${st.at}`;
-    if (state.story.flags[flagKey]) continue;
-    state.story.flags[flagKey] = true;
-    state._pathBonus = M.computePathBonuses(state, DATA);
-    notify(state, 'story', `📜 ${st.name} — ${st.desc}`);
+  for (const p of DATA.paths) {
+    if (!pathReceives(state, p.id)) continue;
+    const pts = state.paths[p.id].points;
+    for (const st of p.stages) {
+      if (pts < st.at) break;
+      const flagKey = `pathStage_${p.id}_${st.at}`;
+      if (state.story.flags[flagKey]) continue;
+      state.story.flags[flagKey] = true;
+      state._pathBonus = M.computePathBonuses(state, DATA);
+      notify(state, 'story', `📜 ${st.name} — ${st.desc}`);
+    }
   }
 }
 
@@ -650,8 +672,12 @@ export function pathCost(state, id) {
 // Focus only flows into the life's COMMITTED road (story.branch, chosen at the beat-6
 // crossroads) — before commitment, and for every other path, this is a hard no-op.
 // That is the anti-hopping contract: one path per run, re-chosen fresh each ascension.
+// The ONE earned exception is the Jack of All Trades tree node (canFocusPath above):
+// each rank lets a committed life open one extra road — the first focus purchase into
+// it is what claims the slot (focusBought flips >0 before addPathPoints runs, so the
+// starter point lands on the newly-opened road).
 export function buyPathFocus(state, id) {
-  if (state.story.branch !== id) return false;
+  if (!canFocusPath(state, id)) return false;
   const cost = pathCost(state, id);
   if (state.resources.cash < cost) return false;
   state.resources.cash -= cost;
