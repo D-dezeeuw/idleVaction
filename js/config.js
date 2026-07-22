@@ -501,8 +501,11 @@ export const CONFIG = {
   // outruns ACC.growth 2.6 × the gate's local slope).
   ASCEND_GATE: { base: 6, exp: 2, span: 20, countExp: 0.5 },
 
-  // ---- permanent skill tree ----
-  TREE: { nodeBase: 5, nodeGrowth: 2.0 },
+  // ---- permanent skill tree (E26 "Who You Become") ----
+  // costLegacy(rank) = nodeBase·nodeGrowth^rank. respecFee is the Legacy cost of a full respec,
+  // deducted from the refund (E26-S4/S8: "0 before the Legend layer" — free now, a lever E30 can
+  // raise). 0 ⇒ respec refunds exactly legacySpent, so shipped behaviour is unchanged.
+  TREE: { nodeBase: 5, nodeGrowth: 2.0, respecFee: 0 },
 
   // ---- pacing / QA (NEVER used to balance — only to pace/test) ----
   // gameSpeed multiplies simulated time in the loop. 1 = natural course; the high presets +
