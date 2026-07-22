@@ -535,6 +535,19 @@ export const CONFIG = {
   // raise). 0 ⇒ respec refunds exactly legacySpent, so shipped behaviour is unchanged.
   TREE: { nodeBase: 5, nodeGrowth: 2.0, respecFee: 0 },
 
+  // ---- Legend: the SECOND prestige layer + New Game+ (E29 "Empire of Leisure") ----
+  // Legend is prestige-2: a reset that wipes Legacy AND the permanent tree (AND ascension.count) for
+  // LEGEND points, spent in a meta-meta shop (data/legend.js) whose income perks feed a new L_legend
+  // layer. legendGain = floor(LEGEND_K·sqrt(totalLegacyEverEarned/LEGEND_SCALE)) − banked (the same
+  // √ anti-runaway template one layer up). Gated on minAscensions so it can't fire on run 1.
+  // New Game+ hardens the whole world: story/accommodation CASH gates ×gateScale^ngPlus, destinations
+  // reshuffle by seed, offset by a persistent income ×incomeMult^ngPlus so cycles compress.
+  // ALL of it is neutral at zero state: the greedy harness never ascends (0 Legacy ⇒ 0 Legend, 0
+  // NG+), so L_legend = 1, ngPlusGateMult = 1, ngPlusIncomeMult = 1 — the fitted 29705s is unmoved.
+  LEGEND_K: 1, LEGEND_SCALE: 1e7, LEGEND_EXP: 0.5,
+  LEGEND: { minAscensions: 3 },
+  NGPLUS: { gateScale: 1.5, incomeMult: 3.0, destShuffleSeedBase: 40000 },
+
   // ---- pacing / QA (NEVER used to balance — only to pace/test) ----
   // gameSpeed multiplies simulated time in the loop. 1 = natural course; the high presets +
   // the custom input let QA run the ~20h arc in seconds. The custom field accepts any value

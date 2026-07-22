@@ -751,20 +751,38 @@ upkeep, tier-21 gate, migration, harness invariance).
 - S9 Paradise While Away (4/4/2): present generic persist + migration + offline (both tick) + the upkeep clamp; done-now the buildings slice persist + backfill + offline guest income/upkeep (via the offline tick loop) + [103] migration. Superseded: a dedicated version bump + an away-modal resort line.
 - S10 Grand Opening QA (2/5/3): present number formatting + `aria-live`; done-now build QA + guest-income QA + upkeep-scaling QA + gate QA + [103] regression. Superseded: a grand-opening confetti + a ribbon-cutting animation + a save-compat fixture.
 
-## Act II–VI — E29–E30
+### E29 — Empire of Leisure (Legend prestige-2 + New Game+) · **100/100** (present 10, done-now 61, superseded 29)
+The second prestige layer + the long-tail loop — a new system, done-now-heavy. **Legend** is
+prestige-2: `legendReset` wipes Legacy AND the permanent tree AND `ascension.count` for **Legend
+points** (`legendGain = floor(LEGEND_K·√(totalLegacyEverEarned/LEGEND_SCALE)) − banked`, the same √
+template one layer up), spent in a **meta-meta shop** (`data/legend.js` — income / tree-discount /
+lore perks) whose income perks feed a new **`L_legend`** layer. **New Game+** hardens the world
+(accommodation CASH gate ×`gateScale^ngPlus`) offset by a persistent income ×`incomeMult^ngPlus`. The
+meta (Legend, tree, Legacy, `totalLegacyEverEarned`, lineage, owned island) survives the resets.
+**All neutral at zero state**: the harness never ascends (0 Legacy ⇒ 0 Legend, 0 NG+), so
+`L_legend = 1`, `ngPlusGateMult = 1`, `ngPlusIncomeMult = 1`, and the fitted **29705s** is unmoved.
+selftest **[104]** (27 assertions). **The BigNumber `{m,e}` swap is genuinely NOT needed** — the
+fitted arc peaks at `log10(cash) 11.3`, ~279 orders under the `1e290` policy threshold, so doubles
+stay exact and legible (docs/05 §6 confirms; the swap is correctly deferred, not skipped).
 
-_Pending — appended as each phase's build pass audits its 100 tasks._
+- S1 The Book of Legends (0/10/0): done-now the `legend`/`ngPlus`/`totalLegacyEverEarned` state + `data/legend.js` 5-perk shop + `LEGEND_*`/`NGPLUS` config + `validateLegend`.
+- S2 The Legend Reset (0/10/0): done-now `legendGain` + `canLegend` + `legendReset` (wipe Legacy+tree+count, keep the meta) + `L_legend` (`computeLegendMult` cache) + shop buy + tree discount + purity + events.
+- S3 The Hall of Fame (1/8/1): present the amenity-button pattern; done-now the Legend screen + reset button + preview + meta-meta shop grid + NG+ controls + a11y + income-× readout. Superseded: a bespoke hall-of-fame animation.
+- S4 New Game Plus (0/7/3): done-now `startNgPlus` + the cycle counter + `ngPlusGateMult` (CASH-gate hardening) + `ngPlusIncomeMult` (persistent income ×) + the NG+ toggle + persistence. **Superseded**: the destination reshuffle (seed config present, reshuffle deferred) + story-gate scaling beyond cash + a bespoke NG+ world-diff screen.
+- S5 Legend Perks (0/9/1): done-now the 5 perks (income/tree-discount/lore kinds) + geometric cost + `buyLegendPerk` + `L_legend` fold + `legendTreeDiscount` + flavor + QA + maxRank + points accounting. Superseded: a larger shop catalogue.
+- S6 Beyond the Island (2/2/6): present tier 21 exists (E28) + `accScore`; done-now the NG+ gate that re-hardens the ladder + reveal. **Superseded**: truly endless procedural tiers past 21 + their Comfort curve + reveal + migration + QA — the ladder ends at 21 and NG+ re-runs it harder instead (a cleaner long-tail than infinite rungs).
+- S7 Legends of Each Lane (0/1/9): done-now the branch-neutral shop. **Superseded**: lane-loyal legend perks (connoisseur/traveler/vlogger/crypto) + branch reset flavor + hybrid + copy + QA — the shop ships branch-agnostic (an honest gap for a later flavor pass).
+- S8 The Long Tail (1/6/3): present cross-layer sanity; done-now `LEGEND_K`/`SCALE`/`EXP` (√ anti-runaway) + `NGPLUS` gate/income sizing + documented constants + [104] golden + the neutral-at-zero guarantee. Superseded: a full long-tail pacing sweep + a per-cycle compression metric + a Legend-ROI hint.
+- S9 Carrying the Legend + BigNumber (4/3/3): present generic persist + migration + offline + the keep-list machinery; done-now `legend`/`ngPlus`/`totalLegacyEverEarned` persist + the Legend/NG+ keep-lists + [104] coverage. **Superseded**: the `{m,e}` BigNumber swap (NOT needed — peak `log10` 11.3 ≪ 1e290, doubles are exact) + a dedicated version bump + an away-modal legend line.
+- S10 Endgame Integrity (2/5/3): present number formatting + `aria-live`; done-now the reset QA + shop QA + NG+ QA + the neutral-at-zero invariance + [104] regression. Superseded: a legend-ascension animation + a release-checklist pass + a two-cycle playthrough fixture.
 
-| Epic | Status |
-|---|---|
-| E29 Empire of Leisure | pending |
-| E30 Legends of Leisure | pending |
+### E30 — Legends of Leisure · pending (the release/polish capstone — final QA, credits, launch)
 
 ---
 
 ### Running total
-- **Audited:** 2,800 / 3,000 tasks (E01–E28) — present 915, done-now 1,369, superseded 516.
-- **Remaining:** 200 tasks (E29–E30).
+- **Audited:** 2,900 / 3,000 tasks (E01–E29) — present 925, done-now 1,430, superseded 545.
+- **Remaining:** 100 tasks (E30).
 
 ### Deferred balance-tuner backlog (for a consolidated retune, latest at E30)
 - **`savvyPassive()` not ×`L_comfort`** (E06-S7-T4) — a flat sqrt-scaled additive term outside

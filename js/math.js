@@ -80,8 +80,12 @@ export function tierMultiplier(state, k) {
   const L_island = islandMult(state);
   const L_ascension = 1 + 0.10 * (state.ascension.tree.compounding_interest || 0);
   const L_tree = treeIncomeMult(state);
+  // L_legend (E29 meta-meta income perks) + L_ngplus (NG+ persistent income ×). Both exactly 1 at
+  // zero state — the harness never Legends or NG+s, so the fitted island time is unmoved.
+  const L_legend = legendMultiplier(state);
+  const L_ngplus = ngPlusIncomeMult(state);
 
-  return mMilestone * L_upgrade * L_path * L_skill * L_comfort * L_dest * L_exclusivity * L_logistics * L_staff * L_owner * L_estate * L_island * L_ascension * L_tree;
+  return mMilestone * L_upgrade * L_path * L_skill * L_comfort * L_dest * L_exclusivity * L_logistics * L_staff * L_owner * L_estate * L_island * L_ascension * L_tree * L_legend * L_ngplus;
 }
 
 // production per second of tier k (in units of tier k output)
@@ -335,6 +339,35 @@ export function islandUpkeep(state, DATA) {
 export function occupancy(state) {
   const d = guestDemand(state);
   return d / (d + 1);
+}
+
+// ---- Legend + New Game+ (E29 "Empire of Leisure") ----
+// L_legend: the meta-meta income × from the shop's 'income' perks. 1 with no perks bought (the
+// harness never Legends), so it is exactly neutral. DATA passed explicitly (house convention);
+// engine.tick caches the result as state._legendMult, which legendMultiplier() reads (like _staffMult).
+export function computeLegendMult(state, DATA) {
+  if (!state.legend?.perks) return 1;
+  let m = 1;
+  for (const p of DATA.legendPerks) {
+    if (p.kind !== 'income') continue;
+    const rank = state.legend.perks[p.id] || 0;
+    if (rank > 0) m += p.value * rank;
+  }
+  return m;
+}
+export function legendMultiplier(state) { return state._legendMult ?? 1; }
+// NG+ persistent income × = incomeMult^ngPlus (offsets the harder gates so cycles compress). Exactly
+// 1 at ngPlus 0 (the harness), so it is neutral.
+export function ngPlusIncomeMult(state) {
+  const n = state.ngPlus || 0;
+  return n <= 0 ? 1 : Math.pow(C.NGPLUS.incomeMult, n);
+}
+// NG+ CASH-gate hardening = gateScale^ngPlus (raises accommodation/story CASH gates). 1 at ngPlus 0.
+// Applied in engine.accCostForTier — NOT to the Comfort unlock gate, so the harness (ngPlus 0) is
+// bit-identical.
+export function ngPlusGateMult(state) {
+  const n = state.ngPlus || 0;
+  return n <= 0 ? 1 : Math.pow(C.NGPLUS.gateScale, n);
 }
 
 // ---- estate: grounds Comfort + property×staff synergy (E23 "Villa Vita") ----

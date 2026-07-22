@@ -16,6 +16,7 @@ import { validateLogistics } from '../data/logistics.js';
 import { validateStaff } from '../data/staff.js';
 import { validateProperty } from '../data/property.js';
 import { validateIsland } from '../data/island.js';
+import { validateLegend } from '../data/legend.js';
 import { fmt, fmtTime, rng } from '../util.js';
 // E11 harness-invariance guard ([62] below): importing runCurve does NOT auto-run the
 // harness's own report() — that's guarded behind `process.argv[1].endsWith('harness.mjs')`,
@@ -4487,6 +4488,71 @@ console.log('\n[103] E28 Building Paradise: island buildings, guest income, upke
   ok(Math.abs(islandAt - 29705) < 1, `harness island time is UNCHANGED by E28 (got ${fmtTime(islandAt)}, expected 29705s — no island ⇒ no resort)`);
   ok(hs.island.owned === false && M.guestIncomeRaw(hs, DATA) === 0 && M.buildingComfortTotal(hs, DATA) === 0, 'the harness builds nothing (guest income + building Comfort 0)');
   ok(E.accUnlocked(hs) === false || hs.accommodation.tier < 21, 'the harness never climbs past tier 20 (tier 21 needs the island)');
+}
+
+console.log('\n[104] E29 Empire of Leisure: Legend prestige-2, meta-meta shop, New Game+, invariance');
+{
+  ok(validateLegend(), 'validateLegend() passes on the shipped LEGEND_PERKS');
+  ok(DATA.legendPerks.length === 5, 'five meta-meta shop perks');
+
+  // ---- legendGain: √ of totalLegacyEverEarned; gated on minAscensions
+  const g0 = ST.newGame();
+  ok(P.legendGain(g0) === 0 && P.canLegend(g0) === false, 'a fresh game can never become a Legend (0 Legacy ever earned)');
+  const g = ST.newGame(); g.stats.totalLegacyEverEarned = C.LEGEND_SCALE * 100; g.ascension.count = C.LEGEND.minAscensions;
+  ok(P.legendGain(g) === Math.floor(C.LEGEND_K * Math.pow(100, C.LEGEND_EXP)), 'legendGain = floor(K·√(totalLegacyEverEarned/SCALE))');
+  ok(P.canLegend(g) === true, 'canLegend once past the ascension gate with ≥1 to gain');
+  const under = ST.newGame(); under.stats.totalLegacyEverEarned = C.LEGEND_SCALE * 100; under.ascension.count = C.LEGEND.minAscensions - 1;
+  ok(P.canLegend(under) === false, 'canLegend is false below the minAscensions gate');
+
+  // ---- totalLegacyEverEarned accrues on ascend and survives it
+  const acc = ST.newGame(); acc.stats.lifetimeCashThisTree = 1e10; acc.stats.runSec = 300; acc.bank.tier = 3;
+  const before = acc.stats.totalLegacyEverEarned;
+  const gain = P.legacyPreview(acc);
+  P.ascend(acc);
+  ok(acc.stats.totalLegacyEverEarned === before + gain, 'ascend accrues totalLegacyEverEarned (the Legend √-base) and it survives the reset');
+
+  // ---- the Legend reset: awards points, wipes Legacy + tree + ascension.count, keeps the meta
+  const L = ST.newGame(); L.stats.totalLegacyEverEarned = C.LEGEND_SCALE * 400; L.ascension.count = 5;
+  L.resources.legacy = 999; L.ascension.tree.sun_kissed = 4; L.lineage.album = [{ name: 'X', generation: 1, branch: 'neutral', peakTier: 0, runSec: 1, epitaph: 'x' }];
+  const pts = P.legendGain(L);
+  ok(P.legendReset(L) === true, 'legendReset succeeds when eligible');
+  ok(L.legend.points === pts && L.legend.count === 1, 'the reset awards Legend points and counts the legend');
+  ok(L.resources.legacy === 0 && Object.keys(L.ascension.tree).length === 0 && L.ascension.count === 0, 'the reset WIPES Legacy, the tree, and the ascension count');
+  ok(L.stats.totalLegacyEverEarned === C.LEGEND_SCALE * 400 && L.lineage.album.length === 1, 'the √-base and the family album SURVIVE the Legend reset (meta)');
+
+  // ---- the meta-meta shop: buy an income perk, cost curve, points deducted
+  const shop = ST.newGame(); shop.legend.points = 1000;
+  const tan = DATA.legendPerks.find(p => p.id === 'eternal_tan');
+  ok(P.legendPerkCost(shop, 'eternal_tan') === Math.floor(tan.cost), 'rank-0 perk cost = base cost');
+  ok(P.buyLegendPerk(shop, 'eternal_tan') === true, 'buying a meta-meta perk succeeds');
+  ok(P.legendRank(shop, 'eternal_tan') === 1 && shop.legend.points === 1000 - Math.floor(tan.cost), 'the perk rank increments and Legend points are deducted');
+  ok(P.legendPerkCost(shop, 'eternal_tan') === Math.floor(tan.cost * tan.growth), 'the next rank costs base·growth (geometric)');
+
+  // ---- L_legend: 1 with no income perks; rises with income perks; folds into the stack
+  ok(M.computeLegendMult(ST.newGame(), DATA) === 1, 'L_legend is 1 with no perks bought (harness-neutral)');
+  ok(approx(M.computeLegendMult(shop, DATA), 1 + tan.value), 'an income perk raises L_legend by value·rank');
+  const stk = ST.newGame(); stk.generators[0].bought = 20; stk.generators[0].count = 20;
+  const m0 = M.tierMultiplier(stk, 0); stk._legendMult = 1.5;
+  ok(approx(M.tierMultiplier(stk, 0) / m0, 1.5), 'tierMultiplier scales by exactly the L_legend cache (clean global factor)');
+
+  // ---- legend tree discount cheapens treeCost (0 with no perks ⇒ bit-identical)
+  ok(P.legendTreeDiscount(ST.newGame()) === 0, 'the tree discount is 0 with no perks (treeCost bit-identical)');
+  const disc = ST.newGame(); disc.legend.perks = { quick_study: 3 };
+  const qs = DATA.legendPerks.find(p => p.id === 'quick_study');
+  ok(approx(P.legendTreeDiscount(disc), qs.value * 3), 'treeDiscount perks reduce the tree cost by value·rank');
+  ok(P.treeCost(disc, 'sun_kissed') < P.treeCost(ST.newGame(), 'sun_kissed'), 'a discounted tree costs less Legacy');
+
+  // ---- New Game+: increments the counter, applies income × + gate ×, neutral at 0
+  ok(M.ngPlusIncomeMult(ST.newGame()) === 1 && M.ngPlusGateMult(ST.newGame()) === 1, 'NG+ multipliers are 1 at ngPlus 0 (neutral)');
+  const ng = ST.newGame(); ng.ascension.count = 2;
+  ok(P.startNgPlus(ng) === true && ng.ngPlus === 1, 'startNgPlus increments the cycle counter');
+  ok(approx(M.ngPlusIncomeMult(ng), C.NGPLUS.incomeMult) && approx(M.ngPlusGateMult(ng), C.NGPLUS.gateScale), 'NG+1 applies one factor of the income × and the gate ×');
+  ok(E.accCostForTier(ng, 20) > E.accCostForTier(ST.newGame(), 20), 'NG+ hardens the accommodation CASH gate');
+
+  // ---- harness invariance: never Legends or NG+s
+  const { s: hs, islandAt } = runCurve({ dt: 5, maxHours: 40 });
+  ok(Math.abs(islandAt - 29705) < 1, `harness island time is UNCHANGED by E29 (got ${fmtTime(islandAt)}, expected 29705s — no Legend, no NG+)`);
+  ok((hs.legend?.count || 0) === 0 && (hs.ngPlus || 0) === 0 && M.computeLegendMult(hs, DATA) === 1 && M.ngPlusIncomeMult(hs) === 1, 'the harness never Legends or NG+s (L_legend 1, NG+ mults 1)');
 }
 
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);

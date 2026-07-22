@@ -43,6 +43,7 @@ export function render(state) {
   renderStaff(state);
   renderProperty(state);
   renderIslandListing(state);
+  renderLegend(state);
   renderSkills(state);
   renderPaths(state);
   renderAscension(state);
@@ -1551,6 +1552,43 @@ function renderIslandListing(s) {
   el('islandListing').innerHTML = html;
 }
 
+// The Hall of Fame (E29): the Legend prestige-2 screen + the meta-meta shop + the NG+ toggle.
+// Revealed once the player is an established ascender (near the Legend gate) or already a Legend.
+function renderLegend(s) {
+  const card = el('legendCard');
+  const reveal = (s.ascension?.count || 0) >= C.LEGEND.minAscensions || (s.legend?.count || 0) > 0 || (s.ngPlus || 0) > 0;
+  if (card) card.hidden = !reveal;
+  if (!reveal) { if (el('legend')) el('legend').innerHTML = ''; return; }
+
+  const preview = P.legendPreview(s);
+  const can = P.canLegend(s);
+  let html = `<div class="iv-sub">👑 Legend points: <b>${fmt(s.legend?.points || 0)}</b> · legends: ${s.legend?.count || 0} · New Game+: ${s.ngPlus || 0} · income ×${(M.legendMultiplier(s) * M.ngPlusIncomeMult(s)).toFixed(2)}</div>`;
+  html += `<div class="iv-sub">Becoming a Legend wipes Legacy AND the skill tree for permanent Legend points — the meta-meta layer.</div>`;
+  html += `<div>Reset now → <b>+${fmt(preview)} Legend</b> ${btn('legend-reset', '', 'Become a Legend 👑', can)}</div>`;
+  if (!can) html += `<div class="iv-sub">(need ≥${C.LEGEND.minAscensions} ascensions and ≥1 Legend to gain)</div>`;
+
+  // the meta-meta shop
+  html += `<div class="iv-tag">the meta-meta shop</div><div class="iv-amenities">`;
+  for (const p of DATA.legendPerks) {
+    const rank = P.legendRank(s, p.id);
+    const cost = P.legendPerkCost(s, p.id);
+    const maxed = rank >= p.maxRank;
+    const canBuy = P.canBuyLegendPerk(s, p.id);
+    html += `<div class="iv-btn iv-content-item" title="${p.flavor}">
+      <b>${p.name}</b> <small>${rank}/${p.maxRank} · ${p.kind}</small>
+      <div class="iv-row-buy">${btn('buy-legend-perk', p.id, maxed ? 'MAX' : `${fmt(cost)} 👑`, canBuy, 'btn-primary')}</div>
+    </div>`;
+  }
+  html += '</div>';
+
+  // New Game+: harden the world for a fresh, richer replay
+  html += `<div class="iv-tag">new game+</div>`;
+  html += `<div class="iv-sub">NG+ hardens every gate (×${C.NGPLUS.gateScale}/cycle) and reshuffles the world, offset by a permanent income ×${C.NGPLUS.incomeMult}/cycle so the cycle compresses.</div>`;
+  html += `<div>${btn('ng-plus', '', `Start New Game+${(s.ngPlus || 0) + 1} 🔄`, (s.ascension?.count || 0) >= 1 || !!s.island?.owned)}</div>`;
+
+  el('legend').innerHTML = html;
+}
+
 function renderAscension(s) {
   const preview = P.legacyPreview(s);
   const can = P.canAscend(s);
@@ -1718,6 +1756,10 @@ function handle(action, arg, btnEl) {
     // E28: build a resort building on the owned island (generator+amenity hybrid, hosts guests).
     case 'buy-building': E.buyBuilding(S, arg); break;
     case 'ascend': if (P.ascend(S)) { setState(S); } break;
+    // E29 Legend prestige-2 + meta-meta shop + New Game+
+    case 'legend-reset': if (confirm('Become a Legend? This wipes Legacy AND your skill tree for permanent Legend points.') && P.legendReset(S)) setState(S); break;
+    case 'buy-legend-perk': P.buyLegendPerk(S, arg); break;
+    case 'ng-plus': if (confirm('Start New Game+? Every gate hardens; a permanent income multiplier compensates. Your meta progress (Legend, tree, island) stays.') && P.startNgPlus(S)) setState(S); break;
     // E25-A: name/rename the current character at the bus stop (cosmetic; sanitized in prestige).
     case 'name-lineage': {
       const raw = (typeof prompt === 'function') ? prompt('Name this tourist (they/them by default):', (S.lineage && S.lineage.name) || '') : null;

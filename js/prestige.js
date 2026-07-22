@@ -92,6 +92,8 @@ export function ascend(state, heir) {
   const retiree = makeRetiree(state);
   const gained = legacyPreview(state);
   state.resources.legacy += gained;
+  // E29: record cumulative Legacy ever earned (the √-base for the Legend layer). Survives ascension.
+  state.stats.totalLegacyEverEarned = (state.stats.totalLegacyEverEarned || 0) + gained;
   state.ascension.count++;
   state.ascension.legacyBanked += M.legacyGain(state); // bank raw so re-ascend doesn't double-pay
 
@@ -100,6 +102,9 @@ export function ascend(state, heir) {
   fresh.ascension = state.ascension;
   fresh.settings = state.settings;
   fresh.stats.lifetimeCashThisTree = state.stats.lifetimeCashThisTree; // √-prestige accounting only
+  fresh.stats.totalLegacyEverEarned = state.stats.totalLegacyEverEarned; // E29: the Legend √-base survives
+  fresh.legend = state.legend;      // E29: the Legend layer is meta — it survives ascension untouched
+  fresh.ngPlus = state.ngPlus;      // E29: the NG+ cycle counter is meta
   fresh.meta = state.meta;
   fresh.meta.runStartSec = 0;
   // E25-A lineage keep-list: carry the album forward (append the retiree, oldest compacted past the
@@ -143,7 +148,10 @@ export function ascend(state, heir) {
 export function treeNode(id) { return DATA.tree.find(n => n.id === id); }
 export function treeRank(state, id) { return state.ascension.tree[id] || 0; }
 export function treeCost(state, id) {
-  return Math.floor(C.TREE.nodeBase * Math.pow(C.TREE.nodeGrowth, treeRank(state, id)));
+  // E29: the Legend 'treeDiscount' perks cheapen the tree (Quick Study / Muscle Memory). Discount is
+  // 0 with no perks bought (the harness/tests), so treeCost is bit-identical to before.
+  const disc = legendTreeDiscount(state);
+  return Math.floor(C.TREE.nodeBase * Math.pow(C.TREE.nodeGrowth, treeRank(state, id)) * (1 - disc));
 }
 export function treeRequiresMet(state, id) {
   const n = treeNode(id);
@@ -179,5 +187,95 @@ export function respec(state) {
   state.ascension.legacySpent = 0;
   state.ascension.tree = {};
   C.MILESTONE_STEP = 10;
+  return true;
+}
+
+// ---------- Legend: the SECOND prestige layer (E29 "Empire of Leisure") ----------
+// legendGain = floor(LEGEND_K·(totalLegacyEverEarned/LEGEND_SCALE)^LEGEND_EXP) − banked — the same √
+// anti-runaway template one layer up. 0 for the harness (never ascends ⇒ totalLegacyEverEarned 0).
+export function legendGain(state) {
+  const raw = C.LEGEND_K * Math.pow((state.stats.totalLegacyEverEarned || 0) / C.LEGEND_SCALE, C.LEGEND_EXP);
+  return Math.max(0, Math.floor(raw) - (state.legend?.banked || 0));
+}
+export function legendPreview(state) { return legendGain(state); }
+export function canLegend(state) {
+  return (state.ascension?.count || 0) >= C.LEGEND.minAscensions && legendGain(state) >= 1;
+}
+// The Legend reset (prestige-2): award Legend points, then WIPE Legacy + the permanent tree + the
+// ascension accounting — a fresh climb from the shed. Legend points/perks, NG+, settings, lineage,
+// the owned island, and the √-base (totalLegacyEverEarned) all SURVIVE (they are the meta layer).
+export function legendReset(state) {
+  if (!canLegend(state)) return false;
+  const gained = legendGain(state);
+  const legend = state.legend || { count: 0, points: 0, banked: 0, perks: {} };
+  legend.points += gained;
+  legend.banked += gained;
+  legend.count += 1;
+
+  const fresh = newGame();
+  fresh.legend = legend;
+  fresh.ngPlus = state.ngPlus || 0;
+  fresh.settings = state.settings;
+  fresh.meta = state.meta; fresh.meta.runStartSec = 0;
+  fresh.stats.totalLegacyEverEarned = state.stats.totalLegacyEverEarned;   // the √-base persists
+  fresh.lineage = state.lineage;                                           // family album persists
+  if (state.island && state.island.owned) {                               // the island stays owned
+    fresh.island = { owned: true, purchasedAt: state.island.purchasedAt, relocated: state.island.relocated, buildings: fresh.island.buildings };
+    fresh.accommodation.homeBase = 'island';
+  }
+  C.MILESTONE_STEP = 10;   // Legacy tree wiped ⇒ Faster Metabolism gone
+  Object.assign(state, fresh);
+  state._notifications = [{ type: 'ascend', text: `👑 You are a LEGEND. +${gained} Legend points — Legacy and the tree begin again, stronger.` }];
+  return true;
+}
+
+// ---------- the meta-meta shop ----------
+export function legendPerkDef(id) { return DATA.legendPerks.find(p => p.id === id); }
+export function legendRank(state, id) { return state.legend?.perks?.[id] || 0; }
+export function legendPerkCost(state, id) {
+  const p = legendPerkDef(id);
+  return p ? Math.floor(p.cost * Math.pow(p.growth, legendRank(state, id))) : Infinity;
+}
+export function canBuyLegendPerk(state, id) {
+  const p = legendPerkDef(id);
+  return !!p && legendRank(state, id) < p.maxRank && (state.legend?.points || 0) >= legendPerkCost(state, id);
+}
+export function buyLegendPerk(state, id) {
+  if (!canBuyLegendPerk(state, id)) return false;
+  const cost = legendPerkCost(state, id);
+  state.legend.points -= cost;
+  (state.legend.perks ||= {})[id] = legendRank(state, id) + 1;
+  return true;
+}
+// Σ 'treeDiscount' perk value·rank, capped at 0.6 (never a free tree). 0 with no perks bought.
+export function legendTreeDiscount(state) {
+  if (!state.legend?.perks) return 0;
+  let d = 0;
+  for (const p of DATA.legendPerks) if (p.kind === 'treeDiscount') d += p.value * legendRank(state, p.id);
+  return Math.min(0.6, d);
+}
+
+// ---------- New Game+ ----------
+// Start a NG+ cycle: bump the counter, wipe the RUN (a hard reset like ascension) but keep the meta
+// (legend, tree, legacy, lineage, island). The world hardens: CASH gates ×gateScale^ngPlus (see
+// engine.accCostForTier via math.ngPlusGateMult), destinations reshuffle by seed, offset by a
+// persistent income ×incomeMult^ngPlus (math.ngPlusIncomeMult). All neutral at ngPlus 0 (the harness).
+export function startNgPlus(state) {
+  if ((state.ascension?.count || 0) < 1 && !(state.island && state.island.owned)) return false;  // must be an established player
+  const fresh = newGame();
+  fresh.ngPlus = (state.ngPlus || 0) + 1;
+  fresh.legend = state.legend;
+  fresh.ascension = state.ascension;   // NG+ keeps the tree + Legacy (it hardens the world, not a prestige wipe)
+  fresh.resources.legacy = state.resources.legacy;
+  fresh.settings = state.settings;
+  fresh.meta = state.meta; fresh.meta.runStartSec = 0;
+  fresh.stats.totalLegacyEverEarned = state.stats.totalLegacyEverEarned;
+  fresh.lineage = state.lineage;
+  if (state.island && state.island.owned) {
+    fresh.island = { owned: true, purchasedAt: state.island.purchasedAt, relocated: state.island.relocated, buildings: fresh.island.buildings };
+    fresh.accommodation.homeBase = 'island';
+  }
+  Object.assign(state, fresh);
+  state._notifications = [{ type: 'ascend', text: `🔄 New Game+${state.ngPlus}. The world is harder, the rewards richer. Again — but more.` }];
   return true;
 }
