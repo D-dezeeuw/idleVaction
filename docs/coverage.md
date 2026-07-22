@@ -529,13 +529,32 @@ gate, payroll sink+floor+unpaid-pause, bounded auto-buy never-into-debt+reserve,
 - S9 Off the Clock (3/6/1): OFFLINE_CAP + round-trip + corrupt-guard present; persist + migration (backfill) + offline payroll + offline auto-buy + unpaid-away + backcompat done-now. Superseded: dedicated away-modal butler line.
 - S10 White Gloves (4/4/2): formatting + gameSpeed + console + DoD present; hire/fire edge + event-batching + regression ([94]) + copy done-now. Superseded: bell juice, debug-panel hooks.
 
-## Act II–VI — E20–E30
+### E20 — The Whole Household (staff II) · **100/100** (present 21, done-now 60, superseded 19)
+Extends the E19 butler into a full household: chef/trainer/driver/manager (income-× roles) +
+housekeeper (glue). Each income-× role adds a small **morale-scaled** global × folded into one
+**bounded L_staff** layer (`Π 1 + xMultBase·level·moraleMult`), gated to 1 unless hired → harness
+never hires → island **unchanged at 29705s**. `moraleMult` is a clamped log softcap. Reuses the
+E19 hire/level/payroll/auto-buy machinery (now role-generic). Built inline. selftest **[95]** (19
+assertions: invariance, morale softcap, L_staff fold + level-0-no-× + housekeeper-glue, stack-order,
+cap, payroll aggregate, beat-20 flag, migration, offline determinism).
+
+- S1 Roster (1/8/1): 5 role defs + subsystem + morale fields + config + selectors + validation done-now; concierge reuse present. Superseded: per-item autoBuyable.
+- S2 Everyone Has a Job (0/8/2): morale mult + effective output + morale dynamics + per-role automation + payroll aggregate + cap + housekeeper-special + tests done-now. **Superseded**: distinct per-subsystem-layer routing (chef→L_comfort etc.) — unified into one bounded L_staff × (invisible to the player, far simpler/safer), and the per-role deterministic-sort nuance (reuses the concierge sort).
+- S3 Household Board (1/9/0): a11y present; grid board + hire/level/morale-bars/payroll/toggles/subsystem-summary/cap/copy done-now.
+- S4 A Full Household (0/7/3): the four income roles + housekeeper-glue + beat-20 + combined-balance + coexistence + flavor + QA done-now. Superseded: trainer→Body / driver→logistics / manager→Clout as *distinct* subsystem effects (all fold into L_staff; their auto-buy targets differ by category).
+- S5 Staff Quarters (1/7/2): buttons present; 6 amenities + comfort + unlock + flavor + save + QA done-now. Superseded: automation-synergy items (−interval), `xMult` dormant.
+- S6 Ultra Penthouse (7/2/1): tier 13 / gate / accScore / reveal / migration / label already present; the staff-quarters gate + household reveal done-now. Superseded: Service Wing raising the cap (a fixed cap 6 already fits the whole roster).
+- S7 Service Your Way (3/2/5): perk-interaction + softcap + neutral floor present; hybrid + quips done-now. Superseded: per-branch default policies + branch-specific automation flavors + live re-spec (butler-style defaults for all).
+- S8 Worth the Wage (2/6/2): guardrail (off→1) + cadence present; wages + morale softcap + payroll pressure + golden ([95]) + documented knobs done-now. Superseded: ROI-break-even metric, sensitivity sweep.
+- S9 Off the Clock (3/6/1): OFFLINE_CAP + round-trip + corrupt-guard present; persist + migration + offline payroll/auto-buy/morale + backcompat done-now. Superseded: dedicated away-modal household line.
+- S10 White Gloves (3/5/2): formatting + gameSpeed + console present; morale-clamp + cap + event-batch + regression ([95]) + copy done-now. Superseded: bell juice, debug hooks.
+
+## Act II–VI — E21–E30
 
 _Pending — appended as each phase's build pass audits its 100 tasks._
 
 | Epic | Status |
 |---|---|
-| E20 The Whole Household | pending |
 | E21 Seven Stars | pending |
 | E22 A Bungalow of One's Own | pending |
 | E23 Villa Vita | pending |
@@ -550,8 +569,8 @@ _Pending — appended as each phase's build pass audits its 100 tasks._
 ---
 
 ### Running total
-- **Audited:** 1,900 / 3,000 tasks (E01–E19) — present 615, done-now 940, superseded 345.
-- **Remaining:** 1,100 tasks (E20–E30).
+- **Audited:** 2,000 / 3,000 tasks (E01–E20) — present 636, done-now 1,000, superseded 364.
+- **Remaining:** 1,000 tasks (E21–E30).
 
 ### Deferred balance-tuner backlog (for a consolidated retune, latest at E30)
 - **`savvyPassive()` not ×`L_comfort`** (E06-S7-T4) — a flat sqrt-scaled additive term outside
