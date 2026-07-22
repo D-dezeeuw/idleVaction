@@ -244,4 +244,27 @@ export const AMENITIES = [
   { id: 'spf_screen_hood',      name: 'SPF Screen Hood',         tag: 'cryptogear', costBase: 1.2e10,comfort: 13800, xMult: 0.08, xScope: 'all', unlockComfort: 6000,  flavor: 'You can finally see the candles. And the sun. Mostly the candles.' },
   { id: 'mechanical_keyboard',  name: 'Mechanical Keyboard',     tag: 'cryptogear', costBase: 2.4e10,comfort: 17900, xMult: 0.10, xScope: 'all', unlockComfort: 15000, flavor: 'Loud enough that the concierge assumes you are working.' },
   { id: 'umbrella_second_monitor', name: 'Umbrella-Mounted Second Monitor', tag: 'cryptogear', costBase: 4.8e10, comfort: 23300, xMult: 0.12, xScope: 'all', unlockComfort: 30000, flavor: 'One screen for the pool. One for the portfolio. Priorities.' },
+
+  // --- Quiet Luxury cluster (E14-S5 "Quiet Luxury" — the connoisseur small-wins cadence
+  // at the Grand Luxury Wing stage). tag:'luxury' — the SAME tag as the pre-existing
+  // luxury cluster above (butler_bell/gold_taps/infinity_pool), so this cluster ALSO feeds
+  // the connoisseur branch's +25%-Comfort perk and the exclusivity meter, both of which
+  // target tag:'luxury' (see data/collections.js's matching schema comment). Bought
+  // through the SAME generic engine.buyAmenity(id) as every other amenity (E14-S5-T2, no
+  // bespoke code). costBase sits above the current most expensive cluster (cryptogear's
+  // umbrella_second_monitor @ 4.8e10), ramping ~2x per step per the epic's own "ramping
+  // ~2x per step" (E14-S5-T2); comfort/xMult stay conservative with a declining
+  // comfort/cost ratio, the same convention every prior gap-fill cluster uses so the
+  // ROI-aware harness treats these as small comfort-only wins and this cannot move the
+  // fitted pacing curve. unlockComfort brackets the Grand Luxury Wing's (tier 11) stage —
+  // accScore(11) = 50·2.6^11 ≈ 1.84e6 — starting just under that and rising, so the first
+  // item helps toward the wing check-in and the rest keep small wins flowing after.
+  // `exclusivity` (NEW field, mirrors data/collections.js) is a small positive weight so
+  // this cluster also raises the exclusivity meter (E14-S5-T5). ---
+  { id: 'cigar_lounge',          name: 'Private Cigar Lounge',    tag: 'luxury', costBase: 8.0e10,  costGrowth: 1.5, comfort: 26000, xMult: 0.02,  xScope: 'all', unlockComfort: 1.5e6, exclusivity: 2,  flavor: 'Smoke that costs more than the room did, back when there was a room that cost anything.' },
+  { id: 'private_sommelier',     name: 'Private Sommelier',       tag: 'luxury', costBase: 1.6e11,  costGrowth: 1.5, comfort: 34000, xMult: 0.025, xScope: 'all', unlockComfort: 2.2e6, exclusivity: 3,  flavor: 'He tastes it first. You nod. Neither of you actually enjoys this part.' },
+  { id: 'silk_robe',             name: 'Silk Robe',               tag: 'luxury', costBase: 3.2e11,  costGrowth: 1.5, comfort: 44000, xMult: 0.03,  xScope: 'all', unlockComfort: 3.2e6, exclusivity: 5,  flavor: 'Weighs nothing. Costs a small apartment. The math checks out, apparently.' },
+  { id: 'monogrammed_slippers',  name: 'Monogrammed Slippers',    tag: 'luxury', costBase: 6.4e11,  costGrowth: 1.5, comfort: 57000, xMult: 0.032, xScope: 'all', unlockComfort: 4.6e6, exclusivity: 7,  flavor: 'Your initials, on your feet, for no one to see.' },
+  { id: 'antique_writing_desk',  name: 'Antique Writing Desk',    tag: 'luxury', costBase: 1.28e12, costGrowth: 1.5, comfort: 74000, xMult: 0.035, xScope: 'all', unlockComfort: 6.6e6, exclusivity: 9,  flavor: 'You write exactly one postcard on it, then never again. The desk does not mind.' },
+  { id: 'butler_drawn_bath',     name: 'Butler-Drawn Bath',       tag: 'luxury', costBase: 2.56e12, costGrowth: 1.5, comfort: 96000, xMult: 0.04,  xScope: 'all', unlockComfort: 9.5e6, exclusivity: 12, flavor: 'Precisely 38 degrees. He does not ask how you know. He just knows.' },
 ];

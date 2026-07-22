@@ -52,7 +52,19 @@ export const STORY = [
       'Poolside, laptop humming, you watch one wallet move an amount with its own zip ' +
       'code. The chart does something dramatic. You do not sell. You do not buy. You ' +
       'just watch, tanning, mildly transfixed — wisdom or paralysis, hard to say. Either ' +
-      'way, the concierge has already booked the next flight. Someone should pack.' } } },
+      'way, the concierge has already booked the next flight. Someone should pack.' },
+      // connoisseur variant (E14-S7-T3 "Provenance") — SAME beat-14 gate/requires as the
+      // default (E14-S7-T10: no build is ever stranded; only the title/text swap when
+      // story.branch==='connoisseur', mirroring the crypto variant just above). Also
+      // plants the beat-25 "Where the Rich Hide" setup line (E14-S7-T6, exclusive
+      // destinations — Monaco, St. Barths, an unlisted address) so beat 25's own reveal
+      // and E24's set-collection payoff both land with the seed already sown.
+      connoisseur: { title: 'Provenance', text:
+        'An auction house calls, not the other way around — someone noticed the Bordeaux. ' +
+        'You decline, mostly to hear how they take it. A courier mentions, off-hand, an ' +
+        "address in Monaco with no listing, and a friend who \"summers unlisted\" near St. " +
+        'Barths — the kind of place that does not appear on maps, only on invitations. You ' +
+        'do not ask for the address. You suspect it will find you.' } } },
   { id: 15, title: 'Keys to the Coupe', requires: { accTier: 10 },
     text: 'No more buses. Something low, fast, and entirely impractical is yours.' },
   { id: 16, title: 'Sea Legs', requires: { comfort: 5e6 },
