@@ -61,6 +61,22 @@ export const DESTINATIONS = [
     costBase: 1749600, mult: 1.04, unlockAfter: 'dest_cologne', unlockComfort: 5e6, tag: 'capital',
     pathAffinity: { traveler: 1.0 }, travelTime: 60,
     flavor: 'Coffee house etiquette has seventeen unwritten rules. You break twelve by lunch.' },
+  // --- sea destinations (E16 "Sea Legs"): sea:true + requiresBoatTier — engine.destUnlocked
+  // blocks them until the marina owns a boat of the needed tier, so a hull literally opens
+  // places you couldn't reach. Same conservative mult range as the land rows (see the BALANCE
+  // NOTE above — L_dest is global + pacing-sensitive); costBase strictly-increasing past Vienna. ---
+  { id: 'sea_hidden_cove', name: 'A Hidden Cove', region: 'Mediterranean',
+    costBase: 5.2e6, mult: 1.045, unlockAfter: 'dest_vienna', unlockComfort: 6e6, tag: 'sea',
+    pathAffinity: { traveler: 1.0, connoisseur: 0.5 }, travelTime: 90, sea: true, requiresBoatTier: 1,
+    flavor: 'No road reaches it. That is, of course, the entire point.' },
+  { id: 'sea_greek_islands', name: 'A Greek Island-Hop', region: 'Aegean',
+    costBase: 1.6e7, mult: 1.045, unlockAfter: 'sea_hidden_cove', unlockComfort: 2e7, tag: 'sea',
+    pathAffinity: { traveler: 1.0, connoisseur: 0.5 }, travelTime: 120, sea: true, requiresBoatTier: 2,
+    flavor: 'Blue roofs, white walls, a different anchorage each night. You lose track of the days, gladly.' },
+  { id: 'sea_fjord_cruise', name: 'A Fjord Cruise', region: 'Norway',
+    costBase: 4.8e7, mult: 1.05, unlockAfter: 'sea_greek_islands', unlockComfort: 6e7, tag: 'sea',
+    pathAffinity: { traveler: 1.0, connoisseur: 0.5 }, travelTime: 150, sea: true, requiresBoatTier: 3,
+    flavor: 'Turns out the fjords do not care that it also rains in Rotterdam.' },
 ];
 
 // TRANSPORT row shape: { id, name, speed, costBase, upkeep, flavor }. `speed` shortens
@@ -92,6 +108,11 @@ export function validateDestinations() {
     if (!(d.mult >= 1)) errors.push(`${d.id}: mult must be >= 1 (got ${d.mult})`);
     if (!(d.unlockComfort >= 0)) errors.push(`${d.id}: unlockComfort must be >= 0 (got ${d.unlockComfort})`);
     if (typeof d.travelTime !== 'number' || !(d.travelTime > 0)) errors.push(`${d.id}: travelTime must be a positive number (got ${d.travelTime})`);
+    // sea destinations (E16): sea:true rows must carry a positive-integer requiresBoatTier gate.
+    if (d.sea !== undefined) {
+      if (d.sea !== true) errors.push(`${d.id}: sea must be true when present (got ${d.sea})`);
+      if (!Number.isInteger(d.requiresBoatTier) || d.requiresBoatTier <= 0) errors.push(`${d.id}: sea destination needs a positive-integer requiresBoatTier`);
+    }
   }
   if (errors.length) throw new Error('validateDestinations() failed:\n' + errors.join('\n'));
   return true;

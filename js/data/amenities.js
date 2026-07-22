@@ -294,4 +294,17 @@ export const AMENITIES = [
   { id: 'pine_air_freshener_deluxe',name: 'Pine Air Freshener Deluxe',   tag: 'destination', costBase: 1.2e7, costGrowth: 1.5, comfort: 1100, xMult: 0.035, xScope: 'all', unlockComfort: 5.2e6, flavor: 'Makes the hatchback smell like a *nicer* forest.' },
   { id: 'panoramic_sunroof',        name: 'Panoramic Sunroof',           tag: 'destination', costBase: 2.4e7, costGrowth: 1.5, comfort: 1500, xMult: 0.04,  xScope: 'all', unlockComfort: 7.0e6, flavor: 'You get rained on from directly above now. A premium experience.' },
   { id: 'heads_up_display',         name: 'Heads-Up Display',            tag: 'destination', costBase: 4.8e7, costGrowth: 1.5, comfort: 2000, xMult: 0.045, xScope: 'all', unlockComfort: 9.0e6, flavor: 'Speed, fuel, and a faint sense of main-character energy, projected onto the windscreen.' },
+
+  // --- yacht deck toys (E16 "Sea Legs" — S4/S5): tag:'yacht', costGrowth 1.8 (a prestige rung
+  // above the car cluster). The floating pool is the showpiece (biggest comfort). Comfort/cost
+  // kept at the conservative end (like every prior cluster) so the sea leg doesn't stretch the
+  // fitted curve; unlockComfort staggered for the post-tier-11 marina stage. ---
+  { id: 'pool_on_a_boat',   name: 'Pool On A Boat (On The Sea)', tag: 'yacht', costBase: 1e8,   costGrowth: 1.8, comfort: 6000, xMult: 0.05, xScope: 'all', unlockComfort: 1.2e7, flavor: 'A pool. On a boat. On the sea. You have questions. The answer to all of them is "yes".' },
+  { id: 'sun_deck_bed',     name: 'Sun-Deck Daybed',             tag: 'yacht', costBase: 1.8e8, costGrowth: 1.8, comfort: 2600, xMult: 0.04, xScope: 'all', unlockComfort: 1.5e7, flavor: 'Horizontal is a lifestyle now, not a position.' },
+  { id: 'floating_bar',     name: 'Floating Swim-Up Bar',        tag: 'yacht', costBase: 3.2e8, costGrowth: 1.8, comfort: 3100, xMult: 0.045,xScope: 'all', unlockComfort: 2.0e7, flavor: 'The only commute left is the swim to the bar. You do it responsibly. Twice.' },
+  { id: 'inflatable_orca',  name: 'Inflatable Orca',             tag: 'yacht', costBase: 5.6e8, costGrowth: 1.8, comfort: 1900, xMult: 0.03, xScope: 'all', unlockComfort: 2.6e7, flavor: 'Life-sized. Judgmental. Named Kees.' },
+  { id: 'banana_boat',      name: 'Banana Boat',                 tag: 'yacht', costBase: 1e9,   costGrowth: 1.8, comfort: 2200, xMult: 0.03, xScope: 'all', unlockComfort: 3.4e7, flavor: 'Seats six. You have no friends here, which is the point.' },
+  { id: 'jet_ski',          name: 'Jet-Ski',                     tag: 'yacht', costBase: 1.8e9, costGrowth: 1.8, comfort: 2800, xMult: 0.04, xScope: 'all', unlockComfort: 4.4e7, flavor: 'Loud, wet, and entirely unnecessary. Perfect.' },
+  { id: 'seabob',           name: 'Seabob Underwater Scooter',   tag: 'yacht', costBase: 3.2e9, costGrowth: 1.8, comfort: 3400, xMult: 0.045,xScope: 'all', unlockComfort: 5.8e7, flavor: 'You are a torpedo now, a rich and relaxed torpedo.' },
+  { id: 'tender_dinghy',    name: 'Tender Dinghy',               tag: 'yacht', costBase: 5.6e9, costGrowth: 1.8, comfort: 4000, xMult: 0.05, xScope: 'all', unlockComfort: 7.6e7, flavor: 'A small boat to reach the shore your big boat cannot. You will never use it. You love it.' },
 ];
