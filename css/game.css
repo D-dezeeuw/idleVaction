@@ -211,6 +211,13 @@ body { background: var(--iv-bg); color: var(--iv-ink); font-family: system-ui, s
 .iv-market-crash { background: #3a1414; border: 1px solid #ff4d4d; color: #ff8080; }
 .iv-market-chop { background: #14252c; border: 1px solid var(--iv-line); color: var(--iv-sub); }
 
+/* Gallery & Cellar (E14 "Acquired Taste"): reuses .iv-btn/.iv-content-item's block shape for
+   each art/wine row (like the crypto holdings card). The discount tag (S3-T7, "old-money
+   haggle") is a struck-through undiscounted price next to the real one. Provenance lives
+   ONLY in the row's title= tooltip — never inline — so a long fake-auction-house string
+   can never widen or break the row layout (S3-T10). */
+.iv-strike { color: var(--iv-sub); text-decoration: line-through; margin-right: 4px; font-size: .72rem; }
+
 /* "While you were away" summary (E02-S9-T5): dismissible, mobile-friendly overlay. */
 .iv-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex;
   align-items: center; justify-content: center; z-index: 20; padding: 16px; }
