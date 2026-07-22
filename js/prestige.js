@@ -116,6 +116,13 @@ export function ascend(state, heir) {
     generation: nextGen,
     album,
   };
+  // E27 island META keys: the private island is a permanent achievement — its ownership + the
+  // 'island' home base survive ascension (the run's accommodation.tier still resets to the shed).
+  // So the L_island relocation reward persists across runs; the harness never owns it (0 legacy).
+  if (state.island && state.island.owned) {
+    fresh.island = { owned: true, purchasedAt: state.island.purchasedAt, relocated: state.island.relocated };
+    fresh.accommodation.homeBase = 'island';
+  }
 
   // apply "Head Start": begin at higher accommodation tier
   const head = state.ascension.tree.head_start || 0;

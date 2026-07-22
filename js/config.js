@@ -501,6 +501,24 @@ export const CONFIG = {
   // outruns ACC.growth 2.6 × the gate's local slope).
   ASCEND_GATE: { base: 6, exp: 2, span: 20, countExp: 0.5 },
 
+  // ---- the private island (E27 "The Island Listing") ----
+  // The dream purchase: the single biggest sink in the game — a MULTI-CURRENCY mega-cost calibrated
+  // to ~1–2 ascensions of saving. This is a SEPARATE opt-in acquisition on top of reaching the
+  // accommodation tier-20 rung (which stays Comfort-gated so the greedy harness still reaches the
+  // island rung at 29705s). The price includes `legacy`, and the listing only appears at beat 28
+  // (legacy ≥ legacyGate) — the harness never ascends (legacy 0), so it can NEVER see the listing or
+  // afford the island, and state.island.owned stays false ⇒ L_island stays 1 ⇒ the fitted island
+  // time is unmoved. Comfort is a THRESHOLD (a derived stat recomputed each tick — it cannot be
+  // debited), while cash/clout/legacy are debited (docs: S2-T3 decision). incomeMult is the bounded
+  // relocation reward (owning the island ⇒ a flat global ×, permanent — it survives ascension as a
+  // meta key), exactly 1 while unowned.
+  ISLAND: {
+    price: { cash: 1e12, comfort: 5e9, clout: 1e5, legacy: 25 },   // comfort = threshold; rest debited
+    legacyGate: 20,        // the listing appears at beat 28 (legacy ≥ this) — matches beat 28's gate
+    incomeMult: 1.5,       // relocation reward: a bounded flat × on all income while the island is owned
+    relocate: ['logistics', 'staff', 'signatureAmenities'],
+  },
+
   // ---- permanent skill tree (E26 "Who You Become") ----
   // costLegacy(rank) = nodeBase·nodeGrowth^rank. respecFee is the Legacy cost of a full respec,
   // deducted from the refund (E26-S4/S8: "0 before the Legend layer" — free now, a lever E30 can

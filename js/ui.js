@@ -42,6 +42,7 @@ export function render(state) {
   renderHangar(state);
   renderStaff(state);
   renderProperty(state);
+  renderIslandListing(state);
   renderSkills(state);
   renderPaths(state);
   renderAscension(state);
@@ -1503,6 +1504,38 @@ function esc(str) {
   return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+// The Island Listing (E27): the real-estate brochure with four per-currency progress bars and one
+// triumphant "Make an Offer" button. Revealed at beat 28; swaps to a SOLD state once bought.
+function renderIslandListing(s) {
+  const card = el('islandListingCard');
+  const reveal = E.islandListingUnlocked(s);
+  if (card) card.hidden = !reveal;
+  if (!reveal) { if (el('islandListing')) el('islandListing').innerHTML = ''; return; }
+
+  if (s.island && s.island.owned) {
+    el('islandListing').innerHTML = `
+      <div class="iv-capstone-on">🏝️ <b>SOLD — welcome home.</b> The island is yours · relocation reward <b>×${C.ISLAND.incomeMult.toFixed(2)}</b> on all income (permanent, survives ascension).</div>
+      <div class="iv-sub">Forty hectares, one (1) confused goat, a horizon with your name on it. Set up camp below — the mainland era is over.</div>`;
+    return;
+  }
+  const p = C.ISLAND.price;
+  const sh = E.islandShortfall(s);
+  const comfort = s._comfortCache ?? s.resources.comfort ?? 0;
+  const have = { cash: s.resources.cash, comfort, clout: s.resources.clout || 0, legacy: s.resources.legacy || 0 };
+  const label = { cash: '💶 cash', comfort: '😌 comfort (threshold)', clout: '📣 clout', legacy: '🏆 legacy' };
+  const can = E.canAffordIsland(s);
+  let html = `<div class="iv-sub">🏝️ <b>Private Island</b> — 40 hectares, one (1) confused goat, no Wi-Fi yet. <em>Motivated seller.</em></div>`;
+  html += `<div class="iv-sub">They want cash, clout, a lifetime of comfort, and proof you've grown (Legacy).</div>`;
+  for (const cur of ['cash', 'comfort', 'clout', 'legacy']) {
+    const pct = Math.min(100, (have[cur] / p[cur]) * 100);
+    const done = sh[cur] === 0;
+    html += `<div class="iv-sub">${label[cur]}: <b>${fmt(have[cur])}</b> / ${fmt(p[cur])} ${done ? '✅' : `<small>(need ${fmt(sh[cur])} more)</small>`}
+      <div class="iv-comfort-meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct.toFixed(0)}"><i style="width:${pct.toFixed(0)}%"></i></div></div>`;
+  }
+  html += `<div class="iv-row-buy">${btn('buy-island', '', can ? 'Make an Offer 🏝️' : 'Make an Offer 🏝️ (keep saving)', can, 'btn-primary')}</div>`;
+  el('islandListing').innerHTML = html;
+}
+
 function renderAscension(s) {
   const preview = P.legacyPreview(s);
   const can = P.canAscend(s);
@@ -1661,6 +1694,12 @@ function handle(action, arg, btnEl) {
     case 'visit-dest': E.visitDestination(S, arg); break;
     case 'buy-transport': E.buyTransport(S, arg); break;
     case 'story-choice': { const [id, set] = arg.split('|'); E.applyStoryChoice(S, Number(id), set); break; }
+    // E27: buy the private island — a multi-currency mega-purchase, gated behind an honest confirm.
+    case 'buy-island': {
+      const okBuy = (typeof confirm !== 'function') || confirm('Spend it all — cash, clout, a lifetime of comfort, and a chunk of who you\'ve become — for a goat and a beach?');
+      if (okBuy && E.buyIsland(S)) setState(S);
+      break;
+    }
     case 'ascend': if (P.ascend(S)) { setState(S); } break;
     // E25-A: name/rename the current character at the bus stop (cosmetic; sanitized in prestige).
     case 'name-lineage': {

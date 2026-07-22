@@ -4360,5 +4360,70 @@ console.log('\n[101] E26 Who You Become: skill-tree audit — branches, requires
   ok(Object.keys(hs.ascension.tree).length === 0 && M.treeIncomeMult(hs) === 1, 'the harness (run 1) never buys a tree node');
 }
 
+console.log('\n[102] E27 The Island Listing: multi-currency purchase, relocation, meta-key persistence, invariance');
+{
+  const p = C.ISLAND.price;
+  // ---- data model defaults
+  const g0 = ST.newGame();
+  ok(g0.island && g0.island.owned === false && g0.accommodation.homeBase === 'mainland', 'a fresh game starts on the mainland with an unowned island');
+  ok(M.islandMult(g0) === 1, 'L_island is 1 while the island is unowned (the gate)');
+
+  // ---- the listing gate: appears at beat 28 (legacy) — the harness never sees it
+  ok(E.islandListingUnlocked(g0) === false, 'the listing is hidden before beat 28 / the Legacy gate');
+  const seen28 = ST.newGame(); seen28.story.seen.push(28);
+  ok(E.islandListingUnlocked(seen28) === true, 'the listing appears once beat 28 is seen');
+  const legacyGate = ST.newGame(); legacyGate.resources.legacy = C.ISLAND.legacyGate;
+  ok(E.islandListingUnlocked(legacyGate) === true, 'the listing also appears at Legacy ≥ legacyGate');
+
+  // ---- affordability: needs EVERY currency; comfort is a threshold, not debited
+  const rich = ST.newGame(); rich.story.seen.push(28);
+  rich.resources.cash = p.cash; rich._comfortCache = p.comfort; rich.resources.clout = p.clout; rich.resources.legacy = p.legacy;
+  ok(E.canAffordIsland(rich) === true, 'the island is affordable when every currency meets its price');
+  const short = ST.newGame(); short.story.seen.push(28);
+  short.resources.cash = p.cash; short._comfortCache = p.comfort; short.resources.clout = p.clout - 1; short.resources.legacy = p.legacy;
+  ok(E.canAffordIsland(short) === false, 'one currency short ⇒ not affordable (all-or-nothing)');
+  ok(E.islandShortfall(short).clout === 1 && E.islandShortfall(short).cash === 0, 'islandShortfall reports the per-currency gap');
+
+  // ---- buyIsland: debits cash/clout/legacy (NOT comfort), flips flags, moves home base, idempotent
+  const buyer = ST.newGame(); buyer.story.seen.push(28);
+  buyer.resources.cash = p.cash + 5; buyer._comfortCache = p.comfort; buyer.resources.clout = p.clout + 3; buyer.resources.legacy = p.legacy + 2;
+  buyer.ascension.tree.sun_kissed = 2; const treeBefore = buyer.ascension.tree.sun_kissed;
+  ok(E.buyIsland(buyer) === true, 'buyIsland succeeds when affordable');
+  ok(buyer.resources.cash === 5 && buyer.resources.clout === 3 && buyer.resources.legacy === 2, 'buyIsland debits cash/clout/legacy exactly');
+  ok(buyer.ascension.tree.sun_kissed === treeBefore, 'buyIsland spends banked Legacy but never touches the tree ranks (S2-T4)');
+  ok(buyer.island.owned === true && buyer.island.relocated === true && buyer.accommodation.homeBase === 'island' && buyer.accommodation.tier === 20, 'buying moves home base to the island (owned, relocated, tier 20)');
+  ok(buyer.story.flags.islandOwned === true, 'flags.islandOwned is set (arrival spectacle plays once)');
+  ok(approx(M.islandMult(buyer), C.ISLAND.incomeMult), 'L_island lights to the relocation reward once owned');
+  const cashAfter = buyer.resources.cash;
+  ok(E.buyIsland(buyer) === false && buyer.resources.cash === cashAfter, 'buyIsland is idempotent — a second call is a no-op (one-way, no double-debit)');
+
+  // ---- stack-order: L_island folds into tierMultiplier as a clean factor
+  const stk = ST.newGame(); stk.generators[0].bought = 20; stk.generators[0].count = 20;
+  const m0 = M.tierMultiplier(stk, 0); stk.island.owned = true;
+  ok(approx(M.tierMultiplier(stk, 0) / m0, C.ISLAND.incomeMult), 'tierMultiplier scales by exactly the L_island reward (clean global factor)');
+
+  // ---- META KEY: the island survives ascension; the run's tier still resets
+  const asc = ST.newGame(); asc.story.seen.push(28);
+  asc.resources.cash = p.cash; asc._comfortCache = p.comfort; asc.resources.clout = p.clout; asc.resources.legacy = p.legacy;
+  E.buyIsland(asc);
+  asc.stats.lifetimeCashThisTree = 1e10; asc.stats.runSec = 300; asc.bank.tier = 3; asc.resources.legacy = 5;
+  P.ascend(asc);
+  ok(asc.island.owned === true && asc.accommodation.homeBase === 'island', 'the island + home base survive ascension (meta keys)');
+  ok(asc.accommodation.tier === 0, 'the run economy still hard-resets — accommodation.tier is back to the shed');
+  ok(M.islandMult(asc) === C.ISLAND.incomeMult, 'the L_island reward persists across ascension (permanent, earned)');
+
+  // ---- island starter amenities gated on ownership
+  const isl = ST.newGame(); isl._comfortCache = 1e12;
+  ok(E.amenityUnlocked(isl, 'isl_dock') === false, 'an island starter amenity is locked until the island is owned');
+  isl.island.owned = true;
+  ok(E.amenityUnlocked(isl, 'isl_dock') === true, 'owning the island unlocks its starter amenities');
+
+  // ---- harness invariance: never owns the island (0 legacy, never sees beat 28)
+  const { s: hs, islandAt } = runCurve({ dt: 5, maxHours: 40 });
+  ok(Math.abs(islandAt - 29705) < 1, `harness island time is UNCHANGED by E27 (got ${fmtTime(islandAt)}, expected 29705s — the island needs Legacy the harness never has)`);
+  ok(hs.island.owned === false && M.islandMult(hs) === 1, 'the harness never buys the island (L_island 1 throughout)');
+  ok(E.islandListingUnlocked(hs) === false, 'the listing never even appears for the harness (0 legacy, no beat 28)');
+}
+
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);
 process.exit(fails === 0 ? 0 : 1);

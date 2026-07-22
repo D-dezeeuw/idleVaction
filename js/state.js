@@ -120,7 +120,12 @@ export function newGame() {
     bank: { tier: 0 },
     market: { seed: C.MARKET.seed, cursor: 0, phase: 'calm', eventId: null, mult: 1,
       nextEventT: 0, expiresAtSec: 0, eventLog: [], totalEvents: 0 },
-    accommodation: { tier: 0, owned: [0] },
+    // homeBase (E27): 'mainland' until the private island is bought, then 'island' — a permanent
+    // meta fact (carried across ascension by prestige.ascend) even as the run's tier resets.
+    accommodation: { tier: 0, owned: [0], homeBase: 'mainland' },
+    // island (E27 "The Island Listing"): the one-way mega-purchase. owned/relocated survive ascension
+    // (meta keys); L_island reads island.owned. false ⇒ ×1, so the harness (never buys it) is unmoved.
+    island: { owned: false, purchasedAt: null, relocated: false },
     // transport (E04-S1): no ride bought yet — a null activeSlot means no speed bonus
     // and no upkeep drain (engine.tick/engine.destCost both check for it).
     transport: { owned: [], activeSlot: null },
