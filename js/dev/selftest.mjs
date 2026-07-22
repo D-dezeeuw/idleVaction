@@ -3974,5 +3974,54 @@ console.log('\n[95] E20 The Whole Household: staff roles, morale softcap, L_staf
     'offline household payroll + morale + auto-buy matches a manual macro-step loop');
 }
 
+console.log('\n[96] E21 Seven Stars: Seven-Star Touches cluster, gated exclusivity spillover, tier 14/15 velvet-rope, patron beats 21/22, invariance');
+{
+  const SEVEN = ['gold_leaf_stroopwafel','royal_pillow_menu','private_elevator_music','monogrammed_bathrobe',
+    'caviar_room_service','personal_anthem','seven_star_concierge','rooftop_helipad_umbrella'];
+
+  // ---- the cluster exists, is tagged 'luxury' (reuses the E14 connoisseur machinery), unique ids
+  const byId = new Map(DATA.amenities.map(a => [a.id, a]));
+  ok(SEVEN.every(id => byId.has(id)), 'all 8 Seven-Star Touches are present in the amenity data');
+  ok(SEVEN.every(id => byId.get(id).tag === 'luxury'), 'every Seven-Star Touch is tag:luxury (feeds Comfort + gated exclusivity)');
+  ok(new Set(DATA.amenities.map(a => a.id)).size === DATA.amenities.length, 'no amenity id collisions after the E21 cluster');
+  ok(SEVEN.filter(id => (byId.get(id).exclusivity || 0) > 0).length >= 4, 'several Touches carry an exclusivity spillover (S5-T2)');
+
+  // ---- exclusivity spillover is GATED: a non-connoisseur (the harness/newGame) gets 0 from them
+  const plain = ST.newGame();
+  plain.amenities.rooftop_helipad_umbrella.level = 5;   // own a high-exclusivity Touch...
+  ok(M.connoisseurActive(plain) === false, 'a fresh game is NOT connoisseur-active (the exclusivity gate is shut)');
+  ok(M.computeExclusivity(plain, DATA) === 0, 'owning a Seven-Star Touch adds NO exclusivity while the gate is shut (harness-neutral)');
+
+  // ---- when connoisseur-active, the SAME Touch moves the meter (spillover is real, not dead data)
+  const con = ST.newGame(); con.story.branch = 'connoisseur'; con.paths.connoisseur.points = 1;
+  const base = M.computeExclusivity(con, DATA);
+  con.amenities.rooftop_helipad_umbrella.level = 5;
+  ok(M.computeExclusivity(con, DATA) > base, 'a connoisseur owning a Seven-Star Touch raises exclusivity (the spillover is live)');
+
+  // ---- tier 14/15 velvet-rope: soft exclRec (display-only, no hard block) + a light Taste gate
+  const t14 = DATA.accommodation[14], t15 = DATA.accommodation[15];
+  ok(t14.exclRec > 0 && t15.exclRec > t14.exclRec, 'tiers 14/15 carry a rising RECOMMENDED exclusivity (soft velvet-rope)');
+  ok(t14.tasteGate > 0 && t15.tasteGate >= t14.tasteGate, 'tiers 14/15 carry a light, rising Taste gate');
+  ok(t14.exclRec !== undefined && DATA.accommodation[14].name === '7-Star Experience', 'tier 14 is the 7-Star Experience');
+  ok(DATA.accommodation[15].name === 'Royal Suite', 'tier 15 is the Royal Suite (last rented tier before owned property)');
+
+  // ---- patron beats 21/22: a variant for every branch, but the neutral default gate is unchanged
+  const beat21 = DATA.story.find(b => b.id === 21), beat22 = DATA.story.find(b => b.id === 22);
+  for (const br of ['connoisseur','traveler','vlogger','crypto']) {
+    ok(beat21.variants[br] && beat22.variants[br], `beats 21 & 22 carry a ${br} variant (reconvergence hub — all roads pass through)`);
+  }
+  ok(/patron/i.test(beat21.text) && /front desk/i.test(beat21.text), 'beat 21 introduces the patron + the island foreshadow ("no front desk at all")');
+  const neutral = ST.newGame();   // story.branch === 'neutral'
+  ok(E.beatCopy(neutral, beat22) === beat22, 'a neutral (unstranded) build gets the DEFAULT beat-22 copy, not a branch variant');
+  ok(E.beatCopy(con, beat22) === beat22.variants.connoisseur, 'a connoisseur build gets the connoisseur beat-22 variant');
+  ok(beat21.requires.accTier === 14 && beat22.requires.comfort === 3e8, 'beats 21/22 keep their neutral gates (the 26-beat harness pin is untouched)');
+
+  // ---- harness invariance: the greedy ROI player buys none of the dominated Touches
+  const { s: hs, islandAt } = runCurve({ dt: 5, maxHours: 40 });
+  ok(Math.abs(islandAt - 29705) < 1, `harness island time is UNCHANGED by E21 (got ${fmtTime(islandAt)}, expected 29705s — luxury Touches fail the ROI payback test)`);
+  ok(SEVEN.every(id => hs.amenities[id].level === 0), 'the harness never buys a Seven-Star Touch (dominated cosmetic, exclusivity gate shut)');
+  ok((hs._exclCache ?? 0) === 0, 'the harness ends with exclusivity 0 (connoisseur lane never engaged)');
+}
+
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);
 process.exit(fails === 0 ? 0 : 1);

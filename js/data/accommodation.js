@@ -23,8 +23,12 @@ export const ACCOMMODATION = [
   // emphasis, not a wall (the greedy harness has taste 44 at tier 12 — island stays 29705s).
   { tier: 12, name: '6-Star Sail-Shaped Hotel',  flavor: 'It is shaped like a sail. Naturally.', tasteGate: 30, exclRec: 40 },
   { tier: 13, name: 'Ultra Penthouse',           flavor: 'The elevator needs your fingerprint.', tasteGate: 40, exclRec: 120 },
-  { tier: 14, name: '7-Star Experience',         flavor: 'A rating that officially does not exist.' },
-  { tier: 15, name: 'Royal Suite',               flavor: 'Someone actual-royal slept here. Once.' },
+  // tiers 14/15 (E21 "Seven Stars"): the exclusivity velvet-rope matures. exclRec is a soft,
+  // display-only recommendation (like tiers 12/13) — NOT a hard block, so every branch reconverges
+  // here and the harness (exclusivity 0) is never stranded. A light Taste gate keeps the connoisseur
+  // flavour without delaying the greedy player (who has taste ~53 by tier 14).
+  { tier: 14, name: '7-Star Experience',         flavor: 'A rating that officially does not exist.', tasteGate: 45, exclRec: 200 },
+  { tier: 15, name: 'Royal Suite',               flavor: 'Someone actual-royal slept here. Once.', tasteGate: 50, exclRec: 320 },
   { tier: 16, name: 'Private Bungalow',          flavor: 'You OWN the walls now.' },
   { tier: 17, name: 'Overwater Villa',           flavor: 'Fish commute beneath your bed.' },
   { tier: 18, name: 'Private Villa & Grounds',   flavor: 'A gate. Your gate. With your name.' },

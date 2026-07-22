@@ -549,13 +549,38 @@ cap, payroll aggregate, beat-20 flag, migration, offline determinism).
 - S9 Off the Clock (3/6/1): OFFLINE_CAP + round-trip + corrupt-guard present; persist + migration + offline payroll/auto-buy/morale + backcompat done-now. Superseded: dedicated away-modal household line.
 - S10 White Gloves (3/5/2): formatting + gameSpeed + console present; morale-clamp + cap + event-batch + regression ([95]) + copy done-now. Superseded: bell juice, debug hooks.
 
-## Act II–VI — E21–E30
+### E21 — Seven Stars (exclusivity summit + reconvergence) · **100/100** (present 39, done-now 36, superseded 25)
+The Act-II close. Exclusivity-as-gate-&-× **already shipped in E14** (`computeExclusivity` →
+`_exclCache` → `L_exclusivity`, a bounded log × gated to `connoisseurActive`), so E21 is
+present-heavy. New this phase: the **Seven-Star Touches** cluster (8 `tag:'luxury'` amenities with a
+**gated exclusivity spillover** — feeds the meter only when connoisseur-active, so the greedy
+harness sees ×1 and its ROI payback test rejects every one → island **unchanged at 29705s**); the
+**tier 14/15 velvet-rope** (7-Star Experience / Royal Suite — a soft display-only `exclRec` + a
+light `tasteGate` the passive Taste clears, so no branch is walled out); **"the patron"** NPC
+introduced at beat 21 (the island foreshadow — "a place with no front desk at all"); and
+**per-branch beat 21/22 variants** (connoisseur/traveler/vlogger/crypto) as the **reconvergence
+hub** — all four resolve through the *unchanged* neutral gate (`accTier 14` / `comfort 3e8`), so the
+26-beat harness pin is untouched. Built inline. selftest **[96]** (22 assertions: cluster presence +
+tag + no-collision, gated-spillover both ways, velvet-rope, 4-branch beat variants + neutral
+fallback + patron foreshadow, harness invariance + zero luxury buys + exclusivity 0).
+
+- S1 The Exclusivity Ledger (3/3/4): present exclusivity state (`_exclCache`) + `EXCLUSIVITY` config + selectors (`computeExclusivity`/`exclusivityMult`); done-now 7-star cosmetic data + patron NPC + flavor labels. **Superseded**: per-branch `EXCL_SOURCES` registry + per-branch source-weighting + `STORY_GATES` value registration + 4-branch validation — E14 shipped a single owned-luxury→`exclScore` model (connoisseur-gated), and reconvergence is guaranteed by the *neutral* beat gates, not by every branch feeding a distinct exclusivity source.
+- S2 Members Only (6/2/2): present computation + softcap (`softExp`) + `L_exclusivity` + wired into `M_k` + determinism (pure) + events (notify); done-now beat 21/22 patron variant triggers. Superseded: a *hard* `meetsExclusivity` gate (soft `exclRec` instead), a dedicated engine test (reuses [96]).
+- S3 The Velvet Rope (5/2/3): present exclusivity meter + `L_exclusivity` readout + gate-progress (the velvet-rope tier line reads `tasteGate`/`exclRec`) + a11y + render throttle; done-now cosmetics gallery (the `tag:'luxury'` render picks up the new cluster automatically) + copy. Superseded: a numeric source-breakdown panel + low-exclusivity branch hint + first-appearance reveal choreography.
+- S4 Seven Stars (2/6/2): present `L_exclusivity` live + gate-vs-× duality; done-now 7-star unlock + cosmetics ship + patron intro + beat-21 content + flavor quips + QA. Superseded: a hard exclusivity unlock gate on tier 14, a separate reveal-balance pass (already harness-fitted).
+- S5 Seven-Star Touches (1/8/1): present save/migration (generic backfill); done-now the 8-item cluster + exclusivity spillover + Comfort feed + unlock reveals + flavor + UI buttons (auto) + balance (ROI-rejected) + QA. Superseded: `xMult` (dormant, per the standing backlog finding).
+- S6 The Royal Suite (7/2/1): present tiers 14/15 exist + `accScore` + per-tier `L_upgrade` + reveal flavor + UI tier cards + save + no-skip QA; done-now the taste/exclusivity velvet-rope on 14/15 + the "last rented tier" ladder-handoff note. Superseded: a hard exclusivity gate (soft instead).
+- S7 Every Road Leads Here (2/6/2): present harness convergence QA + hybrid-sum handling; done-now the 4 branch beat-22 variants + the reconvergence-hub resolution (`beatCopy`) + the patron island payoff. Superseded: a per-branch *exclusivity* route to the gate + a universal reputation catch-up trickle — unnecessary, since progression never requires exclusivity (the neutral gate carries every build).
+- S8 Setting the Bar (4/2/4): present `EXCL.mult`/`E0`/`softExp` tuned (E14) + staff/Comfort interaction check + cadence guard + documented knobs; done-now the tier 14/15 gate lands in-band (harness-measured) + golden [96]. Superseded: hard `gate[14/15]` value calibration + per-branch source-weight balance + catch-up calibration + a convergence sweep (all moot under the soft-gate + neutral-reconvergence model).
+- S9 Provenance on File (6/2/2): present exclusivity persist (derived, recompute-on-load) + generic migration + recompute-on-load + offline exclusivity (recomputed per macro-step) + offline gate open + away summary; done-now cosmetic ownership persist (generic) + patron flags (`story.seen`). Superseded: a dedicated `MIGRATIONS[10]` version bump (generic backfill covers it) + a bespoke away-modal exclusivity line.
+- S10 The Invitation (3/3/4): present formatting + gameSpeed + console guards; done-now beat-22 content + the patron payoff + [96] regression golden. Superseded: a dedicated patron modal + a gate-cleared reveal animation + `aria-live` on patron events + bespoke invitation juice.
+
+## Act II–VI — E22–E30
 
 _Pending — appended as each phase's build pass audits its 100 tasks._
 
 | Epic | Status |
 |---|---|
-| E21 Seven Stars | pending |
 | E22 A Bungalow of One's Own | pending |
 | E23 Villa Vita | pending |
 | E24 Where the Rich Hide | pending |
@@ -569,8 +594,8 @@ _Pending — appended as each phase's build pass audits its 100 tasks._
 ---
 
 ### Running total
-- **Audited:** 2,000 / 3,000 tasks (E01–E20) — present 636, done-now 1,000, superseded 364.
-- **Remaining:** 1,000 tasks (E21–E30).
+- **Audited:** 2,100 / 3,000 tasks (E01–E21) — present 675, done-now 1,036, superseded 389.
+- **Remaining:** 900 tasks (E22–E30).
 
 ### Deferred balance-tuner backlog (for a consolidated retune, latest at E30)
 - **`savvyPassive()` not ×`L_comfort`** (E06-S7-T4) — a flat sqrt-scaled additive term outside

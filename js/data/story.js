@@ -117,10 +117,51 @@ export const STORY = [
     text: 'A butler. You ring a small bell and reality rearranges itself.' },
   { id: 20, title: 'The Whole Household', requires: { comfort: 1.2e8 },
     text: 'Chef, driver, trainer, social manager. You are now a small, tanned economy.' },
+  // Beats 21/22 (E21 "Seven Stars"): the Act-II close and reconvergence hub. Beat 21 introduces
+  // "the patron" — an unnervingly at-ease figure who owns "a place with no front desk at all"
+  // (the island foreshadow, E27). Beat 22 is the reconvergence HUB: every branch's variant text
+  // differs, but all pass through the same neutral default gate (comfort:3e8) so no build is ever
+  // stranded (the 26-beat harness pin / neutral fallback). The patron's invitation seeds the
+  // island explicitly enough to intrigue, vaguely enough to withhold.
   { id: 21, title: 'Seven Stars', requires: { accTier: 14 },
-    text: 'A rating that officially does not exist. They invented it for you.' },
+    text: 'A rating that officially does not exist. They invented it for you. Across the lobby, ' +
+      'a figure entirely at ease — the patron — mentions, to no one, "a place with no front desk at all."',
+    variants: {
+      connoisseur: { title: 'Seven Stars', text:
+        'Seven stars, for a rating that officially does not exist — they invented it, quietly, for ' +
+        'you. The patron finds you at the cellar door, names your wine before you pour it, and says ' +
+        'old money nods to older money. "There is a place," he adds, "with no front desk at all."' },
+      traveler: { title: 'Seven Stars', text:
+        'Seven stars — a rating no guidebook lists, because no guidebook has been. The patron, who ' +
+        'has been everywhere and mentions none of it, watches you count your passport stamps and ' +
+        'smiles: "There is one more place. It has no border, no terminal, no front desk at all."' },
+      vlogger: { title: 'Seven Stars', text:
+        'Seven stars, and the clip of you arriving does numbers. The patron does not appear on ' +
+        'camera — asks you, just once and very gently, to put it down. "The next place," he says, ' +
+        '"has no front desk, and no signal. You will like it more than you expect."' },
+      crypto: { title: 'Seven Stars', text:
+        'Seven stars, settled instantly, no questions about the wallet. The patron reads your net ' +
+        'worth like weather and is unimpressed and impressed at once. "Numbers get you the suite," ' +
+        'he says. "There is a place numbers cannot get you into. It has no front desk at all."' },
+    } },
   { id: 22, title: 'The Invitation', requires: { comfort: 3e8 },
-    text: 'A card, no return address: "The island is ready when you are." Who ARE you now?' },
+    text: 'A card, no return address: "The island is ready when you are." The patron\'s hand. ' +
+      'Who ARE you now?',
+    variants: {
+      connoisseur: { title: 'The Invitation', text:
+        'No card, no address — the patron simply recognises your wine before you do, and leaves a ' +
+        'key that fits a door you have never seen. "The island is ready when you are." You are.' },
+      traveler: { title: 'The Invitation', text:
+        'The invitation arrives as a stamp in a passport you never handed over. No country claims ' +
+        'the ink. "The island is ready when you are," the patron writes. It is the one place left.' },
+      vlogger: { title: 'The Invitation', text:
+        'The patron does not appear on camera. The invitation does: a single card, no return ' +
+        'address, "The island is ready when you are." You film it, then — for once — put the ' +
+        'camera down.' },
+      crypto: { title: 'The Invitation', text:
+        'An unsolicited transfer lands, memo field just one word: "come." Attached, a deed with no ' +
+        'coordinates. "The island is ready when you are," signs the patron. You already know it is.' },
+    } },
   { id: 23, title: "A Bungalow of One's Own", requires: { accTier: 16 },
     text: 'You stop renting rooms. You own walls. The walls are yours. Say it aloud.' },
   { id: 24, title: 'Villa Vita', requires: { accTier: 18 },
