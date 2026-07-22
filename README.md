@@ -40,20 +40,24 @@ npm run serve      # then open http://localhost:8080
 
 # verify the economy headlessly
 npm test           # js/dev/selftest.mjs → asserts (basics, run, ascension, save, offline)
-npm run harness    # js/dev/harness.mjs → prints the full ~20h pacing curve (island ≈ 18h)
+npm run harness    # js/dev/harness.mjs → prints the pacing curve (greedy ROI island ≈ 8h37m,
+                   #   a hard lower bound — casual/idle play lands the ~20h arc)
 ```
 
 It implements the core loop: the 8-tier income ladder, amenities + Comfort, five personal-growth
 skills, four build paths, the 30 story beats with the branching choice, the accommodation ladder
-(shed → island), **ascension + Legacy + the permanent skill tree**, generous **offline progress**,
+(shed → island), **ascension + Legacy + the permanent skill tree**, generous **offline progress
+bounded by the bank-account wallet** (upgrade your account — Soggy Money Belt to Platinum Plus
+Ultra and beyond — to hold more; away income fills the wallet instead of leapfrogging the game),
 save/load/export/import with versioned migration, a **speed control** for pacing/testing, a debug
 panel, and an optional clicker (for small between-tick gains — never the fastest path).
 
-> The economy is **fitted to the ~20-hour target**: the greedy-optimal harness lands the
-> Private Island at **~18h** (so casual/idle play is ~20h+), with the story beats spread
-> monotonically across the run and cash magnitude kept safely inside `double`. Every balance
-> number lives in `js/config.js`. Getting here meant first finding and fixing a finite-time
-> singularity — the full investigation is in [`docs/math-proof.md`](docs/math-proof.md); the
+> The economy is **fitted to the ~20-hour target**: the greedy-optimal ROI harness lands the
+> Private Island at **~8h37m** — a hard lower bound, so casual/idle play is ~20h+ — with the
+> story beats spread monotonically across the run and cash magnitude kept safely inside
+> `double`. Every balance number lives in `js/config.js`. Getting here meant finding and
+> fixing a finite-time singularity **and** an unbounded offline-income lump — the full
+> investigations are in [`docs/math-proof.md`](docs/math-proof.md) (§1–§6, §11); the
 > golden curve and remaining polish (even gate spacing, playtest) are in `docs/05 §9`.
 
 ## 🗂️ Repo layout

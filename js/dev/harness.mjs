@@ -12,6 +12,7 @@ import * as E from '../engine.js';
 import * as M from '../math.js';
 import * as P from '../prestige.js';
 import { validateDestinations } from '../data/destinations.js';
+import { validateBank } from '../data/bank.js';
 import { fmt, fmtTime } from '../util.js';
 
 // ---- ROI-aware amenity buying (the max-speed player, not a completionist) ----
@@ -59,6 +60,12 @@ function amenityWorthBuying(s, a, cashRate) {
 // ---- greedy "reasonable, keen" player ----
 export function play(s) {
   if (M.tierProd(s, 0) <= 0 && E.genCost(s, 0, 1) <= s.resources.cash) E.buyGenerator(s, 0, 1);
+  // bank account first: cost = BANK.costFrac·cap, so "cost ≤ half my cash" ⇔ the wallet
+  // is ≥ ~70% full — exactly when a keen player upgrades to keep income from
+  // overflowing (the wallet cap clamps ALL inflow — see engine.gainCash). Highest
+  // priority when it triggers: every other purchase below still fits in the new cap.
+  let bg = 0;
+  while (!E.bankMaxed(s) && E.bankUpgradeCost(s) <= s.resources.cash * 0.5 && bg++ < 4) E.buyBankUpgrade(s);
   let g = 0;
   while (E.accUnlocked(s) && E.accCost(s) <= s.resources.cash * 0.7 && g++ < 6) E.buyAccommodation(s);
   // amenities — ROI-aware (see amenityWorthBuying). cashRate is the current €/s cash income; the
@@ -113,6 +120,7 @@ export function runCurve({ dt = 5, maxHours = 30, ascend = false } = {}) {
 // ---- report ----
 function report() {
   validateDestinations();   // dev schema guard (E04-S1-T10) — fail loudly on malformed data
+  validateBank(C);          // dev schema guard: bank rows must match config.BANK.tiers
   const { beatTime, islandAt, peakLog, dblAtIsland } = runCurve({ dt: 5, maxHours: 40 });
   console.log('\n=== idleVaction balance-fit curve (greedy optimal, LOWER bound on real time) ===\n');
   const beats = Object.keys(beatTime).map(Number).sort((a, b) => a - b);

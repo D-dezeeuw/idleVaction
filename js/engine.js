@@ -2,7 +2,7 @@
 import { CONFIG as C } from './config.js';
 import { DATA } from './data/index.js';
 import * as M from './math.js';
-import { bulkCost, maxAffordable, clamp, rng } from './util.js';
+import { bulkCost, maxAffordable, clamp, rng, fmt } from './util.js';
 
 // ---------- notifications (drained by UI) ----------
 function notify(state, type, text) {
@@ -11,6 +11,36 @@ function notify(state, type, text) {
 }
 export function drainNotifications(state) {
   const n = state._notifications || []; state._notifications = []; return n;
+}
+
+// ---------- the wallet: every cash INFLOW banks through here ----------
+// Single clamp point for the bank-account wallet cap (config.BANK / math.walletCap —
+// see config's comment for the offline-lump rationale, docs/math-proof.md §11). Banks
+// min(amount, free room), credits lifetime stats for the BANKED portion only (so tier
+// reveals, Savvy's sqrt(lifetimeCash) and Legacy accrual are paced by the wallet too),
+// tracks the spillage in stats.overflowLost, and returns what was actually banked.
+// Cash already above the cap is never confiscated — the clamp is inflow-only, so a
+// pre-cap save (or a debug grant) keeps its money and simply can't gain more until it
+// spends back under the cap or upgrades the account. Purchases/upkeep subtract cash
+// directly and never route through here.
+export function gainCash(state, amount) {
+  if (!(amount > 0)) return 0;
+  const banked = Math.min(amount, M.walletRoom(state));
+  state.resources.cash += banked;
+  state.stats.lifetimeCash += banked;
+  state.stats.lifetimeCashThisTree += banked;
+  state.stats.overflowLost += amount - banked;
+  // one-shot "wallet full" nudge per account tier: fires the first time THIS tier's
+  // wallet overflows, tracked in story.flags (the generic already-fired bag) so it
+  // can't re-spam every tick while the player shops the wallet up and down the cap.
+  if (banked < amount) {
+    const flagKey = 'walletFull_' + state.bank.tier;
+    if (!state.story.flags[flagKey]) {
+      state.story.flags[flagKey] = true;
+      notify(state, 'warn', `💼 Your ${DATA.bank[state.bank.tier].name} is full — income is overflowing. Upgrade your account.`);
+    }
+  }
+  return banked;
 }
 
 // ---------- runtime (non-pure) multiplier: Second Wind window ----------
@@ -56,9 +86,11 @@ export function tick(state, dt) {
   cashGain += cryptoYield;
   state.crypto.lifetimeYield += cryptoYield;
 
-  state.resources.cash += cashGain;
-  state.stats.lifetimeCash += cashGain;
-  state.stats.lifetimeCashThisTree += cashGain;
+  // bank the tick's income through the wallet cap (gainCash above): only the BANKED
+  // portion exists from here on — it is what lifetime stats saw, and what the XP
+  // trickle below feeds on — so an overflowing wallet pauses the whole income-coupled
+  // loop (skills included), not just the cash readout.
+  const banked = gainCash(state, cashGain);
 
   // 4) clout (vlogger economy, E12 "Lights, Camera, Clout"): combo decay + the sponsor
   // offer/expiry clock first, then the single pure M.cloutRate() (math.js) is the whole
@@ -68,8 +100,9 @@ export function tick(state, dt) {
   tickSponsors(state, dt);
   state.resources.clout += M.cloutRate(state, DATA) * dt;
 
-  // 5) skill XP trickle (idle growth; training is the main driver)
-  trickleXp(state, cashGain, dt);
+  // 5) skill XP trickle (idle growth; training is the main driver) — fed by BANKED
+  // cash, so a full wallet pauses the cash-coupled XP streams along with income.
+  trickleXp(state, banked, dt);
   refreshSkillLevels(state);
 
   // 5a) energy regen (E10 "Body & Soul"): optional clicker fuel, Body-scaled tank +
@@ -376,9 +409,7 @@ export function visitDestination(state, id) {
   const d = destData(id);
   if (!d || !state.destinations[id].owned) return false;
   state.destinations[id].visits++;
-  state.resources.cash += C.DEST.visitYield;
-  state.stats.lifetimeCash += C.DEST.visitYield;
-  state.stats.lifetimeCashThisTree += C.DEST.visitYield;
+  gainCash(state, C.DEST.visitYield);
   state.paths.traveler.points += C.DEST.visitPathPoints;
   return true;
 }
@@ -729,10 +760,10 @@ export function sellCoin(state, id, qty = 1) {
   if (qty <= 0 || qty > held) return false;
   const unitPrice = M.coinUnitCost(c, Math.max(0, held - qty)) * C.MARKET.sellFrac * M.marketMult(state, DATA);
   state.crypto.holdings[id] = held - qty;
-  const proceeds = unitPrice * qty;
-  state.resources.cash += proceeds;
-  state.stats.lifetimeCash += proceeds;
-  state.stats.lifetimeCashThisTree += proceeds;
+  // proceeds bank through the wallet cap like every other inflow (one rule, no side
+  // doors) — selling into a full wallet spills to overflowLost, and the Crypto Desk
+  // UI warns before the player does it (ui.renderCrypto's wallet-full note).
+  gainCash(state, unitPrice * qty);
   return true;
 }
 
@@ -922,6 +953,28 @@ export function buyAccommodation(state) {
   if (t === 10) {
     notify(state, 'celebrate', '🥂 The 5-Star Signature Suite. A living room. In a hotel. For you. Your poncho has never felt so out of place.');
   }
+  return true;
+}
+
+// ---------- bank account: the wallet-cap ladder ----------
+export function bankData(tier) { return DATA.bank[tier]; }
+// upgrade cost = costFrac of the CURRENT capacity (not the next one): always strictly
+// inside the current cap (costFrac < 1, validated in data/bank.js), so the ladder can
+// never soft-lock — a full wallet can always afford the next account. Comms discount
+// applies like every other purchase.
+export function bankUpgradeCost(state) {
+  return C.BANK.costFrac * M.bankCapAt(state.bank.tier) * M.commsCostMult(state);
+}
+export function bankMaxed(state) { return state.bank.tier >= C.BANK.tiers - 1; }
+export function buyBankUpgrade(state) {
+  if (bankMaxed(state)) return false;
+  const cost = bankUpgradeCost(state);
+  if (state.resources.cash < cost) return false;
+  state.resources.cash -= cost;
+  state.bank.tier++;
+  const acct = DATA.bank[state.bank.tier];
+  const cap = M.bankCapAt(state.bank.tier);
+  notify(state, 'unlock', `🏦 New account: ${acct.name} — your wallet now holds ${Number.isFinite(cap) ? 'up to €' + fmt(cap) : 'more than anyone will ever count'}.`);
   return true;
 }
 
@@ -1129,10 +1182,9 @@ export function click(state) {
   } else {
     gain = baseGain * C.ENERGY.tapFloorFrac;
   }
-  state.resources.cash += gain;
-  state.stats.lifetimeCash += gain;
-  state.stats.lifetimeCashThisTree += gain;
-  return gain;
+  // taps bank through the wallet cap too — returns what actually landed, so the
+  // "+N" popup never claims cash a full wallet refused.
+  return gainCash(state, gain);
 }
 
 // ---------- offline / away ----------
@@ -1147,7 +1199,8 @@ export function applyOffline(state, elapsedMs) {
   const before = { cash: state.resources.cash, clout: state.resources.clout,
     conciergeBought: state.concierge.totalBought, conciergeSpent: state.concierge.totalSpent,
     sponsorsExpired: state.sponsors.totalExpired,
-    cryptoYield: state.crypto.lifetimeYield, marketEvents: state.market.totalEvents };
+    cryptoYield: state.crypto.lifetimeYield, marketEvents: state.market.totalEvents,
+    overflowLost: state.stats.overflowLost };
   const total = cappedMs / 1000;
   const step = total / C.OFFLINE_STEPS;
   for (let i = 0; i < C.OFFLINE_STEPS; i++) tick(state, step);
@@ -1168,5 +1221,9 @@ export function applyOffline(state, elapsedMs) {
     // the running totals for the "While you were away" summary.
     cryptoYield: state.crypto.lifetimeYield - before.cryptoYield,
     marketEvents: state.market.totalEvents - before.marketEvents,
+    // income the wallet cap refused while away (config.BANK / engine.gainCash): the
+    // "While you were away" summary surfaces this with an upgrade-your-account nudge —
+    // the wallet, not OFFLINE_CAP_H, is what actually bounds the returning lump now.
+    overflowLost: state.stats.overflowLost - before.overflowLost,
   };
 }

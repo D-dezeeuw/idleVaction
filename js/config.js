@@ -12,6 +12,30 @@ export const CONFIG = {
   OFFLINE_CAP_H: 12,        // generous: no monetization → no punitive cap
   OFFLINE_STEPS: 200,       // macro-steps for offline simulation
 
+  // ---- bank account ladder: the wallet cap (offline-lump control) ----
+  // The wallet can only HOLD bankCapAt(state.bank.tier) = base·growth^tier cash; every
+  // cash INFLOW (tick income, taps, visit yields, coin sales) is clamped to the free
+  // room via engine.gainCash, and ONLY the banked portion counts toward lifetimeCash
+  // (so tier reveals, Savvy's sqrt(lifetimeCash) and Legacy are paced by the wallet
+  // too). Cash already above the cap is never confiscated — the clamp is inflow-only.
+  // WHY: offline runs the same tick() chain at full production with no spending outlet,
+  // so the polynomial tier chain compounds into a super-linear lump (measured: a
+  // 20-minute save away 12h returned +1.7e8 cash — 135× linear accrual — and chain-
+  // bought 12 of the 20 accommodation tiers on return; docs/math-proof.md §11). The cap
+  // bounds the returning player's purchasing power to ≈ one wallet, which bounds the
+  // accommodation chain-buy depth to ≈ log_ACC.growth(1 + (growth−1)·cap/nextCost) ≈
+  // 2–4 tiers worst-case instead of 12. It also closes the "leave the tab open
+  // overnight" loophole OFFLINE_CAP_H never covered, because it caps STORED cash, not
+  // elapsed time. Constraints (asserted in selftest [83] / data/bank.js validateBank):
+  //   · costFrac < 1 — the next account is always affordable within the current cap
+  //     (upgrade cost = costFrac·bankCapAt(tier), so the ladder can never soft-lock);
+  //   · growth (×10/tier) > ACC.growth (×2.6/tier) — the cap ladder outruns the
+  //     accommodation ladder, so a diligent banker is never gated by the wallet;
+  //   · the LAST data row is uncapped (Infinity) so late-game D6–D8 purchases (base
+  //     8e17…8e23) and NG+ magnitudes are never permanently blocked.
+  // Named account rows (flavor only) live in js/data/bank.js and must match `tiers`.
+  BANK: { base: 4000, growth: 10, costFrac: 0.35, tiers: 23 },
+
   // ---- income tier ladder D1..D8 (the multi-level backbone) ----
   // base cost, cost growth per unit, base output per unit
   GEN: {

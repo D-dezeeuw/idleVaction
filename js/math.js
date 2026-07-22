@@ -88,6 +88,24 @@ export function pathMult(points) {
   return 1 + C.PATH.rate * Math.pow(Math.max(0, points), C.PATH.softcapExp);
 }
 
+// ---- bank account ladder: the wallet cap (offline-lump control) ----
+// Capacity of a given bank tier: base·growth^tier, except the LAST configured tier,
+// which is uncapped (Infinity) so endgame D6–D8 purchases and NG+ magnitudes are never
+// permanently soft-locked behind a finite top account. See config.BANK's comment for
+// the full rationale (measured offline-lump runaway, docs/math-proof.md §11) and the
+// ladder invariants; engine.gainCash is the single inflow clamp that reads this.
+export function bankCapAt(tier) {
+  if (tier >= C.BANK.tiers - 1) return Infinity;
+  return C.BANK.base * Math.pow(C.BANK.growth, tier);
+}
+export function walletCap(state) {
+  return bankCapAt(state.bank?.tier || 0);
+}
+// free room in the wallet right now — what engine.gainCash can actually bank.
+export function walletRoom(state) {
+  return Math.max(0, walletCap(state) - state.resources.cash);
+}
+
 // ---- comfort ----
 export function accScore(tier) {
   return C.ACC.base * Math.pow(C.ACC.growth, tier);
