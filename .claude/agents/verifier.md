@@ -21,26 +21,15 @@ subtly wrong until the numbers prove otherwise. Read `AGENTS.md` and `docs/math-
    `LEGACY_*`) changed, confirm: island lands near the ~20h target, the beat curve is monotone,
    and **peak `log10(cash)` stays well under ~290** (no path back to the finite-time
    singularity / double overflow described in `docs/math-proof.md`).
-3. `node --check` every `.js`/`.mjs` you touched.
-4. Adversarially re-derive the risky bits: is any income term scaling as a *positive power of
+3. Adversarially re-derive the risky bits: is any income term scaling as a *positive power of
    cash* (the singularity signature)? Is prestige still `sqrt`-bounded and the banked-Legacy
    accounting exact? Do save round-trip and offline still hold? Fix what you find.
-
-## Commit-verification pass (so GitHub shows "Verified")
-Every commit in `origin/<branch>..HEAD` must have committer email `noreply@anthropic.com`.
-```bash
-git config user.email noreply@anthropic.com && git config user.name Claude   # if unset
-git log --format='%h %ce %s' origin/<branch>..HEAD                            # audit
-# fix your OWN unpushed commits only:
-git commit --amend --no-edit --reset-author                                  # tip
-git rebase --exec "git commit --amend --no-edit --reset-author" origin/<branch>  # earlier
-```
-Do NOT `--amend`/`rebase`/`reset-author` any commit already on `origin/main`. Phases land via a
-**local merge** (`git checkout main && git merge --no-ff <branch> && git push origin main`), not
-GitHub rebase/squash-merge and not a PR — so both feature commits and the merge commit keep
-committer `noreply@anthropic.com` and stay Verified on `main`. See `AGENTS.md §3`.
 
 ## Output
 Report PASS/FAIL per check with the concrete numbers (harness island time, peak log10, failing
 assertion text). If you fixed something, say what and why. Only declare done when every check is
-green and commits are verifiable.
+green.
+
+## Git Flow
+All code must be done in a feature branch, after verification the code in the feature branch can
+be merged to main, committed and pushed.
