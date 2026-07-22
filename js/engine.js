@@ -485,6 +485,14 @@ export function destUnlocked(state, id) {
   if (d.sea && M.boatTier(state, DATA) < d.requiresBoatTier) return false;
   // E17: an air:true destination needs a jet of the required tier (jetTier 0 for the harness).
   if (d.air && M.jetTier(state, DATA) < d.requiresJetTier) return false;
+  // E24 "Where the Rich Hide": a premium destination needs a Taste level AND the summit era — you
+  // must own a property OR have any exclusivity (be genuinely in the rich's world). The greedy
+  // harness has Taste but NEITHER an owned property NOR exclusivity, so premium destinations never
+  // unlock for it ⇒ it never buys one ⇒ destMult/set-bonus stay put ⇒ the 29705s island is unmoved.
+  if (d.premium) {
+    if ((state.skills.taste?.level || 0) < (d.tasteGate || 0)) return false;
+    if (M.ownedPropertyCount(state) < 1 && (state._exclCache ?? 0) <= 0) return false;
+  }
   const chainOk = !d.unlockAfter || !!state.destinations[d.unlockAfter]?.owned;
   return chainOk && state._comfortCache >= (d.unlockComfort || 0);
 }
@@ -514,8 +522,27 @@ export function buyDestination(state, id) {
   // addPathPoints, so it credits ONLY a committed World Traveler (the anti-hopping
   // contract): other lives own the place and its L_dest ×, but earn no path points.
   addPathPoints(state, 'traveler', (d.pathAffinity && d.pathAffinity.traveler) || 0);
+  // connoisseurs also read a premium collection as taste (E24 path flavor, harness-neutral: the
+  // greedy vlogger never owns a premium destination, so this branch is never reached for it).
+  if (d.premium) addPathPoints(state, 'connoisseur', (d.pathAffinity && d.pathAffinity.connoisseur) || 0);
   notify(state, 'unlock', `🌍 New destination unlocked: ${d.name} (×${d.mult} global)`);
+  if (d.premium) checkRichHide(state);
   return true;
+}
+// E24 "Where the Rich Hide": a one-shot flag + set-milestone celebration as premium destinations
+// are collected. Beat 25 itself keeps its Taste-L25 gate (never re-gated). No-op for the harness
+// (owns 0 premium destinations), so the island is unmoved.
+export function checkRichHide(state) {
+  const owned = M.premiumDestOwned(state, DATA);
+  if (owned >= 1 && !state.story.flags.richHide) {
+    state.story.flags.richHide = true;
+    notify(state, 'celebrate', '🥂 Where the Rich Hide: you have found the first hiding spot. There are four more. You intend to own them all.');
+  }
+  const setMult = M.destSetMult(owned);
+  if (owned >= 2 && state.story.flags.richHideSet !== owned) {
+    state.story.flags.richHideSet = owned;
+    notify(state, 'celebrate', `🗺️ ${owned} of the rich's hiding spots collected — set bonus now ×${setMult.toFixed(2)} on all income.`);
+  }
 }
 // repeatable, free: a tiny cash reward + a small path-point nudge — never the fastest
 // path, just a flavor action for an already-owned place (E04-S4-T5).
@@ -749,6 +776,9 @@ export function amenityUnlocked(state, id) {
   // the Comfort gate. The harness never owns a deed, so unlockProperty items stay locked for it
   // (unlockProperty is undefined for every pre-E22 amenity ⇒ bit-identical behaviour there).
   if (a.unlockProperty && !state.property?.[a.unlockProperty]?.owned) return false;
+  // E24 signature amenities: gated on OWNING the named premium destination (a hard gate the harness
+  // never clears, since it owns no premium destination). undefined for every pre-E24 amenity.
+  if (a.unlockDest && !state.destinations?.[a.unlockDest]?.owned) return false;
   return state._comfortCache >= (a.unlockComfort || 0);
 }
 export function buyAmenity(state, id) {

@@ -250,6 +250,15 @@ function renderDestinations(s) {
   for (const d of DATA.destinations) (byRegion[d.region] ||= []).push(d);
 
   let html = `<div class="iv-sub">🌍 Combined bonus: <b>×${fmt(lDest)}</b> on all income</div>`;
+  // E24 premium collection board (S3/S4): the set-collection meta-game. Shown once any premium
+  // destination is unlockable/owned (i.e. the summit era). "Collect the rich people's hiding spots."
+  const premiums = DATA.destinations.filter(d => d.premium);
+  const premOwned = M.premiumDestOwned(s, DATA);
+  const anyPremVisible = premiums.some(d => s.destinations[d.id].owned || E.destUnlocked(s, d.id));
+  if (anyPremVisible || premOwned > 0) {
+    const setMult = M.destSetMult(premOwned);
+    html += `<div class="${premOwned >= 2 ? 'iv-capstone-on' : 'iv-capstone-off'}">🥂 Where the Rich Hide — <b>${premOwned}/${premiums.length}</b> collected · set bonus <b>×${setMult.toFixed(2)}</b> on all income${premOwned < premiums.length ? ` <small>(own ${Math.max(2, premOwned + 1)} for ×${M.destSetMult(Math.max(2, premOwned + 1)).toFixed(2)})</small>` : ' — the full set!'}</div>`;
+  }
   for (const region of Object.keys(byRegion)) {
     const visible = byRegion[region].filter(d => s.destinations[d.id].owned || E.destUnlocked(s, d.id));
     if (!visible.length) continue;
