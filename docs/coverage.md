@@ -412,14 +412,43 @@ offline determinism, lifetimeCash isolation, anti-pump).
 | S9 Aging in the Cellar (save/offline) | 2 / 7 / 1 | Schema (`collections` flat-by-id + `_exclCache`), offline appreciation/exclusivity, cap fairness, away summary, export/import, migration test done-now. Present T2/T9 (generic `backfill()` migrates the new keys; the rotating backup carries them). Superseded T6 (appraisal-event determinism — no appraisal event exists). |
 | S10 White Gloves (QA/polish) | 1 / 8 / 1 | Taste clamp, exclusivity monotonic, appreciation purity, sell round-trip, set-bonus, cap-edge tests + debug hooks (grant Taste, gift asset) + formatting done-now. Present T9 (`window.IV.state` exposes collections). Superseded T7 (gallery shimmer/count-up juice — deferred to polish). |
 
-## Act II–VI — E15–E30
+### E15 — Keys to the Coupe (Private Logistics I) · **100/100** (present 14, done-now 75, superseded 11)
+Real new system — the garage: ownable/equippable cars, transport slots, a bounded logistics `×`
+on income, an upkeep drain, and repossession. OPT-IN and gated off exactly like crypto/connoisseur
+(`math.logisticsActive`: any car EQUIPPED). The greedy-vlogger harness never buys or equips a car,
+so `logisticsMult` 1, `fleetUpkeep` 0, fleet Comfort 0, and the traveler −15% discount (branch-
+gated) never apply — the fitted island is **unchanged at 29705s** (peak log10 11.3, 26 beats).
+`L_logistics = 1 + rate·Σ(equipped logisticsMult)` folds into `tierMultiplier` as a new BOUNDED
+flat global layer (the fleet is capped by `availableSlots`, a small integer — same safe class as
+`L_dest`, never a power of cash). Note: the lane has **no cash-out surface** (there is no
+`sellCar` — cars only cost cash and drain upkeep; the × amplifies existing bounded income), so the
+E14-class buy→sell pump structurally cannot exist. Balance-tuner subagent stalled mid-core; the
+orchestrator finished the buy/equip/reveal/first-car functions + wiring + the `[90]` tests + the
+fit. selftest **[90]** (~55 assertions: harness invariance, gate exactness, slots, capacity
+rejection, logistics purity, stack-order, upkeep floor, repossession costliest-first+ownership-
+kept, unequip, discount stacking+floor+branch-gating, fleet Comfort, first-car bonus + neutral
+beat-15 fallback, reveal, migration+over-capacity clamp, offline determinism).
+
+| Story | present/done/superseded | Notes |
+|---|---|---|
+| S1 The Showroom Brochure (data) | 0 / 9 / 1 | `data/vehicles.js` (CARS[6]+`validateVehicles`), `config.LOGISTICS`, car-accessory cluster, `travelTime`, schema doc, public-transport slotCost:0 fallback documented. Superseded T6 (`scope:'destination'` tag — the × is a bounded GLOBAL layer like L_dest, not a per-tier scoped tag). |
+| S2 Slots, Speed & Upkeep (core) | 1 / 9 / 0 | buyCar, slot allocation, logisticsMult, upkeep drain, fleetSpeed→destCost, availableSlots, traveler −15% discount, repossession guard, determinism done-now. Present T8 (`L_path(traveler)` already feeds via the existing tierMultiplier traveler term + committed-path stages). |
+| S3 The Garage (UI) | 0 / 9 / 1 | Garage panel, slot pips, upkeep readout (red), logistics × display, buy/equip/unequip flow, reveal gate, repossession warning (amber), formatting done-now. Superseded T7 (exact per-destination "40s→22s" before/after — per-car cycling % ships instead). |
+| S4 Keys to the Coupe (garage & slots) | 0 / 8 / 2 | Slot system, car-vs-transport speed, faster cycling, logistics × on income, the upkeep tradeoff (verified: 3 sedans ≈ supercar × at 1/5 the upkeep — no auto-buy, S8-T3), many-small-vs-one-big, owned/equipped display, harness balance hooks done-now. Superseded T7 (beat 15 fires on first car — kept its accTier:10 gate for the 26-beat pin; first-car fires the `checkFirstCar` reward instead), T8 (purchasable garage-expansion sink — `garageSlots` plumbing ships via the wing; the buyable expansion deferred). |
+| S5 Fully Loaded (amenity cluster) | 2 / 6 / 2 | 6 `tag:'destination'` car accessories + Comfort + flavor + cadence + save/migration + QA done-now. Present T2/T7 (reuse `buyAmenity` + the standard amenity buttons). Superseded T4 (`xMult` dormant — the E02–E07 convention), T5 (`dashcam_vlog_mount` carries a `contentRate` data field, but wiring it into Clout is deferred — it's a `tag:'destination'`, not `'gear'`). |
+| S6 A Garage of One's Own (tier 11) | 6 / 3 / 1 | Tier-11 band / Comfort gate / accScore / cross-lane reach / unlock / persistence already present (the ladder shipped whole). Done-now: `garageSlots`→`availableSlots` synergy, the garage reveal, and the no-double-count QA ([90] fleet-Comfort test). Superseded: a standalone purchasable garage-wing feature (folded into the neutral tier-11 + the `garageSlots` field). |
+| S7 The Grand Tourist's Coupe (branch flavor) | 1 / 7 / 2 | +1 slot, −15% destinations, beat-15 traveler variant, first-car flag+points+starter accessory, traveler×crypto hybrid line, path-points source (car buys + destinations), neutral-fallback QA done-now. Present T7 (Wanderer's Instinct −20%/+slot already wired into destDiscountMult/availableSlots). Superseded T4 (beat gate on owning a car — stays accTier:10), T9 (steering-wheel badge — cosmetic, deferred). |
+| S8 Upkeep vs Upside (balance) | 1 / 9 / 0 | Fitted LOGISTICS.rate (mid-fleet ~1.3–2×), upkeep sizing, no-brainer check, slot economy, travel-time tuning, discount floor, harness beat time (island 29705), repossession grace, golden regression ([90]) done-now. Present T10 (`PATH.softcapExp` 0.85 already tames traveler point scaling). |
+| S9 Meter's Running (save/offline) | 2 / 7 / 1 | Schema (`vehicles` + `_logiCache`), offline upkeep + logistics × (via tick-replay), cap fairness, grace-on-return (deterministic repossession), export/import, migration test + over-capacity clamp done-now. Present T2/T9 (generic `backfill()` migrates the slice; rotating backup carries it). Superseded T7 (a dedicated logistics line in the away modal — deferred). |
+| S10 Kicking the Tires (QA/polish) | 1 / 8 / 1 | Slot-capacity, upkeep-floor, logistics-purity, repossession, discount-floor tests + unequip-frees-slots (no sellCar; unequip covers the "remove equipped car" edge) + debug hooks (grant car / +slot / force repossess) + formatting done-now. Present T9 (`window.IV.state.vehicles` snapshot). Superseded T7 (engine-rev toast / key-jingle juice — deferred to polish). |
+
+## Act II–VI — E16–E30
 
 _Pending — appended as each phase's build pass audits its 100 tasks. Each row will carry the
 same `present / done-now / superseded` disposition and a per-phase tally in the commit + report._
 
 | Epic | Status |
 |---|---|
-| E15 Keys to the Coupe | pending |
 | E16 Sea Legs | pending |
 | E17 Wheels Up | pending |
 | E18 The Sail-Shaped Hotel | pending |
@@ -439,8 +468,8 @@ same `present / done-now / superseded` disposition and a per-phase tally in the 
 ---
 
 ### Running total
-- **Audited:** 1,400 / 3,000 tasks (E01–E14) — present 508, done-now 623, superseded 269.
-- **Remaining:** 1,600 tasks (E15–E30).
+- **Audited:** 1,500 / 3,000 tasks (E01–E15) — present 522, done-now 698, superseded 280.
+- **Remaining:** 1,500 tasks (E16–E30).
 
 ### Deferred balance-tuner backlog (for a consolidated retune, latest at E30)
 - **`savvyPassive()` not ×`L_comfort`** (E06-S7-T4) — a flat sqrt-scaled additive term outside
