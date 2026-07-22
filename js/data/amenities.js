@@ -337,4 +337,16 @@ export const AMENITIES = [
   { id: 'private_butler_tea', name: 'Private Butler Tea Service', tag: 'luxury', costBase: 6e6,  costGrowth: 1.9, comfort: 1400, exclusivity: 5,  xMult: 0.04, xScope: 'all', unlockComfort: 5.4e6, flavor: 'Tea, poured by a man who has poured tea for people you have only read about.' },
   { id: 'helicopter_transfer', name: 'Rooftop Helicopter Transfer', tag: 'luxury', costBase: 4e7, costGrowth: 1.9, comfort: 2400, exclusivity: 11, xMult: 0.05, xScope: 'all', unlockComfort: 1.3e7, flavor: 'The roof is a helipad. You take the helicopter to lunch. Lunch is also here.' },
   { id: 'in_suite_spa',     name: 'In-Suite Spa',                tag: 'luxury', costBase: 1.2e8, costGrowth: 1.9, comfort: 3000, exclusivity: 16, xMult: 0.055,xScope: 'all', unlockComfort: 3.2e7, flavor: 'The spa comes to the suite. The suite is bigger than the shed, the motel, and the hostel combined.' },
+
+  // --- The Butler's Kit (E19 "At Your Service" — S5): butler-adjacent small wins for the staff
+  // era. Plain tag:'butler' amenities (Comfort via amenityScoreTotal); costGrowth 1.5. Gate behind
+  // the staff era (unlockComfort ~beat-19 scale, 4e7+). ---
+  { id: 'silver_tray',       name: 'Silver Serving Tray',        tag: 'butler', costBase: 4e7,   costGrowth: 1.5, comfort: 2400, xMult: 0.04, xScope: 'all', unlockComfort: 4e7,   flavor: 'Everything arrives on silver now, even the aspirin.' },
+  { id: 'pressed_livery',    name: 'Pressed Livery',             tag: 'butler', costBase: 6e7,   costGrowth: 1.5, comfort: 2600, xMult: 0.04, xScope: 'all', unlockComfort: 5e7,   flavor: 'The butler’s uniform is pressed sharper than your best decisions.' },
+  { id: 'midnight_bell',     name: 'Midnight Service Bell',      tag: 'butler', costBase: 9e7,   costGrowth: 1.5, comfort: 2800, xMult: 0.045,xScope: 'all', unlockComfort: 6.5e7, flavor: 'A bell for 3am cravings. He answers before it finishes ringing. You have stopped questioning this.' },
+  { id: 'humidor',           name: 'Walk-In Humidor',            tag: 'butler', costBase: 1.4e8, costGrowth: 1.5, comfort: 3000, xMult: 0.045,xScope: 'all', unlockComfort: 8e7,   flavor: 'You do not smoke. The humidor is magnificent regardless.' },
+  { id: 'shoe_shine',        name: 'Nightly Shoe Shine',         tag: 'butler', costBase: 2.1e8, costGrowth: 1.5, comfort: 3200, xMult: 0.05, xScope: 'all', unlockComfort: 1e8,   flavor: 'Your shoes gleam. You owned one soggy pair for thirty years. He does not mention this.' },
+  { id: 'ironed_newspaper',  name: 'Ironed Morning Newspaper',   tag: 'butler', costBase: 3.2e8, costGrowth: 1.5, comfort: 3400, xMult: 0.05, xScope: 'all', unlockComfort: 1.3e8, flavor: 'The news is ironed flat and warm. The news itself remains terrible. The ironing helps.' },
+  { id: 'standing_valet',    name: 'Standing Valet',             tag: 'butler', costBase: 4.8e8, costGrowth: 1.5, comfort: 3600, xMult: 0.055,xScope: 'all', unlockComfort: 1.7e8, flavor: 'A wooden frame that holds your suit overnight, more dignified than most of your twenties.' },
+  { id: 'monogrammed_cufflinks', name: 'Monogrammed Cufflinks',  tag: 'butler', costBase: 7.2e8, costGrowth: 1.5, comfort: 3800, xMult: 0.06, xScope: 'all', unlockComfort: 2.2e8, flavor: 'The monogram is slightly wrong. Nobody dares mention it.' },
 ];

@@ -15,6 +15,7 @@ import { BANK_ACCOUNTS } from './bank.js';
 import { ART, WINE } from './collections.js';
 import { CARS } from './vehicles.js';
 import { BOATS, CREW, JETS } from './logistics.js';
+import { STAFF_DATA } from './staff.js';
 
 export const DATA = {
   generators: GENERATORS,
@@ -53,4 +54,7 @@ export const DATA = {
   // logistics-III (E17 "Wheels Up"): jets + the car+boat+jet capstone. Air destinations live in
   // DATA.destinations (air:true); the jet-cabin cluster is tag:'jet'.
   jets: JETS,
+  // staff (E19 "At Your Service"): the butler + future roles. validateStaff lives in data/staff.js,
+  // imported directly by the dev harness/selftest. The butler's auto-buy reuses the E11 concierge.
+  staff: STAFF_DATA,
 };

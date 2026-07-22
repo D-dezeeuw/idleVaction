@@ -120,6 +120,15 @@ export function newGame() {
     // newGame() (and the harness, which never calls acceptSponsor) always has
     // active:null, so the fitted island time cannot move.
     sponsors: { active: null, offer: null, offerCycle: 0, nextOfferAtSec: 0, cooldowns: {}, totalExpired: 0 },
+    // staff (E19 "At Your Service"): the butler starts UNHIRED, so payroll is 0 and nothing is
+    // automated — a fresh game and the harness (which never hires) are unaffected, the fitted
+    // island time cannot move. policy mirrors the concierge's dials (budgetFrac/minRoi) + the
+    // butler's own toggles. morale is a seed for E20 (the household). Run-scoped? NO — staff is a
+    // meta convenience like settings; but to stay safe with ascension it's rebuilt by newGame()
+    // and NOT in the keep-list, so each life re-hires (consistent with the run-scoped concierge).
+    staff: { butler: { hired: false, level: 0, morale: 100, tickAccum: 0, totalSpent: 0, totalWages: 0,
+      lastActions: [], policy: { autoBuy: false, autoCollect: false, budgetFrac: 0.25, minRoi: 2,
+        categories: ['amenity'] } } },
     ascension: { count: 0, legacyBanked: 0, legacySpent: 0, tree: {} },
     story: { beat: 1, seen: [1], branch: 'neutral', flags: {} },
     // ui.bulkMode (E03-S1-T6): the ×1/×10/max buy-quantity toggle, persisted so the

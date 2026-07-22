@@ -730,6 +730,22 @@ export function destTravelTime(baseTravelTime, totalSpeed) {
   return (baseTravelTime || 0) / (1 + Math.max(0, totalSpeed || 0));
 }
 
+// ---- staff & automation (E19 "At Your Service") ----
+// Pure wage/cost functions — no magic numbers, all read from the staff def (data/staff.js).
+// staffWage is the continuous payroll sink while hired; 0 for the harness (never hires).
+export function staffWage(def, level) { return def.wageBase * Math.pow(def.wageGrowth, level || 0); }
+export function staffHireCost(def) { return def.hireCost; }
+export function staffLevelCost(def, level) { return def.levelCostBase * Math.pow(def.levelCostGrowth, level || 0); }
+// total payroll cash/s across all HIRED staff — 0 when nobody is hired (harness-neutral).
+export function payrollTotal(state, DATA) {
+  let w = 0;
+  for (const def of DATA.staff) {
+    const st = state.staff?.[def.id];
+    if (st?.hired) w += staffWage(def, st.level);
+  }
+  return w;
+}
+
 // ---- prestige ----
 export function legacyGain(state) {
   const raw = C.LEGACY_K * Math.pow(state.stats.lifetimeCashThisTree / C.LEGACY_SCALE, C.LEGACY_EXP);

@@ -400,6 +400,16 @@ export const CONFIG = {
     jetRate: 0.20, jetDiscount: 0.20, capstone: 0.50,
   },
 
+  // ---- staff & automation (E19 "At Your Service"): the butler ----
+  // A hireable butler with a continuous PAYROLL wage (the new sink) whose auto-buy reuses the E11
+  // concierge's bounded ROI policy. OFF until hired: a fresh newGame() and the greedy harness
+  // never hire, so payroll is 0 and nothing is automated — the fitted 29705s island cannot move
+  // (same off-by-default invariance as the concierge). wageBase ~3-6% of income at the beat-19
+  // hire point; wageGrowth 1.18 so leveling scales cost faster than benefit past a point.
+  // autoBuyInterval/minInterval pace the policy; reserveSec keeps ≥ N seconds of wages in reserve
+  // so the butler never bankrupts you (auto-buy never crosses that floor).
+  STAFF: { autoBuyInterval: 2, minInterval: 0.5, reserveSec: 20, roiHintEnabled: true },
+
   // ---- ascension / legacy ----
   // LEGACY_SCALE was retuned 1e6 → 1e10 with the ascension hard reset (math-proof §12,
   // the §7/P3 item): at 1e6 a single fitted ~8.5h run paid ~1,183 Legacy — enough to
