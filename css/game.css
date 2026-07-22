@@ -1,259 +1,263 @@
-/* game.css — our own styles over Spectre. Framework-agnostic; buttons-first. */
+/* game.css — the Holiday theme (docs/UX-plan.md §1, "Poolside at Golden Hour").
+   Light-first: warm sand page, white cards, Sunshine yellow fills, Hot Pink actions,
+   Sky Blue journeys, Apple Green go-signals. Same class hooks as before — ui.js unchanged.
+
+   Color rules (UX-plan §1.1): yellow is NEVER text; pink text uses the darkened
+   text-safe tone; green/red/sky text always use their text-safe darks. */
 :root {
-  --iv-bg: #0f1b24; --iv-card: #16262f; --iv-ink: #e8f0f2; --iv-sub: #8fa6b0;
-  --iv-accent: #f5b301; --iv-good: #37c26b; --iv-line: #24404c;
+  /* surfaces */
+  --iv-bg: #FFF6E9;          /* sand — the page */
+  --iv-card: #FFFFFF;        /* shell — cards float on sand */
+  --iv-well: #FFF3DE;        /* sand tint — meter tracks, sunken rows */
+  --iv-line: #F0E2CC;        /* sand line — soft separators */
+  /* ink */
+  --iv-ink: #2B1E16;         /* warm near-black */
+  --iv-sub: #8A7360;         /* dune — secondary text */
+  /* brand */
+  --iv-sun: #FFC800;         /* Sunshine — fills & highlights only, never text */
+  --iv-sun-tint: #FFF4CC;
+  --iv-pink: #FF2E88;        /* Hot Pink — the action color (fills) */
+  --iv-pink-text: #D9186E;   /* text-safe pink */
+  --iv-pink-tint: #FFE7F1;
+  --iv-sky: #45C4FF;         /* Sky Blue — journeys/info (fills) */
+  --iv-sky-text: #0E7FC0;
+  --iv-sky-tint: #E4F6FF;
+  --iv-green: #7ED957;       /* Apple Green — go (fills/borders) */
+  --iv-green-text: #3E9B2E;
+  --iv-green-tint: #EFFAE8;
+  --iv-red-text: #C0392B;    /* costs/crashes (text-safe) */
+  --iv-red-tint: #FDECEA;
+  /* legacy token aliases (pre-holiday rules still read these) */
+  --iv-accent: var(--iv-pink-text);   /* accent TEXT reads pink */
+  --iv-good: var(--iv-green-text);    /* good TEXT reads deep green */
+  --iv-shadow: 0 4px 16px rgba(43, 30, 22, .08);
 }
 * { box-sizing: border-box; }
-body { background: var(--iv-bg); color: var(--iv-ink); font-family: system-ui, sans-serif; margin: 0; padding: 0 0 90px; }
-#topbar { position: sticky; top: 0; z-index: 5; background: #0c151b; border-bottom: 1px solid var(--iv-line); padding: 8px 14px; }
+body { background: var(--iv-bg); color: var(--iv-ink); margin: 0; padding: 0 0 90px;
+  font-family: 'Nunito', system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+h1, h2, h3, .iv-beattitle { font-family: 'Fredoka', 'Nunito', system-ui, sans-serif; font-weight: 600; }
+:focus-visible { outline: 2px solid var(--iv-sky); outline-offset: 2px; border-radius: 6px; }
+
+#topbar { position: sticky; top: 0; z-index: 5; padding: 8px 14px;
+  background: linear-gradient(180deg, var(--iv-sun-tint), var(--iv-bg)); box-shadow: var(--iv-shadow); }
 #topbar h1 { margin: 0 0 4px; font-size: 1.15rem; }
 #topbar h1 small { color: var(--iv-sub); font-size: .7rem; text-transform: uppercase; letter-spacing: .1em; }
 .iv-header { display: flex; flex-wrap: wrap; gap: 12px; font-size: .82rem; }
-.iv-res b { color: var(--iv-accent); }
+.iv-res b { color: var(--iv-pink-text); }
 
-.iv-onboarding { background: linear-gradient(180deg, #1b2f3a, #16262f); border-bottom: 1px solid var(--iv-line);
+.iv-onboarding { background: var(--iv-sky-tint); border-bottom: 1px solid var(--iv-line);
   padding: 8px 14px; font-size: .82rem; color: var(--iv-ink); }
-.iv-onboarding b { color: var(--iv-accent); }
+.iv-onboarding b { color: var(--iv-pink-text); }
 .iv-onboarding[hidden] { display: none; }
 
+/* toasts: white cards with a colored left rail (UX-plan §3) */
 .iv-notifs { position: fixed; right: 10px; top: 62px; z-index: 9; width: min(340px, 80vw); }
-.iv-notif { background: var(--iv-card); border-left: 3px solid var(--iv-accent); padding: 6px 10px; margin-bottom: 6px;
-  border-radius: 4px; font-size: .8rem; animation: slidein .25s ease; box-shadow: 0 4px 14px rgba(0,0,0,.35); }
-.iv-notif.iv-story { border-color: #6ab0ff; } .iv-notif.iv-unlock { border-color: var(--iv-good); }
-.iv-notif.iv-ascend { border-color: #d17bff; } .iv-notif.iv-info { border-color: var(--iv-sub); }
-.iv-notif.iv-vignette { border-color: var(--iv-accent); font-style: italic; }
-/* the 1-Star check-in flash (E05-S6-T5): a bigger, distinct celebratory line — a touch
-   larger + a brief glow, reduced-motion safe. */
-.iv-notif.iv-celebrate { border-color: var(--iv-accent); font-weight: bold; font-size: .88rem;
+.iv-notif { background: var(--iv-card); border-left: 4px solid var(--iv-sun); padding: 6px 10px; margin-bottom: 6px;
+  border-radius: 10px; font-size: .8rem; animation: slidein .25s ease; box-shadow: var(--iv-shadow); }
+.iv-notif.iv-story { border-color: var(--iv-sky); } .iv-notif.iv-unlock { border-color: var(--iv-green); }
+.iv-notif.iv-ascend { border-color: #C77BFF; } .iv-notif.iv-info { border-color: var(--iv-line); }
+.iv-notif.iv-vignette { border-color: var(--iv-sun); font-style: italic; }
+.iv-notif.iv-celebrate { border-color: var(--iv-sun); font-weight: bold; font-size: .88rem;
   animation: slidein .25s ease, celebrateglow 1.2s ease 1; }
 @keyframes slidein { from { transform: translateX(30px); opacity: 0; } }
-@keyframes celebrateglow { 0%, 100% { box-shadow: 0 4px 14px rgba(0,0,0,.35); } 50% { box-shadow: 0 4px 22px rgba(245,179,1,.55); } }
+@keyframes celebrateglow { 0%, 100% { box-shadow: var(--iv-shadow); } 50% { box-shadow: 0 4px 22px rgba(255, 200, 0, .6); } }
 @media (prefers-reduced-motion: reduce) { .iv-notif.iv-celebrate { animation: none; } }
 
 .iv-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; padding: 12px; max-width: 1100px; margin: 0 auto; }
-.iv-card { background: var(--iv-card); border: 1px solid var(--iv-line); border-radius: 8px; padding: 10px 12px; }
-.iv-card h3 { margin: 0 0 8px; font-size: .95rem; border-bottom: 1px solid var(--iv-line); padding-bottom: 6px; }
-.iv-card h3 small { color: var(--iv-sub); font-weight: normal; }
+.iv-card { background: var(--iv-card); border: none; border-radius: 16px; padding: 12px 14px; box-shadow: var(--iv-shadow); }
+.iv-card h3 { margin: 0 0 8px; font-size: 1rem; border-bottom: 1px solid var(--iv-line); padding-bottom: 6px; }
+.iv-card h3 small { color: var(--iv-sub); font-weight: normal; font-family: 'Nunito', sans-serif; }
 .iv-wide { grid-column: 1 / -1; }
 @media (max-width: 720px) { .iv-grid { grid-template-columns: 1fr; } }
 
-/* ---- tabbed navigation (UI declutter): one focused screen at a time; future tabs stay hidden ---- */
+/* ---- tabbed navigation: one focused screen at a time; future tabs stay hidden ---- */
 .iv-story-strip { max-width: 1100px; margin: 0 auto; padding: 12px 12px 0; }
 .iv-tabbar { position: sticky; top: 0; z-index: 8; display: flex; flex-wrap: wrap; gap: 6px;
-  max-width: 1100px; margin: 0 auto; padding: 8px 12px; background: var(--iv-bg);
-  border-bottom: 1px solid var(--iv-line); }
+  max-width: 1100px; margin: 0 auto; padding: 8px 12px; background: var(--iv-bg); }
 .iv-tab-btn { background: var(--iv-card); color: var(--iv-sub); border: 1px solid var(--iv-line);
   border-radius: 999px; padding: 6px 14px; font-size: .9rem; cursor: pointer; white-space: nowrap;
-  transition: background .12s, color .12s, border-color .12s; }
-.iv-tab-btn:hover { color: var(--iv-ink); border-color: var(--iv-accent); }
-.iv-tab-btn.iv-tab-active { background: var(--iv-accent); color: #0c151b; border-color: var(--iv-accent); font-weight: bold; }
-/* a subtle dot marks a tab that has newly-unlocked content the player hasn't visited yet */
+  font-family: 'Nunito', sans-serif; font-weight: 700;
+  transition: background .15s, color .15s, border-color .15s; }
+.iv-tab-btn:hover { color: var(--iv-ink); border-color: var(--iv-pink); }
+.iv-tab-btn.iv-tab-active { background: var(--iv-sun); color: var(--iv-ink); border-color: var(--iv-sun); }
 .iv-tab-btn.iv-tab-new::after { content: ''; display: inline-block; width: 7px; height: 7px; margin-left: 6px;
-  border-radius: 50%; background: var(--iv-good); vertical-align: middle; animation: iv-tabpulse 1.4s ease-in-out infinite; }
-@keyframes iv-tabpulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+  border-radius: 50%; background: var(--iv-green); vertical-align: middle; animation: iv-tabpulse 1.4s ease-in-out infinite; }
+@keyframes iv-tabpulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 @media (prefers-reduced-motion: reduce) { .iv-tab-btn.iv-tab-new::after { animation: none; } }
 .iv-tabpanel[hidden] { display: none; }
 @media (max-width: 720px) { .iv-tabbar { overflow-x: auto; flex-wrap: nowrap; } }
 
-.iv-btn { background: #1f3a47; color: var(--iv-ink); border: 1px solid var(--iv-line); border-radius: 6px;
-  padding: 6px 8px; margin: 2px; cursor: pointer; font-size: .78rem; line-height: 1.15; text-align: center; height: auto; }
-.iv-btn:hover:not(:disabled) { background: #26505f; border-color: var(--iv-accent); }
-.iv-btn:disabled { opacity: .4; cursor: not-allowed; }
+/* buttons: white tiles; primary CTAs go Hot Pink (one per card — UX-plan §1.1) */
+.iv-btn { background: var(--iv-card); color: var(--iv-ink); border: 1px solid var(--iv-line); border-radius: 12px;
+  padding: 6px 10px; margin: 2px; cursor: pointer; font-size: .78rem; line-height: 1.2; text-align: center; height: auto;
+  font-family: 'Nunito', sans-serif; box-shadow: 0 1px 4px rgba(43, 30, 22, .06); }
+.iv-btn:hover:not(:disabled) { border-color: var(--iv-pink); }
+.iv-btn:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
 .iv-btn small { color: var(--iv-sub); }
-.iv-maxed { border-color: var(--iv-good); }
+.iv-btn.btn-primary { background: var(--iv-pink); border-color: var(--iv-pink); color: #fff; font-weight: 800;
+  border-radius: 999px; }
+.iv-btn.btn-primary small { color: #FFD6E8; }
+.iv-btn.btn-primary:hover:not(:disabled) { background: var(--iv-pink-text); border-color: var(--iv-pink-text); }
+.iv-maxed { border-color: var(--iv-green); }
 
 .iv-row { display: flex; justify-content: space-between; align-items: center; gap: 8px;
   border-bottom: 1px dashed var(--iv-line); padding: 6px 0; }
 .iv-row-main b { color: var(--iv-ink); } .iv-row-buy { display: flex; gap: 4px; }
-.iv-sub { color: var(--iv-sub); font-size: .72rem; }
+.iv-sub { color: var(--iv-sub); font-size: .74rem; }
 .iv-gen-flavor { font-size: .72rem; margin: 2px 0 0; }
 .iv-qty { margin-bottom: 6px; font-size: .78rem; color: var(--iv-sub); }
-.iv-tag { text-transform: uppercase; letter-spacing: .08em; color: var(--iv-accent); font-size: .68rem; margin: 8px 0 4px; }
+.iv-tag { text-transform: uppercase; letter-spacing: .08em; color: var(--iv-pink-text); font-size: .68rem;
+  font-weight: 800; margin: 8px 0 4px; }
 .iv-amenities { display: flex; flex-wrap: wrap; gap: 4px; }
 .iv-amenities > .iv-btn, .iv-amenities > button { flex: 1 1 130px; max-width: 220px; }
 
-/* screen-reader-only: visually hidden but still read by assistive tech (E07-S3-T8's
-   aria-live purchase ticker — a persistent node so text-only updates get announced). */
 .iv-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
-  clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+  clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
-/* Poolside splash juice (E07-S10-T9): a tiny droplet popup on a pool purchase, anchored
-   to the page (see ui.js showSplashPopup — appended to <body>, not the button, since the
-   button's own container re-renders in the same click). Reduced-motion falls back to an
-   instant (invisible) blip, same convention as .iv-tap-pop / .iv-notif.iv-celebrate. */
-.iv-splash-pop { position: absolute; transform: translateX(-50%); color: #6ab0ff; font-size: .85rem;
+.iv-splash-pop { position: absolute; transform: translateX(-50%); color: var(--iv-sky-text); font-size: .85rem;
   pointer-events: none; z-index: 8; animation: splashfloat .7s ease-out forwards; }
 @keyframes splashfloat { from { opacity: 1; transform: translate(-50%, 0); } to { opacity: 0; transform: translate(-50%, -18px); } }
 @media (prefers-reduced-motion: reduce) { .iv-splash-pop { animation: none; opacity: 0; } }
 
-/* Comfort meter (E02-S3-T1): unbounded Comfort, so the bar fills toward the next
-   accommodation unlock threshold rather than a hard cap — see math.js comments. */
+/* meters: pill track in sand; sunshine fill (the fill IS the sunshine — UX-plan §3) */
 .iv-comfort-bonus { margin-bottom: 4px; font-size: .82rem; }
-.iv-comfort-bonus b { color: var(--iv-accent); }
-.iv-comfort-meter { background: #0c151b; border: 1px solid var(--iv-line); border-radius: 6px;
+.iv-comfort-bonus b { color: var(--iv-pink-text); }
+.iv-comfort-meter { background: var(--iv-well); border: none; border-radius: 999px;
   height: 10px; overflow: hidden; margin-bottom: 4px; }
-.iv-comfort-meter i { display: block; height: 100%; background: linear-gradient(90deg, var(--iv-good), var(--iv-accent));
-  transition: width .4s ease; }
+.iv-comfort-meter i { display: block; height: 100%; background: linear-gradient(90deg, var(--iv-green), var(--iv-sun));
+  border-radius: 999px; transition: width .4s ease; }
 
-/* accommodation ladder (E05-S3-T1..T3): a windowed shed→island climb — owned tiers
-   collapse to a count, current tier is highlighted, next tier carries its gate + a
-   progress bar, and tiers further ahead sit dimmed/locked. Kept a fixed small window
-   (see ui.js ACC_LOOKAHEAD) rather than scrolling all 21 rows. */
+/* accommodation ladder: postcard-ish rows (full postcard component lands in U2) */
 .iv-acc-ladder { display: flex; flex-direction: column; gap: 4px; }
-.iv-acc-row { background: #0c151b; border: 1px solid var(--iv-line); border-radius: 6px; padding: 5px 8px; font-size: .8rem; }
-.iv-acc-owned { color: var(--iv-sub); font-size: .74rem; }
-.iv-acc-current { border-color: var(--iv-good); }
-.iv-acc-next { border-color: var(--iv-accent); }
+.iv-acc-row { background: var(--iv-well); border: 1px solid var(--iv-line); border-radius: 12px; padding: 6px 10px; font-size: .8rem; }
+.iv-acc-owned { color: var(--iv-sub); font-size: .74rem; background: transparent; border: none; }
+.iv-acc-current { background: var(--iv-sun-tint); border-color: var(--iv-sun); }
+.iv-acc-next { background: var(--iv-card); border-color: var(--iv-pink); box-shadow: var(--iv-shadow); }
 .iv-acc-next .iv-comfort-meter { margin: 4px 0; }
-.iv-acc-locked { opacity: .55; }
-.iv-acc-more { color: var(--iv-sub); font-size: .72rem; text-align: center; }
+.iv-acc-locked { opacity: .6; }
+.iv-acc-more { color: var(--iv-sub); font-size: .72rem; text-align: center; background: transparent; border: none; }
 
-/* renovation legend (E05-S3-T4/S4-T1): names the existing L_upgrade layer inline. */
 .iv-upg-legend { margin-bottom: 6px; }
 
 .iv-flavor { font-style: italic; color: var(--iv-sub); margin-bottom: 6px; }
-.iv-beatnum { color: var(--iv-sub); font-size: .72rem; } .iv-beattitle { color: var(--iv-accent); font-weight: bold; margin: 2px 0; }
+.iv-beatnum { color: var(--iv-sub); font-size: .72rem; }
+.iv-beattitle { color: var(--iv-pink-text); font-weight: 600; font-size: 1.05rem; margin: 2px 0; }
 .iv-beattext { font-size: .85rem; } .iv-choices { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px; }
 
-/* recurring NPC roster (E03-S7): revealed once you're in the hostel bunk. */
 .iv-npcs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
-.iv-npc { background: #0c151b; border: 1px solid var(--iv-line); border-radius: 6px;
+.iv-npc { background: var(--iv-well); border: 1px solid var(--iv-line); border-radius: 12px;
   padding: 6px 8px; font-size: .78rem; flex: 1 1 150px; max-width: 240px; }
 .iv-npc-emoji { font-size: 1rem; }
 
 .iv-skills, .iv-skill, .iv-path { margin-bottom: 6px; }
-.iv-skill .bar { background: #0c151b; border-radius: 4px; height: 5px; overflow: hidden; margin-top: 3px; }
-.iv-skill .bar i { display: block; height: 100%; background: var(--iv-good); }
-.iv-skill-effect b { color: var(--iv-accent); }
-.label { background: #0c151b; color: var(--iv-accent); border-radius: 4px; padding: 1px 6px; font-size: .7rem; }
+.iv-skill .bar { background: var(--iv-well); border-radius: 999px; height: 6px; overflow: hidden; margin-top: 3px; }
+.iv-skill .bar i { display: block; height: 100%; background: var(--iv-green); border-radius: 999px; }
+.iv-skill-effect b { color: var(--iv-pink-text); }
+.label { background: var(--iv-sun-tint); color: var(--iv-ink); border-radius: 999px; padding: 1px 8px; font-size: .7rem; }
 
-/* Communication's discount-cap badge (E09-S3-T8): reuses the tree's .iv-maxed accent
-   color as a small inline pill next to the effect readout. */
-.iv-badge-maxed { background: #0c151b; color: var(--iv-good); border: 1px solid var(--iv-good);
-  border-radius: 4px; padding: 1px 6px; font-size: .68rem; margin-left: 4px; }
+.iv-badge-maxed { background: var(--iv-green-tint); color: var(--iv-green-text); border: 1px solid var(--iv-green);
+  border-radius: 999px; padding: 1px 8px; font-size: .68rem; margin-left: 4px; }
 
-/* skill level-up juice (E09-S3-T6/S10-T1): the toast reuses the SAME celebrate glow as
-   accommodation-tier arrivals; the bar itself gets a brief brightness pulse on the
-   specific skill that just leveled (see ui.js skillFlash). Both reduced-motion gated. */
-.iv-notif.iv-levelup { border-color: #6ab0ff; font-weight: bold; font-size: .88rem;
+.iv-notif.iv-levelup { border-color: var(--iv-sky); font-weight: bold; font-size: .88rem;
   animation: slidein .25s ease, celebrateglow 1.2s ease 1; }
 .iv-skill-flash .bar i { animation: skillpulse .6s ease 1; }
-@keyframes skillpulse { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(2); } }
+@keyframes skillpulse { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.6); } }
 @media (prefers-reduced-motion: reduce) {
   .iv-notif.iv-levelup { animation: none; }
   .iv-skill-flash .bar i { animation: none; }
 }
 
-/* training XP-gain popup (E09-S10-T1): mirrors .iv-splash-pop exactly (see ui.js
-   showXpPopup — body-anchored, since the training button's own container re-renders in
-   the same click). */
-.iv-xp-pop { position: absolute; transform: translateX(-50%); color: var(--iv-accent);
+.iv-xp-pop { position: absolute; transform: translateX(-50%); color: var(--iv-pink-text);
   font-weight: bold; font-size: .8rem; pointer-events: none; z-index: 8; animation: splashfloat .7s ease-out forwards; }
 @media (prefers-reduced-motion: reduce) { .iv-xp-pop { animation: none; opacity: 0; } }
 
-/* path meter (E04-S3-T5): four thin bars, one per build-path archetype. */
 .iv-pathmeter { margin-bottom: 8px; }
 .iv-pmeter-row { display: flex; align-items: center; gap: 6px; font-size: .74rem; margin-bottom: 3px; }
 .iv-pmeter-label { flex: 0 0 150px; color: var(--iv-sub); }
-.iv-pmeter-bar { flex: 1 1 auto; background: #0c151b; border-radius: 4px; height: 6px; overflow: hidden; }
-.iv-pmeter-bar i { display: block; height: 100%; background: var(--iv-accent); }
+.iv-pmeter-bar { flex: 1 1 auto; background: var(--iv-well); border-radius: 999px; height: 6px; overflow: hidden; }
+.iv-pmeter-bar i { display: block; height: 100%; background: var(--iv-sky); border-radius: 999px; }
 .iv-pmeter-val { flex: 0 0 auto; color: var(--iv-ink); white-space: nowrap; }
 
-/* destinations (E04-S3): owned places read as little passport stamps. */
-.iv-dest-owned { background: #14252c; border: 1px solid var(--iv-good); border-radius: 6px;
+/* destinations: owned places read as passport stamps (full stamp skin lands in U2) */
+.iv-dest-owned { background: var(--iv-green-tint); border: 1px solid var(--iv-green); border-radius: 12px;
   padding: 6px 8px; font-size: .78rem; flex: 1 1 150px; max-width: 220px; }
 .iv-dest-owned .iv-btn { margin-top: 2px; }
 
-.iv-controls { position: fixed; bottom: 0; left: 0; right: 0; background: #0c151b; border-top: 1px solid var(--iv-line);
+.iv-controls { position: fixed; bottom: 0; left: 0; right: 0; background: var(--iv-card);
+  box-shadow: 0 -4px 16px rgba(43, 30, 22, .08);
   padding: 8px 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: .78rem; z-index: 6; }
 .iv-speed { color: var(--iv-sub); } .iv-speed button { margin: 0 1px; }
 
-.iv-tap-pop { position: absolute; bottom: 46px; transform: translateX(-50%); color: var(--iv-good);
+.iv-tap-pop { position: absolute; bottom: 46px; transform: translateX(-50%); color: var(--iv-green-text);
   font-weight: bold; font-size: .85rem; pointer-events: none; animation: tapfloat .7s ease-out forwards; }
 @keyframes tapfloat { from { opacity: 1; transform: translate(-50%, 0); } to { opacity: 0; transform: translate(-50%, -22px); } }
 
-/* Energy meter (E10 "Body & Soul"): reuses .iv-comfort-meter's bar shell for the tank;
-   a low-tank state dims the fill (never blocks — a tap still pays the floor), and a
-   full-energy tap gives the bar a brief pulse. Both reduced-motion gated, mirroring
-   .iv-skill-flash's convention. */
-.iv-energy-meter i { background: linear-gradient(90deg, #f5b301, #ff6b6b); }
+/* Energy: sunshine → pink gradient (fully on-palette) */
+.iv-energy-meter i { background: linear-gradient(90deg, var(--iv-sun), var(--iv-pink)); }
 .iv-energy-low i { opacity: .55; }
 .iv-energy-pulse i { animation: energypulse .5s ease 1; }
-@keyframes energypulse { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.7); } }
+@keyframes energypulse { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.5); } }
 @media (prefers-reduced-motion: reduce) { .iv-energy-pulse i { animation: none; } }
 .iv-energy-inline { margin-left: 4px; }
-.iv-energy-inline.iv-energy-low { color: #ff8f6b; }
+.iv-energy-inline.iv-energy-low { color: var(--iv-red-text); }
 .iv-energy-inline.iv-energy-pulse { animation: energypulse .5s ease 1; }
 @media (prefers-reduced-motion: reduce) { .iv-energy-inline.iv-energy-pulse { animation: none; } }
 
-/* Concierge Desk (E11 "Five-Star Frame of Mind"): the recent-purchases log gets a brief
-   brightness pulse when a new auto-buy batch lands (E11-S10-T8 "juice the auto-buy"),
-   mirroring .iv-skill-flash/.iv-energy-pulse's convention exactly — reduced-motion gated. */
 .iv-concierge-log { display: flex; flex-direction: column; gap: 2px; }
 .iv-concierge-flash { animation: conciergepulse .9s ease 1; }
-@keyframes conciergepulse { 0%, 100% { filter: brightness(1); } 30% { filter: brightness(1.6); } }
+@keyframes conciergepulse { 0%, 100% { filter: brightness(1); } 30% { filter: brightness(1.4); } }
 @media (prefers-reduced-motion: reduce) { .iv-concierge-flash { animation: none; } }
 
-/* Creator Dashboard (E12 "Lights, Camera, Clout") — combo meter cold -> warm -> viral
-   color states, reusing .iv-comfort-meter's bar shell (mirrors the Energy meter's reuse
-   of the same shell). A brief pulse on every tap ties E10's tap button to the meter
-   visually (E12-S3-T5); a one-shot "going viral" burst fires the first time combo hits
-   its (branch-scoped) effective max (E12-S10-T7). Both reduced-motion gated, mirroring
-   every other pulse/flash in this file. */
-.iv-combo-meter i { background: linear-gradient(90deg, #6ab0ff, var(--iv-accent)); }
-.iv-combo-warm i { background: linear-gradient(90deg, var(--iv-accent), #ff8f3c); }
-.iv-combo-viral i { background: linear-gradient(90deg, #ff8f3c, #ff4d4d); }
+/* Creator combo: sky → sunshine → pink as it heats up (on-palette) */
+.iv-combo-meter i { background: linear-gradient(90deg, var(--iv-sky), var(--iv-sun)); }
+.iv-combo-warm i { background: linear-gradient(90deg, var(--iv-sun), var(--iv-pink)); }
+.iv-combo-viral i { background: linear-gradient(90deg, var(--iv-pink), var(--iv-pink-text)); }
 .iv-combo-pulse i { animation: energypulse .4s ease 1; }
 .iv-combo-burst { animation: comboburst .9s ease 1; }
-@keyframes comboburst { 0%, 100% { filter: brightness(1); } 30% { filter: brightness(1.9); } }
+@keyframes comboburst { 0%, 100% { filter: brightness(1); } 30% { filter: brightness(1.6); } }
 @media (prefers-reduced-motion: reduce) {
   .iv-combo-pulse i { animation: none; }
   .iv-combo-burst { animation: none; }
 }
 
-/* content-tier cards + active sponsor card (E12-S3-T3/T4): reuse .iv-btn's block shape
-   (like .iv-dest-owned) rather than a bespoke layout. */
 .iv-content-item { text-align: left; flex: 1 1 160px; max-width: 240px; }
-.iv-sponsor-active { background: #14252c; border-color: var(--iv-good); text-align: left;
+.iv-sponsor-active { background: var(--iv-green-tint); border-color: var(--iv-green); text-align: left;
   flex: 1 1 160px; max-width: 240px; }
-.iv-notif.iv-sponsor { border-color: #ff8f3c; }
+.iv-notif.iv-sponsor { border-color: var(--iv-sun); }
 
-/* Crypto Poolside Lounge (E13 "Money Works While You Tan"): a live ticker (up/down/flat
-   colour, no flashing) + a labeled boom/crash banner. Colour is the only "juice" here —
-   the banner itself never flashes, so a crash reads calmly even for prefers-reduced-motion. */
-.iv-notif.iv-boom { border-color: var(--iv-good); } .iv-notif.iv-crash { border-color: #ff4d4d; }
+.iv-notif.iv-boom { border-color: var(--iv-green); } .iv-notif.iv-crash { border-color: var(--iv-red-text); }
 .iv-market-ticker { font-weight: bold; margin-bottom: 4px; font-size: .9rem; }
-.iv-ticker-up { color: var(--iv-good); } .iv-ticker-down { color: #ff6b6b; } .iv-ticker-flat { color: var(--iv-sub); }
-.iv-market-banner { border-radius: 6px; padding: 5px 8px; margin-bottom: 6px; font-size: .8rem; font-weight: bold; }
-.iv-market-boom { background: #123a24; border: 1px solid var(--iv-good); color: var(--iv-good); }
-.iv-market-crash { background: #3a1414; border: 1px solid #ff4d4d; color: #ff8080; }
-.iv-market-chop { background: #14252c; border: 1px solid var(--iv-line); color: var(--iv-sub); }
+.iv-ticker-up { color: var(--iv-green-text); } .iv-ticker-down { color: var(--iv-red-text); } .iv-ticker-flat { color: var(--iv-sub); }
+.iv-market-banner { border-radius: 12px; padding: 5px 8px; margin-bottom: 6px; font-size: .8rem; font-weight: bold; }
+.iv-market-boom { background: var(--iv-green-tint); border: 1px solid var(--iv-green); color: var(--iv-green-text); }
+.iv-market-crash { background: var(--iv-red-tint); border: 1px solid var(--iv-red-text); color: var(--iv-red-text); }
+.iv-market-chop { background: var(--iv-well); border: 1px solid var(--iv-line); color: var(--iv-sub); }
 
-/* Gallery & Cellar (E14 "Acquired Taste"): reuses .iv-btn/.iv-content-item's block shape for
-   each art/wine row (like the crypto holdings card). The discount tag (S3-T7, "old-money
-   haggle") is a struck-through undiscounted price next to the real one. Provenance lives
-   ONLY in the row's title= tooltip — never inline — so a long fake-auction-house string
-   can never widen or break the row layout (S3-T10). */
 .iv-strike { color: var(--iv-sub); text-decoration: line-through; margin-right: 4px; font-size: .72rem; }
 
-/* Garage (E15 "Keys to the Coupe"): upkeep drain in red so the ×-vs-cost tradeoff reads at a
-   glance; slot pips; and an amber repossession warning when the grace clock is running. */
-.iv-upkeep { color: #ff8080; }
-.iv-slots { letter-spacing: 2px; color: var(--iv-accent, #7ec8ff); }
-.iv-warn { background: #3a2a12; border: 1px solid #d9a441; color: #f3c675; border-radius: 6px;
+.iv-upkeep { color: var(--iv-red-text); }
+.iv-slots { letter-spacing: 2px; color: var(--iv-sky-text); }
+.iv-warn { background: var(--iv-sun-tint); border: 1px solid var(--iv-sun); color: var(--iv-ink); border-radius: 12px;
   padding: 6px 8px; margin: 6px 0; font-size: .82rem; }
 
-/* Logistics capstone banner (E17 "Wheels Up"): lit gold when car+boat+jet all owned, muted otherwise. */
-.iv-capstone-on { background: #2a2410; border: 1px solid #e2c14e; color: #ffe08a; border-radius: 6px;
+.iv-capstone-on { background: var(--iv-sun-tint); border: 1px solid var(--iv-sun); color: var(--iv-ink); border-radius: 12px;
   padding: 6px 8px; margin: 6px 0; font-size: .85rem; }
-.iv-capstone-off { color: var(--iv-sub); border: 1px dashed var(--iv-line); border-radius: 6px;
+.iv-capstone-off { color: var(--iv-sub); border: 1px dashed var(--iv-line); border-radius: 12px;
   padding: 6px 8px; margin: 6px 0; font-size: .82rem; }
 
-/* "While you were away" summary (E02-S9-T5): dismissible, mobile-friendly overlay. */
-.iv-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex;
+.iv-modal-overlay { position: fixed; inset: 0; background: rgba(43, 30, 22, .45); display: flex;
   align-items: center; justify-content: center; z-index: 20; padding: 16px; }
 .iv-modal-overlay[hidden] { display: none; }
-.iv-modal { background: var(--iv-card); border: 1px solid var(--iv-line); border-radius: 10px;
-  padding: 16px; max-width: 380px; width: 100%; box-shadow: 0 8px 30px rgba(0,0,0,.5); }
+.iv-modal { background: var(--iv-card); border: none; border-radius: 16px;
+  padding: 16px; max-width: 380px; width: 100%; box-shadow: 0 12px 40px rgba(43, 30, 22, .25); }
 .iv-modal h3 { margin: 0 0 8px; }
 .iv-offline-row { margin: 4px 0; font-size: .88rem; }
+
+/* ---- the Travel Diary (UX-plan §3/§6): seen story beats as journal pages. ---- */
+.iv-diary { max-width: 460px; max-height: 70vh; overflow-y: auto; }
+.iv-diary-entry { border-bottom: 1px dashed var(--iv-line); padding: 8px 0; }
+.iv-diary-entry:last-child { border-bottom: none; }
+.iv-diary-when { color: var(--iv-sub); font-size: .7rem; }
+.iv-diary-title { font-family: 'Fredoka', sans-serif; color: var(--iv-pink-text); font-size: .95rem; margin: 1px 0; }
+.iv-diary-text { font-size: .82rem; font-style: italic; }
+.iv-diary-continues { text-align: center; color: var(--iv-sub); font-size: .74rem; padding: 8px 0 2px; }

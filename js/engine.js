@@ -645,6 +645,9 @@ export function checkStory(state) {
     if (beat.id > 1 && !state.story.seen.includes(beat.id - 1)) continue;
     if (reqMet(state, beat.requires)) {
       state.story.seen.push(beat.id);
+      // Travel Diary bookkeeping (UX-plan §6): stamp WHEN the beat was lived (run seconds) so the
+      // diary can date its pages. Display-only — never read by any income/gate path.
+      (state.story.seenAt ||= {})[beat.id] = Math.round(state.stats.runSec || 0);
       state.story.beat = Math.max(state.story.beat, beat.id);
       notify(state, 'story', `📖 Beat ${beat.id}: ${beatCopy(state, beat).title}`);
     }

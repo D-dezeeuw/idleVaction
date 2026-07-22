@@ -104,6 +104,7 @@ a holiday instead of a spreadsheet:
 | **Luggage sticker** | Achievements = round/oval stickers slapped on a suitcase graphic. Locked = blank sticker outline `???` (only for already-visible categories). | Trophies screen | suitcase with stickers |
 | **Boarding pass** | Transport & travel purchases render as a boarding-pass card (dashed perforation, big route arrow). | Transport, jets, NG+ ("boarding pass to New Game+") | `✂ - - - - - -`<br>`SHED → SUN` |
 | **Polaroid** | Story beats & the Family Album render as polaroids: emoji scene on top, wry caption in the white strip. | Story panel, beat modals, lineage album | |
+| **Travel Diary** 📔 | Every beat the player has *lived* becomes a dated journal page: "Entry N · 2h 43m into the trip", title in Fredoka, the branch-flavored beat text in italic (handwriting-adjacent). Opens from a 📔 button on the Story card as a modal; pages are chronological and it opens scrolled to the latest. **Only seen beats render** (R1); the last line is always "…the next page is still blank ✍️" — the future is a blank page, never a list. Timestamps come from `story.seenAt` (recorded at beat-fire, display-only bookkeeping). | Story archive / re-reading the trip | `Entry 12 · 2h 43m in`<br>`FORK IN THE LOBBY`<br>`"The motel roaches…"` |
 | **Sun-meter** | Comfort's progress bar is a sun that rises along an arc — the fill *is* the sunshine yellow. | Comfort (HUD + amenity panel) | `☀️ rising over a hill arc` |
 | **Progress bar** | Pill-shaped, Sunshine fill on a sand track; Sky Blue variant for "on the way to a locked thing"; Green flash at 100%. Digits beneath in Dune, small (R6). | Every gate: comfort→next tier, taste gates, island currencies | `[███████░░░] 70%` |
 | **Slider** | Real `<input type=range>` styled with a pink thumb ("beach ball"). | Concierge/staff/butler **budget dials** (replacing the 5%/10%/25%/50% preset buttons), bulk-buy quantity | `──────🔴───` |
@@ -259,8 +260,10 @@ button, the Shed postcard, Cash chip. **That's the whole game.** No tabs yet (a 
    Dune link for completionists — collapsed by default.
 5. **Card headers become scenes:** each card's h3 gets its emoji scene + tinted header band —
    scannable by shape and color, not by reading.
-6. **Story = polaroid strip:** the Story card shows the *latest* polaroid only; tapping opens the
-   album of seen beats (progress "Beat 12 / ???" — total count hidden until the final act, R1).
+6. **Story = polaroid strip + the Travel Diary:** the Story card shows the *latest* polaroid only,
+   labeled "Entry N" (the total beat count is **never** shown — R1; the old "Beat 12 / 30" leaked
+   the trip's length). A 📔 **Diary** button opens the journal of every beat lived so far (see the
+   kit, §3) — dated, branch-flavored, chronological, ending on a blank page.
 
 ---
 

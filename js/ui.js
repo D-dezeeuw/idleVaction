@@ -187,11 +187,44 @@ function renderStory(s) {
       choiceBeat.choices.map(c => btn('story-choice', `${choiceBeat.id}|${c.set}`, c.label)).join(' ') +
       '</div>';
   }
+  // R1 (UX-plan §2): never reveal the total beat count — the trip's length is part of the mystery.
+  // The branch line only appears once a branch is chosen (before that it's just "the trip so far").
+  const branchLabel = s.story.branch !== 'neutral' ? ` — <b>${s.story.branch}</b>` : '';
   el('story').innerHTML = `
-    <div class="iv-beatnum">Beat ${latestBeat.id} / 30 — Branch: <b>${s.story.branch}</b></div>
+    <div class="iv-beatnum">Entry ${latestBeat.id}${branchLabel} ${btn('open-diary', '', '📔 Diary', s.story.seen.length > 1, 'btn-link')}</div>
     <div class="iv-beattitle">${latest.title}</div>
     <div class="iv-beattext">${latest.text}</div>
     ${choiceHtml}`;
+}
+
+// ---------- the Travel Diary (UX-plan §3/§6) ----------
+// Every beat the player has LIVED, as dated journal pages — chronological, branch-flavored
+// (beatCopy), and future-blind: only story.seen renders, and the closing line promises more
+// without naming it (Reveal Doctrine R1).
+function renderDiary(s) {
+  const body = el('diaryBody');
+  if (!body) return;
+  let html = '';
+  const seen = [...s.story.seen].sort((a, b) => a - b);
+  for (const id of seen) {
+    const beat = DATA.story.find(b => b.id === id);
+    if (!beat) continue;
+    const copy = E.beatCopy(s, beat);
+    const at = s.story.seenAt?.[id];
+    const when = at === 0 ? 'where it all began' : (at > 0 ? `${fmtTime(at)} into the trip` : '');
+    html += `<div class="iv-diary-entry">
+      <div class="iv-diary-when">Entry ${beat.id}${when ? ` · ${when}` : ''}</div>
+      <div class="iv-diary-title">${copy.title}</div>
+      <div class="iv-diary-text">${copy.text}</div>
+    </div>`;
+  }
+  html += `<div class="iv-diary-continues">…the next page is still blank. ✍️</div>`;
+  body.innerHTML = html;
+}
+function openDiary() {
+  renderDiary(S);
+  const m = el('diaryModal');
+  if (m) { m.hidden = false; const scroller = m.querySelector('.iv-diary'); if (scroller) scroller.scrollTop = scroller.scrollHeight; }
 }
 
 // The shed→island ladder panel (E05-S3-T1..T4): rather than dumping all 21 rows, this
@@ -1747,6 +1780,9 @@ function handle(action, arg, btnEl) {
   switch (action) {
     // UI: switch the active tab (marks it seen ⇒ clears the "new" dot). render(S) below re-lays out.
     case 'switch-tab': activeTab = arg; seenTabs.add(arg); lastTabSig = ''; break;
+    // the Travel Diary (UX-plan §6)
+    case 'open-diary': openDiary(); break;
+    case 'close-diary': { const m = el('diaryModal'); if (m) m.hidden = true; break; }
     case 'set-qty': S.ui.bulkMode = arg === 'max' ? 'max' : Number(arg); break;
     case 'buy-gen': { const [k, q] = arg.split('|'); E.buyGenerator(S, Number(k), q === 'max' ? 'max' : Number(q)); break; }
     case 'buy-gen-upg': E.buyGenUpgrade(S, Number(arg)); break;
