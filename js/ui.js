@@ -508,11 +508,19 @@ const TIER_SCENES = [
   '🌺🛎️🍸', '⭐🥂🛎️', '🛋️🍾🌇', '🚪✨🥂', '⛵🏨🌊', '🛗🤵🌃', '💎🏨🌅', '👑🛏️🌠',
   '🏡🔑🌴', '🌊🏠🐠', '🚪🌳🏡', '🏰🌲🦌', '🏝️☀️⛵', '🏝️🏨🚁',
 ];
+// Which tiers have GENERATED postcard art in assets/img/postcards/ (tools/genart.mjs).
+// Progressive enhancement: a tier not in this set keeps its emoji scene — a missing image can
+// never break the card, and art for unreached tiers is never even requested (reveal-safe).
+const POSTCARD_ART = new Set([]);
 function tierPostcardHtml(s) {
   const t = s.accommodation.tier;
   const acc = DATA.accommodation[t];
+  const scene = POSTCARD_ART.has(t)
+    ? `<img class="iv-postcard-img" src="assets/img/postcards/tier-${String(t).padStart(2, '0')}.png"
+         alt="" onerror="this.outerHTML='<div class=iv-postcard-scene>${TIER_SCENES[t] || '🏝️'}</div>'">`
+    : `<div class="iv-postcard-scene" aria-hidden="true">${TIER_SCENES[t] || '🏝️'}</div>`;
   return `<div class="iv-postcard">
-    <div class="iv-postcard-scene" aria-hidden="true">${TIER_SCENES[t] || '🏝️'}</div>
+    ${scene}
     <div class="iv-postcard-name">${acc.name}</div>
     <div class="iv-postcard-caption">— ${acc.flavor}</div>
   </div>`;

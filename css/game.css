@@ -259,6 +259,7 @@ h1, h2, h3, .iv-beattitle { font-family: 'Fredoka', 'Nunito', system-ui, sans-se
 .iv-postcard { background: linear-gradient(180deg, var(--iv-sky-tint), var(--iv-card)); border: 1px solid var(--iv-line);
   border-radius: 12px; padding: 10px 12px 8px; margin-bottom: 8px; text-align: center; }
 .iv-postcard-scene { font-size: 1.8rem; letter-spacing: .12em; line-height: 1.2; }
+.iv-postcard-img { width: 100%; max-width: 380px; border-radius: 8px; display: block; margin: 0 auto 4px; }
 .iv-postcard-name { font-family: 'Fredoka', sans-serif; font-weight: 600; font-size: 1.1rem; }
 .iv-postcard-caption { color: var(--iv-sub); font-size: .74rem; font-style: italic; }
 
