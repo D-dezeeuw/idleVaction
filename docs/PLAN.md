@@ -91,11 +91,13 @@ A vertical slice implementing the core of the above lives at repo root and **run
     play lands ~20h+; beats spread monotonically; peak cash `1e11`, safely inside `double`).
 
 > **Balance status:** the economy is **fitted to the ~20h target** (`docs/05 §9` has the golden
-> curve). It got there through two real fixes — the first pass was a finite-time singularity,
-> and offline/away income was an unbounded lump that let one overnight absence leapfrog half
-> the accommodation ladder; both are corrected and measured (`docs/math-proof.md`, §1–§6 and
-> §11 — the wallet cap). Remaining polish (even gate spacing, playtest, the ascension
-> meta-layer, endgame precision) is tracked in E30 and the math-proof's P2–P5.
+> curve). It got there through three real fixes — the first pass was a finite-time singularity;
+> offline/away income was an unbounded lump that let one overnight absence leapfrog half
+> the accommodation ladder; and one ascension collapsed the next run to ~11 minutes. All three
+> are corrected and measured (`docs/math-proof.md` §1–§6, §11 — the wallet cap, and §12 — the
+> ascension hard reset + gate scaling: every ascension is a fresh ≥8h run where only tree
+> abilities carry). Remaining polish (even gate spacing, playtest, endgame precision) is
+> tracked in E30 and the math-proof's P2/P4/P5.
 
 ## Design pillars (traceability)
 

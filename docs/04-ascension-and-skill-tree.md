@@ -18,10 +18,23 @@ character changes that stick across every future vacation.
     stronger)
 ```
 
-- **Run currencies** (reset each ascension): cash, comfort, generators, amenities,
-  accommodation, run-skill levels, path points.
-- **Meta currencies** (persist forever): **Legacy** (spent on tree), **Legend** (Epic 29
-  second layer), unlocked story branches, stats.
+- **Reset each ascension — a HARD reset, everything restarts at 0:** cash, comfort,
+  generators (including their lifetime-cash reveal thresholds), amenities, accommodation,
+  run-skill levels, path points, the bank-account ladder, destinations, crypto,
+  concierge, **story** (beats/branch/flags — you re-live the trip and may pick a
+  different path), and **all run stats including `lifetimeCash`** (so Savvy's
+  `√lifetimeCash` passive re-paces from zero).
+- **The ONLY things that cross an ascension:** the abilities bought with ascension
+  points — `ascension.tree` + the unspent **Legacy** itself (plus **Legend**, Epic 29's
+  second layer, when it ships) — and non-power bookkeeping: settings, meta timestamps,
+  and the gate-deflated `lifetimeCashThisTree` accounting counter. "Later runs feel
+  plusher" flows ONLY through tree abilities (Ageless, Magnetic, Head Start…), never
+  through the ascension count itself — the old `×(1+0.25·count)` Comfort bonus is gone.
+- **Ascended runs are re-paced, not re-trivialized** (`docs/math-proof.md §12`): phase
+  gates cost `×base^(√count·(tier/span)²)` (`config.ASCEND_GATE`) — early tiers barely
+  scale (a fresh ascension feels powerful), the island carries the full factor. Fitted:
+  every ascension ≥ **8h**, on a stable ~9–12h greedy-bot band (runs 1–6: 8h37m, 9h13m,
+  10h08m, 10h37m, 11h18m, 11h30m).
 
 ## 2. When can you ascend?
 
@@ -39,13 +52,22 @@ legacyGain(run) = floor( LEGACY_K · sqrt( lifetimeCashThisTree / LEGACY_SCALE )
 
 - Square-root (`^0.5`) is the genre-standard anti-runaway curve: **4× the run → 2× the
   reward**, so ascending is always worthwhile yet self-limiting.
-- `lifetimeCashThisTree` accumulates across ascensions until a *Legend* reset (layer 2).
-- Tunables: `LEGACY_K` (payout scale), `LEGACY_SCALE` (how much cash per Legacy), and the
-  exponent (`0.5` default; `0.55–0.6` for faster tails).
+- `lifetimeCashThisTree` accumulates across ascensions until a *Legend* reset (layer 2)
+  — credited in **run-1-equivalent (gate-deflated) cash**: `engine.gainCash` adds
+  `banked / base^(√count)` (`math.ascCashNorm`), so the ascension gate's price inflation
+  can never feed back into the Legacy payout. Every run contributes ~equal weight and
+  total Legacy follows the designed **√N** arc (`docs/math-proof.md §12.3` measured the
+  snowball this prevents).
+- Tunables: `LEGACY_K` (payout scale), `LEGACY_SCALE` (how much run-1-equivalent cash
+  per Legacy), and the exponent (`0.5` default; `0.55–0.6` for faster tails).
 
-**Worked example:** `LEGACY_K=1, LEGACY_SCALE=1e6`.
-- Run reaches `lifetimeCash=1e9` → `sqrt(1e9/1e6)=sqrt(1000)=31.6` → **+31 Legacy**.
-- Push to `1e10` → `sqrt(1e4)=100` → **+100 Legacy**. 10× the cash → ~3.2× the Legacy. Good stretch.
+**Worked example:** `LEGACY_K=1, LEGACY_SCALE=1e10` (retuned from `1e6` with the hard
+reset — at `1e6` the fitted ~8.5h run paid ~1,183 Legacy, i.e. 56 of the tree's 79 total
+ranks in one go, see `docs/math-proof.md §12.1`).
+- The fitted first run banks `≈1.4e12` → `sqrt(1.4e12/1e10)=sqrt(140)≈11.8` → **+11
+  Legacy** — two or three rank-1 abilities. The tree is a many-ascension arc, metered by
+  the geometric node costs, not a single jackpot.
+- Four such runs → `sqrt(560)≈23.7` total → each doubling of runs ~×1.4 the total. Good stretch.
 
 ## 4. The permanent Skill Tree
 

@@ -120,17 +120,52 @@ export function amenityScoreTotal(state, DATA) {
 }
 // Comfort is an UNBOUNDED weighted sum (dominated by accScore at high tiers, so it
 // tracks the accommodation ladder into the billions). Its *effect* on income is
-// softcapped by the log in comfortMultiplier(), so growth stays sane. Ascension
-// adds a flat comfort bonus so later runs feel plusher from the start.
+// softcapped by the log in comfortMultiplier(), so growth stays sane. NOTE: the old
+// `×(1+0.25·ascensions)` bonus was REMOVED with the ascension hard reset — post-reset
+// power must come ONLY from tree abilities bought with Legacy, never from the ascension
+// count itself (docs/math-proof.md §12; Ageless already covers "plusher later runs"
+// through the same door as everything else: +Body levels → +Comfort).
 export function computeComfort(state, DATA) {
-  const ascBonus = 1 + 0.25 * state.ascension.count;
-  return (C.COMFORT.wAcc * accScore(state.accommodation.tier)
-        + C.COMFORT.wAmen * amenityScoreTotal(state, DATA)
-        + C.COMFORT.wBody * state.skills.body.level) * ascBonus;
+  return C.COMFORT.wAcc * accScore(state.accommodation.tier)
+       + C.COMFORT.wAmen * amenityScoreTotal(state, DATA)
+       + C.COMFORT.wBody * state.skills.body.level;
 }
 // Comfort required to unlock a given accommodation tier (see config.ACC.unlockFrac).
 export function accUnlockComfort(tier) {
   return accScore(tier) * C.ACC.unlockFrac;
+}
+// Ascension gate scaling (config.ASCEND_GATE, docs/math-proof.md §12): the CASH cost of
+// accommodation tier t is multiplied by base^(ascensions·(t/span)^exp). Parabolic in
+// tier — ×1 at the shed regardless of count (fresh ascensions feel fast early), ×base
+// per ascension at the island — and exactly ×1 for the whole first run (count 0), so
+// the fitted golden curve and the harness-invariance pins never move. Applies to the
+// COST only, never the Comfort unlock gate (accUnlockComfort above stays count-free),
+// so the wallet/bank ladder is what paces ascended runs, on-theme.
+// The gate's strength grows as count^countExp (0.5 = √) rather than linearly in the
+// ascension count: tree power arrives on a √N Legacy arc (see ascCashNorm below), so a
+// linear gate exponent outruns it forever (measured: runs climbed ~2h+ per ascension
+// without bound), while a √-count gate rises on the SAME curve the tree does — the two
+// roughly balance into a stable ≥8h band (docs/math-proof.md §12).
+function ascGateScale(count) {
+  return Math.pow(Math.max(0, count), C.ASCEND_GATE.countExp);
+}
+export function ascGateMult(state, tier) {
+  const a = state.ascension.count;
+  if (a <= 0 || tier <= 0) return 1;
+  const frac = Math.min(1, tier / C.ASCEND_GATE.span);
+  return Math.pow(C.ASCEND_GATE.base, ascGateScale(a) * Math.pow(frac, C.ASCEND_GATE.exp));
+}
+// Legacy deflator: gate-scaled runs earn ≈ base^count MORE raw cash per run (measured —
+// the gate inflates every price, so income inflates with it), and a CASH-based Legacy
+// payout would feed that inflation straight back into tree power, collapsing later runs
+// (the snowball measured in docs/math-proof.md §12). So the Legacy metric
+// (stats.lifetimeCashThisTree) is credited with banked/ascCashNorm — run-1-equivalent
+// cash — making the payout gate-invariant: every ascension contributes ~equal weight
+// and total Legacy follows the designed √N arc no matter how inflated later runs'
+// nominal prices get. The √-telescoping (legacyBanked) is untouched — it telescopes on
+// the same deflated counter consistently.
+export function ascCashNorm(state) {
+  return Math.pow(C.ASCEND_GATE.base, ascGateScale(state.ascension.count));
 }
 export function comfortMultiplier(state) {
   const comfort = state._comfortCache ?? 0;

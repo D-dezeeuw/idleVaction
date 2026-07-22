@@ -284,8 +284,15 @@ consume `N`, the swap is ~1 file. Provided reference impl lives in
 
 **When:** unlocked at story beat ~ "first 5-star" (Epic 25). Player may ascend anytime after.
 
-**Reset:** wipe `resources`, `generators`, `amenities`, `accommodation`, run-`skills`,
-`paths`. **Keep:** `ascension.tree`, `legacy`, unlocked story branches, settings, stats.
+**Reset:** a HARD reset — wipe `resources`, `generators`, `amenities`, `accommodation`,
+run-`skills`, `paths`, the bank ladder, destinations, crypto, concierge, `story`
+(beats/branch/flags), and all run stats **including `lifetimeCash`** (Savvy's √ passive
+and the lifetime-cash tier reveals re-pace from zero). **Keep — only what ascension
+points bought:** `ascension.tree` + unspent `legacy` (plus settings/meta bookkeeping and
+the gate-deflated `lifetimeCashThisTree` accounting counter). Ascended runs are re-paced
+by the phase-gate scaling `×base^(√count·(tier/span)²)` (`config.ASCEND_GATE`) so every
+ascension lands ≥ 8h on a stable band — full derivation and fitted table in
+`docs/math-proof.md §12`.
 
 **Legacy earned on ascension** (square-root prestige — the standard anti-runaway curve):
 ```

@@ -13,7 +13,7 @@ import { fmt, fmtTime, rng } from '../util.js';
 // E11 harness-invariance guard ([62] below): importing runCurve does NOT auto-run the
 // harness's own report() — that's guarded behind `process.argv[1].endsWith('harness.mjs')`,
 // which is false when node's entry point is THIS file.
-import { runCurve } from './harness.mjs';
+import { runCurve, play } from './harness.mjs';
 
 let fails = 0;
 const ok = (cond, msg) => { if (!cond) { console.error('  ✗ FAIL:', msg); fails++; } else console.log('  ✓', msg); };
@@ -1884,8 +1884,7 @@ console.log('\n[55] E11 conciergeCandidates: whitelist filter + ROI ranking + ne
   const rk = conciergeTestState(1e9);
   const cashRate = M.tierProd(rk, 0) + M.savvyPassive(rk);
   const expectedGain = a => {
-    const ascBonus = 1 + 0.25 * rk.ascension.count;
-    const dComf = a.comfort * C.COMFORT.wAmen * ascBonus;
+    const dComf = a.comfort * C.COMFORT.wAmen;
     const comf = rk._comfortCache;
     const L = 1 + C.COMFORT.MULT * Math.log10(1 + comf / C.COMFORT.C0);
     const Lafter = 1 + C.COMFORT.MULT * Math.log10(1 + (comf + dComf) / C.COMFORT.C0);
@@ -2943,6 +2942,97 @@ console.log('\n[85] bank account / wallet cap: ladder data, inflow clamp, offlin
   asc.stats.lifetimeCashThisTree = 1e10; asc.stats.runSec = 300; asc.accommodation.tier = 12;
   ok(P.ascend(asc), 'ascend() succeeds from a mid-ladder bank tier');
   ok(asc.bank.tier === 0, 'ascension resets the bank to the Soggy Money Belt (run-scoped, like cash itself)');
+}
+
+// ---------- 86. Ascension hard reset + gate scaling + gate-invariant Legacy (config.
+// ASCEND_GATE, math.ascGateMult/ascCashNorm, prestige.ascend's minimal keep-list).
+// Design contract (docs/math-proof.md §12): the ONLY things that cross an ascension are
+// the tree abilities + unspent Legacy (+ settings/meta bookkeeping); phase gates rise
+// ×base^(√count·(tier/span)²); every ascended run stays over the ≥8h floor with the
+// early-fast/late-slow parabola. ----------
+console.log('\n[86] ascension: hard reset, parabolic gate scaling, gate-invariant Legacy, run-2 pacing');
+{
+  // gate formula unit properties
+  const g0 = ST.newGame();
+  ok(M.ascGateMult(g0, 20) === 1, 'gate is exactly ×1 for the whole first run (count 0) — the fitted golden curve cannot move');
+  const g1 = ST.newGame(); g1.ascension.count = 1;
+  ok(M.ascGateMult(g1, 0) === 1, 'gate is exactly ×1 at the shed (tier 0) regardless of count — fresh ascensions start fast');
+  ok(approx(M.ascGateMult(g1, C.ASCEND_GATE.span), C.ASCEND_GATE.base), 'gate at the island = base^(1^countExp) after one ascension');
+  ok(approx(M.ascGateMult(g1, 10), Math.pow(C.ASCEND_GATE.base, Math.pow(0.5, C.ASCEND_GATE.exp))),
+    'gate is PARABOLIC in tier: the mid-ladder carries only base^((1/2)^exp) — late tiers bear the weight');
+  const g4 = ST.newGame(); g4.ascension.count = 4;
+  ok(approx(M.ascGateMult(g4, 20), Math.pow(C.ASCEND_GATE.base, Math.pow(4, C.ASCEND_GATE.countExp))),
+    'gate strength grows as count^countExp (√ by default) — it rises on the same √N curve the Legacy/tree arc does');
+  let gateMonotone = true;
+  for (let t = 1; t <= 20; t++) if (M.ascGateMult(g1, t) < M.ascGateMult(g1, t - 1)) gateMonotone = false;
+  ok(gateMonotone, 'gate is monotone non-decreasing up the ladder');
+  const c0 = ST.newGame(), c1 = ST.newGame(); c1.ascension.count = 1;
+  ok(approx(E.accCostForTier(c1, 20) / E.accCostForTier(c0, 20), C.ASCEND_GATE.base),
+    'accommodation costs actually carry the gate (island ×base per √-step of ascension)');
+
+  // comfort no longer reads the ascension count — power comes only from tree abilities
+  const cmA = ST.newGame(), cmB = ST.newGame(); cmB.ascension.count = 7;
+  ok(approx(M.computeComfort(cmA, DATA), M.computeComfort(cmB, DATA)),
+    'computeComfort is independent of ascension.count — the old ×1.25/ascension freebie is gone');
+
+  // gate-invariant Legacy: the ThisTree counter is credited in run-1-equivalent cash
+  const nrm = ST.newGame(); nrm.ascension.count = 1; nrm.bank.tier = 3;
+  const treeBefore = nrm.stats.lifetimeCashThisTree;
+  E.gainCash(nrm, 600);
+  ok(approx(nrm.stats.lifetimeCashThisTree - treeBefore, 600 / Math.pow(C.ASCEND_GATE.base, 1)),
+    'gainCash credits lifetimeCashThisTree deflated by ascCashNorm — the gate cannot inflate the Legacy payout');
+  ok(approx(M.ascCashNorm(g4), Math.pow(C.ASCEND_GATE.base, Math.pow(4, C.ASCEND_GATE.countExp))),
+    'ascCashNorm tracks the SAME count^countExp curve as the gate (deflator and inflator stay consistent)');
+
+  // hard reset: play a real greedy ROI run (the harness's own `play` policy, the same
+  // one the fitted 8h37m golden curve measures) to the island, ascend, audit the keep-list
+  const hr = ST.newGame();
+  for (let t = 0; t <= 40 * 3600 && hr.accommodation.tier < 20; t += 5) { E.tick(hr, 5); play(hr); }
+  ok(hr.accommodation.tier >= 20, 'the audit run reached the island');
+  const run1Island = hr.stats.runSec;
+  const legacyBefore = hr.resources.legacy;
+  const thisTreeBefore = hr.stats.lifetimeCashThisTree;
+  ok(P.canAscend(hr) && P.ascend(hr), 'ascend() succeeds at the island');
+  ok(hr.resources.legacy > legacyBefore, 'unspent Legacy crossed the ascension (the points themselves persist)');
+  ok(approx(hr.stats.lifetimeCashThisTree, thisTreeBefore), 'lifetimeCashThisTree persists (√-prestige accounting only)');
+  ok(hr.story.beat === 1 && hr.story.seen.length === 1 && hr.story.seen[0] === 1, 'story resets to beat 1 — you re-live the trip');
+  ok(hr.story.branch === 'neutral' && Object.keys(hr.story.flags).length === 0, 'branch + one-shot flags reset — the path can be re-chosen');
+  ok(hr.stats.lifetimeCash === 0, 'stats.lifetimeCash resets — Savvy √-passive and lifetime-cash tier reveals re-pace from zero');
+  ok(M.savvyPassive(hr) === 0, 'savvyPassive is 0 immediately after ascension (no √lifetimeCash carry)');
+  ok(hr.generators[0].unlocked && DATA.generators.slice(1).every((_, i) => !hr.generators[i + 1].unlocked),
+    'higher income tiers re-lock — reveals re-pace with the new run');
+  ok(hr.bank.tier === 0 && hr.stats.overflowLost === 0, 'the bank ladder and overflow stats reset with the run');
+  ok(hr.resources.cash === 15 && hr.resources.clout === 0, 'cash/clout restart at the soggy €15');
+  ok(Object.values(hr.destinations).every(d => !d.owned), 'destinations reset');
+  ok(hr.concierge.on === false && hr.concierge.totalBought === 0, 'concierge resets to OFF');
+  ok(hr.ascension.count === 1 && hr.ascension.legacyBanked > 0, 'ascension count + banked-Legacy accounting persist');
+
+  // run 2 pacing: spend Legacy greedily on the tree (cheapest first), replay the SAME
+  // greedy policy, and hold the design contract: ≥8h total, early tiers FASTER than an
+  // un-ascended run, the island SLOWER (the parabola). Fitted expectation ≈ 9h13m.
+  for (;;) {
+    let best = null;
+    for (const n of DATA.tree) {
+      if (P.canBuyNode(hr, n.id)) { const c = P.treeCost(hr, n.id); if (!best || c < best.c) best = { id: n.id, c }; }
+    }
+    if (!best) break;
+    P.buyNode(hr, best.id);
+  }
+  ok(Object.keys(hr.ascension.tree).length > 0, 'the first ascension affords at least one tree ability (but nowhere near the whole tree)');
+  ok(Object.values(hr.ascension.tree).reduce((s, r) => s + r, 0) <= 4,
+    'LEGACY_SCALE retune: ascension 1 buys a FEW rank-1 abilities, not 56 of 79 ranks like the old 1e6 scale did');
+  const tierT2 = {};
+  for (let t = 0; t <= 40 * 3600 && hr.accommodation.tier < 20; t += 5) {
+    E.tick(hr, 5); play(hr);
+    for (let k = 0; k <= hr.accommodation.tier; k++) if (tierT2[k] === undefined) tierT2[k] = hr.stats.runSec;
+  }
+  ok(hr.accommodation.tier >= 20, 'the ascended run also reaches the island');
+  const run2Island = hr.stats.runSec;
+  ok(run2Island >= 8 * 3600, `ascended run stays over the ≥8h design floor (got ${fmtTime(run2Island)})`);
+  ok(run2Island <= 14 * 3600, `ascended run has not ballooned past the band (got ${fmtTime(run2Island)}, expect ≈9h13m)`);
+  ok(run2Island > run1Island, `the gate makes the ascended run's island SLOWER than run 1 (${fmtTime(run2Island)} > ${fmtTime(run1Island)})`);
+  ok(tierT2[5] < run1Island * 0.17, `early tiers are FASTER than run 1's pace (tier 5 at ${fmtTime(tierT2[5])} — the parabola's fast half)`);
+  ok(hr.story.seen.includes(26), 'the story re-fires along the new run (beat 26 reached again)');
 }
 
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);

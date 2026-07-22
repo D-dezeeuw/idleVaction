@@ -13,7 +13,18 @@ export function legacyPreview(state) {
   return Math.floor(M.legacyGain(state) * investorMult);
 }
 
-// Reset run currencies; KEEP meta (legacy, tree, stats.lifetimeCashThisTree carries, branch).
+// HARD reset: the ONLY things that cross an ascension are the abilities bought with
+// ascension points — state.ascension (the tree + count + banked-Legacy accounting) and
+// the unspent Legacy itself — plus non-power bookkeeping (settings, meta timestamps,
+// and stats.lifetimeCashThisTree, which the √-prestige payout telescopes on and which
+// grants no in-run power by itself). EVERYTHING else restarts at zero, deliberately
+// (docs/math-proof.md §12): story (beats/branch/flags — you re-live the trip and may
+// pick a different path), run stats INCLUDING stats.lifetimeCash (so Savvy's
+// √lifetimeCash passive and checkUnlocks' lifetime-cash tier reveals re-pace from
+// nothing — persisting it was measured to collapse an ascended run to ~11 minutes),
+// the bank ladder, destinations, crypto, concierge. "Later runs feel plusher" now
+// flows ONLY through tree abilities (Ageless/Magnetic/Head Start…), never through
+// the ascension count itself.
 export function ascend(state) {
   if (!canAscend(state)) return false;
   const gained = legacyPreview(state);
@@ -21,22 +32,11 @@ export function ascend(state) {
   state.ascension.count++;
   state.ascension.legacyBanked += M.legacyGain(state); // bank raw so re-ascend doesn't double-pay
 
-  // preserve meta
-  const keep = {
-    legacy: state.resources.legacy,
-    ascension: state.ascension,
-    story: { beat: state.story.beat, seen: state.story.seen, branch: state.story.branch, flags: state.story.flags },
-    settings: state.settings,
-    stats: state.stats,
-  };
-
   const fresh = newGame();
-  fresh.resources.legacy = keep.legacy;
-  fresh.ascension = keep.ascension;
-  fresh.story = keep.story;                 // narrative persists
-  fresh.settings = keep.settings;
-  fresh.stats = keep.stats;                 // lifetime stats persist (incl. lifetimeCashThisTree)
-  fresh.stats.runSec = 0;
+  fresh.resources.legacy = state.resources.legacy;
+  fresh.ascension = state.ascension;
+  fresh.settings = state.settings;
+  fresh.stats.lifetimeCashThisTree = state.stats.lifetimeCashThisTree; // √-prestige accounting only
   fresh.meta = state.meta;
   fresh.meta.runStartSec = 0;
 
