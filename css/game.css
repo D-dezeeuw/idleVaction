@@ -253,6 +253,74 @@ h1, h2, h3, .iv-beattitle { font-family: 'Fredoka', 'Nunito', system-ui, sans-se
 .iv-modal h3 { margin: 0 0 8px; }
 .iv-offline-row { margin: 4px 0; font-size: .88rem; }
 
+/* ---- U2: the Holiday component kit (UX-plan §3) ---- */
+
+/* postcard: the current accommodation tier as a collectible card */
+.iv-postcard { background: linear-gradient(180deg, var(--iv-sky-tint), var(--iv-card)); border: 1px solid var(--iv-line);
+  border-radius: 12px; padding: 10px 12px 8px; margin-bottom: 8px; text-align: center; }
+.iv-postcard-scene { font-size: 1.8rem; letter-spacing: .12em; line-height: 1.2; }
+.iv-postcard-name { font-family: 'Fredoka', sans-serif; font-weight: 600; font-size: 1.1rem; }
+.iv-postcard-caption { color: var(--iv-sub); font-size: .74rem; font-style: italic; }
+
+/* passport stamps: owned destinations sit inked-and-rotated; unowned = a dotted empty slot */
+.iv-stamp { transform: rotate(-2deg); border: 2px solid var(--iv-green); }
+.iv-stamp:nth-child(even) { transform: rotate(1.5deg); }
+.iv-stamp b { text-transform: uppercase; letter-spacing: .05em; }
+.iv-stamp-empty { border: 2px dashed var(--iv-sub); background: transparent; box-shadow: none; }
+@media (prefers-reduced-motion: reduce) { .iv-stamp, .iv-stamp:nth-child(even) { transform: none; } }
+
+/* luggage stickers: earned trophies as colorful stickers; locked = a blank outline */
+.iv-sticker { border: 2px solid var(--iv-sun); border-radius: 18px; background: var(--iv-sun-tint); transform: rotate(-1.5deg); }
+.iv-sticker:nth-child(3n) { transform: rotate(1.5deg); border-color: var(--iv-sky); background: var(--iv-sky-tint); }
+.iv-sticker:nth-child(3n+1) { border-color: var(--iv-pink); background: var(--iv-pink-tint); }
+.iv-sticker-locked { border: 2px dashed var(--iv-line); border-radius: 18px; background: transparent;
+  box-shadow: none; color: var(--iv-sub); }
+@media (prefers-reduced-motion: reduce) { .iv-sticker, .iv-sticker:nth-child(3n) { transform: none; } }
+
+/* boarding passes: transport rows get a route-card look with a perforated edge */
+#transport > .iv-btn { text-align: left; border-left: 6px solid var(--iv-sky);
+  background: linear-gradient(90deg, var(--iv-sky-tint), var(--iv-card) 40%); }
+.iv-boarding-scene { font-family: 'Fredoka', sans-serif; font-size: 1.15rem; border: 2px dashed var(--iv-sky);
+  border-radius: 10px; padding: 8px; margin-bottom: 6px; }
+
+/* the sun that rides the comfort meter's edge */
+.iv-sunmeter { position: relative; overflow: visible; }
+.iv-sunmeter i { border-radius: 999px; }
+.iv-sun-dot { position: absolute; top: 50%; transform: translate(-50%, -55%); font-size: .85rem;
+  font-style: normal; pointer-events: none; transition: left .4s ease; }
+@media (prefers-reduced-motion: reduce) { .iv-sun-dot { transition: none; } }
+
+/* sliders: a sand track with a beach-ball thumb (budget dials) */
+.iv-slider { -webkit-appearance: none; appearance: none; width: 150px; height: 6px; border-radius: 999px;
+  background: var(--iv-well); vertical-align: middle; margin: 0 6px; }
+.iv-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 18px; height: 18px;
+  border-radius: 50%; background: radial-gradient(circle at 32% 30%, #fff 0 18%, var(--iv-pink) 19% 100%);
+  border: 2px solid #fff; box-shadow: 0 1px 4px rgba(43, 30, 22, .3); cursor: grab; }
+.iv-slider::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: var(--iv-pink);
+  border: 2px solid #fff; cursor: grab; }
+
+/* "+N more" chip on collapsed amenity shelves */
+.iv-more-chip { border-radius: 999px !important; color: var(--iv-sub); background: var(--iv-well);
+  border: none; box-shadow: none; flex: 0 0 auto !important; align-self: center; }
+
+/* ---- U3: the debug drawer (R8) + era modals (T1) ---- */
+.iv-devtools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+  background: var(--iv-well); border-radius: 12px; padding: 4px 8px; }
+
+.iv-era { max-width: 420px; text-align: center; }
+.iv-era .iv-postcard-scene { font-size: 2.4rem; margin-bottom: 4px; }
+.iv-era h3 { font-size: 1.3rem; margin: 4px 0 8px; }
+.iv-era input[type="text"] { width: 100%; border: 1px solid var(--iv-line); border-radius: 10px;
+  padding: 8px 10px; margin: 6px 0; font-family: 'Nunito', sans-serif; font-size: .9rem; background: var(--iv-card); color: var(--iv-ink); }
+.iv-era-actions { margin-top: 10px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.iv-era-epitaph { font-style: italic; margin: 6px 0; }
+
+/* ---- U4: era skies — the light warms as the trip climbs (body[data-era] set in ui.render) ---- */
+body[data-era="drizzle"] #topbar { background: linear-gradient(180deg, #E8EEF2, var(--iv-bg)); }
+body[data-era="bright"] #topbar { background: linear-gradient(180deg, var(--iv-sky-tint), var(--iv-bg)); }
+body[data-era="warm"] #topbar { background: linear-gradient(180deg, var(--iv-sun-tint), var(--iv-bg)); }
+body[data-era="golden"] #topbar { background: linear-gradient(180deg, #FFE3B3, #FFECD9); }
+
 /* ---- the Travel Diary (UX-plan §3/§6): seen story beats as journal pages. ---- */
 .iv-diary { max-width: 460px; max-height: 70vh; overflow-y: auto; }
 .iv-diary-entry { border-bottom: 1px dashed var(--iv-line); padding: 8px 0; }

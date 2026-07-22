@@ -460,6 +460,10 @@ export function checkGoingViral(state) {
 // one-shot "new content format" flash (mirrors checkAmenityUnlocks exactly, one tier
 // down — content tiers aren't amenities, so they need their own loop over DATA.content).
 export function checkContentUnlocks(state) {
+  // No spoilers (UX-plan R2): content formats belong to the Creator Dashboard — don't announce
+  // "Selfie Post" at the shed, before that system even exists for this player. Flags stay unset
+  // until the dashboard is revealed, so the toasts fire (once) when the system actually arrives.
+  if (!creatorDashboardUnlocked(state)) return;
   for (const c of DATA.content) {
     const flagKey = 'contentUnlocked_' + c.id;
     if (state.story.flags[flagKey]) continue;

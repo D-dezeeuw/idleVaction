@@ -144,6 +144,15 @@
     </div>
   </div>
 
+  <!-- Era modals (UX-plan §4, T1): the ten big moments get a postcard takeover — retirement,
+       the island offer/SOLD, Legend, New Game+, naming the tourist… — replacing every browser
+       confirm()/prompt(). Content is set once by ui.showEra; the render loop never touches it. -->
+  <div id="eraModal" class="iv-modal-overlay" hidden>
+    <div class="iv-modal iv-era" role="dialog" aria-modal="true" aria-label="A big moment">
+      <div id="eraBody"></div>
+    </div>
+  </div>
+
   <!-- The Travel Diary (UX-plan §3/§6): every story beat you've lived, as journal pages.
        Only SEEN beats render — the future stays a secret (Reveal Doctrine R1). -->
   <div id="diaryModal" class="iv-modal-overlay" hidden>

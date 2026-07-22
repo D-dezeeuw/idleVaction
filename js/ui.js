@@ -25,6 +25,8 @@ const TABS = [
 let activeTab = 'home';
 const seenTabs = new Set(['home']);
 let lastTabSig = '';
+// per-tag "show all" state for the amenity shelves (UX-plan §6.4) — transient, resets on reload.
+const expandedAmenTags = new Set();
 
 export function bind(state, h) { S = state; hooks = h; wireEvents(); }
 export function setState(state) { S = state; }
@@ -35,6 +37,7 @@ const el = id => document.getElementById(id);
 // ---------- top-level render ----------
 export function render(state) {
   S = state;
+  document.body.dataset.era = eraFor(state.accommodation.tier);
   renderHeader(state);
   renderOnboarding(state);
   renderNotifications(state);
@@ -110,25 +113,38 @@ function btn(action, arg, label, enabled = true, cls = '', title = '') {
   return `<button class="btn btn-sm iv-btn ${cls}" data-action="${action}" data-arg="${arg ?? ''}" ${enabled ? '' : 'disabled'} ${title ? `title="${title}"` : ''}>${label}</button>`;
 }
 
+// HUD diet (UX-plan R7): chips earn their place — a currency appears only once it exists in the
+// player's life. Start = Cash + Comfort; Clout joins with the vlogger lane, Legacy near ascension,
+// the destination × once it's > 1, Combo once it's actually combo-ing. The tier name lives on the
+// Home postcard, not up here (bare necessities).
 function renderHeader(s) {
   const perSec = M.tierProd(s, 0) + M.savvyPassive(s);
   const lComfort = M.comfortMultiplier(s);
   const lDest = M.destMultiplier(s);
-  // wallet cap readout (config.BANK): show capacity next to cash, and flag a
-  // (nearly) full wallet — income is overflowing, the bank card has the fix.
   const cap = M.walletCap(s);
   const capHtml = Number.isFinite(cap)
     ? ` / ${fmt(cap)}${s.resources.cash >= cap * 0.98 ? ' ⚠️' : ''}`
     : '';
+  const showClout = s.story.branch === 'vlogger' || (s.resources.clout || 0) >= 1;
+  const showLegacy = s.story.seen.includes(26) || (s.ascension?.count || 0) > 0 || (s.resources.legacy || 0) > 0;
+  const combo = s._combo ?? 1;
   el('hdr').innerHTML = `
     <span class="iv-res">💶 <b>${fmt(s.resources.cash)}</b><small>${capHtml}</small> <small>(+${fmt(perSec)}/s)</small></span>
     <span class="iv-res">😌 Comfort <b>${fmt(s.resources.comfort)}</b> <small>(bonus ×${fmt(lComfort)})</small></span>
-    <span class="iv-res">📣 Clout <b>${fmt(s.resources.clout)}</b></span>
-    <span class="iv-res">🏆 Legacy <b>${fmt(s.resources.legacy)}</b></span>
-    <span class="iv-res">🏨 <b>${DATA.accommodation[s.accommodation.tier].name}</b></span>
-    <span class="iv-res" aria-label="World Traveler destination bonus, times ${fmt(lDest)}">🌍 <b>×${fmt(lDest)}</b></span>
-    <span class="iv-res">🔥 Combo ×${(s._combo ?? 1).toFixed(2)}</span>
+    ${showClout ? `<span class="iv-res">📣 Clout <b>${fmt(s.resources.clout)}</b></span>` : ''}
+    ${showLegacy ? `<span class="iv-res">🏆 Legacy <b>${fmt(s.resources.legacy)}</b></span>` : ''}
+    ${lDest > 1.001 ? `<span class="iv-res" aria-label="World Traveler destination bonus, times ${fmt(lDest)}">🌍 <b>×${fmt(lDest)}</b></span>` : ''}
+    ${combo > 1.01 ? `<span class="iv-res">🔥 Combo ×${combo.toFixed(2)}</span>` : ''}
   `;
+}
+
+// Era sky (UX-plan §3/U4): the page's light warms as the trip climbs — drizzle at the shed,
+// bright sky in the star years, warm at five-star life, golden hour once you own the summit.
+function eraFor(tier) {
+  if (tier <= 2) return 'drizzle';
+  if (tier <= 8) return 'bright';
+  if (tier <= 15) return 'warm';
+  return 'golden';
 }
 
 // First-run nudge (E01-S10-T4 / first-purchase guidance): a subtle hint that a fresh,
@@ -166,14 +182,31 @@ function renderNotifications(s) {
     // AND the normal toast below, mirroring sponsor's convention exactly — rare,
     // exciting, market-moving events, not a busy auto-buyer's chatter.
     if (item.type === 'boom' || item.type === 'crash') announceCrypto(item.text);
+    toastQueue.push(item);
+  }
+  // toast batching (UX-plan §6.3): show at most 3 per flush; the overflow coalesces into one
+  // friendly summary line instead of a wall of stacked cards. Celebrations always make the cut
+  // (they're spliced to the front of the flush).
+  toastQueue.sort((a, b) => (b.type === 'celebrate') - (a.type === 'celebrate'));
+  const flush = toastQueue.splice(0, 3);
+  const overflow = toastQueue.splice(0).length;
+  for (const item of flush) {
     const d = document.createElement('div');
     d.className = 'iv-notif iv-' + item.type;
     d.textContent = item.text;
     box.prepend(d);
     setTimeout(() => d.remove(), 6000);
   }
-  while (box.children.length > 6) box.lastChild.remove();
+  if (overflow > 0) {
+    const d = document.createElement('div');
+    d.className = 'iv-notif iv-info';
+    d.textContent = `…and ${overflow} more little thing${overflow > 1 ? 's' : ''} ✨`;
+    box.prepend(d);
+    setTimeout(() => d.remove(), 5000);
+  }
+  while (box.children.length > 4) box.lastChild.remove();
 }
+const toastQueue = [];
 
 function renderStory(s) {
   const latestBeat = DATA.story.filter(b => s.story.seen.includes(b.id)).slice(-1)[0] || DATA.story[0];
@@ -227,6 +260,17 @@ function openDiary() {
   if (m) { m.hidden = false; const scroller = m.querySelector('.iv-diary'); if (scroller) scroller.scrollTop = scroller.scrollHeight; }
 }
 
+// ---------- era modals (UX-plan §4, T1) ----------
+// The big moments get a postcard takeover instead of a browser confirm()/prompt(). The modal's
+// content is set ONCE here (the render loop never touches #eraBody), so inputs keep focus.
+function showEra(html) {
+  const b = el('eraBody');
+  if (b) b.innerHTML = html;
+  const m = el('eraModal');
+  if (m) m.hidden = false;
+}
+function closeEra() { const m = el('eraModal'); if (m) m.hidden = true; }
+
 // The shed→island ladder panel (E05-S3-T1..T4): rather than dumping all 21 rows, this
 // shows the owned climb collapsed to a count, the CURRENT tier, and a small lookahead
 // window of upcoming tiers with their Comfort gate + cash cost — so the whole ladder
@@ -243,12 +287,12 @@ function renderAccommodation(s) {
   const titleEl = el('accTitle');
   if (titleEl) titleEl.textContent = `🏨 ${cur.name}`;
 
-  let html = `<div class="iv-flavor">${cur.flavor}</div>`;
+  // the current tier is a POSTCARD (UX-plan §3) — scene, name, wish-you-were-here caption.
+  let html = tierPostcardHtml(s);
   html += '<div class="iv-acc-ladder">';
   if (t > 0) {
     html += `<div class="iv-acc-row iv-acc-owned">✅ ${t} earlier stop${t > 1 ? 's' : ''} — from ${DATA.accommodation[0].name}</div>`;
   }
-  html += `<div class="iv-acc-row iv-acc-current">🏨 <b>${cur.name}</b> <small>tier ${t} · accScore ${fmt(M.accScore(t))}</small></div>`;
 
   const lastShown = Math.min(maxTier, t + ACC_LOOKAHEAD);
   for (let i = t + 1; i <= lastShown; i++) {
@@ -359,17 +403,19 @@ function renderDestinations(s) {
     for (const d of visible.sort((a, b) => s.destinations[b.id].owned - s.destinations[a.id].owned)) {
       const owned = s.destinations[d.id].owned;
       if (owned) {
+        // an owned place is an inked passport STAMP (UX-plan §3)
         const v = s.destinations[d.id].visits;
-        html += `<div class="iv-btn iv-dest-owned" title="${d.flavor}">
-          ✅ <b>${d.name}</b> <small aria-label="permanent ×${fmt(d.mult)} bonus">×${fmt(d.mult)}</small>
+        html += `<div class="iv-btn iv-dest-owned iv-stamp" title="${d.flavor}">
+          <b>${d.name}</b> <small aria-label="permanent ×${fmt(d.mult)} bonus">×${fmt(d.mult)}</small>
           <br>${btn('visit-dest', d.id, `Visit <small>(+💶${fmt(C.DEST.visitYield)})</small>`)}
           <div class="iv-sub">visited ${v}×</div>
         </div>`;
       } else {
+        // an unlocked-but-unowned place is an EMPTY dotted stamp slot waiting for ink
         const cost = E.destCost(s, d.id);
         html += btn('buy-dest', d.id,
           `${d.name} <small aria-label="grants ×${fmt(d.mult)}">×${fmt(d.mult)}</small><br><small>${fmt(cost)}</small>`,
-          afford(cost), '', d.flavor);
+          afford(cost), 'iv-stamp-empty', d.flavor);
       }
     }
     html += '</div>';
@@ -446,12 +492,30 @@ function comfortMeterHtml(s) {
   const target = M.accUnlockComfort(t);
   const pct = clamp(100 * s.resources.comfort / target, 0, 100);
   const nextName = DATA.accommodation[t].name;
+  // sun-meter (UX-plan §3): the comfort fill IS the sunshine, and a little sun rides its edge.
   return `${bonus}
-    <div class="iv-comfort-meter" role="progressbar" aria-valuemin="0" aria-valuemax="100"
+    <div class="iv-comfort-meter iv-sunmeter" role="progressbar" aria-valuemin="0" aria-valuemax="100"
       aria-valuenow="${pct.toFixed(0)}" aria-label="Comfort progress toward ${nextName}">
-      <i style="width:${pct.toFixed(1)}%"></i>
+      <i style="width:${pct.toFixed(1)}%"></i><em class="iv-sun-dot" style="left:${pct.toFixed(1)}%">☀️</em>
     </div>
     <div class="iv-sub">Comfort ${fmt(s.resources.comfort)} / ${fmt(target)} → next: ${nextName}</div>`;
+}
+
+// Postcard scenes (UX-plan §3): one emoji composition per accommodation tier — the current tier
+// renders as a collectible postcard atop the ladder. Pure display data.
+const TIER_SCENES = [
+  '🌧️🚌🛖', '🪳🛏️💡', '🛏️🛏️🔌', '🏠🍳🌦️', '⭐🏨🌤️', '⭐⭐🥐☕', '🏊🏨☀️', '🏖️🏨🌴',
+  '🌺🛎️🍸', '⭐🥂🛎️', '🛋️🍾🌇', '🚪✨🥂', '⛵🏨🌊', '🛗🤵🌃', '💎🏨🌅', '👑🛏️🌠',
+  '🏡🔑🌴', '🌊🏠🐠', '🚪🌳🏡', '🏰🌲🦌', '🏝️☀️⛵', '🏝️🏨🚁',
+];
+function tierPostcardHtml(s) {
+  const t = s.accommodation.tier;
+  const acc = DATA.accommodation[t];
+  return `<div class="iv-postcard">
+    <div class="iv-postcard-scene" aria-hidden="true">${TIER_SCENES[t] || '🏝️'}</div>
+    <div class="iv-postcard-name">${acc.name}</div>
+    <div class="iv-postcard-caption">— ${acc.flavor}</div>
+  </div>`;
 }
 
 function renderAmenities(s) {
@@ -474,13 +538,22 @@ function renderAmenities(s) {
   }
   let html = comfortMeterHtml(s);
   for (const tag of Object.keys(byTag)) {
+    // one-goal lists (UX-plan §6.4): each tag shows at most 3 tiles by default; a quiet
+    // "+N more" chip expands the shelf for completionists. Nothing future is hidden here —
+    // everything in byTag is already unlocked — this just tames the wall.
+    const items = byTag[tag];
+    const expanded = expandedAmenTags.has(tag);
+    const shown = expanded ? items : items.slice(0, 3);
     html += `<div class="iv-tag">${tag}</div><div class="iv-amenities">`;
-    for (const a of byTag[tag]) {
+    for (const a of shown) {
       const cost = E.amenityCost(s, a.id);
       const lvl = s.amenities[a.id].level;
       html += btn('buy-amenity', a.id,
         `${a.name} <small>Lv${lvl}</small><br><small>${fmt(cost)} · +${fmt(a.comfort)}😌</small>`,
         afford(cost), '', a.flavor);
+    }
+    if (items.length > 3) {
+      html += btn('toggle-amen-tag', tag, expanded ? 'fewer ▴' : `+${items.length - 3} more ▾`, true, 'iv-more-chip');
     }
     html += '</div>';
   }
@@ -703,6 +776,10 @@ function renderConcierge(s) {
   const reveal = conciergeRevealed(s);
   if (card) card.hidden = !reveal;
   if (!reveal) { if (el('concierge')) el('concierge').innerHTML = ''; return; }
+  // slider guard: the UI re-renders several times a second; replacing the card's HTML mid-drag
+  // would yank the budget slider out of the player's hand. While the slider has focus, freeze
+  // this card (everything else keeps rendering).
+  if (document.activeElement && document.activeElement.dataset && document.activeElement.dataset.slider) return;
 
   const cfg = s.concierge;
   const budgetCash = s.resources.cash * cfg.budgetFrac;
@@ -712,8 +789,10 @@ function renderConcierge(s) {
     🛎️ <b>${cfg.on ? 'Concierge is shopping' : 'Concierge is resting'}</b>
     ${btn('concierge-toggle', '', cfg.on ? 'Pause' : 'Start shopping', true, cfg.on ? 'btn-primary' : '')}
   </div>`;
-  html += `<div class="iv-sub">Budget: up to <b>${fmt(budgetCash)}</b> (${(cfg.budgetFrac * 100).toFixed(0)}% of cash) every ${C.CONCIERGE.intervalSec}s —
-    ${CONCIERGE_BUDGET_PRESETS.map(f => `<button class="btn btn-sm ${Math.abs(cfg.budgetFrac - f) < 1e-9 ? 'btn-primary' : ''}" data-action="concierge-budget" data-arg="${f}">${(f * 100).toFixed(0)}%</button>`).join(' ')}
+  // budget dial = a SLIDER with a beach-ball thumb (UX-plan §3), replacing the preset buttons.
+  html += `<div class="iv-sub">Budget: up to <b>${fmt(budgetCash)}</b> (<span id="conciergeBudgetVal">${(cfg.budgetFrac * 100).toFixed(0)}%</span> of cash) every ${C.CONCIERGE.intervalSec}s
+    <input type="range" class="iv-slider" min="1" max="50" step="1" value="${Math.round(cfg.budgetFrac * 100)}"
+      data-slider="concierge-budget" aria-label="Concierge budget, percent of cash">
   </div>`;
   html += `<div class="iv-sub">Reserve floor (never spend below): <b>${fmt(cfg.reserveFloor)}</b>
     <input id="conciergeReserveInput" type="number" min="0" step="1" value="${cfg.reserveFloor}" style="width:100px">
@@ -1652,14 +1731,23 @@ function renderAchievements(s) {
   let html = `<div class="iv-sub">🏆 <b>${earned}/${total}</b> trophies · completionist income <b>×${lAchieve.toFixed(2)}</b>${s.island?.owned ? ` · seasonal <b>×${M.seasonalMult(s, DATA).toFixed(2)}</b>` : ''}</div>`;
   // statistics
   html += `<div class="iv-sub">📊 Best Comfort ${fmt(s.stats.bestComfort || 0)} · lifetime €${fmt(s.stats.lifetimeCash || 0)} · ascensions ${s.ascension?.count || 0} · legends ${s.legend?.count || 0} · NG+ ${s.ngPlus || 0} · playtime ${fmtTime((s.meta?.playtimeMs || 0) / 1000)}</div>`;
-  // trophy gallery
+  // trophy gallery = LUGGAGE STICKERS (UX-plan §3). Locked stickers are blank outlines — name
+  // AND description hidden (R1: the old version leaked future systems via trophy names like
+  // "A Legend"). The reward % only shows once earned (a surprise, not a promise).
   html += '<div class="iv-amenities">';
   for (const a of DATA.achievements) {
     const got = E.achievementUnlocked(s, a.id);
-    html += `<div class="iv-btn iv-content-item ${got ? 'iv-dest-owned' : ''}" title="${a.desc}">
-      <b>${got ? '🏆' : '🔒'} ${a.name}</b>
-      <div class="iv-sub"><small>${got ? a.desc : '???'}${a.reward > 0 ? ` · +${(a.reward * 100).toFixed(0)}%×` : ''}</small></div>
-    </div>`;
+    if (got) {
+      html += `<div class="iv-btn iv-content-item iv-sticker" title="${a.desc}">
+        <b>🏆 ${a.name}</b>
+        <div class="iv-sub"><small>${a.desc}${a.reward > 0 ? ` · +${(a.reward * 100).toFixed(0)}%×` : ''}</small></div>
+      </div>`;
+    } else {
+      html += `<div class="iv-btn iv-content-item iv-sticker-locked" aria-label="A trophy still to be earned">
+        <b>???</b>
+        <div class="iv-sub"><small>still to be earned</small></div>
+      </div>`;
+    }
   }
   html += '</div>';
   el('achievements').innerHTML = html;
@@ -1774,6 +1862,21 @@ function wireEvents() {
     handle(action, arg, b);
     render(S);
   });
+  // sliders (UX-plan §3): live-update while dragging without a full re-render (the concierge
+  // card freezes itself while its slider has focus — see renderConcierge's guard).
+  document.addEventListener('input', ev => {
+    const t = ev.target;
+    if (!t || !t.dataset || !t.dataset.slider) return;
+    if (t.dataset.slider === 'concierge-budget') {
+      S.concierge.budgetFrac = Number(t.value) / 100;
+      const lbl = el('conciergeBudgetVal');
+      if (lbl) lbl.textContent = `${t.value}%`;
+    }
+  });
+  // on release, blur the slider so its card unfreezes and resumes normal rendering.
+  document.addEventListener('change', ev => {
+    if (ev.target && ev.target.dataset && ev.target.dataset.slider) ev.target.blur();
+  });
 }
 
 function handle(action, arg, btnEl) {
@@ -1865,28 +1968,105 @@ function handle(action, arg, btnEl) {
     case 'visit-dest': E.visitDestination(S, arg); break;
     case 'buy-transport': E.buyTransport(S, arg); break;
     case 'story-choice': { const [id, set] = arg.split('|'); E.applyStoryChoice(S, Number(id), set); break; }
-    // E27: buy the private island — a multi-currency mega-purchase, gated behind an honest confirm.
+    // ---- era modals (UX-plan §4, T1): the big moments get a postcard takeover, never a browser dialog ----
+    case 'era-close': closeEra(); break;
+    // E27: the island offer — honest about the multi-currency cost, then a SOLD celebration.
     case 'buy-island': {
-      const okBuy = (typeof confirm !== 'function') || confirm('Spend it all — cash, clout, a lifetime of comfort, and a chunk of who you\'ve become — for a goat and a beach?');
-      if (okBuy && E.buyIsland(S)) setState(S);
+      if (!E.canAffordIsland(S)) break;
+      const p = C.ISLAND.price;
+      showEra(`
+        <div class="iv-postcard-scene" aria-hidden="true">🏝️🐐🌅</div>
+        <h3>Make the offer?</h3>
+        <div class="iv-beattext">Spend it all — <b>${fmt(p.cash)}</b> cash, <b>${fmt(p.clout)}</b> clout, and
+          <b>${fmt(p.legacy)}</b> Legacy (a chunk of who you've become) — for a goat and a beach?</div>
+        <div class="iv-era-actions">${btn('buy-island-go', '', 'Buy the island 🏝️', true, 'btn-primary')} ${btn('era-close', '', 'Keep saving')}</div>`);
+      break;
+    }
+    case 'buy-island-go': {
+      closeEra();
+      if (E.buyIsland(S)) {
+        setState(S);
+        showEra(`
+          <div class="iv-postcard-scene" aria-hidden="true">🏝️☀️⛵</div>
+          <h3>SOLD — welcome home</h3>
+          <div class="iv-beattext">Forty hectares, one (1) confused goat, and a horizon with your name on it. The mainland era is over.</div>
+          <div class="iv-era-actions">${btn('era-close', '', 'Set foot on the island 🦶', true, 'btn-primary')}</div>`);
+      }
       break;
     }
     // E28: build a resort building on the owned island (generator+amenity hybrid, hosts guests).
     case 'buy-building': E.buyBuilding(S, arg); break;
-    case 'ascend': if (P.ascend(S)) { setState(S); } break;
-    // E29 Legend prestige-2 + meta-meta shop + New Game+
-    case 'legend-reset': if (confirm('Become a Legend? This wipes Legacy AND your skill tree for permanent Legend points.') && P.legendReset(S)) setState(S); break;
-    case 'buy-legend-perk': P.buyLegendPerk(S, arg); break;
-    case 'ng-plus': if (confirm('Start New Game+? Every gate hardens; a permanent income multiplier compensates. Your meta progress (Legend, tree, island) stays.') && P.startNgPlus(S)) setState(S); break;
-    // E25-A: name/rename the current character at the bus stop (cosmetic; sanitized in prestige).
-    case 'name-lineage': {
-      const raw = (typeof prompt === 'function') ? prompt('Name this tourist (they/them by default):', (S.lineage && S.lineage.name) || '') : null;
-      if (raw !== null) P.setLineageName(S, raw);
+    // E25-A retirement ceremony: the retiree, the epitaph, the inheritance, and naming the heir.
+    case 'ascend': {
+      if (!P.canAscend(S)) break;
+      const r = P.makeRetiree(S);
+      const nextGen = ((S.lineage && S.lineage.generation) || 1) + 1;
+      showEra(`
+        <div class="iv-postcard-scene" aria-hidden="true">🕯️🧳🌅</div>
+        <h3>Time to retire?</h3>
+        <div class="iv-beattext"><b>${esc(r.name) || 'This tourist'}</b> — generation ${r.generation} — is ready to shed the old self.</div>
+        <div class="iv-sub iv-era-epitaph">“${esc(r.epitaph)}”</div>
+        <div class="iv-beattext">The inheritance: <b>+${fmt(P.legacyPreview(S))} Legacy</b>. The trip resets. Who you've become does not.</div>
+        <label class="iv-sub" for="heirName">Name the heir <small>(optional)</small></label>
+        <input id="heirName" type="text" maxlength="24" placeholder="${esc(P.defaultName(nextGen))}" autocomplete="off">
+        <div class="iv-era-actions">${btn('ascend-go', '', 'Retire & inherit 🕯️', true, 'btn-primary')} ${btn('era-close', '', 'Not yet')}</div>`);
       break;
     }
+    case 'ascend-go': {
+      const input = el('heirName');
+      const heir = { name: (input && input.value) || '' };
+      closeEra();
+      if (P.ascend(S, heir)) setState(S);
+      break;
+    }
+    // E29 Legend prestige-2 + meta-meta shop + New Game+
+    case 'legend-reset': {
+      if (!P.canLegend(S)) break;
+      showEra(`
+        <div class="iv-postcard-scene" aria-hidden="true">👑✨🌅</div>
+        <h3>Become a Legend?</h3>
+        <div class="iv-beattext">This wipes your Legacy AND the whole skill tree — for <b>+${fmt(P.legendPreview(S))} Legend</b>, spent on things that survive everything.</div>
+        <div class="iv-era-actions">${btn('legend-go', '', 'Become a Legend 👑', true, 'btn-primary')} ${btn('era-close', '', 'Not yet')}</div>`);
+      break;
+    }
+    case 'legend-go': closeEra(); if (P.legendReset(S)) setState(S); break;
+    case 'buy-legend-perk': P.buyLegendPerk(S, arg); break;
+    case 'ng-plus': {
+      showEra(`
+        <div class="iv-boarding-scene" aria-hidden="true">✈️ SHED → SHED <small>(but sunnier)</small></div>
+        <h3>New Game+${(S.ngPlus || 0) + 1}</h3>
+        <div class="iv-beattext">Every gate hardens; a permanent income multiplier compensates. Your Legend, tree, and island stay yours.</div>
+        <div class="iv-era-actions">${btn('ng-plus-go', '', 'Board 🔄', true, 'btn-primary')} ${btn('era-close', '', 'Stay a while')}</div>`);
+      break;
+    }
+    case 'ng-plus-go': closeEra(); if (P.startNgPlus(S)) setState(S); break;
+    // E25-A: name/rename the current character (cosmetic; sanitized in prestige.setLineageName).
+    case 'name-lineage': {
+      const cur = (S.lineage && S.lineage.name) || '';
+      showEra(`
+        <div class="iv-postcard-scene" aria-hidden="true">🧳✏️</div>
+        <h3>Name this tourist</h3>
+        <input id="lineageName" type="text" maxlength="24" value="${esc(cur)}" placeholder="${esc(P.defaultName((S.lineage && S.lineage.generation) || 1))}" autocomplete="off">
+        <div class="iv-era-actions">${btn('name-go', '', 'That’s the name ✏️', true, 'btn-primary')} ${btn('era-close', '', 'Cancel')}</div>`);
+      break;
+    }
+    case 'name-go': { const i = el('lineageName'); if (i) P.setLineageName(S, i.value); closeEra(); break; }
     case 'buy-node': P.buyNode(S, arg); break;
-    case 'respec': if (confirm('Refund all Legacy and clear the tree?')) P.respec(S); break;
+    // E26 tree respec
+    case 'respec': {
+      showEra(`
+        <div class="iv-postcard-scene" aria-hidden="true">🌳↩️</div>
+        <h3>Respec the tree?</h3>
+        <div class="iv-beattext">All spent Legacy comes back; every rank clears. Rebuild yourself differently.</div>
+        <div class="iv-era-actions">${btn('respec-go', '', 'Refund it all ↩️', true, 'btn-primary')} ${btn('era-close', '', 'Keep the tree')}</div>`);
+      break;
+    }
+    case 'respec-go': closeEra(); P.respec(S); break;
     case 'click': { const gain = E.click(S); showTapPopup(gain); if (gain > 0) { pulseEnergy(); pulseCombo(); } break; }
+    // UX-plan R8: the ⚙️ drawer — dev tools exist only when a dev asks for them.
+    case 'toggle-devtools': devToolsOpen = !devToolsOpen; renderControls(S); break;
+    // UX-plan §6.4: per-tag amenity lists collapse to 3; this chip expands/collapses a tag.
+    case 'toggle-amen-tag': expandedAmenTags.has(arg) ? expandedAmenTags.delete(arg) : expandedAmenTags.add(arg); break;
     case 'set-speed': S.settings.gameSpeed = Number(arg); renderControls(S); break;
     case 'set-speed-custom': {
       const v = Number(document.getElementById('speedInput')?.value);
@@ -1997,24 +2177,32 @@ function showTapPopup(gain) {
 }
 
 // speed + debug controls live in a fixed footer rendered once
+// Debug drawer (UX-plan R8): a player sees Tap · energy · Save · ⚙️ — nothing else. The speed
+// presets, custom pace, export/import, debug and reset live behind the gear, for dev hands only.
+let devToolsOpen = false;
 export function renderControls(state) {
   S = state;
   const speeds = C.GAME_SPEED_CHOICES.map(v =>
     `<button class="btn btn-sm ${state.settings.gameSpeed === v ? 'btn-primary' : ''}" data-action="set-speed" data-arg="${v}">${v}×</button>`).join('');
+  const devtools = devToolsOpen ? `
+    <span class="iv-devtools">
+      <span class="iv-speed">Speed <b>${state.settings.gameSpeed}×</b>: ${speeds}
+        <input id="speedInput" type="number" min="0" step="1" value="${state.settings.gameSpeed}"
+          style="width:74px" title="Custom pace — 1 = natural course, high = hyperspeed for testing">
+        ${btn('set-speed-custom', '', 'Set×')}</span>
+      ${btn('export', '', 'Export')}
+      ${btn('import', '', 'Import')}
+      ${btn('toggle-debug', '', '🐞 Debug')}
+      ${btn('reset', '', 'Reset', true, 'btn-error')}
+      <span id="debugpanel"></span>
+    </span>` : '<span id="debugpanel"></span>';
   el('controls').innerHTML = `
     <button class="btn btn-lg btn-primary" data-action="click">👆 Tap (small gain + combo)</button>
     <span id="energyMini" class="iv-sub iv-energy-inline"
       title="Energy fuels a bigger tap — Body raises the tank size and its regen rate. Never required to progress."></span>
-    <span class="iv-speed">Speed <b>${state.settings.gameSpeed}×</b>: ${speeds}
-      <input id="speedInput" type="number" min="0" step="1" value="${state.settings.gameSpeed}"
-        style="width:74px" title="Custom pace — 1 = natural course, high = hyperspeed for testing">
-      ${btn('set-speed-custom', '', 'Set×')}</span>
     ${btn('save', '', '💾 Save')}
-    ${btn('export', '', 'Export')}
-    ${btn('import', '', 'Import')}
-    ${btn('toggle-debug', '', '🐞 Debug')}
-    ${btn('reset', '', 'Reset', true, 'btn-error')}
-    <span id="debugpanel"></span>`;
+    ${btn('toggle-devtools', '', '⚙️', true, devToolsOpen ? 'btn-primary' : '', 'Developer tools')}
+    ${devtools}`;
 }
 
 function renderDebug() {
