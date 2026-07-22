@@ -467,14 +467,35 @@ offline determinism).
 | S9 Man-Overboard-Proofing (save/offline) | 2 / 6 / 2 | Schema, migration (backfill + boatSlots recompute), offline sea income + upkeep (via tick-replay), export/import, migration test done-now. Present (OFFLINE_CAP + rotating backup already cover boats/crew). Superseded T3 (crewed-amenity flags), T6 (a dedicated marina line in the away modal — deferred). |
 | S10 Shipshape (QA/polish) | 1 / 7 / 2 | Formatting, upkeep-floor, crew-over-cap, unlock-order (sea gate), event-dedupe (first-boat/marina once), copy, regression ([91]) done-now. Present (`window.IV.state` snapshot). Superseded T6 (wake-ripple juice), T10 (manual playtest — deferred). |
 
-## Act II–VI — E17–E30
+### E17 — Wheels Up (Private Logistics III) · **100/100** (present 17, done-now 69, superseded 14)
+Caps the logistics arc with aviation. Jets (turboprop→airliner) fold into the SAME `L_logistics`
+× / fleet-upkeep as boats; owning car+boat+jet lights the `LOGISTICS.capstone` × (a distinct
+factor); air-only destinations gate on `jetTier`; owning any jet cuts destination cost
+(`jetDiscount`, floored). OPT-IN/gated like E15/E16 — the vlogger harness owns no jet, so island
+is **unchanged at 29705s**. Built inline. selftest **[92]** (34 assertions: invariance, jet gate/
+mult/slots/upkeep, capstone on/off/distinct-factor/no-ghost, air gating, jetDiscount+floor,
+first-jet/capstone flags, hangar reveal, migration, offline determinism).
+
+| Story | present/done/superseded | Notes |
+|---|---|---|
+| S1 The Hangar Manifest (data) | 0 / 9 / 1 | JETS[5]+range, capstone constant, 3 air destinations, jet-cabin cluster, flavor, gates, data guard done-now. Superseded T6 (`jetInstant` flag — travel-time is display-only; air destinations gate on jetTier instead). |
+| S2 Collapsing the Map (core) | 1 / 8 / 1 | jetDiscount, jet mult fold, capstone ×, jet upkeep, no-brainer guard, events, pure+clamped, tests done-now. Present T6 (upkeep scaling reuses the E15 path). Superseded T7 (beat 17 gate on ownJet — kept comfort:2e7; `checkFirstJet` is the reward). |
+| S3 The Hangar Tab (UI) | 1 / 8 / 1 | Hangar panel, jet buttons, range readout, big upkeep, capstone banner (lit/muted), cabin buttons (via amenities), buy intents, a11y done-now. Present (instant-reach surfaces via the dest list). Superseded T10 (DOM-snapshot test — deferred). |
+| S4 Wheels Up (headline) | 1 / 8 / 1 | Flagship airliner (huge mult/upkeep/range), capstone trigger, wheels-up + capstone ceremonies, showpiece copy, cost/capstone tuning, persist, QA done-now. Present (Comfort via the jet-cabin cluster). Superseded T2 (mark every dest jetInstant — travel-time is display-only). |
+| S5 Cabin Class (cluster) | 2 / 6 / 2 | 8 `tag:'jet'` amenities, slope 1.85, comfort, cadence, flavor, save/QA done-now. Present T7/T8 (reuse buyAmenity + buttons). Superseded T3 (`xMult` dormant), + cadence tooling. |
+| S6 The Airside Suite (tier 11) | 5 / 3 / 2 | Tier-11 band/accScore/Comfort gate/migration already present. Done-now: hangar reveal, copy, QA. Superseded T6 (gate top cabins on the suite), T9 (label swap — hangar is its own panel). |
+| S7 The Grand Tourist Goes Global | 3 / 5 / 2 | Traveler jet discount (stacks in destDiscountMult), slot synergy, wanderer stack, path points (buyJet nudge), neutral floor, branch copy done-now. Present T2/T5/T7 (traveler +slot, wanderer, PATH softcap already wired). Superseded T3 (traveler-specific capstone bump — deferred), T10 (live re-spec). |
+| S8 Flight Testing (balance) | 1 / 9 / 0 | Jet/discount/capstone constants, harness (island 29705), upkeep tension, time-to-next, earlier-logistics regression, stack sanity, golden ([92]), documented knobs done-now. Present (PATH softcap). |
+| S9 Preflight Checklist (save/offline) | 2 / 6 / 2 | Schema, migration (+jetSlots recompute), capstone derived-not-stored (never a ghost flag), offline income+upkeep, export/import, migration test done-now. Present (OFFLINE_CAP + backup). Superseded T3-partial (capstoneActive is computed live, not persisted — by design), T6 (away-modal line — deferred). |
+| S10 Cleared for Takeoff (QA) | 1 / 7 / 2 | Formatting, upkeep-floor, capstone flip-flop (no ghost ×), instant/air correctness, event-dedupe, copy, regression ([92]) done-now. Present (`window.IV.state`). Superseded T6 (takeoff juice), T10 (manual playtest). |
+
+## Act II–VI — E18–E30
 
 _Pending — appended as each phase's build pass audits its 100 tasks. Each row will carry the
 same `present / done-now / superseded` disposition and a per-phase tally in the commit + report._
 
 | Epic | Status |
 |---|---|
-| E17 Wheels Up | pending |
 | E18 The Sail-Shaped Hotel | pending |
 | E19 At Your Service | pending |
 | E20 The Whole Household | pending |
@@ -492,8 +513,8 @@ same `present / done-now / superseded` disposition and a per-phase tally in the 
 ---
 
 ### Running total
-- **Audited:** 1,600 / 3,000 tasks (E01–E16) — present 539, done-now 768, superseded 293.
-- **Remaining:** 1,400 tasks (E17–E30).
+- **Audited:** 1,700 / 3,000 tasks (E01–E17) — present 556, done-now 837, superseded 307.
+- **Remaining:** 1,300 tasks (E18–E30).
 
 ### Deferred balance-tuner backlog (for a consolidated retune, latest at E30)
 - **`savvyPassive()` not ×`L_comfort`** (E06-S7-T4) — a flat sqrt-scaled additive term outside

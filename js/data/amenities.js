@@ -307,4 +307,16 @@ export const AMENITIES = [
   { id: 'jet_ski',          name: 'Jet-Ski',                     tag: 'yacht', costBase: 1.8e9, costGrowth: 1.8, comfort: 2800, xMult: 0.04, xScope: 'all', unlockComfort: 4.4e7, flavor: 'Loud, wet, and entirely unnecessary. Perfect.' },
   { id: 'seabob',           name: 'Seabob Underwater Scooter',   tag: 'yacht', costBase: 3.2e9, costGrowth: 1.8, comfort: 3400, xMult: 0.045,xScope: 'all', unlockComfort: 5.8e7, flavor: 'You are a torpedo now, a rich and relaxed torpedo.' },
   { id: 'tender_dinghy',    name: 'Tender Dinghy',               tag: 'yacht', costBase: 5.6e9, costGrowth: 1.8, comfort: 4000, xMult: 0.05, xScope: 'all', unlockComfort: 7.6e7, flavor: 'A small boat to reach the shore your big boat cannot. You will never use it. You love it.' },
+
+  // --- jet-cabin toys (E17 "Wheels Up" — S5): tag:'jet', costGrowth 1.85 (a notch above the yacht
+  // deck toys). The private office/cinema are the top rungs. Conservative comfort/cost, staggered
+  // unlockComfort for the jet leg (post-marina, pre-6-star). ---
+  { id: 'reclining_seat',   name: 'Reclining Cabin Seat',        tag: 'jet', costBase: 8e9,   costGrowth: 1.85, comfort: 4600, xMult: 0.04, xScope: 'all', unlockComfort: 1.0e8, flavor: 'It reclines. Fully. Into a different tax bracket.' },
+  { id: 'lie_flat_bed',     name: 'Lie-Flat Bed',                tag: 'jet', costBase: 1.5e10, costGrowth: 1.85, comfort: 5400, xMult: 0.045,xScope: 'all', unlockComfort: 1.6e8, flavor: 'You sleep through the ocean now. It was there. You did not check.' },
+  { id: 'in_flight_chef',   name: 'In-Flight Chef',              tag: 'jet', costBase: 2.8e10, costGrowth: 1.85, comfort: 6200, xMult: 0.05, xScope: 'all', unlockComfort: 2.4e8, flavor: 'He has never heard of a stroopwafel. You are, patiently, educating him.' },
+  { id: 'sky_bar',          name: 'Sky Bar',                     tag: 'jet', costBase: 5.2e10, costGrowth: 1.85, comfort: 5800, xMult: 0.045,xScope: 'all', unlockComfort: 3.6e8, flavor: 'A cocktail at 40,000 feet. The bubbles are confused. So are you. It is wonderful.' },
+  { id: 'shower_suite',     name: 'In-Flight Shower Suite',      tag: 'jet', costBase: 9.6e10, costGrowth: 1.85, comfort: 7000, xMult: 0.05, xScope: 'all', unlockComfort: 5.4e8, flavor: 'A shower. On a plane. Water, aloft, obeying you specifically.' },
+  { id: 'cabin_cinema',     name: 'Cabin Cinema',                tag: 'jet', costBase: 1.8e11, costGrowth: 1.85, comfort: 7800, xMult: 0.055,xScope: 'all', unlockComfort: 8e8,   flavor: 'A cinema, above the clouds, showing only films you fall asleep during.' },
+  { id: 'private_office',   name: 'Private Sky Office',          tag: 'jet', costBase: 3.4e11, costGrowth: 1.85, comfort: 8600, xMult: 0.06, xScope: 'all', unlockComfort: 1.2e9, flavor: 'You take meetings from the stratosphere now. Everyone can tell. That is the point.' },
+  { id: 'cabin_bedroom',    name: 'Master Cabin Bedroom',        tag: 'jet', costBase: 6.2e11, costGrowth: 1.85, comfort: 9400, xMult: 0.06, xScope: 'all', unlockComfort: 1.8e9, flavor: 'A bedroom. That flies. The rainy bus stop feels like a story about someone else.' },
 ];

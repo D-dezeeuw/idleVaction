@@ -98,6 +98,12 @@ export const STORY = [
         'sea — vulgar in theory, sublime in person. You already wonder how it looks from the air.' },
     } },
   { id: 17, title: 'Wheels Up', requires: { comfort: 2e7 },
+    variants: {
+      traveler: { title: 'Wheels Up', text:
+        'Car, boat — and now the sky. You buy a jet and the map simply collapses: every city is a ' +
+        'nap away, the coves and the capitals and the far side of the planet all one tap distant. ' +
+        'From a rainy bus stop to your own runway. The stroopwafel, improbably, made it too.' },
+    },
     text: 'No terminals, no queues. The sky is a private hallway now.' },
   { id: 18, title: 'The Sail-Shaped Hotel', requires: { accTier: 12 },
     text: 'Six stars. It is shaped like a sail. Everything is gold. You feel fine about it.' },

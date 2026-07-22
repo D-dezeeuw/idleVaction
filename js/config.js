@@ -390,6 +390,14 @@ export const CONFIG = {
     destDiscountTraveler: 0.15, wandererDestDiscount: 0.20, destDiscountFloor: 0.15,
     repossessGraceSec: 60, buyPathNudge: 0.1,
     boatRate: 0.30, crewRate: 0.50,
+    // E17 "Wheels Up" (logistics capstone): jetRate folds owned jets' mult into L_logistics like
+    // boats; jetDiscount is a real destination-cost cut applied (clamped by destDiscountFloor,
+    // never free) once ANY jet is owned; capstone is a distinct multiplicative × on L_logistics
+    // when a car AND a boat AND a jet are all owned (the payoff for the whole logistics arc —
+    // math.capstoneActive/logisticsMult). All opt-in/gated: the vlogger harness owns no jet ⇒
+    // jetTier 0 (air destinations locked), no jetDiscount, no capstone ⇒ island unmoved. First-
+    // pass (bounded: 5-jet ladder + a single capstone factor); tune with the connoisseur-lane probe.
+    jetRate: 0.20, jetDiscount: 0.20, capstone: 0.50,
   },
 
   // ---- ascension / legacy ----

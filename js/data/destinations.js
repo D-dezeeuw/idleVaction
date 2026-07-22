@@ -77,6 +77,22 @@ export const DESTINATIONS = [
     costBase: 4.8e7, mult: 1.05, unlockAfter: 'sea_greek_islands', unlockComfort: 6e7, tag: 'sea',
     pathAffinity: { traveler: 1.0, connoisseur: 0.5 }, travelTime: 150, sea: true, requiresBoatTier: 3,
     flavor: 'Turns out the fjords do not care that it also rains in Rotterdam.' },
+  // --- air destinations (E17 "Wheels Up"): air:true + requiresJetTier — intercontinental places a
+  // jet collapses to a tap. engine.destUnlocked blocks them until the hangar owns a jet of the
+  // needed tier; owning ANY jet also cuts destination cost (config.LOGISTICS.jetDiscount). Same
+  // conservative mult range as the land/sea rows. costBase strictly-increasing past the fjord. ---
+  { id: 'air_tokyo', name: 'Tokyo', region: 'Japan',
+    costBase: 1.4e8, mult: 1.05, unlockAfter: 'sea_fjord_cruise', unlockComfort: 1.4e8, tag: 'air',
+    pathAffinity: { traveler: 1.0 }, travelTime: 200, air: true, requiresJetTier: 1,
+    flavor: 'Eleven time zones from the drizzle. You order the set menu and understand none of it, blissfully.' },
+  { id: 'air_new_york', name: 'New York', region: 'USA',
+    costBase: 4.2e8, mult: 1.05, unlockAfter: 'air_tokyo', unlockComfort: 4e8, tag: 'air',
+    pathAffinity: { traveler: 1.0 }, travelTime: 220, air: true, requiresJetTier: 3,
+    flavor: 'You land, you conquer, you complain about the bagels being wrong. Naturally.' },
+  { id: 'air_sydney', name: 'Sydney', region: 'Australia',
+    costBase: 1.3e9, mult: 1.055, unlockAfter: 'air_new_york', unlockComfort: 1.2e9, tag: 'air',
+    pathAffinity: { traveler: 1.0 }, travelTime: 240, air: true, requiresJetTier: 5,
+    flavor: 'The far side of the planet, reached before lunch. The jet lag files a complaint you ignore.' },
 ];
 
 // TRANSPORT row shape: { id, name, speed, costBase, upkeep, flavor }. `speed` shortens
@@ -112,6 +128,11 @@ export function validateDestinations() {
     if (d.sea !== undefined) {
       if (d.sea !== true) errors.push(`${d.id}: sea must be true when present (got ${d.sea})`);
       if (!Number.isInteger(d.requiresBoatTier) || d.requiresBoatTier <= 0) errors.push(`${d.id}: sea destination needs a positive-integer requiresBoatTier`);
+    }
+    // air destinations (E17): air:true rows must carry a positive-integer requiresJetTier gate.
+    if (d.air !== undefined) {
+      if (d.air !== true) errors.push(`${d.id}: air must be true when present (got ${d.air})`);
+      if (!Number.isInteger(d.requiresJetTier) || d.requiresJetTier <= 0) errors.push(`${d.id}: air destination needs a positive-integer requiresJetTier`);
     }
   }
   if (errors.length) throw new Error('validateDestinations() failed:\n' + errors.join('\n'));
