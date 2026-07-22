@@ -358,4 +358,22 @@ export const AMENITIES = [
   { id: 'staff_gym',       name: 'Staff Gym',                   tag: 'quarters', costBase: 6e8,   costGrowth: 1.5, comfort: 4200, xMult: 0.06, xScope: 'all', unlockComfort: 3e8,   flavor: 'The trainer trains the staff now. The staff are terrifyingly fit.' },
   { id: 'staff_shuttle',   name: 'Staff Shuttle',               tag: 'quarters', costBase: 9.5e8, costGrowth: 1.5, comfort: 4400, xMult: 0.06, xScope: 'all', unlockComfort: 4e8,   flavor: 'Nobody on your household takes the bus. You remember the bus. You bought a shuttle.' },
   { id: 'staff_holiday',   name: 'Paid Staff Holidays',         tag: 'quarters', costBase: 1.5e9, costGrowth: 1.5, comfort: 4600, xMult: 0.065,xScope: 'all', unlockComfort: 5.4e8, flavor: 'You send the staff on holiday. To a resort. That you also own. It is holidays all the way down.' },
+
+  // --- Seven-Star Touches (E21 "Seven Stars" — S5): the ultra-luxury cosmetic cadence for the
+  // 7-Star Experience / Royal Suite era. tag:'luxury' so they reuse the E14 connoisseur machinery
+  // wholesale — Comfort via amenityScoreTotal, the +25% connoisseur perk, the old-money haggle
+  // discount, and an exclusivity SPILLOVER (S5-T2) that is GATED (0 unless connoisseur-active), so
+  // the greedy harness sees ×1 exclusivity and never buys these dominated cosmetics (the ROI
+  // payback test in harness.mjs rejects them: their Comfort/€ is dwarfed by accScore). costGrowth
+  // 1.9 (steep ultra-luxury slope); unlockComfort staggered across the tier-14/15 band (beat 22 ≈
+  // Comfort 3e8), so each ridiculous touch lands as a ~90–120s small win for a paying-attention
+  // player of the era, per S5-T8. Dutch-tourist irony throughout (S5-T6). ---
+  { id: 'gold_leaf_stroopwafel',   name: 'Gold-Leaf Stroopwafel',     tag: 'luxury', costBase: 7e7,   costGrowth: 1.9, comfort: 3000, exclusivity: 6,  xMult: 0.05, xScope: 'all', unlockComfort: 6.5e7, flavor: 'A stroopwafel, wrapped in gold leaf. It tastes exactly like a normal stroopwafel. This is the point.' },
+  { id: 'royal_pillow_menu',       name: 'The Royal Pillow Menu',      tag: 'luxury', costBase: 1.1e8, costGrowth: 1.9, comfort: 3300, xMult: 0.05, xScope: 'all', unlockComfort: 8.5e7, flavor: 'Eleven pillows to choose from, by firmness, altitude, and mood. You order the one from bunk 4, out of nostalgia. It is not on the menu. They make it anyway.' },
+  { id: 'private_elevator_music',  name: 'Private Elevator Music',    tag: 'luxury', costBase: 1.8e8, costGrowth: 1.9, comfort: 3600, exclusivity: 9,  xMult: 0.052,xScope: 'all', unlockComfort: 1.1e8, flavor: 'The lift plays a composition written for you. Four floors is not long enough to enjoy it. You ride up and down anyway.' },
+  { id: 'monogrammed_bathrobe',    name: 'Monogrammed Bathrobe',      tag: 'luxury', costBase: 3e8,   costGrowth: 1.9, comfort: 3900, exclusivity: 11, xMult: 0.054,xScope: 'all', unlockComfort: 1.4e8, flavor: 'The robe costs more than the first motel did. Somehow, standing in it, this is entirely fine.' },
+  { id: 'caviar_room_service',     name: 'Caviar Room Service',       tag: 'luxury', costBase: 5e8,   costGrowth: 1.9, comfort: 4200, exclusivity: 13, xMult: 0.056,xScope: 'all', unlockComfort: 1.8e8, flavor: 'Caviar at 2am, no eyebrow raised. You spread it on a stroopwafel. The waiter does not flinch. He has seen the passport.' },
+  { id: 'personal_anthem',         name: 'A Personal Anthem',         tag: 'luxury', costBase: 8e8,   costGrowth: 1.9, comfort: 4500, exclusivity: 16, xMult: 0.058,xScope: 'all', unlockComfort: 2.2e8, flavor: 'The lobby plays a short fanfare when you enter. You pretend to be embarrassed. You have it played twice.' },
+  { id: 'seven_star_concierge',    name: 'Seven-Star Concierge',      tag: 'luxury', costBase: 1.3e9, costGrowth: 1.9, comfort: 4800, exclusivity: 19, xMult: 0.06, xScope: 'all', unlockComfort: 2.6e8, flavor: 'A concierge for a rating that does not exist. He anticipates needs you have not had yet. It is unnerving and wonderful.' },
+  { id: 'rooftop_helipad_umbrella',name: 'Rooftop Helipad Umbrella',  tag: 'luxury', costBase: 2e9,   costGrowth: 1.9, comfort: 5100, exclusivity: 22, xMult: 0.062,xScope: 'all', unlockComfort: 3e8,   flavor: 'A parasol on the private helipad, against a sun you flew half your life to complain your way toward. The umbrella, at least, understands the irony.' },
 ];
