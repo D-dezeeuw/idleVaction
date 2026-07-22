@@ -37,6 +37,16 @@ richer and grants a vlogger-only cosmetic + small `×`, but every player still p
 30 gates. This satisfies "overarching branching storyline, min 30 levels" without fragmenting
 the 20-hour experience.
 
+**The lineage frame (ascension = retirement).** The tourist is a **named character**. At
+ascension they *retire* — wherever their run got to — and the player continues as their
+named **son, daughter, or heir**, building a family lineage across generations (the
+Family Album records each life: name, branch lived, how far they climbed, a wry
+epitaph). This is why the story spine legitimately **re-fires every ascension**: the
+child hasn't lived it yet, and may branch differently than the parent — a vlogger's
+daughter can become a connoisseur. Purely narrative framing over the ascension hard
+reset (`docs/04 §1b` has the fiction↔mechanics mapping and the cosmetic-only rules;
+`docs/epics/epic-25.md §E25-A` the build tasks).
+
 ---
 
 ## The 30-beat spine (each = a story level with a gate & a reward)

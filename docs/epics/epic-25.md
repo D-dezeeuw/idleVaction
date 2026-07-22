@@ -146,3 +146,29 @@ _As any player, I want ascension to feel momentous and bug-free, so that the emo
 - [ ] Save version bumped, migration adds ascension fields idempotently, offline gains feed `lifetimeCash`, and autosave-after-ascend is verified.
 - [ ] Harness confirms beat 26 within ±15% of the ~11h target; tuned curve committed as a golden file.
 - [ ] Zero-gain, double-click, reset-completeness, and meta-integrity edge cases pass; branch-variant beat text proofread to tone.
+
+---
+
+## E25-A — The Family Album (amendment: retirement & the lineage)
+> **Post-hoc amendment** (2026-07, design directive) layered on the shipped ascension
+> HARD reset — see `docs/04 §1b` for the binding design rules (cosmetic-only, the album
+> is bookkeeping-not-power, retirement is wherever the run ended, names are player text)
+> and `docs/math-proof.md §12` for the reset/pacing contract this must never violate.
+> Several original E25 lines are superseded by that contract (S1-T3's META_KEYS list and
+> S3-T4's "Kept: …your story" copy predate the hard reset — story now resets; the
+> keep/lose columns must tell the new truth).
+
+_As a player who names a character and retires them at ascension, I want to continue as
+their named son, daughter, or heir, so that a whole family lineage accumulates across
+generations — and the reset feels like a story, not a loss._
+
+- **E25-A-T1** — Lineage data model — Add `state.lineage = { name, pronoun, generation, album: [] }`; retiring pushes `{ name, pronoun, generation, branch, peakTier, runSec, epitaph }` onto `album` (capped ~100 entries, oldest compacted). `lineage` joins the ascension keep-list as BOOKKEEPING — never read by `math.js`/`engine.js` income paths.
+- **E25-A-T2** — Naming at the bus stop — A skippable name prompt woven into beat 1 / onboarding; defaults draw from a wry Dutch name pool (Willem, Saskia, Joost, Femke…). Sanitize: length-cap ~24, strip markup, never trust it in HTML without escaping.
+- **E25-A-T3** — The retirement ceremony — Reframe the ascend confirm modal as the character's retirement: their name, generation, branch lived, how far they got, and what they leave behind (+N Legacy as "the inheritance"). Same `prestige.ascend()` underneath — presentation only.
+- **E25-A-T4** — Choose the heir — Post-confirm, pick **son / daughter / heir** and name them (same defaults/sanitization). Sets `lineage.name/pronoun/generation` for the new run. Cosmetic ONLY — no stat, cost, or multiplier may ever read this choice (docs/04 §1b rule 1).
+- **E25-A-T5** — The Family Album panel — A card listing the lineage newest-first: generation, name, epitaph, branch emblem, peak accommodation, run length. Empty state before ascension 1 ("No album yet — this trip is still being lived.").
+- **E25-A-T6** — Epitaph generator — A pure function from the retiree's run facts to one wry line ("Gen 3 · Femke · Went crypto, survived four crashes, retired ON the island."). Deterministic (seeded by generation) so reload never rewrites history.
+- **E25-A-T7** — Inheritance copy pass — Reword the ascension surfaces in lineage terms: Legacy = "the inheritance", the tree = "upbringing", Head Start = "born in a better hotel", the gate scaling = "the family bar rises". Keep/lose columns updated for the hard-reset truth (supersedes S3-T4's copy).
+- **E25-A-T8** — Name interpolation — A template helper so story beats/notifications may address the current character by name, with a safe "you" fallback; audit existing second-person copy so interpolation stays optional, never required.
+- **E25-A-T9** — Migration + keep-list tests — Backfill `lineage` for existing saves (generation 1, default name); extend selftest [86]'s hard-reset audit: album persists across ascend, everything else still resets, album length stays capped, and no `math.js`/`engine.js` income path reads `state.lineage`.
+- **E25-A-T10** — QA pass — Skip-flow defaults, name sanitization (XSS/markup), aria labels on the album, save-size guard with a full album, and a two-generation manual playthrough at `GAME_SPEED=100` checking the retirement→heir flow lands as "a story continuing, not a wipe."

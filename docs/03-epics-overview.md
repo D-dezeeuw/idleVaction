@@ -204,10 +204,10 @@ Each row: **goal**, accommodation tier(s), **new system(s)**, story beats, path 
 - **Path:** traveler/connoisseur. **Math:** set-collection bonus for owning many; each destination a themed multiplier.
 
 ### E25 — Letting Go (Ascension I)
-- **Goal:** Unlock **ascension**: reset the run for **Legacy**; teach the prestige loop.
+- **Goal:** Unlock **ascension**: reset the run for **Legacy**; teach the prestige loop — framed as the named character's **retirement**, continued by their named **son/daughter/heir** (the lineage; amendment `E25-A` in the epic file, design rules `docs/04 §1b`).
 - **Tier:** n/a (meta). **Beats:** 26 (*Letting Go*).
-- **New systems:** `prestige.js`, Legacy currency, reset logic (keep meta), ascension ROI hint, "ascend now" UI.
-- **Path:** neutral. **Math:** `legacyGain=floor(LEGACY_K·sqrt(lifetimeCash/LEGACY_SCALE))`; ROI break-even detection.
+- **New systems:** `prestige.js`, Legacy currency, HARD reset (only tree abilities + Legacy cross — `docs/math-proof.md §12`), ascension ROI hint, "ascend now" UI, character naming + Family Album (cosmetic).
+- **Path:** neutral. **Math:** `legacyGain=floor(LEGACY_K·sqrt(lifetimeCashThisTree/LEGACY_SCALE))` on the gate-deflated counter; ROI break-even detection; phase gates `×base^(√count·(tier/span)²)`.
 
 ### E26 — Who You Become (Permanent Skill Tree)
 - **Goal:** The **permanent skill tree** — physique & character nodes that persist across resets.
@@ -228,7 +228,7 @@ Each row: **goal**, accommodation tier(s), **new system(s)**, story beats, path 
 - **Path:** all. **Math:** buildings = generator+amenity hybrids; guest income as a new revenue tier; upkeep at scale.
 
 ### E29 — Empire of Leisure (Prestige Layer 2 + NG+)
-- **Goal:** The **Legend** prestige layer and **New Game+**; meta-multipliers for the 200h crowd.
+- **Goal:** The **Legend** prestige layer and **New Game+**; meta-multipliers for the 200h crowd. In the lineage frame this is the **dynasty-level** reset — the family name itself is retired and a new house begins (the natural resolution of the per-ascension gate drift, `docs/math-proof.md §12.4`).
 - **Tier:** 21+. **Beats:** 30 (*Empire of Leisure*).
 - **New systems:** Legend currency (resets Legacy+tree), meta-meta shop, NG+ (raise all gates, reshuffle destinations), BigNumber swap if needed.
 - **Path:** all. **Math:** `legendGain=floor(LEGEND_K·sqrt(totalLegacy/LEGEND_SCALE))`; NG+ gate scaling; endgame number-size audit.

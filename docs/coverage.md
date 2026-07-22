@@ -358,7 +358,7 @@ same `present / done-now / superseded` disposition and a per-phase tally in the 
 | E22 A Bungalow of One's Own | pending |
 | E23 Villa Vita | pending |
 | E24 Where the Rich Hide | pending |
-| E25 Letting Go | pending |
+| E25 Letting Go | pending — mechanics largely shipped early (prestige.js + hard reset + gate scaling, math-proof §12); **amendment E25-A (retirement & lineage)** added to the epic file, unbuilt |
 | E26 Who You Become | pending |
 | E27 The Island Listing | pending |
 | E28 Building Paradise | pending |
