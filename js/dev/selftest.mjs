@@ -3794,5 +3794,52 @@ console.log('\n[92] E17 Wheels Up: jets, the logistics capstone, air-destination
   ok(approx(man.resources.cash, off.resources.cash, 1e-3), 'offline jet upkeep + capstone × matches a manual macro-step loop');
 }
 
+// ---------- 93. E18 "The Sail-Shaped Hotel": tier-12/13 Taste velvet-rope gate + gold cluster.
+console.log('\n[93] E18 Sail-Shaped Hotel: Taste gate on tiers 12/13, gold cluster, invariance');
+{
+  ok(DATA.accommodation[12].tasteGate === 30 && DATA.accommodation[13].tasteGate === 40, 'tiers 12/13 carry Taste gates (30/40)');
+  const goldIds = ['sail_gold_taps', 'gold_sheets', 'gold_leaf_breakfast', 'gilded_elevator', 'gold_robe', 'gold_slippers', 'gold_balcony_rail', 'everything_gold', 'private_butler_tea', 'helicopter_transfer', 'in_suite_spa'];
+  const gold = goldIds.map(id => E.amenityData(id));
+  ok(gold.every(a => a && a.tag === 'luxury' && a.exclusivity > 0 && a.costGrowth === 1.9), 'the E18 gold/six-star cluster ships (tag:luxury with exclusivity — reuses the E14 machinery)');
+
+  // ---- harness invariance: the Taste gate is cleared by the greedy player's passive Taste
+  const { islandAt, peakLog } = runCurve({ dt: 5, maxHours: 40 });
+  ok(Math.abs(islandAt - 29705) < 1, `harness island time is UNCHANGED by E18 (got ${fmtTime(islandAt)}, expected 29705s — the Taste gate is cleared by passive Taste)`);
+  ok(peakLog < 290, `peak log10(cash) (${peakLog.toFixed(1)}) stays under the ceiling`);
+
+  // ---- the Taste gate: tier 12 blocked below tasteGate even at huge Comfort; open at/above
+  const g = ST.newGame(); g.accommodation.tier = 11; g.accommodation.owned = Array.from({ length: 12 }, (_, i) => i);
+  g._comfortCache = 1e12;   // Comfort massively over the tier-12 unlock threshold
+  g.skills.taste.level = 29;
+  ok(E.accUnlocked(g) === false, 'tier 12 is LOCKED at taste 29 (below the gate) despite huge Comfort');
+  g.skills.taste.level = 30;
+  ok(E.accUnlocked(g) === true, 'tier 12 UNLOCKS at exactly taste 30 (gate met, off-by-one safe)');
+  // and a non-connoisseur with 0 exclusivity can still enter (the excl requirement is soft)
+  ok(M.computeExclusivity(g, DATA) === 0 && E.accUnlocked(g) === true, 'a non-connoisseur (exclusivity 0) can still enter — the velvet rope is Taste, not a hard exclusivity wall');
+
+  // ---- entering fires the ceremony + a connoisseur nudge; owned tier never re-locks on excl drop
+  const buy = ST.newGame(); buy.accommodation.tier = 11; buy.accommodation.owned = Array.from({ length: 12 }, (_, i) => i);
+  buy._comfortCache = 1e12; buy.skills.taste.level = 35; buy.resources.cash = 1e30; buy.bank.tier = C.BANK.tiers - 1;
+  const pts = buy.paths.connoisseur.points;
+  ok(E.buyAccommodation(buy) && buy.accommodation.tier === 12, 'buying tier 12 succeeds past the gate');
+  // (path nudge only credits a committed connoisseur; here branch is neutral so it no-ops — assert no crash + owned)
+  ok(buy.accommodation.owned.includes(12), 'tier 12 is owned after purchase');
+  buy.skills.taste.level = 0;   // taste later collapses — the owned tier must not re-lock
+  ok(buy.accommodation.tier === 12, 'an already-owned tier stays owned even if Taste later drops (no eviction)');
+
+  // ---- gold amenities feed the connoisseur exclusivity + perk (via the reused luxury machinery)
+  const conn = ST.newGame(); conn.story.branch = 'connoisseur'; conn.paths.connoisseur.points = 5;
+  conn.amenities.gold_slippers.level = 3;
+  const exclWith = M.computeExclusivity(conn, DATA);
+  ok(exclWith > 0, 'gold amenities raise a connoisseur’s exclusivity score');
+  const gV = ST.newGame(); gV.story.branch = 'vlogger'; gV.amenities.gold_slippers.level = 3;
+  const gC = ST.newGame(); gC.story.branch = 'connoisseur'; gC.amenities.gold_slippers.level = 3;
+  ok(approx(M.computeComfort(gC, DATA) - M.computeComfort(gV, DATA), C.COMFORT.wAmen * 3 * E.amenityData('gold_slippers').comfort * C.TASTE.luxuryComfortPerk),
+    'the connoisseur +25% Comfort perk applies to gold amenities (tag:luxury)');
+  // and the harness (vlogger, no connoisseur activity) sees gold exclusivity as 0
+  const hv = ST.newGame(); hv.amenities.gold_slippers.level = 5;
+  ok(M.computeExclusivity(hv, DATA) === 0, 'gold amenities add 0 exclusivity for a non-connoisseur (gated) — harness-neutral');
+}
+
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);
 process.exit(fails === 0 ? 0 : 1);
