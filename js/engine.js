@@ -168,6 +168,8 @@ export function tick(state, dt) {
   checkProvenance(state);
   checkGarageReveal(state);
   checkFirstCar(state);
+  checkMarinaReveal(state);
+  checkFirstBoat(state);
   checkPathStages(state);
 
   // 7) concierge: bounded, off-by-default auto-purchase policy (E11 "Five-Star Frame of
@@ -460,6 +462,10 @@ export function destUnlocked(state, id) {
   const d = destData(id);
   if (!d) return false;
   if (state.destinations[id].owned) return true;
+  // E16 "Sea Legs": a sea:true destination stays locked until the marina owns a boat of the
+  // required tier — a hull literally opens places you couldn't reach. The greedy-vlogger harness
+  // owns no boat (boatTier 0), so sea destinations never unlock ⇒ L_dest / island are unmoved.
+  if (d.sea && M.boatTier(state, DATA) < d.requiresBoatTier) return false;
   const chainOk = !d.unlockAfter || !!state.destinations[d.unlockAfter]?.owned;
   return chainOk && state._comfortCache >= (d.unlockComfort || 0);
 }
@@ -1249,6 +1255,77 @@ export function checkFirstCar(state) {
     state._comfortCache = M.computeComfort(state, DATA);
   }
   notify(state, 'celebrate', '🔑 Keys to the Coupe: your first private wheels. The bus timetable can wait forever now — and there is a little something for the glovebox.');
+}
+
+// ---------- the Marina: boats + a pre-staff crew (E16 "Sea Legs", Private Logistics II) ----------
+// Boats fold into the SAME L_logistics × / fleet-upkeep drain the cars use (math.logisticsMult /
+// fleetUpkeep), but a boat is OWNED (not equipped) — owning it grants its mult + slotBonus + upkeep.
+// Crew is a pre-staff placeholder (a tiny × + upkeep, capped by the fleet's crewCap) for E19. The
+// whole marina is opt-in: a fresh newGame() and the committed-vlogger harness buy no boats/crew, so
+// logisticsActive stays false, boatTier 0 (⇒ sea destinations locked), and the island is unmoved.
+export function boatData(id) { return DATA.boats.find(b => b.id === id); }
+export function crewData(id) { return DATA.crew.find(c => c.id === id); }
+export function boatTier(state) { return M.boatTier(state, DATA); }
+export function boatCost(state, id) {
+  const b = boatData(id);
+  return bulkCost(b.costBase, b.costGrowth, state.vehicles.boats[id].count, 1) * M.commsCostMult(state);
+}
+// buy one boat: geometric cost, count++, add its slotBonus to the running boatSlots (so
+// availableSlots grows without a DATA param), one-off path nudge to the committed lane, recompute
+// the logistics cache. Owning a boat activates the lane and can open sea destinations.
+export function buyBoat(state, id) {
+  const b = boatData(id);
+  if (!b) return false;
+  const cost = boatCost(state, id);
+  if (state.resources.cash < cost) return false;
+  state.resources.cash -= cost;
+  state.vehicles.boats[id].count += 1;
+  state.vehicles.boatSlots = (state.vehicles.boatSlots || 0) + b.slotBonus;
+  addPathPoints(state, 'traveler', C.LOGISTICS.buyPathNudge);
+  addPathPoints(state, 'connoisseur', C.LOGISTICS.buyPathNudge);   // sea luxury reads to either lane
+  state._logiCache = M.logisticsMult(state, DATA);
+  notify(state, 'unlock', `⛵ Now moored: ${b.name}`);
+  return true;
+}
+export function crewCost(state, id) {
+  const c = crewData(id);
+  return bulkCost(c.costBase, c.costGrowth, state.vehicles.crew[id].count, 1) * M.commsCostMult(state);
+}
+// hire one crew, capped by the fleet's total crewCap (Σ owned boats' crewCap) — you can't crew a
+// boat you don't own (E16-S2-T5/S10-T3). Adds a tiny × + upkeep.
+export function buyCrew(state, id) {
+  const c = crewData(id);
+  if (!c) return false;
+  if (M.crewCount(state, DATA) >= M.crewCapTotal(state, DATA)) return false;   // your boat is full
+  const cost = crewCost(state, id);
+  if (state.resources.cash < cost) return false;
+  state.resources.cash -= cost;
+  state.vehicles.crew[id].count += 1;
+  state._logiCache = M.logisticsMult(state, DATA);
+  return true;
+}
+// Marina reveal (mirrors garageUnlocked): beat 16 fired, OR tier 11, OR a boat is owned.
+export function marinaUnlocked(state) {
+  return state.story.seen.includes(16) || state.accommodation.tier >= 11
+      || DATA.boats.some(b => (state.vehicles.boats[b.id]?.count || 0) > 0);
+}
+export function checkMarinaReveal(state) {
+  if (state.story.flags.marinaRevealed) return;
+  if (!marinaUnlocked(state)) return;
+  state.story.flags.marinaRevealed = true;
+  notify(state, 'unlock', '⛵ The Marina opens: buy a boat, hire a crew, reach the coves the road never could.');
+}
+// "Sea Legs" one-time bonus (mirrors checkFirstCar/checkProvenance): a one-shot flag the moment a
+// boat is owned — grants the committed lane a path nudge. Beat 16 itself stays on its comfort:5e6
+// gate for every branch (the 26-beat pin / neutral fallback, E16-S7-T6).
+const FIRST_BOAT_PATH_BONUS = 2;
+export function checkFirstBoat(state) {
+  if (state.story.flags.firstBoat) return;
+  if (!DATA.boats.some(b => (state.vehicles.boats[b.id]?.count || 0) > 0)) return;
+  state.story.flags.firstBoat = true;
+  addPathPoints(state, 'traveler', FIRST_BOAT_PATH_BONUS);
+  addPathPoints(state, 'connoisseur', FIRST_BOAT_PATH_BONUS);
+  notify(state, 'celebrate', '⛵ Sea Legs: your first hull. The sea turns out to be just more places — a whole blue continent of them, and the coves the guidebooks skipped are suddenly yours.');
 }
 
 export function nextAccTier(state) { return state.accommodation.tier + 1; }

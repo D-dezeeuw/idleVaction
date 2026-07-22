@@ -82,7 +82,21 @@ export const STORY = [
       'it badly outside a bakery. Somewhere south, a marina is already asking about your ' +
       'draft.' } } },
   { id: 16, title: 'Sea Legs', requires: { comfort: 5e6 },
-    text: 'A boat. With a smaller pool on it. Pools within pools. Fractal luxury.' },
+    text: 'A boat. With a smaller pool on it. Pools within pools. Fractal luxury.',
+    // Branch-flavored variants (E16 "Sea Legs" — S1/S7-T8). The gate/requires stay comfort:5e6
+    // for EVERY branch (incl. the harness — the 26-beat pin); this only swaps the shown text
+    // for a traveler/connoisseur, mirroring beats 14/15. engine.checkFirstBoat layers the
+    // one-time boat bonus on top, gated on actually owning a hull.
+    variants: {
+      traveler: { title: 'Sea Legs', text:
+        'You buy a boat. Then a bigger boat. The sea, it turns out, is just more places — a whole ' +
+        'blue continent of them, and now you can reach the coves the guidebooks left out. Somewhere ' +
+        'a superyacht is being built with your name misspelled on the order form. The sky is next.' },
+      connoisseur: { title: 'Sea Legs', text:
+        'One does not own a yacht; one is, briefly, permitted to steward it. The teak is correct, the ' +
+        'wine cellar is climate-stable, the horizon is tastefully unbranded. A pool, on a boat, on the ' +
+        'sea — vulgar in theory, sublime in person. You already wonder how it looks from the air.' },
+    } },
   { id: 17, title: 'Wheels Up', requires: { comfort: 2e7 },
     text: 'No terminals, no queues. The sky is a private hallway now.' },
   { id: 18, title: 'The Sail-Shaped Hotel', requires: { accTier: 12 },

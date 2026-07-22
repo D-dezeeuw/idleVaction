@@ -12,6 +12,7 @@ import { validateBank } from '../data/bank.js';
 import { validatePaths } from '../data/paths.js';
 import { validateCollections } from '../data/collections.js';
 import { validateVehicles } from '../data/vehicles.js';
+import { validateLogistics } from '../data/logistics.js';
 import { fmt, fmtTime, rng } from '../util.js';
 // E11 harness-invariance guard ([62] below): importing runCurve does NOT auto-run the
 // harness's own report() — that's guarded behind `process.argv[1].endsWith('harness.mjs')`,
@@ -3598,6 +3599,103 @@ console.log('\n[90] E15 logistics: cars/slots/upkeep, logistics × gate invarian
   E.applyOffline(viaOffline, elapsedMs);
   ok(approx(manual.resources.cash, viaOffline.resources.cash, 1e-3) && manual.vehicles.equipped.length === viaOffline.vehicles.equipped.length,
     'offline fleet upkeep/logistics matches a manual macro-step tick loop (game-time, deterministic)');
+}
+
+// ---------- 91. E16 "Sea Legs": boats + crew fold into L_logistics, sea destinations gate on
+// the hull, and the whole marina is gated off for the harness. ----------
+console.log('\n[91] E16 Sea Legs: boats/crew, sea-destination gating, marina invariance');
+{
+  ok(validateLogistics(), 'validateLogistics() passes on the shipped BOATS/CREW roster');
+  ok(DATA.boats.length === 5 && DATA.crew.length === 3, '5 boats + 3 crew');
+  ok(DATA.destinations.filter(d => d.sea).length === 3, '3 sea destinations');
+
+  // ---- harness invariance: the greedy vlogger never buys a boat/crew or a sea destination
+  const { s: hs, islandAt, peakLog } = runCurve({ dt: 5, maxHours: 40 });
+  ok(Math.abs(islandAt - 29705) < 1, `harness island time is UNCHANGED by E16 (got ${fmtTime(islandAt)}, expected ~8h15m05s / 29705s — the committed-path baseline)`);
+  ok(peakLog < 290, `peak log10(cash) (${peakLog.toFixed(1)}) stays far under the double-overflow ceiling`);
+  ok(DATA.boats.every(b => hs.vehicles.boats[b.id].count === 0) && DATA.crew.every(c => hs.vehicles.crew[c.id].count === 0),
+    'the harness never buys a boat or crew');
+  ok(DATA.destinations.filter(d => d.sea).every(d => !hs.destinations[d.id].owned),
+    'the harness never buys a sea destination (locked behind a hull it never owns)');
+  ok(hs._logiCache === 1 && M.boatTier(hs, DATA) === 0, 'the harness leaves logistics inactive (_logiCache 1, boatTier 0) start to finish');
+
+  // ---- gate: owning a boat activates the lane and folds its mult in
+  const g = ST.newGame(); g.bank.tier = C.BANK.tiers - 1; g.resources.cash = 1e13;
+  ok(M.logisticsActive(g, DATA) === false, 'a fresh game is logistics-inactive');
+  ok(E.buyBoat(g, 'dinghy') && g.vehicles.boats.dinghy.count === 1, 'buyBoat moors a boat');
+  ok(M.logisticsActive(g, DATA) === true, 'owning a boat activates the lane (no equip needed)');
+  ok(approx(M.logisticsMult(g, DATA), 1 + C.LOGISTICS.boatRate * E.boatData('dinghy').mult), 'logisticsMult folds owned boat.mult via boatRate');
+  ok(M.boatTier(g, DATA) === 1, 'boatTier reflects the highest owned boat');
+  ok(M.availableSlots(g) === C.LOGISTICS.baseSlots + E.boatData('dinghy').slotBonus, 'a boat grants its slotBonus to availableSlots (via boatSlots)');
+  ok(g.vehicles.boatSlots === E.boatData('dinghy').slotBonus, 'buyBoat maintains the running boatSlots');
+
+  // ---- sea-destination gating on hull tier (plus the existing chain/comfort)
+  const sea = ST.newGame(); sea._comfortCache = 1e8;
+  // own the whole land chain up to the sea start, so only the hull gate is under test
+  for (const d of DATA.destinations) if (!d.sea) sea.destinations[d.id].owned = true;
+  ok(E.destUnlocked(sea, 'sea_hidden_cove') === false, 'a sea destination is LOCKED with no boat (boatTier 0 < requiresBoatTier)');
+  sea.bank.tier = C.BANK.tiers - 1; sea.resources.cash = 1e13; E.buyBoat(sea, 'dinghy'); sea._comfortCache = 1e8;
+  ok(E.destUnlocked(sea, 'sea_hidden_cove') === true, 'a tier-1 hull unlocks the tier-1 sea destination (chain+comfort already met)');
+  ok(E.destUnlocked(sea, 'sea_greek_islands') === false, 'a tier-2 sea destination stays locked behind a tier-1 hull');
+
+  // ---- fleet upkeep includes boats + crew; cash never below zero
+  const u = ST.newGame(); u.bank.tier = C.BANK.tiers - 1; u.resources.cash = 1e13;
+  E.buyBoat(u, 'yacht');
+  ok(approx(M.fleetUpkeep(u, DATA), E.boatData('yacht').upkeep * C.LOGISTICS.upkeepScale), 'fleetUpkeep includes owned boat upkeep');
+  u.resources.cash = 5; for (let i = 0; i < 50; i++) E.tick(u, 1);
+  ok(u.resources.cash >= 0 && Number.isFinite(u.resources.cash), 'boat upkeep never drives cash below zero online');
+
+  // ---- crew cap enforcement + crew mult
+  const cr = ST.newGame(); cr.bank.tier = C.BANK.tiers - 1; cr.resources.cash = 1e13;
+  ok(E.buyCrew(cr, 'deckhand') === false, 'cannot hire crew with no boat (crewCap 0)');
+  E.buyBoat(cr, 'dinghy');   // crewCap 1
+  ok(M.crewCapTotal(cr, DATA) === E.boatData('dinghy').crewCap, 'crewCapTotal = Σ owned boats crewCap');
+  ok(E.buyCrew(cr, 'deckhand') === true, 'first crew hires within cap');
+  ok(E.buyCrew(cr, 'deckhand') === false, 'hiring past crewCap is rejected (your boat is full)');
+  ok(approx(M.logisticsMult(cr, DATA), 1 + C.LOGISTICS.boatRate * E.boatData('dinghy').mult + C.LOGISTICS.crewRate * E.crewData('deckhand').mult),
+    'crew mult folds into logisticsMult via crewRate');
+
+  // ---- first-boat one-time bonus + marina reveal + neutral beat-16 fallback
+  const fb = ST.newGame(); fb.story.branch = 'traveler'; fb.bank.tier = C.BANK.tiers - 1; fb.resources.cash = 1e13;
+  const pts = fb.paths.traveler.points; E.buyBoat(fb, 'dinghy'); E.tick(fb, 1);
+  ok(fb.story.flags.firstBoat === true, 'flags.firstBoat fires once a boat is owned');
+  ok(fb.paths.traveler.points > pts, 'the first-boat bonus grants path points');
+  const p2 = fb.paths.traveler.points; E.checkFirstBoat(fb);
+  ok(fb.paths.traveler.points === p2, 'the first-boat bonus never re-fires');
+  ok(!E.marinaUnlocked(ST.newGame()), 'the marina is locked on a fresh game');
+  ok(E.marinaUnlocked((() => { const s = ST.newGame(); s.accommodation.tier = 11; return s; })()), 'the tier-11 band unlocks the marina');
+  const b16 = ST.newGame(); b16.story.seen = Array.from({ length: 15 }, (_, i) => i + 1); b16.story.beat = 15; b16._comfortCache = 5e6;
+  E.checkStory(b16);
+  ok(b16.story.seen.includes(16), 'beat 16 still fires on its comfort:5e6 gate for every branch (26-beat pin holds)');
+
+  // ---- connoisseur +25% Comfort perk extends to yacht amenities (S7-T2); harness-neutral
+  const yV = ST.newGame(); yV.story.branch = 'vlogger'; yV.amenities.pool_on_a_boat.level = 2;
+  const yC = ST.newGame(); yC.story.branch = 'connoisseur'; yC.amenities.pool_on_a_boat.level = 2;
+  ok(approx(M.computeComfort(yC, DATA) - M.computeComfort(yV, DATA), C.COMFORT.wAmen * 2 * E.amenityData('pool_on_a_boat').comfort * C.TASTE.luxuryComfortPerk),
+    'the connoisseur +25% Comfort perk applies to tag:yacht amenities too (connoisseur branch only)');
+
+  // ---- migration: a pre-E16 save (no boats/crew/boatSlots) backfills clean
+  const pre16 = ST.newGame(); delete pre16.vehicles.boats; delete pre16.vehicles.crew; delete pre16.vehicles.boatSlots;
+  const mig = ST.migrate(JSON.parse(JSON.stringify(pre16)));
+  ok(mig.vehicles.boats && DATA.boats.every(b => mig.vehicles.boats[b.id].count === 0), 'migration backfills every boat at count 0');
+  ok(mig.vehicles.crew && DATA.crew.every(c => mig.vehicles.crew[c.id].count === 0), 'migration backfills every crew at count 0');
+  ok(mig.vehicles.boatSlots === 0, 'migration recomputes boatSlots (0 for an empty fleet)');
+  E.tick(mig, 1);
+  ok(Number.isFinite(mig.resources.cash) && Number.isFinite(mig._logiCache), 'ticking a migrated pre-E16 save is finite — no NaN');
+
+  // ---- offline determinism: boat/crew upkeep + logistics × via applyOffline match a manual loop
+  const seedMarina = () => {
+    const st = ST.newGame(); st.story.branch = 'traveler';
+    st.generators[0].bought = 15; st.generators[0].count = 15; st.resources.cash = 1e9; st.bank.tier = C.BANK.tiers - 1;
+    st.vehicles.boats.dinghy.count = 1; st.vehicles.boatSlots = 1; st.vehicles.crew.deckhand.count = 1;
+    st.settings.offlineEnabled = true; st._logiCache = M.logisticsMult(st, DATA);
+    return st;
+  };
+  const man = seedMarina(); const off = JSON.parse(JSON.stringify(seedMarina()));
+  const elapsedMs = 3 * 3600 * 1000, total = Math.min(elapsedMs, C.OFFLINE_CAP_H * 3600 * 1000) / 1000, step = total / C.OFFLINE_STEPS;
+  for (let i = 0; i < C.OFFLINE_STEPS; i++) E.tick(man, step);
+  E.applyOffline(off, elapsedMs);
+  ok(approx(man.resources.cash, off.resources.cash, 1e-3), 'offline boat/crew upkeep + logistics matches a manual macro-step tick loop');
 }
 
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);

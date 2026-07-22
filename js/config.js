@@ -373,10 +373,23 @@ export const CONFIG = {
   //                         MARKET.buyPathNudge / DEST.visitPathPoints — a discrete action,
   //                         never a per-tick trickle), credited via addPathPoints so it feeds
   //                         ONLY a committed traveler life (the anti-hopping contract).
+  //   E16 "Sea Legs" extends the SAME gate/fold to boats + a pre-staff crew (data/logistics.js):
+  //     boatRate/crewRate scale owned boats'/crew's `mult` into the same L_logistics × (a boat
+  //     is OWNED, not equipped — owning it grants its mult + slotBonus + upkeep). Boats' slotBonus
+  //     is tracked in state.vehicles.boatSlots (engine.buyBoat maintains it) and read by
+  //     math.availableSlots; their upkeep folds into math.fleetUpkeep alongside cars/crew and is
+  //     drained by the SAME applyFleetUpkeep. logisticsActive is true once a car is equipped OR a
+  //     boat/crew is owned, so a fresh newGame() and the committed-vlogger harness (which buy
+  //     none of it) still see logisticsMult 1, fleetUpkeep 0, availableSlots unmoved, boatTier 0
+  //     ⇒ sea:true destinations never unlock ⇒ L_dest and the fitted 29705s island are unmoved.
+  //     boatRate/crewRate are first-pass (a full boat fleet ≈ +2.5–3× logistics, bounded by the
+  //     5-boat ladder — same safe bounded-flat class as L_dest); per-boat/crew mult/upkeep/
+  //     slotBonus/crewCap live in data/logistics.js.
   LOGISTICS: {
     baseSlots: 2, rate: 0.5, upkeepScale: 320,
     destDiscountTraveler: 0.15, wandererDestDiscount: 0.20, destDiscountFloor: 0.15,
     repossessGraceSec: 60, buyPathNudge: 0.1,
+    boatRate: 0.30, crewRate: 0.50,
   },
 
   // ---- ascension / legacy ----

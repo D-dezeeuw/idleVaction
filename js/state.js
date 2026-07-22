@@ -56,6 +56,12 @@ export function newGame() {
   // the run — the keep-list deliberately excludes it, so every life re-buys its fleet.
   const vehiclesOwned = {};
   DATA.vehicles.forEach(c => { vehiclesOwned[c.id] = { count: 0 }; });
+  // boats + pre-staff crew (E16 "Sea Legs"): owned counts by id; boatSlots is the running sum
+  // of owned boats' slotBonus (engine.buyBoat maintains it, read by math.availableSlots).
+  const boatsOwned = {};
+  DATA.boats.forEach(b => { boatsOwned[b.id] = { count: 0 }; });
+  const crewOwned = {};
+  DATA.crew.forEach(c => { crewOwned[c.id] = { count: 0 }; });
 
   return {
     version: C.SAVE_VERSION,
@@ -64,7 +70,8 @@ export function newGame() {
     // — an optional clicker-fuel resource, see config.ENERGY / math.energyMax.
     resources: { cash: 15, comfort: 0, clout: 0, legacy: 0, energy: C.ENERGY.base },
     generators, amenities, skills, training, paths, npcsMet, destinations, content, collections,
-    vehicles: { owned: vehiclesOwned, equipped: [], garageSlots: 0, upkeepAccrued: 0 },
+    vehicles: { owned: vehiclesOwned, equipped: [], garageSlots: 0, upkeepAccrued: 0,
+      boats: boatsOwned, crew: crewOwned, boatSlots: 0 },
     // crypto portfolio (E13): holdings/hedges own state; market is the seeded scheduler's
     // own state — phase starts 'calm', mult 1, cursor 0. engine.marketTick is a no-op
     // until crypto path points are spent or a coin is held (see config.MARKET's comment
@@ -178,6 +185,13 @@ export function migrate(s) {
     if (!(s.vehicles.garageSlots >= 0)) s.vehicles.garageSlots = 0;
     if (!(s.vehicles.upkeepAccrued >= 0)) s.vehicles.upkeepAccrued = 0;
     s.vehicles.equipped = clampEquippedVehicles(s);
+    // boats + crew (E16): backfill missing owned slots at count 0; recompute boatSlots from the
+    // owned fleet so a pre-E16 (or hand-edited) save can't carry a stale/absent slot bonus.
+    s.vehicles.boats ||= {};
+    for (const b of DATA.boats) if (!s.vehicles.boats[b.id]) s.vehicles.boats[b.id] = { count: 0 };
+    s.vehicles.crew ||= {};
+    for (const c of DATA.crew) if (!s.vehicles.crew[c.id]) s.vehicles.crew[c.id] = { count: 0 };
+    s.vehicles.boatSlots = DATA.boats.reduce((n, b) => n + (s.vehicles.boats[b.id]?.count || 0) * b.slotBonus, 0);
   }
   return s;
 }

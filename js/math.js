@@ -210,12 +210,14 @@ export function collectionComfortTotal(state, DATA) {
   }
   return s;
 }
-// sum of owned tag:'luxury' amenities' Comfort (level·comfort) — the base the connoisseur
-// +25% perk is a fraction OF (amenityScoreTotal already counts it at 100%).
+// sum of owned tag:'luxury' (and, E16-S7-T2, tag:'yacht') amenities' Comfort (level·comfort) —
+// the base the connoisseur +25% perk is a fraction OF (amenityScoreTotal already counts these at
+// 100%). Connoisseur-gated in computeComfort ⇒ adding 'yacht' here is bit-identical for the
+// vlogger harness (luxBonus stays 0 for a non-connoisseur).
 export function luxuryAmenityComfort(state, DATA) {
   let s = 0;
   for (const a of DATA.amenities) {
-    if (a.tag !== 'luxury') continue;
+    if (a.tag !== 'luxury' && a.tag !== 'yacht') continue;
     s += (state.amenities[a.id]?.level || 0) * a.comfort;
   }
   return s;
@@ -592,7 +594,25 @@ export function availableSlots(state) {
   return C.LOGISTICS.baseSlots
     + (state.story.branch === 'traveler' ? 1 : 0)
     + (state.ascension.tree.wanderer || 0)
-    + (state.vehicles?.garageSlots || 0);
+    + (state.vehicles?.garageSlots || 0)
+    + (state.vehicles?.boatSlots || 0);   // E16: owned boats grant transport slots (buyBoat maintains boatSlots)
+}
+// highest owned boat tier — gates sea:true destinations (engine.destUnlocked). 0 with no boats.
+export function boatTier(state, DATA) {
+  let t = 0;
+  for (const b of DATA.boats) if ((state.vehicles?.boats?.[b.id]?.count || 0) > 0) t = Math.max(t, b.tier);
+  return t;
+}
+// total crew capacity = Σ owned boats' crewCap; and current crew count = Σ owned crew.
+export function crewCapTotal(state, DATA) {
+  let cap = 0;
+  for (const b of DATA.boats) cap += (state.vehicles?.boats?.[b.id]?.count || 0) * b.crewCap;
+  return cap;
+}
+export function crewCount(state, DATA) {
+  let n = 0;
+  for (const c of DATA.crew) n += (state.vehicles?.crew?.[c.id]?.count || 0);
+  return n;
 }
 // Σ slotCost of the currently-equipped fleet — engine.equipCar enforces this stays ≤
 // availableSlots (never clamped silently, S2-T2/S10-T1).
@@ -605,16 +625,28 @@ export function equippedSlotCost(state, DATA) {
 // re-exports it for API symmetry with cryptoActive/connoisseurActive). True iff any car is
 // equipped (an OWNED-but-un-equipped car draws no upkeep and grants no ×, by design).
 export function logisticsActive(state, DATA) {
-  return (state.vehicles?.equipped || []).length > 0;
+  const v = state.vehicles;
+  if ((v?.equipped || []).length > 0) return true;
+  // E16: an OWNED boat or crew also turns the lane on (boats aren't "equipped" — owning is enough).
+  if (v?.boats) for (const b of DATA.boats) if ((v.boats[b.id]?.count || 0) > 0) return true;
+  if (v?.crew) for (const c of DATA.crew) if ((v.crew[c.id]?.count || 0) > 0) return true;
+  return false;
 }
-// logisticsMult = 1 + rate·Σ(equipped car.logisticsMult) — a bounded flat ×, exactly 1 when
-// nothing is equipped (the gate). engine.tick caches this as state._logiCache before the
-// tier-production snapshot; tierMultiplier reads the cache via logisticsMultiplier() below.
+// logisticsMult = 1 + rate·Σ(equipped car.mult) + boatRate·Σ(owned boat.mult) + crewRate·Σ(owned
+// crew.mult) — a BOUNDED flat × (equipped fleet ≤ availableSlots; the boat ladder is 5 rungs;
+// crew ≤ crewCapTotal), exactly 1 when nothing is equipped/owned (the gate). Additive within the
+// one L_logistics layer, then multiplied across the stack (E16-S2-T1). engine.tick caches this as
+// state._logiCache before the tier snapshot; tierMultiplier reads it via logisticsMultiplier().
 export function logisticsMult(state, DATA) {
   if (!logisticsActive(state, DATA)) return 1;
-  let sum = 0;
-  for (const id of state.vehicles.equipped) { const c = carRow(DATA, id); if (c) sum += c.logisticsMult; }
-  return 1 + C.LOGISTICS.rate * sum;
+  const v = state.vehicles;
+  let carSum = 0;
+  for (const id of v.equipped) { const c = carRow(DATA, id); if (c) carSum += c.logisticsMult; }
+  let boatSum = 0;
+  for (const b of DATA.boats) boatSum += (v.boats?.[b.id]?.count || 0) * b.mult;
+  let crewSum = 0;
+  for (const c of DATA.crew) crewSum += (v.crew?.[c.id]?.count || 0) * c.mult;
+  return 1 + C.LOGISTICS.rate * carSum + C.LOGISTICS.boatRate * boatSum + C.LOGISTICS.crewRate * crewSum;
 }
 // the per-tick cache reader tierMultiplier uses (mirrors destMultiplier reading _destCache /
 // exclusivityMult reading _exclCache). Exactly 1 when the cache is 1 (system inactive).
@@ -624,10 +656,13 @@ export function logisticsMultiplier(state) {
 // fleetUpkeep = Σ(equipped car.upkeep)·upkeepScale cash/s — 0 when nothing is equipped. A flat
 // drain applied in engine.tick (clamped so cash never goes negative, online or offline).
 export function fleetUpkeep(state, DATA) {
-  const eq = state.vehicles?.equipped || [];
-  if (eq.length === 0) return 0;
+  const v = state.vehicles;
+  if (!v) return 0;
   let up = 0;
-  for (const id of eq) { const c = carRow(DATA, id); if (c) up += c.upkeep; }
+  for (const id of (v.equipped || [])) { const c = carRow(DATA, id); if (c) up += c.upkeep; }
+  // E16: owned boats + crew also draw upkeep (a hull is a money pit even at anchor).
+  for (const b of DATA.boats) up += (v.boats?.[b.id]?.count || 0) * b.upkeep;
+  for (const c of DATA.crew) up += (v.crew?.[c.id]?.count || 0) * c.upkeep;
   return up * C.LOGISTICS.upkeepScale;
 }
 // equipped cars' flat Comfort (Σ comfort) — feeds computeComfort exactly like collection

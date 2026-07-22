@@ -14,6 +14,7 @@ import { COINS, MARKET_EVENTS, HEDGES } from './crypto.js';
 import { BANK_ACCOUNTS } from './bank.js';
 import { ART, WINE } from './collections.js';
 import { CARS } from './vehicles.js';
+import { BOATS, CREW } from './logistics.js';
 
 export const DATA = {
   generators: GENERATORS,
@@ -37,14 +38,16 @@ export const DATA = {
   // capacity numbers themselves come from config.BANK via math.bankCapAt.
   bank: BANK_ACCOUNTS,
   // collections (E14 "Acquired Taste"): art/wine appreciating assets grouped under one
-  // namespace (mirrors how `transport`/`destinations` and `crypto`'s coins/events/hedges
-  // share a namespace above). validateCollections lives in data/collections.js and is
-  // imported directly from there by the dev harness/selftest — same convention as
-  // validateBank/validatePaths/validateDestinations, none of which are re-exported here.
+  // namespace. validateCollections lives in data/collections.js and is imported directly
+  // from there by the dev harness/selftest — same convention as validateBank/validatePaths/
+  // validateDestinations, none of which are re-exported here.
   collections: { art: ART, wine: WINE },
   // vehicles (E15 "Keys to the Coupe"): the garage car roster. validateVehicles lives in
-  // data/vehicles.js and is imported directly from there by the dev harness/selftest —
-  // same convention as validateCollections/validateBank/validateDestinations, none of
-  // which are re-exported here.
+  // data/vehicles.js, imported directly by the dev harness/selftest.
   vehicles: CARS,
+  // logistics-II (E16 "Sea Legs"): the marina — boats + a pre-staff crew seed. validateLogistics
+  // lives in data/logistics.js, imported directly by the dev harness/selftest. Sea destinations
+  // live in DATA.destinations (flagged sea:true); the yacht amenity cluster is tag:'yacht'.
+  boats: BOATS,
+  crew: CREW,
 };
