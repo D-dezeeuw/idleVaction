@@ -489,14 +489,33 @@ first-jet/capstone flags, hangar reveal, migration, offline determinism).
 | S9 Preflight Checklist (save/offline) | 2 / 6 / 2 | Schema, migration (+jetSlots recompute), capstone derived-not-stored (never a ghost flag), offline income+upkeep, export/import, migration test done-now. Present (OFFLINE_CAP + backup). Superseded T3-partial (capstoneActive is computed live, not persisted — by design), T6 (away-modal line — deferred). |
 | S10 Cleared for Takeoff (QA) | 1 / 7 / 2 | Formatting, upkeep-floor, capstone flip-flop (no ghost ×), instant/air correctness, event-dedupe, copy, regression ([92]) done-now. Present (`window.IV.state`). Superseded T6 (takeoff juice), T10 (manual playtest). |
 
-## Act II–VI — E18–E30
+### E18 — The Sail-Shaped Hotel (6-star tiers 12/13) · **100/100** (present 33, done-now 47, superseded 20)
+The mid-game "I made it" tier. Tiers 12/13 and the D6/D7 generators already exist on the ladder
+(much of E18 is **present**); the genuine new work: a real Taste-level velvet-rope gate
+(`tasteGate` 30/40 in `accUnlocked`), an 11-item gold + six-star cosmetic cluster (`tag:'luxury'`,
+reusing the E14 machinery — exclusivity/perk/haggle, zero new math), the connoisseur beat-18
+variant + arrival ceremony, and a velvet-rope UI hint. All builds accrue passive Taste (the greedy
+harness has taste 44 at tier 12), so the gate is an emphasis not a wall — island **unchanged at
+29705s**. selftest **[93]** (gate off-by-one, non-connoisseur entry, no re-lock on Taste drop, gold
+feeds connoisseur exclusivity+perk, harness-neutral). Built inline.
 
-_Pending — appended as each phase's build pass audits its 100 tasks. Each row will carry the
-same `present / done-now / superseded` disposition and a per-phase tally in the commit + report._
+- S1 Blueprints (4/6/0): tiers/accScore/ordering present; gate fields + gold/six-star clusters + copy + data test done-now.
+- S2 Big Step Up (4/5/1): accScore/D6-D7/beat-18/penthouse present; Taste gate + gold effects + events + tests done-now. Superseded: hard exclusivity gate → soft velvet-rope (a non-connoisseur has 0 exclusivity and must still enter).
+- S3 Front Desk UI (3/3/4): tier/gold/service buttons present (existing accommodation+amenities panels); gate-progress hint + a11y done-now. Superseded: a separate front-desk panel, gold slot-machine visuals, D6/D7 nudge, DOM-snapshot test.
+- S4 The Sail (headline) (3/5/2): showpiece tier/penthouse/comfort present; arrival ceremony + gold reveal + copy + persist done-now. Superseded: bespoke gold-on-entry reveal animation, first-entry flag (the tier-owned check covers it).
+- S5 Gold Everything (1/7/2): generic buy present; 8 gold + 3 six-star + exclusivity + comfort + cadence + flavor + save done-now. Superseded: `xMult` dormant, cadence tooling.
+- S6 Checking In (6/2/2): tier-12/13 unlock/accScore/reveal/migration present; the Taste gate wiring + arrival done-now. Superseded: gate-top-amenities-on-penthouse, "Tier 12 · Sail" label swap.
+- S7 Aesthete Arrives (3/5/2): connoisseur perk + exclusivity × + Golden-Ratio + softcap present (E14); path points + gate-as-identity + branch copy + neutral floor done-now. Superseded: separate branch reveal art, live re-spec.
+- S8 Weighing the Anchor (3/6/1): ACC/D6-D7/Comfort-cap present; taste/excl gate values + harness (29705) + stack sanity + golden ([93]) + documented knobs done-now. Superseded: exclusivity-gate tuning (soft).
+- S9 Concierge Handover (4/3/3): no new state (tiers/amenities use existing schema + backfill), OFFLINE_CAP/backup/export present; gate re-derived-not-trusted (computed live) + migration test done-now. Superseded: new schema fields (none needed), away-modal line, first-entry flags.
+- S10 White-Glove (2/5/3): formatting/perf present; gate off-by-one + no-eviction + event-dedupe + regression ([93]) + copy done-now. Superseded: gilded-shimmer juice, unlock-order fuzz tooling, manual playtest.
+
+## Act II–VI — E19–E30
+
+_Pending — appended as each phase's build pass audits its 100 tasks._
 
 | Epic | Status |
 |---|---|
-| E18 The Sail-Shaped Hotel | pending |
 | E19 At Your Service | pending |
 | E20 The Whole Household | pending |
 | E21 Seven Stars | pending |
@@ -513,8 +532,8 @@ same `present / done-now / superseded` disposition and a per-phase tally in the 
 ---
 
 ### Running total
-- **Audited:** 1,700 / 3,000 tasks (E01–E17) — present 556, done-now 837, superseded 307.
-- **Remaining:** 1,300 tasks (E18–E30).
+- **Audited:** 1,800 / 3,000 tasks (E01–E18) — present 589, done-now 884, superseded 327.
+- **Remaining:** 1,200 tasks (E19–E30).
 
 ### Deferred balance-tuner backlog (for a consolidated retune, latest at E30)
 - **`savvyPassive()` not ×`L_comfort`** (E06-S7-T4) — a flat sqrt-scaled additive term outside

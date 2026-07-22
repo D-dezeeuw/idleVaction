@@ -15,8 +15,14 @@ export const ACCOMMODATION = [
   { tier: 9,  name: '5-Star Hotel',              flavor: 'The concierge knows things you do not.' },
   { tier: 10, name: '5-Star Signature Suite',    flavor: 'A living room. In a hotel. For you.' },
   { tier: 11, name: 'Grand Luxury Wing',         flavor: 'They close the wing when you arrive.' },
-  { tier: 12, name: '6-Star Sail-Shaped Hotel',  flavor: 'It is shaped like a sail. Naturally.' },
-  { tier: 13, name: 'Ultra Penthouse',           flavor: 'The elevator needs your fingerprint.' },
+  // tiers 12/13 (E18 "The Sail-Shaped Hotel"): the velvet-rope tiers — a real Taste level is
+  // required to check in (tasteGate, enforced in engine.accUnlocked), on top of the Comfort gate.
+  // exclRec is the RECOMMENDED exclusivity (a soft, display-only velvet-rope in the UI — NOT a
+  // hard block, since a non-connoisseur has exclusivity 0 and every build must be able to enter;
+  // the connoisseur clears it naturally). All builds accumulate passive Taste, so the gate is an
+  // emphasis, not a wall (the greedy harness has taste 44 at tier 12 — island stays 29705s).
+  { tier: 12, name: '6-Star Sail-Shaped Hotel',  flavor: 'It is shaped like a sail. Naturally.', tasteGate: 30, exclRec: 40 },
+  { tier: 13, name: 'Ultra Penthouse',           flavor: 'The elevator needs your fingerprint.', tasteGate: 40, exclRec: 120 },
   { tier: 14, name: '7-Star Experience',         flavor: 'A rating that officially does not exist.' },
   { tier: 15, name: 'Royal Suite',               flavor: 'Someone actual-royal slept here. Once.' },
   { tier: 16, name: 'Private Bungalow',          flavor: 'You OWN the walls now.' },

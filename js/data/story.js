@@ -106,7 +106,13 @@ export const STORY = [
     },
     text: 'No terminals, no queues. The sky is a private hallway now.' },
   { id: 18, title: 'The Sail-Shaped Hotel', requires: { accTier: 12 },
-    text: 'Six stars. It is shaped like a sail. Everything is gold. You feel fine about it.' },
+    text: 'Six stars. It is shaped like a sail. Everything is gold. You feel fine about it.',
+    variants: {
+      connoisseur: { title: 'The Sail-Shaped Hotel', text:
+        'A hotel shaped like a sail, for a man who once arrived by poncho. The velvet rope parts ' +
+        'before you touch it — the doorman has read your taste like a wine list. Gold on the taps, ' +
+        'the sea below, the shed a rumour someone else remembers. You made it. Quietly, correctly, you made it.' },
+    } },
   { id: 19, title: 'At Your Service', requires: { comfort: 4e7 },
     text: 'A butler. You ring a small bell and reality rearranges itself.' },
   { id: 20, title: 'The Whole Household', requires: { comfort: 1.2e8 },

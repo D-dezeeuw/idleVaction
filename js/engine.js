@@ -1404,6 +1404,13 @@ export function accCost(state) {
 export function accUnlocked(state) {
   const t = nextAccTier(state);
   if (t >= DATA.accommodation.length) return false;
+  // E18 "The Sail-Shaped Hotel": tiers 12/13 add a real Taste-level gate on top of the Comfort
+  // gate (the velvet rope). Every build accrues passive Taste, so it's an emphasis not a wall —
+  // the greedy harness has taste 44 at tier 12, well past the gate, so island stays 29705s. The
+  // exclusivity requirement is a SOFT/recommended velvet-rope (display only, never a hard block —
+  // a non-connoisseur has exclusivity 0 and must still be able to enter).
+  const gate = DATA.accommodation[t]?.tasteGate;
+  if (gate && state.skills.taste.level < gate) return false;
   return state._comfortCache >= M.accUnlockComfort(t);
 }
 export function buyAccommodation(state) {
@@ -1467,6 +1474,17 @@ export function buyAccommodation(state) {
   // later.
   if (t === 10) {
     notify(state, 'celebrate', '🥂 The 5-Star Signature Suite. A living room. In a hotel. For you. Your poncho has never felt so out of place.');
+  }
+  // the Sail-Shaped Hotel arrival (E18-S4-T5): the mid-game "I made it" moment — the biggest
+  // Comfort step yet, past the Taste velvet rope. Beat 18 fires separately from checkStory() on
+  // the same accTier:12 gate; this is the extra ceremony. A connoisseur nudge on entering.
+  if (t === 12) {
+    notify(state, 'celebrate', '⛵🏆 The 6-Star Sail-Shaped Hotel. A tower shaped like a sail, for a man who arrived by poncho. The velvet rope simply parts. You made it.');
+    addPathPoints(state, 'connoisseur', 1);
+  }
+  if (t === 13) {
+    notify(state, 'celebrate', '👑 The Ultra Penthouse — the crowning room above the sail. The elevator needs your fingerprint. So does the view.');
+    addPathPoints(state, 'connoisseur', 1);
   }
   return true;
 }

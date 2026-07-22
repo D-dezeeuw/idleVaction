@@ -175,6 +175,7 @@ function renderAccommodation(s) {
           <i style="width:${pct.toFixed(1)}%"></i>
         </div>
         <div class="iv-sub">needs Comfort ≥ ${fmt(need)} — you: ${fmt(s.resources.comfort)}${gateOk ? ' ✅' : ''}</div>
+        ${acc.tasteGate ? `<div class="iv-sub">🎩 velvet rope: Taste L${acc.tasteGate}${s.skills.taste.level < acc.tasteGate ? ` — you: L${s.skills.taste.level}` : ' ✅'}${acc.exclRec ? ` <small>(exclusivity ${fmt(acc.exclRec)} recommended)</small>` : ''}</div>` : ''}
         ${gateOk ? btn('buy-acc', '', `Check in — ${fmt(cost)}`, afford(cost), 'btn-primary') : ''}
       </div>`;
     } else {
