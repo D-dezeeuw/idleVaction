@@ -190,7 +190,8 @@ export function newGame() {
     // lineage (E25-A): cosmetic retirement/album bookkeeping. Carried across ascension by
     // prestige.ascend (the keep-list) — never read by any income path.
     lineage: newLineage(),
-    story: { beat: 1, seen: [1], branch: 'neutral', flags: {} },
+    // seenAt (Travel Diary, UX-plan §6): beatId → runSec when it was lived. Display-only.
+    story: { beat: 1, seen: [1], seenAt: { 1: 0 }, branch: 'neutral', flags: {} },
     // ui.bulkMode (E03-S1-T6): the ×1/×10/max buy-quantity toggle, persisted so the
     // choice survives reload instead of living in a transient ui.js module var.
     ui: { bulkMode: 1 },

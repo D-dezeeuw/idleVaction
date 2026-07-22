@@ -4,8 +4,12 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>idleVaction — from soggy shed to private island</title>
-  <!-- The ONLY CDN dependency: Spectre.css (lightweight, no JS). Swappable in one line. -->
+  <!-- CDN dependencies: Spectre.css (lightweight, no JS) + the two holiday Google Fonts
+       (UX-plan §1.2: Fredoka for headings, Nunito for body). Both are plain <link>s — no build. -->
   <link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre.min.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito:wght@400;700;800&display=swap" />
   <link rel="stylesheet" href="css/game.css" />
 </head>
 <body>
@@ -137,6 +141,16 @@
       <h3>🌴 While You Were Away</h3>
       <div id="offlineModalBody"></div>
       <button class="btn btn-sm iv-btn" data-action="dismiss-offline">Got it</button>
+    </div>
+  </div>
+
+  <!-- The Travel Diary (UX-plan §3/§6): every story beat you've lived, as journal pages.
+       Only SEEN beats render — the future stays a secret (Reveal Doctrine R1). -->
+  <div id="diaryModal" class="iv-modal-overlay" hidden>
+    <div class="iv-modal iv-diary" role="dialog" aria-label="Travel diary">
+      <h3>📔 Travel Diary</h3>
+      <div id="diaryBody"></div>
+      <button class="btn btn-sm iv-btn btn-primary" data-action="close-diary">Close the diary</button>
     </div>
   </div>
 
