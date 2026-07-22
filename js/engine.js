@@ -57,7 +57,9 @@ export function tick(state, dt) {
   state.stats.runSec += dt;
   state.meta.playtimeMs += dt * 1000;
 
-  // 1) refresh comfort + destination caches (feed the multiplier stack)
+  // 1) refresh path-stage, comfort + destination caches (feed the multiplier stack) —
+  // _pathBonus first: computeComfort reads the connoisseur stage scalars from it.
+  state._pathBonus = M.computePathBonuses(state, DATA);
   state._comfortCache = M.computeComfort(state, DATA);
   state.resources.comfort = state._comfortCache;
   if (state._comfortCache > state.stats.bestComfort) state.stats.bestComfort = state._comfortCache;
@@ -140,6 +142,7 @@ export function tick(state, dt) {
   checkContentUnlocks(state);
   checkCryptoDeskReveal(state);
   checkWhaleWatching(state);
+  checkPathStages(state);
 
   // 7) concierge: bounded, off-by-default auto-purchase policy (E11 "Five-Star Frame of
   // Mind") — a no-op instant boolean check whenever state.concierge.on is false, so a
@@ -279,9 +282,12 @@ export function checkBodyPathFlags(state) {
 
 // ---------- vlogger clout economy (E12 "Lights, Camera, Clout") ----------
 // Small cross-path hybrid flavor flags (E12-S7-T6), mirroring checkBodyPathFlags's
-// pattern exactly one section above — cosmetic only, never touches income math. Any
-// two paths can be invested in independently (buyPathFocus has no exclusivity), so
-// these are genuinely reachable by a mixed build, not gated on a branch choice.
+// pattern exactly one section above — cosmetic only, never touches income math.
+// NOTE: under the committed-path contract (one path per life, points only accrue to
+// story.branch) these can no longer fire within a single run — they are DORMANT in
+// normal play, kept because debug grants/legacy saves can still reach them and because
+// the lineage plan (E25-A) intends to re-earn them ACROSS generations (a vlogger
+// parent + traveler child = the family's travel-vlog hybrid).
 const HYBRID_PATH_POINTS = 5;
 export function checkPathHybridFlags(state) {
   if (state.paths.vlogger.points >= HYBRID_PATH_POINTS && state.paths.traveler.points >= HYBRID_PATH_POINTS
@@ -298,9 +304,9 @@ export function checkPathHybridFlags(state) {
 
 // Creator Dashboard reveal gate (E12-S3-T6): the vlogger path has points, OR Beat 14
 // (Going Viral) has fired, OR the tier-11 band is reached — whichever comes first.
-// buyPathFocus has no Comfort gate, so this can trigger very early for a player who
-// dabbles in the vlogger path before ever picking a branch — intentional, mirrors
-// conciergeUnlocked's "OR" pattern (E11) exactly.
+// Under the committed-path contract points>0 now implies a committed vlogger life, so
+// the dashboard opens with the commitment itself — the OR contract is unchanged,
+// mirroring conciergeUnlocked's pattern (E11) exactly.
 export function creatorDashboardUnlocked(state) {
   return state.paths.vlogger.points > 0 || state.story.seen.includes(14) || state.accommodation.tier >= 11;
 }
@@ -363,10 +369,11 @@ export function destData(id) { return DATA.destinations.find(d => d.id === id); 
 export function transportData(id) { return DATA.transport.find(t => t.id === id); }
 
 // the active ride's speed shortens the effective cost of reaching a destination
-// (E04-S2-T5: effectiveCost = cost/(1+speed)).
+// (E04-S2-T5: effectiveCost = cost/(1+speed)). The traveler stage-2 bonus (Rail Pass
+// Royalty) speeds whatever ride is active — no ride, nothing to speed up.
 export function transportSpeed(state) {
   const t = transportData(state.transport.activeSlot);
-  return t ? t.speed : 0;
+  return t ? t.speed + M.pathBonus(state, 'speed') : 0;
 }
 
 // a destination reveals once BOTH its unlockAfter prerequisite (the prior place,
@@ -387,7 +394,9 @@ export function destCost(state, id) {
   const ownedCount = Object.values(state.destinations).filter(x => x.owned).length;
   const g = d.costGrowth || C.DEST.costGrowth;
   const raw = d.costBase * Math.pow(g, ownedCount) * M.commsCostMult(state);
-  return raw / (1 + transportSpeed(state));
+  // traveler stages 1+4 (Stamped Passport / The Atlas Personified): flat −25% total at
+  // full track, on top of the ride's speed shortening — bounded by data.
+  return raw * (1 - M.pathBonus(state, 'destDiscount')) / (1 + transportSpeed(state));
 }
 // one-time unlock: permanent global × (L_dest), blocked on a repeat buy (E04-S2-T4/S4-T10).
 export function buyDestination(state, id) {
@@ -399,9 +408,10 @@ export function buyDestination(state, id) {
   state.destinations[id].owned = true;
   state._destCache = M.destMult(state, DATA);
   const d = destData(id);
-  // small traveler head start on first owning a place (E04-S4-T6/S7-T5) — adds to the
-  // EXISTING state.paths.traveler.points read by tierMultiplier's L_path, no new layer.
-  state.paths.traveler.points += (d.pathAffinity && d.pathAffinity.traveler) || 0;
+  // small traveler head start on first owning a place (E04-S4-T6/S7-T5) — via
+  // addPathPoints, so it credits ONLY a committed World Traveler (the anti-hopping
+  // contract): other lives own the place and its L_dest ×, but earn no path points.
+  addPathPoints(state, 'traveler', (d.pathAffinity && d.pathAffinity.traveler) || 0);
   notify(state, 'unlock', `🌍 New destination unlocked: ${d.name} (×${d.mult} global)`);
   return true;
 }
@@ -412,7 +422,7 @@ export function visitDestination(state, id) {
   if (!d || !state.destinations[id].owned) return false;
   state.destinations[id].visits++;
   gainCash(state, C.DEST.visitYield);
-  state.paths.traveler.points += C.DEST.visitPathPoints;
+  addPathPoints(state, 'traveler', C.DEST.visitPathPoints);
   return true;
 }
 // tier-1 rides (bus/train): cash check + add to owned, then switch the active slot —
@@ -493,14 +503,51 @@ export function checkVignettes(state) {
     }
   }
 }
+// The beat-6 crossroads is the ONE commitment ritual per run/life: it can only be
+// answered from a neutral branch (no re-choosing, no hopping — the ascension hard
+// reset is what hands the choice back, so each generation of the lineage can walk a
+// different road), and the chosen id must be a real path. The +5 starter points flow
+// through addPathPoints, which also fires the path's first stage if reached.
 export function applyStoryChoice(state, beatId, set) {
   const beat = DATA.story.find(b => b.id === beatId);
   if (!beat || !beat.choice) return false;
+  if (state.story.branch !== 'neutral') return false;
+  if (!state.paths[set]) return false;
   state.story.branch = set;
   state.story.flags['branch_' + set] = true;
-  if (state.paths[set]) state.paths[set].points += 5;
+  addPathPoints(state, set, 5);
   notify(state, 'story', `Path chosen: ${set}`);
   return true;
+}
+
+// ---------- committed-path points + staged tracks (data/paths.js `stages`) ----------
+// The ONLY way path points accrue: credits land solely on the life's chosen road
+// (story.branch), so cross-path nudges (destination affinities for non-travelers, coin
+// buys for non-crypto lives, …) are simply no-ops — hopping earns nothing. Refreshes
+// the per-tick _pathBonus/_comfortCache caches and fires any newly-reached stage.
+export function addPathPoints(state, id, n) {
+  if (!(n > 0) || state.story.branch !== id) return false;
+  state.paths[id].points += n;
+  state._pathBonus = M.computePathBonuses(state, DATA);
+  checkPathStages(state);
+  state._comfortCache = M.computeComfort(state, DATA);
+  return true;
+}
+// Stage reveal: each reached threshold fires once per run (story.flags — wiped by the
+// ascension hard reset, so every life re-walks its track), announces the path's story
+// continuation (`desc`), and its flat bonus is live via the recomputed _pathBonus.
+export function checkPathStages(state) {
+  const p = DATA.paths.find(x => x.id === state.story.branch);
+  if (!p) return;
+  const pts = state.paths[p.id].points;
+  for (const st of p.stages) {
+    if (pts < st.at) break;
+    const flagKey = `pathStage_${p.id}_${st.at}`;
+    if (state.story.flags[flagKey]) continue;
+    state.story.flags[flagKey] = true;
+    state._pathBonus = M.computePathBonuses(state, DATA);
+    notify(state, 'story', `📜 ${st.name} — ${st.desc}`);
+  }
 }
 
 // ---------- purchases ----------
@@ -563,7 +610,8 @@ export function amenityData(id) { return DATA.amenities.find(a => a.id === id); 
 export function amenityCost(state, id) {
   const a = amenityData(id); const lvl = state.amenities[id].level;
   const g = a.costGrowth || C.AMENITY.growthDefault;
-  return a.costBase * Math.pow(g, lvl) * M.commsCostMult(state);
+  // connoisseur stage 2 (On the List): flat amenity discount on top of commsCostMult.
+  return a.costBase * Math.pow(g, lvl) * (1 - M.pathBonus(state, 'amenityDiscount')) * M.commsCostMult(state);
 }
 export function amenityUnlocked(state, id) {
   return state._comfortCache >= (amenityData(id).unlockComfort || 0) || state.amenities[id].level > 0;
@@ -599,12 +647,16 @@ export function pathCost(state, id) {
   const p = pathData(id);
   return p.focusCostBase * Math.pow(p.focusCostGrowth, state.paths[id].focusBought) * M.commsCostMult(state);
 }
+// Focus only flows into the life's COMMITTED road (story.branch, chosen at the beat-6
+// crossroads) — before commitment, and for every other path, this is a hard no-op.
+// That is the anti-hopping contract: one path per run, re-chosen fresh each ascension.
 export function buyPathFocus(state, id) {
+  if (state.story.branch !== id) return false;
   const cost = pathCost(state, id);
   if (state.resources.cash < cost) return false;
   state.resources.cash -= cost;
   state.paths[id].focusBought++;
-  state.paths[id].points++;
+  addPathPoints(state, id, 1);
   return true;
 }
 
@@ -629,9 +681,9 @@ export function buyContent(state, id) {
   state.resources.cash -= cost;
   state.content[id].level++;
   // one-off vlogger path-point nudge (E12-S7-T4) — mirrors DEST.visitPathPoints'
-  // "one-off on a discrete purchase, never a per-tick trickle" pattern exactly, so it
-  // can't compound into a runaway the way a continuous trickle would.
-  state.paths.vlogger.points += C.CLOUT.contentPathNudge;
+  // "one-off on a discrete purchase, never a per-tick trickle" pattern exactly; via
+  // addPathPoints it credits ONLY a committed vlogger life (anti-hopping contract).
+  addPathPoints(state, 'vlogger', C.CLOUT.contentPathNudge);
   return true;
 }
 export function contentBoostCost(state, id) {
@@ -700,9 +752,12 @@ export function acceptSponsor(state, id) {
   if (!d || state.sponsors.offer !== id || state.sponsors.active) return false;
   if (!sponsorRequiresMet(state, d.requires)) return false;
   if ((state.sponsors.cooldowns[id] || 0) > state.stats.runSec) return false;
-  state.sponsors.active = { id, mult: d.mult, expiresAtSec: state.stats.runSec + d.durationSec };
+  // vlogger stage 4 (Main Character Energy) stretches the deal window — duration only,
+  // never the mult, so the bonus can't stack multiplicatively with the deal itself.
+  const dur = d.durationSec * (1 + M.pathBonus(state, 'sponsorDur'));
+  state.sponsors.active = { id, mult: d.mult, expiresAtSec: state.stats.runSec + dur };
   state.sponsors.offer = null;
-  notify(state, 'sponsor', `🤝 Deal accepted: ${d.name} — Clout ×${d.mult} for ${d.durationSec}s.`);
+  notify(state, 'sponsor', `🤝 Deal accepted: ${d.name} — Clout ×${d.mult} for ${Math.round(dur)}s.`);
   return true;
 }
 
@@ -747,8 +802,9 @@ export function buyCoin(state, id, qty = 1) {
   state.crypto.holdings[id] = (state.crypto.holdings[id] || 0) + qty;
   // one-off crypto path-point nudge per purchase (E13-S7-T8 "the lane self-feeds"),
   // mirrors DEST.visitPathPoints/CLOUT.contentPathNudge's established "one-off on a
-  // discrete action, never a per-tick trickle" pattern exactly.
-  state.paths.crypto.points += C.MARKET.buyPathNudge * qty;
+  // discrete action, never a per-tick trickle" pattern; via addPathPoints it credits
+  // ONLY a committed crypto life — anyone may hold coins, only the path earns points.
+  addPathPoints(state, 'crypto', C.MARKET.buyPathNudge * qty);
   return true;
 }
 // sells at MARKET.sellFrac of the marginal unit's buy price, modulated by the LIVE
@@ -760,7 +816,10 @@ export function sellCoin(state, id, qty = 1) {
   qty = Math.max(0, Math.floor(qty));
   const held = state.crypto.holdings[id] || 0;
   if (qty <= 0 || qty > held) return false;
-  const unitPrice = M.coinUnitCost(c, Math.max(0, held - qty)) * C.MARKET.sellFrac * M.marketMult(state, DATA);
+  // crypto stage 3 (Exit Liquidity (Theirs)) raises the payout fraction, capped well
+  // short of 1 so selling never becomes a free round-trip against commsCostMult buys.
+  const sellFrac = Math.min(0.95, C.MARKET.sellFrac + M.pathBonus(state, 'sellBonus'));
+  const unitPrice = M.coinUnitCost(c, Math.max(0, held - qty)) * sellFrac * M.marketMult(state, DATA);
   state.crypto.holdings[id] = held - qty;
   // proceeds bank through the wallet cap like every other inflow (one rule, no side
   // doors) — selling into a full wallet spills to overflowLost, and the Crypto Desk
@@ -838,7 +897,7 @@ function marketTick(state) {
     // from both spend AND volatility, not spend alone.
     if (ev.kind === 'crash') {
       state.skills.savvy.xp += SAVVY_CRASH_SURVIVE_XP;
-      state.paths.crypto.points += C.MARKET.buyPathNudge;
+      addPathPoints(state, 'crypto', C.MARKET.buyPathNudge);
     }
     if (ev.id === 'whale_boom') state.skills.savvy.xp += SAVVY_WHALE_XP;
     refreshSkillLevels(state);
@@ -848,9 +907,8 @@ function marketTick(state) {
 }
 
 // Reveal gate (E13-S3-T8): mirrors creatorDashboardUnlocked's exact OR contract — the
-// crypto path has points (buyPathFocus has no Comfort gate, so this can trigger early
-// for a dabbler before any branch is chosen), OR beat 14 has fired, OR the tier-11 band
-// is reached, whichever comes first.
+// crypto path has points (which under the committed-path contract means a committed
+// crypto life), OR beat 14 has fired, OR the tier-11 band is reached, whichever first.
 export function cryptoDeskUnlocked(state) {
   return state.paths.crypto.points > 0 || state.story.seen.includes(14) || state.accommodation.tier >= 11;
 }
@@ -874,7 +932,7 @@ export function checkWhaleWatching(state) {
   if (state.story.branch !== 'crypto' || !state.story.seen.includes(14)) return;
   state.story.flags.whaleWatched = true;
   state.skills.savvy.xp += WHALE_WATCH_XP_BONUS;
-  state.paths.crypto.points += WHALE_WATCH_PATH_BONUS;
+  addPathPoints(state, 'crypto', WHALE_WATCH_PATH_BONUS);
   refreshSkillLevels(state);
   notify(state, 'celebrate', '🐋 Whale Watching: you clocked the pattern before the chart did. Savvy sharpens — the market, ever so slightly, notices you noticing.');
 }

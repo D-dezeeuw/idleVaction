@@ -36,11 +36,16 @@ export function tierMultiplier(state, k) {
 
   const L_upgrade = upgradeMult(g.upgrades);
 
-  // L_path: paths that target social tiers (k=1,2 → followers/sponsors) get a boost
+  // L_path: paths that target social tiers (k=1,2 → followers/sponsors) get a boost.
+  // The committed path's stage bonuses join ADDITIVELY within this layer (house rule):
+  // 'social' (vlogger's Verified Blue) on social tiers, 'global' (traveler's
+  // Continental Fixture) on all tiers — flat data constants, see computePathBonuses.
   const social = (k === 1 || k === 2);
   const vlog = state.paths.vlogger.points;
   const L_path = 1 + (social ? C.PATH.rate * Math.pow(vlog, C.PATH.softcapExp) : 0)
-                   + C.PATH.rate * Math.pow(state.paths.traveler.points, C.PATH.softcapExp) * 0.5;
+                   + C.PATH.rate * Math.pow(state.paths.traveler.points, C.PATH.softcapExp) * 0.5
+                   + (social ? pathBonus(state, 'social') : 0)
+                   + pathBonus(state, 'global');
 
   // L_skill: charisma boosts social tiers
   const L_skill = 1 + (social ? C.CHARISMA_RATE * state.skills.charisma.level : 0);
@@ -88,6 +93,30 @@ export function pathMult(points) {
   return 1 + C.PATH.rate * Math.pow(Math.max(0, points), C.PATH.softcapExp);
 }
 
+// ---- committed-path stage bonuses (the branching-track layer) ----
+// Aggregates the CHOSEN path's reached stages (data/paths.js `stages`, thresholds in
+// points) into one flat {key: sum} bag. Only story.branch's own track counts — points
+// can't accrue elsewhere anyway (engine.addPathPoints), so path-hopping earns nothing.
+// Every value is a sum of flat data constants (validatePaths enforces the vocabulary),
+// so this layer is bounded by construction. DATA passed explicitly (house convention);
+// engine.tick caches the result as state._pathBonus (recomputed after any point/branch
+// change), and pathBonus() below is the cheap accessor the hot paths read — mirroring
+// the _comfortCache/_destCache pattern exactly.
+export function computePathBonuses(state, DATA) {
+  const out = {};
+  const chosen = DATA.paths.find(p => p.id === state.story.branch);
+  if (!chosen) return out;
+  const pts = state.paths[chosen.id].points;
+  for (const st of chosen.stages) {
+    if (pts < st.at) break;
+    for (const [k, v] of Object.entries(st.bonus)) out[k] = (out[k] || 0) + v;
+  }
+  return out;
+}
+export function pathBonus(state, key) {
+  return (state._pathBonus && state._pathBonus[key]) || 0;
+}
+
 // ---- bank account ladder: the wallet cap (offline-lump control) ----
 // Capacity of a given bank tier: base·growth^tier, except the LAST configured tier,
 // which is uncapped (Infinity) so endgame D6–D8 purchases and NG+ magnitudes are never
@@ -126,9 +155,11 @@ export function amenityScoreTotal(state, DATA) {
 // count itself (docs/math-proof.md §12; Ageless already covers "plusher later runs"
 // through the same door as everything else: +Body levels → +Comfort).
 export function computeComfort(state, DATA) {
-  return C.COMFORT.wAcc * accScore(state.accommodation.tier)
-       + C.COMFORT.wAmen * amenityScoreTotal(state, DATA)
-       + C.COMFORT.wBody * state.skills.body.level;
+  // connoisseur stage bonuses (data/paths.js): flat, additive-within-source scalars on
+  // the amenity/accommodation terms and one on the total — zero for every other path.
+  return (C.COMFORT.wAcc * accScore(state.accommodation.tier) * (1 + pathBonus(state, 'accComfort'))
+        + C.COMFORT.wAmen * amenityScoreTotal(state, DATA) * (1 + pathBonus(state, 'amenityComfort'))
+        + C.COMFORT.wBody * state.skills.body.level) * (1 + pathBonus(state, 'comfortAll'));
 }
 // Comfort required to unlock a given accommodation tier (see config.ACC.unlockFrac).
 export function accUnlockComfort(tier) {
@@ -248,7 +279,8 @@ export function sponsorMult(state) {
 // decayCombo deliberately keeps using the base comboMax for its decay RATE, unchanged
 // — see config.CLOUT's comment).
 export function effectiveComboMax(state) {
-  return C.CLOUT.comboMax + (state.story.branch === 'vlogger' ? C.CLOUT.vloggerComboBonus : 0);
+  return C.CLOUT.comboMax + (state.story.branch === 'vlogger' ? C.CLOUT.vloggerComboBonus : 0)
+       + pathBonus(state, 'comboMax');   // vlogger stage 1 (First Thousand)
 }
 
 // dClout/dt (E12-S2-T1): the single pure source of truth for Clout production —
@@ -268,7 +300,8 @@ export function cloutRate(state, DATA) {
   const magnetic = 1 + 0.1 * (state.ascension.tree.magnetic || 0);
   const pathBoost = 1 + state.paths.vlogger.points * 0.05;
   const sponsor = sponsorMult(state);
-  return base * charisma * combo * vloggerPerk * magnetic * pathBoost * sponsor;
+  const stage = 1 + pathBonus(state, 'cloutMult');   // vlogger stage 2 (The Algorithm Stirs)
+  return base * charisma * combo * vloggerPerk * magnetic * pathBoost * sponsor * stage;
 }
 
 // ---- permanent skill tree effects ----
@@ -321,7 +354,10 @@ export function crashDampTotal(state, DATA) {
   hedgeDamp = Math.min(hedgeDamp, 0.9);
   const rank = state.ascension.tree.unshakeable || 0;
   const unshakeableDamp = 1 - Math.pow(0.5, rank);
-  const total = 1 - (1 - hedgeDamp) * (1 - unshakeableDamp);
+  // crypto stage 2 (Diamond Hands) folds in multiplicatively like the other sources;
+  // the config.MARKET.maxCrashDamp clamp below still owns the never-full-immunity cap.
+  const stageDamp = pathBonus(state, 'crashDamp');
+  const total = 1 - (1 - hedgeDamp) * (1 - unshakeableDamp) * (1 - stageDamp);
   return Math.min(total, C.MARKET.maxCrashDamp);
 }
 // HEDGES' varianceDamp shrinks the baseline "chop" jitter (below) — additive, capped.
@@ -362,7 +398,10 @@ export function cryptoYieldPerSec(state, DATA) {
   let base = 0;
   for (const c of DATA.crypto.coins) base += (state.crypto.holdings[c.id] || 0) * c.yieldPerUnit;
   if (base <= 0) return 0;
-  return base * pathMult(state.paths.crypto.points) * marketMult(state, DATA);
+  // crypto stages 1+4 (First Cold Wallet / The Whale Nods Back): flat +75% total at
+  // full track — bounded by data, still exactly zero with no holdings.
+  return base * pathMult(state.paths.crypto.points) * (1 + pathBonus(state, 'yieldMult'))
+       * marketMult(state, DATA);
 }
 
 // ---- prestige ----

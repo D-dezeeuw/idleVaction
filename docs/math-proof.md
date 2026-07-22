@@ -534,14 +534,18 @@ carry-overs stacked:
 
 ### 12.4 Fitted result (`ASCEND_GATE = { base 6, exp 2, span 20, countExp 0.5 }`)
 
+Current curve (re-measured after the committed-path staged tracks of §13 landed — the
+original fit measured runs 1–6 at 8h37m/9h13m/10h08m/10h37m/11h18m/11h30m with the same
+shape; the stage bonuses shifted every run ~20–50 min faster, contract intact):
+
 | run | ascension | island | tier 5 | tier 18 |
 |---|---|---|---|---|
-| 1 | 0 | **8h 37m** (unchanged — count 0 ⇒ gate ×1) | 1h 26m | 7h 03m |
-| 2 | 1 | **9h 13m** | 1h 19m | 7h 32m |
-| 3 | 2 | **10h 08m** | 1h 19m | 7h 59m |
-| 4 | 3 | **10h 37m** | 1h 19m | 8h 19m |
-| 5 | 4 | **11h 18m** | 1h 22m | 8h 37m |
-| 6 | 5 | **11h 30m** | 1h 22m | 8h 57m |
+| 1 | 0 | **8h 15m** (count 0 ⇒ gate ×1 — the golden baseline itself) | 1h 28m | 6h 53m |
+| 2 | 1 | **8h 40m** | 1h 20m | 7h 12m |
+| 3 | 2 | **9h 29m** | 1h 20m | 7h 37m |
+| 4 | 3 | **9h 54m** | 1h 19m | 7h 54m |
+| 5 | 4 | **10h 30m** | 1h 22m | 8h 09m |
+| 6 | 5 | **10h 40m** | 1h 23m | 8h 27m |
 
 Every ascension ≥ 8h ✓; early tiers consistently *faster* than run 1 and late tiers
 *slower* (the requested parabola) ✓; increments decay toward a ~11–12h plateau instead
@@ -555,6 +559,39 @@ Asserted in `selftest [86]`: gate ×1 for the whole first run (the golden pins c
 move), parabola + √-count formula properties, the deflated Legacy credit, the complete
 hard-reset keep-list audit, and a full simulated ascended run held inside the 8–14h
 band with early tiers faster than run 1.
+
+---
+
+## 13. Committed paths & staged tracks (design directive, **applied & measured**)
+
+The four build paths went from "pour focus into any mix" to **one committed road per
+run/life**: the beat-6 crossroads sets `story.branch`; `buyPathFocus` and every
+path-point nudge (`engine.addPathPoints` — destination affinities, content buys, coin
+buys, crash survivals) are hard no-ops for every other path, so hopping earns nothing.
+The ascension hard reset (§12) hands the choice back — build variety lives *between*
+lives, which is precisely what makes the lineage loop (docs/04 §1b) worth replaying.
+
+On top of the smooth softcap each path is a **staged track** (`data/paths.js`):
+thresholds at 5/15/30/50 points, each stage firing once per run with a story
+continuation and ONE unique flat bonus (vlogger → combo/Clout/social/sponsor-duration;
+crypto → yield/crash-damp/sell-fraction; traveler → destination-cost/speed/global;
+connoisseur → Comfort scalars/amenity discount).
+
+**Why this layer cannot break the economy:** every bonus is a flat data constant from a
+fixed vocabulary (`validatePaths` rejects unknown keys), aggregated by simple summation
+over at most four stages of ONE path (`math.computePathBonuses`) — the layer's total
+effect is bounded above by the sum of one path's four rows, independent of time, cash,
+or points beyond the last threshold. The multiplicative entries fold into existing
+bounded structures (the `L_path` additive layer, the crash-damp clamp, the sell-frac
+cap at 0.95), so no new feedback loop exists.
+
+**Measured impact:** the greedy bot (a committed vlogger from beat 6) reaches the
+island at **8h 15m 05s (29 705 s — the new pinned baseline)** vs 8h 37m 00s before —
+the Verified Blue social bonus nets ~22 minutes across the mid-game; peak `log10(cash)`
+11.3 and the 26-beat monotone curve are unchanged, and the ascension band re-fit is
+§12.4's table. Contract tests: `selftest [74]` (commitment: no pre-choice focus, no
+re-choice, cross-path nudges are no-ops), `[87]` (thresholds fire exactly at X points,
+stage bonuses are unique per path, the hard reset clears the track).
 
 ---
 

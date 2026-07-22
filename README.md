@@ -40,7 +40,7 @@ npm run serve      # then open http://localhost:8080
 
 # verify the economy headlessly
 npm test           # js/dev/selftest.mjs → asserts (basics, run, ascension, save, offline)
-npm run harness    # js/dev/harness.mjs → prints the pacing curve (greedy ROI island ≈ 8h37m,
+npm run harness    # js/dev/harness.mjs → prints the pacing curve (greedy ROI island ≈ 8h15m,
                    #   a hard lower bound — casual/idle play lands the ~20h arc)
 ```
 
@@ -53,7 +53,7 @@ save/load/export/import with versioned migration, a **speed control** for pacing
 panel, and an optional clicker (for small between-tick gains — never the fastest path).
 
 > The economy is **fitted to the ~20-hour target**: the greedy-optimal ROI harness lands the
-> Private Island at **~8h37m** — a hard lower bound, so casual/idle play is ~20h+ — with the
+> Private Island at **~8h15m** — a hard lower bound, so casual/idle play is ~20h+ — with the
 > story beats spread monotonically across the run and cash magnitude kept safely inside
 > `double`. Every balance number lives in `js/config.js`. Getting here meant finding and
 > fixing a finite-time singularity **and** an unbounded offline-income lump — the full

@@ -1022,20 +1022,59 @@ function pathMeterHtml(s) {
   return html;
 }
 
+// The staged track of ONE path (the committed one): reached stages show their story
+// continuation; the next stage previews its threshold + what continuing the path leads
+// to ("gain at least X levels before progressing"); later stages stay name-only teasers.
+function pathTrackHtml(s, p) {
+  const pts = s.paths[p.id].points;
+  let html = '<div class="iv-path-track">';
+  let nextShown = false;
+  for (const st of p.stages) {
+    if (pts >= st.at) {
+      html += `<div class="iv-acc-row iv-acc-owned">✅ <b>${st.name}</b> <small>(${st.at} pts)</small><div class="iv-sub">${st.desc}</div></div>`;
+    } else if (!nextShown) {
+      nextShown = true;
+      const pct = clamp(100 * pts / st.at, 0, 100);
+      html += `<div class="iv-acc-row iv-acc-next">➡️ Next: <b>${st.name}</b> <small>needs ${st.at} pts — you: ${fmt(pts)}</small>
+        <div class="iv-comfort-meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct.toFixed(0)}"
+          aria-label="Progress toward ${st.name}"><i style="width:${pct.toFixed(1)}%"></i></div>
+        <div class="iv-sub">${st.desc}</div></div>`;
+    } else {
+      html += `<div class="iv-acc-row iv-acc-locked">🔒 ${st.name} <small>${st.at} pts</small></div>`;
+    }
+  }
+  return html + '</div>';
+}
+
 function renderPaths(s) {
   let html = s.accommodation.tier >= 2 ? npcRosterHtml(s) : '';
-  html += pathMeterHtml(s);
-  html += '<div class="iv-amenities">';
-  for (const p of DATA.paths) {
-    const cost = E.pathCost(s, p.id);
-    const pts = s.paths[p.id].points;
+  const chosen = DATA.paths.find(p => p.id === s.story.branch);
+  if (!chosen) {
+    // uncommitted: a compare view. The beat-6 crossroads (Story panel) is the ONE
+    // commitment ritual — one road per life; ascension hands the choice back.
+    html += `<div class="iv-sub">🛤️ Four roads, one life. Choose at the crossroads (Story, beat 6) —
+      your heir can walk a different one. <b>Committing is what unlocks a path's staged track below.</b></div>`;
+    html += '<div class="iv-amenities">';
+    for (const p of DATA.paths) {
+      html += `<div class="iv-path">
+        <b>${p.name}</b>
+        <div class="iv-sub">${p.identity}<br><i>Perk:</i> ${p.perk}</div>
+        <div class="iv-sub">${p.stages.map(st => `${st.at}pts · ${st.name}`).join(' → ')}</div>
+      </div>`;
+    }
+    html += '</div>';
+  } else {
+    const cost = E.pathCost(s, chosen.id);
+    const pts = s.paths[chosen.id].points;
     html += `<div class="iv-path">
-      <b>${p.name}</b> <span class="label">${pts} pts</span>
-      <div class="iv-sub">${p.identity}<br><i>Perk:</i> ${p.perk}</div>
-      ${btn('buy-path', p.id, `Focus<br><small>${fmt(cost)}</small>`, afford(cost))}
+      <b>${chosen.name}</b> <span class="label">${fmt(pts)} pts · ×${fmt(M.pathMult(pts))}</span>
+      <div class="iv-sub">${chosen.identity}<br><i>Perk:</i> ${chosen.perk}</div>
+      ${btn('buy-path', chosen.id, `Focus<br><small>${fmt(cost)}</small>`, afford(cost))}
     </div>`;
+    html += pathTrackHtml(s, chosen);
+    const others = DATA.paths.filter(p => p.id !== chosen.id).map(p => p.name).join(' · ');
+    html += `<div class="iv-sub">🚪 Roads not taken this life: ${others} — another generation, perhaps.</div>`;
   }
-  html += '</div>';
   el('paths').innerHTML = html;
 }
 
