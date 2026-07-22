@@ -173,12 +173,17 @@ export function tick(state, dt) {
   checkHangarReveal(state);
   checkFirstJet(state);
   checkCapstone(state);
+  checkButlerReveal(state);
   checkPathStages(state);
 
   // 7) concierge: bounded, off-by-default auto-purchase policy (E11 "Five-Star Frame of
   // Mind") — a no-op instant boolean check whenever state.concierge.on is false, so a
   // fresh game (and the harness, which never flips it on) pay no cost and never buy.
   conciergeTick(state, dt);
+
+  // 8) staff payroll + butler automation (E19) — no-op unless someone is hired, so the harness
+  // (which never hires) pays nothing and automates nothing; the fitted island cannot move.
+  staffTick(state, dt);
 }
 
 function applyTransportUpkeep(state, dt) {
@@ -1390,6 +1395,98 @@ export function checkCapstone(state) {
   notify(state, 'celebrate', `🏁 Logistics Capstone: car + boat + jet — the holy trinity of not taking the bus. All income ×${(1 + C.LOGISTICS.capstone).toFixed(2)}.`);
 }
 
+// ---------- staff & automation: the butler (E19 "At Your Service") ----------
+// A hireable butler with a continuous PAYROLL wage (the new sink) whose auto-buy REUSES the E11
+// concierge's proven bounded ROI machinery (conciergeCandidates). OFF until hired — a fresh
+// newGame() and the greedy harness never hire, so payroll is 0 and nothing is automated: the
+// fitted 29705s island cannot move (same off-by-default invariance as the concierge).
+export function staffDef(id) { return DATA.staff.find(s => s.id === id); }
+export function staffUnlocked(state) {
+  // the butler becomes hireable once the staff era is reached: beat 19 fired, or the penthouse
+  // (tier 13) is owned — the story wires both. (Comfort 4e7 gates beat 19.)
+  return state.story.seen.includes(19) || state.accommodation.tier >= 13;
+}
+export function hireStaff(state, id) {
+  const def = staffDef(id); const st = state.staff[id];
+  if (!def || !st || st.hired) return false;
+  if (!staffUnlocked(state)) return false;
+  const cost = M.staffHireCost(def);
+  if (state.resources.cash < cost) return false;
+  state.resources.cash -= cost;
+  st.hired = true;
+  st.policy.categories = def.categories.slice();
+  notify(state, 'unlock', `🔔 Hired: ${def.name}. He introduces himself and silently reorganizes your minibar.`);
+  return true;
+}
+export function staffLevelCost(state, id) { const def = staffDef(id); return M.staffLevelCost(def, state.staff[id].level); }
+export function levelStaff(state, id) {
+  const def = staffDef(id); const st = state.staff[id];
+  if (!def || !st || !st.hired) return false;
+  const cost = staffLevelCost(state, id);
+  if (state.resources.cash < cost) return false;
+  state.resources.cash -= cost;
+  st.level += 1;
+  // +1 auto-buy category per level (from a fixed order), so leveling widens scope (E19-S2-T6).
+  const extra = ['generator', 'upgrade'];
+  const want = def.categories.concat(extra.slice(0, st.level));
+  st.policy.categories = [...new Set(want)];
+  return true;
+}
+// per-butler effective auto-buy interval: base, −10%/level, floored (E19-S2-T6).
+function butlerInterval(state, st) {
+  return Math.max(C.STAFF.minInterval, C.STAFF.autoBuyInterval * Math.pow(0.9, st.level));
+}
+// payroll drain + bounded auto-buy, run every tick from engine.tick. Deterministic in game-time,
+// so offline macro-step replay matches online exactly.
+function staffTick(state, dt) {
+  const payroll = M.payrollTotal(state, DATA);
+  if (payroll <= 0) return;   // nobody hired ⇒ no-op (harness path)
+  const due = payroll * dt;
+  const bt = state.staff.butler;
+  if (state.resources.cash >= due) {
+    state.resources.cash -= due;
+    bt.totalWages += due;
+    state.story.flags.payrollUnpaid = false;
+  } else {
+    // can't make payroll: pay what we can, pause automation, nudge morale down (feeds E20).
+    bt.totalWages += state.resources.cash;
+    state.resources.cash = 0;
+    state.story.flags.payrollUnpaid = true;
+    bt.morale = Math.max(0, bt.morale - 5 * dt);
+    return;   // no automation while unpaid
+  }
+  // butler auto-buy (bounded, reusing the concierge ROI candidates)
+  if (!bt.hired || !bt.policy.autoBuy) return;
+  bt.tickAccum = (bt.tickAccum || 0) + dt;
+  const iv = butlerInterval(state, bt);
+  if (bt.tickAccum < iv) return;
+  bt.tickAccum = 0;
+  const reserve = C.STAFF.reserveSec * payroll;          // keep N seconds of wages in reserve
+  let budget = bt.policy.budgetFrac * state.resources.cash;
+  const cands = conciergeCandidates(state, bt.policy.categories);
+  const names = [];
+  for (const c of cands) {
+    if (c.cost > budget) continue;
+    if (state.resources.cash - c.cost < reserve) continue;   // never starve payroll
+    let ok = false;
+    if (c.category === 'amenity') { const n = amenityData(c.id).name; ok = buyAmenity(state, c.id); if (ok) names.push(n); }
+    else if (c.category === 'generator') { ok = buyGenerator(state, c.k, 1); if (ok) names.push(DATA.generators[c.k].name); }
+    else if (c.category === 'upgrade') { ok = buyGenUpgrade(state, c.k); if (ok) names.push(DATA.generators[c.k].name + ' upgrade'); }
+    if (ok) { budget -= c.cost; bt.totalSpent += c.cost; }
+  }
+  if (names.length) {
+    bt.lastActions = names.slice(-5);
+    // batched, not per-item (E19-S10-T4) — one quiet line per scheduler tick.
+    notify(state, 'autobuy', `🤵 The Butler acquired ${names.length} item${names.length > 1 ? 's' : ''}. He did not smile.`);
+  }
+}
+export function checkButlerReveal(state) {
+  if (state.story.flags.butlerRevealed) return;
+  if (!staffUnlocked(state)) return;
+  state.story.flags.butlerRevealed = true;
+  notify(state, 'unlock', '🔔 Staff quarters open: you may hire a Butler to automate the tedium — for a wage, of course.');
+}
+
 export function nextAccTier(state) { return state.accommodation.tier + 1; }
 // cash cost for ANY tier (not just the next one) — used by the ladder panel to price a
 // lookahead window of upcoming tiers, not only the immediately-purchasable one.
@@ -1550,8 +1647,8 @@ const CONCIERGE_AMENITY_HORIZON_SEC = 1800; // same payback horizon dev/harness.
 // a cosmetic amenity. Generator/upgrade candidates use a scale-free "relative output (or
 // L_upgrade) gain per cost" — always positive (there is no cosmetic generator/upgrade in
 // this economy), matching "greedy, not clever, no lookahead" (E11-S4-T5).
-export function conciergeCandidates(state) {
-  const wl = state.concierge.whitelist;
+export function conciergeCandidates(state, whitelist) {
+  const wl = whitelist || state.concierge.whitelist;   // E19: the butler passes its own categories
   const out = [];
   if (wl.includes('amenity')) {
     const cashRate = M.tierProd(state, 0) + M.savvyPassive(state);

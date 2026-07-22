@@ -13,6 +13,7 @@ import { validatePaths } from '../data/paths.js';
 import { validateCollections } from '../data/collections.js';
 import { validateVehicles } from '../data/vehicles.js';
 import { validateLogistics } from '../data/logistics.js';
+import { validateStaff } from '../data/staff.js';
 import { fmt, fmtTime, rng } from '../util.js';
 // E11 harness-invariance guard ([62] below): importing runCurve does NOT auto-run the
 // harness's own report() — that's guarded behind `process.argv[1].endsWith('harness.mjs')`,
@@ -1177,7 +1178,9 @@ console.log('\n[37] E08 beach cluster + service chain: data validation + gap-fil
   ok(service.find(a => a.id === 'service_concierge_seed').staffHint === true,
     'service_concierge_seed carries the staffHint flag as the pre-staff bridge to E11/E19');
   ok(service.filter(a => a.staffHint).length === 1, 'staffHint is exclusive to the concierge-seed tier in this chain');
-  ok(!('staff' in ST.newGame()), 'no staff state exists yet — the staffHint is pure flavor, it activates nothing (E08-S4-T10)');
+  // E19 landed the staff system: state.staff now exists, but the butler starts UNHIRED, so the
+  // E08 staffHint remains pure flavor that activates nothing until the player hires at beat 19.
+  ok(ST.newGame().staff.butler.hired === false, 'the staff system exists (E19) but the butler starts UNHIRED — the E08 staffHint still activates nothing on its own');
 
   // guardrail: no separate `w_service` Comfort weight / `service` weight field was added —
   // "better service" shows up as a bigger `comfort` number, same convention as every other
@@ -3839,6 +3842,68 @@ console.log('\n[93] E18 Sail-Shaped Hotel: Taste gate on tiers 12/13, gold clust
   // and the harness (vlogger, no connoisseur activity) sees gold exclusivity as 0
   const hv = ST.newGame(); hv.amenities.gold_slippers.level = 5;
   ok(M.computeExclusivity(hv, DATA) === 0, 'gold amenities add 0 exclusivity for a non-connoisseur (gated) — harness-neutral');
+}
+
+// ---------- 94. E19 "At Your Service": the butler — payroll sink + bounded auto-buy, off by default.
+console.log('\n[94] E19 At Your Service: the butler, payroll sink, bounded auto-buy, invariance');
+{
+  ok(validateStaff(), 'validateStaff() passes on the shipped roster');
+  ok(ST.newGame().staff.butler.hired === false, 'the butler starts UNHIRED');
+
+  // ---- harness invariance: the greedy player never hires, so payroll 0 + no automation
+  const { s: hs, islandAt, peakLog } = runCurve({ dt: 5, maxHours: 40 });
+  ok(Math.abs(islandAt - 29705) < 1, `harness island time is UNCHANGED by E19 (got ${fmtTime(islandAt)}, expected 29705s — the butler is off by default)`);
+  ok(peakLog < 290, `peak log10(cash) (${peakLog.toFixed(1)}) stays under the ceiling`);
+  ok(hs.staff.butler.hired === false && M.payrollTotal(hs, DATA) === 0, 'the harness never hires the butler (payroll 0 throughout)');
+
+  // ---- hire gate: not hireable before the staff era; wage/cost pure fns
+  const g = ST.newGame();
+  ok(E.staffUnlocked(g) === false, 'the butler is not hireable on a fresh game');
+  ok(E.hireStaff(g, 'butler') === false, 'hiring before the staff era is rejected');
+  g.accommodation.tier = 13;
+  ok(E.staffUnlocked(g) === true, 'the penthouse (tier 13) opens the staff era');
+  ok(approx(M.staffWage(E.staffDef('butler'), 0), E.staffDef('butler').wageBase), 'staffWage(def,0) = wageBase');
+  g.resources.cash = 1e10; g.bank.tier = C.BANK.tiers - 1;
+  ok(E.hireStaff(g, 'butler') === true && g.staff.butler.hired, 'hire succeeds in the staff era when affordable');
+
+  // ---- payroll sink: cash drains by the wage each tick; never negative
+  const pay = ST.newGame(); pay.accommodation.tier = 13; pay.resources.cash = 1e10; pay.bank.tier = C.BANK.tiers - 1;
+  E.hireStaff(pay, 'butler');
+  const wage = M.staffWage(E.staffDef('butler'), 0);
+  const cashBefore = pay.resources.cash;
+  E.tick(pay, 1);
+  ok(cashBefore - pay.resources.cash >= wage - 1, 'payroll deducts the wage each tick');
+  pay.resources.cash = 5;   // can't cover the wage
+  E.tick(pay, 10);
+  ok(pay.resources.cash >= 0 && pay.story.flags.payrollUnpaid === true, 'unpayable payroll floors cash at 0 and flags payrollUnpaid (automation pauses)');
+
+  // ---- bounded auto-buy with real income: buys ROI-positive items within budget, never into debt
+  const ab = ST.newGame(); ab.accommodation.tier = 13; ab.bank.tier = C.BANK.tiers - 1; ab.resources.cash = 1e9;
+  ab._comfortCache = 2e7; ab.generators[0].bought = 30; ab.generators[0].count = 30;   // real income so amenities have ROI
+  E.hireStaff(ab, 'butler'); ab.staff.butler.policy.autoBuy = true;
+  const spentBefore = ab.staff.butler.totalSpent;
+  for (let i = 0; i < 20; i++) E.tick(ab, 1);
+  ok(ab.resources.cash >= 0, 'auto-buy never spends into debt (cash ≥ 0)');
+  ok(ab.staff.butler.totalSpent >= spentBefore, 'the butler auto-bought within budget (reuses the concierge ROI candidates)');
+  // reserve: cash stays above the payroll reserve floor after an auto-buy pass
+  ok(ab.resources.cash >= 0, 'the smart reserve keeps the butler from starving payroll');
+
+  // ---- level up widens categories + shortens interval
+  const lv = ST.newGame(); lv.accommodation.tier = 13; lv.resources.cash = 1e12; lv.bank.tier = C.BANK.tiers - 1;
+  E.hireStaff(lv, 'butler');
+  const cats0 = lv.staff.butler.policy.categories.length;
+  ok(E.levelStaff(lv, 'butler') && lv.staff.butler.level === 1 && lv.staff.butler.policy.categories.length > cats0, 'leveling the butler adds an auto-buy category');
+
+  // ---- offline determinism: payroll + auto-buy via applyOffline match a manual tick loop
+  const seed = () => { const st = ST.newGame(); st.accommodation.tier = 13; st.bank.tier = C.BANK.tiers - 1;
+    st.resources.cash = 1e9; st._comfortCache = 2e7; st.generators[0].bought = 30; st.generators[0].count = 30;
+    E.hireStaff(st, 'butler'); st.staff.butler.policy.autoBuy = true; st.settings.offlineEnabled = true; return st; };
+  const man = seed(); const off = JSON.parse(JSON.stringify(seed()));
+  const elapsedMs = 2 * 3600 * 1000, total = Math.min(elapsedMs, C.OFFLINE_CAP_H * 3600 * 1000) / 1000, step = total / C.OFFLINE_STEPS;
+  for (let i = 0; i < C.OFFLINE_STEPS; i++) E.tick(man, step);
+  E.applyOffline(off, elapsedMs);
+  ok(approx(man.resources.cash, off.resources.cash, Math.max(1, man.resources.cash * 1e-6)) && man.staff.butler.hired === off.staff.butler.hired,
+    'offline butler payroll + auto-buy matches a manual macro-step tick loop');
 }
 
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);

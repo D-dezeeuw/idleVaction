@@ -40,6 +40,7 @@ export function render(state) {
   renderGarage(state);
   renderMarina(state);
   renderHangar(state);
+  renderStaff(state);
   renderSkills(state);
   renderPaths(state);
   renderAscension(state);
@@ -1051,6 +1052,40 @@ function renderHangar(s) {
   el('hangar').innerHTML = html;
 }
 
+// ---------- Staff: the Butler (E19 "At Your Service") ----------
+function staffRevealed(s) { return E.staffUnlocked(s); }
+
+function renderStaff(s) {
+  const card = el('staffCard');
+  const reveal = staffRevealed(s);
+  if (card) card.hidden = !reveal;
+  if (!reveal) { if (el('staff')) el('staff').innerHTML = ''; return; }
+
+  const def = E.staffDef('butler'); const bt = s.staff.butler;
+  const wage = M.staffWage(def, bt.level);
+  let html = `<div class="iv-flavor">${def.desc}</div>`;
+  if (!bt.hired) {
+    const cost = M.staffHireCost(def);
+    html += `<div class="iv-sub">Wage once hired: <span class="iv-upkeep">${fmt(wage)}/s</span> — a paid convenience, not a win button.</div>`;
+    html += btn('hire-staff', 'butler', `Hire the Butler — ${fmt(cost)}`, afford(cost), 'btn-primary');
+  } else {
+    html += `<div class="iv-sub">🤵 The Butler · level <b>${bt.level}</b> · payroll <span class="iv-upkeep">${fmt(wage)}/s</span>${s.story.flags.payrollUnpaid ? ' — ⚠️ <span class="iv-upkeep">unpaid! automation paused</span>' : ''}</div>`;
+    html += `<div class="iv-sub">He spent <b>${fmt(bt.totalSpent)}</b> for you · paid himself <b>${fmt(bt.totalWages)}</b> · categories: ${bt.policy.categories.join(', ')}</div>`;
+    // policy toggles
+    html += `<div class="iv-row-buy">
+      ${btn('staff-toggle', 'autoBuy', `Auto-buy: ${bt.policy.autoBuy ? 'ON' : 'off'}`, true, bt.policy.autoBuy ? 'btn-primary' : '')}
+      ${btn('staff-toggle', 'autoCollect', `Auto-collect: ${bt.policy.autoCollect ? 'ON' : 'off'}`, true, bt.policy.autoCollect ? 'btn-primary' : '')}
+    </div>`;
+    // budget presets
+    html += `<div class="iv-sub">Budget per action: ${[0.05, 0.1, 0.25, 0.5].map(f => `<button class="btn btn-sm ${Math.abs(bt.policy.budgetFrac - f) < 1e-9 ? 'btn-primary' : ''}" data-action="staff-budget" data-arg="${f}">${(f * 100).toFixed(0)}%</button>`).join(' ')}</div>`;
+    // level up
+    const lvlCost = E.staffLevelCost(s, 'butler');
+    html += btn('level-staff', 'butler', `Level up (+1 category, faster) — ${fmt(lvlCost)}`, afford(lvlCost));
+    if (bt.lastActions.length) html += `<div class="iv-sub">recently: ${bt.lastActions.join(', ')}</div>`;
+  }
+  el('staff').innerHTML = html;
+}
+
 // live footer energy readout, "near the tap button" (E10-S4-T8): #energyMini is a
 // persistent node created once by renderControls's template (like the aria-live
 // regions above) and refreshed here on every render() cycle, since renderControls
@@ -1419,6 +1454,11 @@ function handle(action, arg, btnEl) {
     case 'buy-boat': E.buyBoat(S, arg); break;
     case 'buy-crew': E.buyCrew(S, arg); break;
     case 'buy-jet': E.buyJet(S, arg); break;   // E17 Hangar
+    // E19 Staff (the Butler)
+    case 'hire-staff': E.hireStaff(S, arg); break;
+    case 'level-staff': E.levelStaff(S, arg); break;
+    case 'staff-toggle': S.staff.butler.policy[arg] = !S.staff.butler.policy[arg]; break;
+    case 'staff-budget': S.staff.butler.policy.budgetFrac = Number(arg); break;
     case 'buy-content': E.buyContent(S, arg); break;
     case 'buy-content-boost': E.buyContentBoost(S, arg); break;
     case 'accept-sponsor': {

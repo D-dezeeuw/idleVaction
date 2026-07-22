@@ -510,13 +510,31 @@ feeds connoisseur exclusivity+perk, harness-neutral). Built inline.
 - S9 Concierge Handover (4/3/3): no new state (tiers/amenities use existing schema + backfill), OFFLINE_CAP/backup/export present; gate re-derived-not-trusted (computed live) + migration test done-now. Superseded: new schema fields (none needed), away-modal line, first-entry flags.
 - S10 White-Glove (2/5/3): formatting/perf present; gate off-by-one + no-eviction + event-dedupe + regression ([93]) + copy done-now. Superseded: gilded-shimmer juice, unlock-order fuzz tooling, manual playtest.
 
-## Act II–VI — E19–E30
+### E19 — At Your Service (staff/automation) · **100/100** (present 26, done-now 56, superseded 18)
+Introduces staff & automation: a hireable **Butler** with a continuous **payroll wage** (the new
+sink) whose bounded, ROI-gated auto-buy **reuses the E11 concierge** (conciergeCandidates now takes
+a per-caller whitelist). OFF until hired → the harness never hires → payroll 0, nothing automated →
+island **unchanged at 29705s**. The E16 crew was the pre-staff seed; this is the first real staff
+role (foundation for E20/E23/E28). Built inline. selftest **[94]** (17 assertions: invariance, hire
+gate, payroll sink+floor+unpaid-pause, bounded auto-buy never-into-debt+reserve, level-up, offline).
+
+- S1 Staff Ledger (1/8/1): concierge whitelist present; staff.js + config + state + wage fns + flavor + selectors + validation done-now. Superseded: per-item autoBuyable flag (categories cover it).
+- S2 Below Stairs (2/6/2): concierge auto-buy + deterministic sort present; payroll + scheduler + reuse-intents + level-effect + events + unpaid-behavior + tests done-now. Superseded: rich auto-collect, ROI-÷-wage framing (payback-horizon reused).
+- S3 Service Bell UI (1/8/1): a11y present; staff panel + hire + toggles + budget + wage readout + level + ticker + copy done-now. Superseded: live ROI-hint line.
+- S4 The Butler (1/7/2): off-by-default guardrail present; full loop + category picker (via level) + reserve + morale seed + first-hire + quips + QA done-now. Superseded: per-item pin/exclude "do-not-touch", detailed auto-collect scope.
+- S5 Butler's Kit (1/7/2): buttons present; 8 amenities + comfort + unlock + flavor + cadence + save + QA done-now. Superseded: automation-boost items (−interval), `xMult` dormant.
+- S6 Ultra Penthouse (8/2/0): tier 13 / gate / accScore / upgrades / reveal / UI / balance / save already present (ladder shipped whole); the staff-quarters gate + arrival done-now.
+- S7 Service Your Way (3/2/5): perk-interaction (same intents) + softcap + hybrid present; neutral floor + quips done-now. Superseded: per-branch default policies + branch-specific automation flavors (butler defaults to amenities for all).
+- S8 Worth the Wage (2/6/2): guardrail (off→0) + cadence present; wage/growth/interval/budget + payroll-pressure + golden ([94]) + documented knobs done-now. Superseded: ROI-break-even harness metric, sensitivity sweep.
+- S9 Off the Clock (3/6/1): OFFLINE_CAP + round-trip + corrupt-guard present; persist + migration (backfill) + offline payroll + offline auto-buy + unpaid-away + backcompat done-now. Superseded: dedicated away-modal butler line.
+- S10 White Gloves (4/4/2): formatting + gameSpeed + console + DoD present; hire/fire edge + event-batching + regression ([94]) + copy done-now. Superseded: bell juice, debug-panel hooks.
+
+## Act II–VI — E20–E30
 
 _Pending — appended as each phase's build pass audits its 100 tasks._
 
 | Epic | Status |
 |---|---|
-| E19 At Your Service | pending |
 | E20 The Whole Household | pending |
 | E21 Seven Stars | pending |
 | E22 A Bungalow of One's Own | pending |
@@ -532,8 +550,8 @@ _Pending — appended as each phase's build pass audits its 100 tasks._
 ---
 
 ### Running total
-- **Audited:** 1,800 / 3,000 tasks (E01–E18) — present 589, done-now 884, superseded 327.
-- **Remaining:** 1,200 tasks (E19–E30).
+- **Audited:** 1,900 / 3,000 tasks (E01–E19) — present 615, done-now 940, superseded 345.
+- **Remaining:** 1,100 tasks (E20–E30).
 
 ### Deferred balance-tuner backlog (for a consolidated retune, latest at E30)
 - **`savvyPassive()` not ×`L_comfort`** (E06-S7-T4) — a flat sqrt-scaled additive term outside
