@@ -231,9 +231,13 @@ export function computeComfort(state, DATA) {
   // owned, so `... + wProp·0` is bit-identical to the pre-E22 sum (x+0 exact in IEEE754) and the
   // greedy harness (which never buys a deed) leaves the fitted 29705s island unmoved.
   const propScore = propertyScore(state, DATA);
+  // E28 island buildings raise Comfort like amenities (via w_prop, the persistent-property weight —
+  // they are permanent island structures). 0 unless the island is owned, so this is bit-identical
+  // for a fresh game and the harness (never owns the island) — the 29705s island cannot drift.
+  const buildComfort = buildingComfortTotal(state, DATA);
   return (C.COMFORT.wAcc * accScore(state.accommodation.tier) * (1 + pathBonus(state, 'accComfort'))
         + C.COMFORT.wAmen * amenTerm * (1 + pathBonus(state, 'amenityComfort'))
-        + C.COMFORT.wProp * propScore
+        + C.COMFORT.wProp * (propScore + buildComfort)
         + C.COMFORT.wBody * state.skills.body.level) * (1 + pathBonus(state, 'comfortAll'));
 }
 // E22 owned-property Comfort (the persistence guarantee): Σ owned properties' baseComfort +
@@ -278,6 +282,59 @@ export function ownerPrideMult(state) {
 // survives ascension, so the reward persists across runs (an earned, one-time endgame purchase).
 export function islandMult(state) {
   return state.island?.owned ? C.ISLAND.incomeMult : 1;
+}
+
+// ---- island resort economy (E28 "Building Paradise") ----
+// Building count / geometric cost (mirrors generators): costBase·costGrowth^count.
+export function buildingCount(state, id) { return state.island?.buildings?.[id]?.count || 0; }
+export function buildingCost(state, id, DATA) {
+  const b = DATA.buildings.find(x => x.id === id);
+  return b ? b.costBase * Math.pow(b.costGrowth, buildingCount(state, id)) : Infinity;
+}
+// Σ built comfort (feeds ComfortRaw like an amenity). 0 unless the island is owned — so a fresh game
+// and the harness (never owns the island) leave computeComfort bit-identical (x+0 exact in IEEE754).
+export function buildingComfortTotal(state, DATA) {
+  if (!state.island?.owned) return 0;
+  let s = 0;
+  for (const b of DATA.buildings) s += buildingCount(state, b.id) * b.comfort;
+  return s;
+}
+// guestDemand = GUEST_K·log10(1 + Comfort/GUEST_C0)·exclusivityMult — LOG-softcapped (no runaway),
+// nudged by the exclusivity × (connoisseurs draw a richer crowd). A pure 0..∞ demand factor.
+export function guestDemand(state) {
+  const comfort = state._comfortCache ?? state.resources.comfort ?? 0;
+  return C.GUEST_K * Math.log10(1 + comfort / C.GUEST_C0) * exclusivityMult(state);
+}
+// Raw guest income (before the M_k runtime stack): guestDemand·Σ(count·guestBase), milestone-doubled
+// per building like a generator tier. EXACTLY 0 unless the island is owned (the gate) — the harness
+// never owns it, so guest income never enters dCash and the fitted 29705s island cannot move.
+export function guestIncomeRaw(state, DATA) {
+  if (!state.island?.owned) return 0;
+  let s = 0;
+  for (const b of DATA.buildings) {
+    const n = buildingCount(state, b.id);
+    if (n <= 0) continue;
+    const milestone = Math.pow(2, Math.floor(n / C.GUEST_MILESTONE_STEP));
+    s += n * b.guestBase * milestone;
+  }
+  return s * guestDemand(state);
+}
+// Island upkeep — a scaling cash sink so "bigger" is a choice. Σ count·upkeepBase·upkeepGrowth^i.
+// 0 unless owned. Subtracted from cash each tick (clamped ≥ 0 in the engine).
+export function islandUpkeep(state, DATA) {
+  if (!state.island?.owned) return 0;
+  let s = 0;
+  for (const b of DATA.buildings) {
+    const n = buildingCount(state, b.id);
+    if (n <= 0) continue;
+    s += n * b.upkeepBase * Math.pow(b.upkeepGrowth, n) * C.UPKEEP_SCALE;
+  }
+  return s;
+}
+// Occupancy (0..1, a display metric): a saturating function of guestDemand — "how full is paradise".
+export function occupancy(state) {
+  const d = guestDemand(state);
+  return d / (d + 1);
 }
 
 // ---- estate: grounds Comfort + property×staff synergy (E23 "Villa Vita") ----

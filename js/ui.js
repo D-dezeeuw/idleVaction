@@ -1513,9 +1513,24 @@ function renderIslandListing(s) {
   if (!reveal) { if (el('islandListing')) el('islandListing').innerHTML = ''; return; }
 
   if (s.island && s.island.owned) {
-    el('islandListing').innerHTML = `
-      <div class="iv-capstone-on">🏝️ <b>SOLD — welcome home.</b> The island is yours · relocation reward <b>×${C.ISLAND.incomeMult.toFixed(2)}</b> on all income (permanent, survives ascension).</div>
-      <div class="iv-sub">Forty hectares, one (1) confused goat, a horizon with your name on it. Set up camp below — the mainland era is over.</div>`;
+    // owned ⇒ the Developer's Dashboard: build panel + guest-income/occupancy/upkeep ledger (E28).
+    const guest = M.guestIncomeRaw(s, DATA);
+    const upkeep = M.islandUpkeep(s, DATA);
+    const occ = M.occupancy(s);
+    let html = `<div class="iv-capstone-on">🏝️ <b>The island is yours.</b> Relocation reward <b>×${C.ISLAND.incomeMult.toFixed(2)}</b> on all income (permanent).</div>`;
+    html += `<div class="iv-sub">🏨 Guest income <b>${fmt(guest)}/s</b> · occupancy <b>${(occ * 100).toFixed(0)}%</b> · upkeep <span class="iv-upkeep">${fmt(upkeep)}/s</span> · net <b>${fmt(guest - upkeep)}/s</b></div>`;
+    html += `<div class="iv-tag">build the resort <small>(you produce luxury now — guests pay you)</small></div><div class="iv-amenities">`;
+    for (const b of DATA.buildings) {
+      const n = M.buildingCount(s, b.id);
+      const cost = E.buildingCost(s, b.id);
+      html += `<div class="iv-btn iv-content-item" title="${b.flavor}">
+        <b>${b.name}</b> <small>×${n}</small>
+        <div class="iv-sub">+${fmt(b.comfort)}😌 · guests ${fmt(b.guestBase)}/s · upkeep <span class="iv-upkeep">${fmt(b.upkeepBase)}/s</span></div>
+        <div class="iv-row-buy">${btn('buy-building', b.id, `Build — ${fmt(cost)}`, afford(cost))}</div>
+      </div>`;
+    }
+    html += '</div>';
+    el('islandListing').innerHTML = html;
     return;
   }
   const p = C.ISLAND.price;
@@ -1700,6 +1715,8 @@ function handle(action, arg, btnEl) {
       if (okBuy && E.buyIsland(S)) setState(S);
       break;
     }
+    // E28: build a resort building on the owned island (generator+amenity hybrid, hosts guests).
+    case 'buy-building': E.buyBuilding(S, arg); break;
     case 'ascend': if (P.ascend(S)) { setState(S); } break;
     // E25-A: name/rename the current character at the bus stop (cosmetic; sanitized in prestige).
     case 'name-lineage': {
