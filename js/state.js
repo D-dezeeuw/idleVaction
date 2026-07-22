@@ -1,7 +1,7 @@
 // state.js — canonical game state + save/load/migrate/export. Plain JSON only.
 import { CONFIG as C } from './config.js';
 import { DATA } from './data/index.js';
-import { bankCapAt } from './math.js';
+import { bankCapAt, availableSlots } from './math.js';
 
 export function newGame() {
   const generators = {};
@@ -45,6 +45,17 @@ export function newGame() {
   for (const arr of [DATA.collections.art, DATA.collections.wine]) {
     for (const a of arr) collections[a.id] = { count: 0, boughtValue: 0, age: 0 };
   }
+  // vehicles (E15 "Keys to the Coupe"): the garage. owned[id]={count} for every car id;
+  // equipped is the list of equipped ids (Σ slotCost ≤ availableSlots, enforced by
+  // engine.equipCar — never here); garageSlots is the tier-11 garage-wing bonus;
+  // upkeepAccrued is the repossession grace timer (game-seconds of continuously-unmet
+  // upkeep). buyCar/equipCar (engine.js) are the ONLY way in — a fresh game and the
+  // committed-vlogger harness never touch them, so logisticsActive stays false, fleetUpkeep
+  // 0, _logiCache 1, and the fitted island time cannot move. RUN-SCOPED: the ascension hard
+  // reset (prestige.ascend's Object.assign(state, newGame())) wipes them with the rest of
+  // the run — the keep-list deliberately excludes it, so every life re-buys its fleet.
+  const vehiclesOwned = {};
+  DATA.vehicles.forEach(c => { vehiclesOwned[c.id] = { count: 0 }; });
 
   return {
     version: C.SAVE_VERSION,
@@ -53,6 +64,7 @@ export function newGame() {
     // — an optional clicker-fuel resource, see config.ENERGY / math.energyMax.
     resources: { cash: 15, comfort: 0, clout: 0, legacy: 0, energy: C.ENERGY.base },
     generators, amenities, skills, training, paths, npcsMet, destinations, content, collections,
+    vehicles: { owned: vehiclesOwned, equipped: [], garageSlots: 0, upkeepAccrued: 0 },
     // crypto portfolio (E13): holdings/hedges own state; market is the seeded scheduler's
     // own state — phase starts 'calm', mult 1, cursor 0. engine.marketTick is a no-op
     // until crypto path points are spent or a coin is held (see config.MARKET's comment
@@ -110,7 +122,11 @@ export function newGame() {
     // the connoisseur exclusivity score (E14) — a derived cache like _comfortCache, so no
     // persisted state.exclusivity is needed (S9-T1 satisfied by the cache); backfill adds it
     // to old saves at 0, and engine.tick recomputes it every tick (0 while inactive).
-    _comfortCache: 0, _destCache: 1, _combo: 1, _comboTimer: 0, _pathBonus: {}, _exclCache: 0,
+    // _logiCache (E15) is the per-tick logistics × (like _destCache, a flat global multiplier),
+    // so its NEUTRAL value is 1 — engine.tick recomputes it every tick via logisticsMult
+    // (exactly 1 while nothing is equipped). Seeded to 1 (NOT 0) so any tierMultiplier read
+    // before the first tick multiplies by the identity, never zeroes income.
+    _comfortCache: 0, _destCache: 1, _combo: 1, _comboTimer: 0, _pathBonus: {}, _exclCache: 0, _logiCache: 1,
   };
 }
 
@@ -150,7 +166,37 @@ export function migrate(s) {
   // the smallest account whose capacity covers the cash they already legitimately
   // earned. Never lowers a tier, never touches saves already within their cap.
   while (s.bank.tier < C.BANK.tiers - 1 && s.resources.cash > bankCapAt(s.bank.tier)) s.bank.tier++;
+  // vehicles (E15-S9-T10/S10-T1): backfill above already added the whole `vehicles` slice to
+  // a pre-E15 save, but a same-version save that predates a newly-added car row would be
+  // missing that id — add any missing owned slot at count 0 (no NaN) — and a hand-edited or
+  // cross-version save could carry an over-capacity / not-owned equipped list, so clamp it to
+  // the current slot capacity on load (the equipped list can NEVER exceed availableSlots after
+  // a migrate). upkeepAccrued (the repossession grace timer) is coerced to a finite ≥0.
+  if (s.vehicles) {
+    s.vehicles.owned ||= {};
+    for (const c of DATA.vehicles) if (!s.vehicles.owned[c.id]) s.vehicles.owned[c.id] = { count: 0 };
+    if (!(s.vehicles.garageSlots >= 0)) s.vehicles.garageSlots = 0;
+    if (!(s.vehicles.upkeepAccrued >= 0)) s.vehicles.upkeepAccrued = 0;
+    s.vehicles.equipped = clampEquippedVehicles(s);
+  }
   return s;
+}
+
+// Drop any equipped car that isn't actually owned, then keep equipping (in list order) only
+// while Σ slotCost stays within availableSlots — so a loaded save's equipped fleet can never
+// exceed capacity (E15-S9-T10). Pure over the passed state.
+function clampEquippedVehicles(s) {
+  const eq = Array.isArray(s.vehicles.equipped) ? s.vehicles.equipped : [];
+  const carById = id => DATA.vehicles.find(c => c.id === id);
+  const slots = availableSlots(s);
+  let used = 0;
+  const kept = [];
+  for (const id of eq) {
+    const car = carById(id);
+    if (!car || (s.vehicles.owned[id]?.count || 0) <= 0) continue;
+    if (used + car.slotCost <= slots) { used += car.slotCost; kept.push(id); }
+  }
+  return kept;
 }
 
 function backfill(save, fresh) {

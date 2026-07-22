@@ -58,10 +58,17 @@ export function tierMultiplier(state, k) {
   // mirroring _comfortCache/_destCache). It is EXACTLY 1 whenever the connoisseur system is
   // inactive (exclCache 0), so the greedy-vlogger harness is unmoved — see exclusivityMult.
   const L_exclusivity = exclusivityMult(state);
+  // L_logistics (E15 "Keys to the Coupe"): a NEW global layer, a BOUNDED flat × (the equipped
+  // fleet is capped by availableSlots, a small integer — never a power of cash), same safe
+  // class as L_dest. Reads the per-tick state._logiCache (engine.tick sets it via
+  // logisticsMult(state, DATA) before this snapshot, mirroring _exclCache/_destCache). It is
+  // EXACTLY 1 whenever no car is equipped (the gate), so the greedy-vlogger harness is
+  // unmoved — see logisticsMult / logisticsMultiplier.
+  const L_logistics = logisticsMultiplier(state);
   const L_ascension = 1 + 0.10 * (state.ascension.tree.compounding_interest || 0);
   const L_tree = treeIncomeMult(state);
 
-  return mMilestone * L_upgrade * L_path * L_skill * L_comfort * L_dest * L_exclusivity * L_ascension * L_tree;
+  return mMilestone * L_upgrade * L_path * L_skill * L_comfort * L_dest * L_exclusivity * L_logistics * L_ascension * L_tree;
 }
 
 // production per second of tier k (in units of tier k output)
@@ -183,7 +190,13 @@ export function computeComfort(state, DATA) {
   const luxBonus = conn
     ? (luxuryAmenityComfort(state, DATA) + collComfort) * C.TASTE.luxuryComfortPerk
     : 0;
-  const amenTerm = amenityScoreTotal(state, DATA) + collComfort + luxBonus;
+  // E15 addition — equipped cars' flat Comfort (fleetComfortTotal), added exactly like the
+  // E14 collection Comfort term. Provably 0 for the non-logistics case (nothing equipped),
+  // so computeComfort stays BIT-IDENTICAL for the greedy vlogger (x+0 is exact in IEEE754)
+  // and the fitted 29705s island cannot drift. amenityScoreTotal's own accumulation order is
+  // left UNCHANGED so no summation re-association can perturb it.
+  const fleetComfort = fleetComfortTotal(state, DATA);
+  const amenTerm = amenityScoreTotal(state, DATA) + collComfort + luxBonus + fleetComfort;
   return (C.COMFORT.wAcc * accScore(state.accommodation.tier) * (1 + pathBonus(state, 'accComfort'))
         + C.COMFORT.wAmen * amenTerm * (1 + pathBonus(state, 'amenityComfort'))
         + C.COMFORT.wBody * state.skills.body.level) * (1 + pathBonus(state, 'comfortAll'));
@@ -558,6 +571,100 @@ export function collectionNetWorth(state, DATA) {
     }
   }
   return v;
+}
+
+// ---- private logistics: owned/equipped cars (E15 "Keys to the Coupe") ----
+// GATED OFF like E14's connoisseur / E13's crypto: logisticsActive is true only once a car is
+// EQUIPPED. A fresh newGame() and the committed-vlogger harness (which never buys or equips a
+// car, and picks the vlogger branch — so the traveler discount is never in scope) see
+// logisticsMult 1, fleetUpkeep 0, and no fleet Comfort — the fitted 29705s island cannot move.
+// logisticsMult is a BOUNDED flat × (the equipped fleet is capped by availableSlots, a small
+// integer), the SAME safe class as L_dest — never a positive power of cash (docs/math-proof.md
+// §3/§4). DATA is passed explicitly (house convention) so math.js never imports data/.
+
+// helper: look up a car row by id (linear scan over the small roster).
+function carRow(DATA, id) { return DATA.vehicles.find(c => c.id === id); }
+
+// available transport slots (E15-S2-T6): baseSlots + traveler branch perk (+1) + Wanderer's
+// Instinct rank (+1/rank, data/skilltree.js) + the tier-11 garage-wing bonus (state.vehicles
+// .garageSlots). A small number by design so fleet composition is a live tradeoff (S8-T4).
+export function availableSlots(state) {
+  return C.LOGISTICS.baseSlots
+    + (state.story.branch === 'traveler' ? 1 : 0)
+    + (state.ascension.tree.wanderer || 0)
+    + (state.vehicles?.garageSlots || 0);
+}
+// Σ slotCost of the currently-equipped fleet — engine.equipCar enforces this stays ≤
+// availableSlots (never clamped silently, S2-T2/S10-T1).
+export function equippedSlotCost(state, DATA) {
+  let s = 0;
+  for (const id of (state.vehicles?.equipped || [])) { const c = carRow(DATA, id); if (c) s += c.slotCost; }
+  return s;
+}
+// the gate (pure — math owns it so there's no engine↔math import cycle; engine.logisticsActive
+// re-exports it for API symmetry with cryptoActive/connoisseurActive). True iff any car is
+// equipped (an OWNED-but-un-equipped car draws no upkeep and grants no ×, by design).
+export function logisticsActive(state, DATA) {
+  return (state.vehicles?.equipped || []).length > 0;
+}
+// logisticsMult = 1 + rate·Σ(equipped car.logisticsMult) — a bounded flat ×, exactly 1 when
+// nothing is equipped (the gate). engine.tick caches this as state._logiCache before the
+// tier-production snapshot; tierMultiplier reads the cache via logisticsMultiplier() below.
+export function logisticsMult(state, DATA) {
+  if (!logisticsActive(state, DATA)) return 1;
+  let sum = 0;
+  for (const id of state.vehicles.equipped) { const c = carRow(DATA, id); if (c) sum += c.logisticsMult; }
+  return 1 + C.LOGISTICS.rate * sum;
+}
+// the per-tick cache reader tierMultiplier uses (mirrors destMultiplier reading _destCache /
+// exclusivityMult reading _exclCache). Exactly 1 when the cache is 1 (system inactive).
+export function logisticsMultiplier(state) {
+  return state._logiCache ?? 1;
+}
+// fleetUpkeep = Σ(equipped car.upkeep)·upkeepScale cash/s — 0 when nothing is equipped. A flat
+// drain applied in engine.tick (clamped so cash never goes negative, online or offline).
+export function fleetUpkeep(state, DATA) {
+  const eq = state.vehicles?.equipped || [];
+  if (eq.length === 0) return 0;
+  let up = 0;
+  for (const id of eq) { const c = carRow(DATA, id); if (c) up += c.upkeep; }
+  return up * C.LOGISTICS.upkeepScale;
+}
+// equipped cars' flat Comfort (Σ comfort) — feeds computeComfort exactly like collection
+// Comfort. 0 when nothing is equipped (⇒ computeComfort bit-identical for the harness).
+export function fleetComfortTotal(state, DATA) {
+  let s = 0;
+  for (const id of (state.vehicles?.equipped || [])) { const c = carRow(DATA, id); if (c) s += c.comfort; }
+  return s;
+}
+// combined destination-cost discount multiplier (E15-S2-T7/S7-T7, S8-T6): the committed
+// traveler staged track's flat destDiscount, the traveler BRANCH −15% perk (branch-gated), and
+// Wanderer's Instinct −20%/rank (tree node), all stacked MULTIPLICATIVELY, then clamped to a
+// hard floor so the stack can never drive a destination implausibly cheap. Returns EXACTLY 1
+// for a non-traveler with no wanderer rank and no destDiscount stage bonus (the greedy vlogger
+// harness) ⇒ destCost — and the island — are unmoved.
+export function destDiscountMult(state) {
+  let m = 1 - pathBonus(state, 'destDiscount');                 // committed traveler staged track
+  if (state.story.branch === 'traveler') m *= (1 - C.LOGISTICS.destDiscountTraveler);   // branch perk
+  const wander = state.ascension.tree.wanderer || 0;
+  if (wander > 0) m *= Math.pow(1 - C.LOGISTICS.wandererDestDiscount, wander);            // tree node
+  return Math.max(C.LOGISTICS.destDiscountFloor, m);
+}
+// equipped cars' total speed (Σ speed) — engine.transportSpeed adds this to the active ride's
+// speed, so a car shortens destCost exactly like transport does (E15-S2-T5). 0 with nothing
+// equipped, so the harness's destCost is unchanged. Bounded (fleet ≤ slots).
+export function fleetSpeed(state, DATA) {
+  let s = 0;
+  for (const id of (state.vehicles?.equipped || [])) { const c = carRow(DATA, id); if (c) s += c.speed; }
+  return s;
+}
+// felt/UI travel time for a destination after the active ride + equipped fleet speed (E15-S2-T5,
+// the "Rome: 40s → 22s" readout). Display-only — travelTime never feeds the income loop (the
+// mechanical speed effect is the destCost shortening above), so this is a pure helper for the
+// garage UI wave and cannot move the harness. totalSpeed is passed in by the caller (engine
+// owns transportSpeed, which sums ride + pathBonus + fleetSpeed).
+export function destTravelTime(baseTravelTime, totalSpeed) {
+  return (baseTravelTime || 0) / (1 + Math.max(0, totalSpeed || 0));
 }
 
 // ---- prestige ----

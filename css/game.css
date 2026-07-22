@@ -218,6 +218,13 @@ body { background: var(--iv-bg); color: var(--iv-ink); font-family: system-ui, s
    can never widen or break the row layout (S3-T10). */
 .iv-strike { color: var(--iv-sub); text-decoration: line-through; margin-right: 4px; font-size: .72rem; }
 
+/* Garage (E15 "Keys to the Coupe"): upkeep drain in red so the ×-vs-cost tradeoff reads at a
+   glance; slot pips; and an amber repossession warning when the grace clock is running. */
+.iv-upkeep { color: #ff8080; }
+.iv-slots { letter-spacing: 2px; color: var(--iv-accent, #7ec8ff); }
+.iv-warn { background: #3a2a12; border: 1px solid #d9a441; color: #f3c675; border-radius: 6px;
+  padding: 6px 8px; margin: 6px 0; font-size: .82rem; }
+
 /* "While you were away" summary (E02-S9-T5): dismissible, mobile-friendly overlay. */
 .iv-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex;
   align-items: center; justify-content: center; z-index: 20; padding: 16px; }

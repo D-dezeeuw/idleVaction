@@ -325,6 +325,60 @@ export const CONFIG = {
   // conservative choice; appreciated value never couples into Savvy or Legacy.
   APPRECIATION: { globalRate: 1.0, yearSec: 3600, valueCap: 8 },
 
+  // ---- private logistics (E15 "Keys to the Coupe"): OPT-IN, gated-off-by-default ----
+  // The whole garage lane (the logistics ×, the fleet-upkeep drain, the traveler −15%
+  // destination discount) stays a hard no-op until a car is genuinely EQUIPPED —
+  // math.logisticsActive is true only once state.vehicles.equipped is non-empty, EXACTLY
+  // mirroring engine.cryptoActive / math.connoisseurActive. A fresh newGame() and the
+  // committed-VLOGGER harness/selftest playStep (which never buys or equips a car, and
+  // picks the vlogger branch — so the traveler discount is never in scope) therefore see
+  // logisticsMult 1, fleetUpkeep 0, destDiscountMult 1, availableSlots unmoved, _logiCache
+  // exactly 1 — so the fitted 29705s island time cannot move (harness-invariance tests
+  // [62]/[68]/[80]/[89]/[90]). SAFETY CLASS: logisticsMult is a BOUNDED flat × — the
+  // equipped fleet is capped by availableSlots (a small integer), so Σ(equipped
+  // logisticsMult) is bounded and logisticsMult never depends on cash. It is the SAME safe
+  // class as L_dest / the path-stage flat bonuses, NOT a positive power of cash (the
+  // finite-time-singularity class, docs/math-proof.md §3/§4). Upkeep is a flat cash/s
+  // drain (like transport upkeep), clamped so cash never goes negative online or offline.
+  //   baseSlots           — transport slots before any perk. availableSlots(state) =
+  //                         baseSlots + (traveler branch ? +1) + wanderer rank + garageSlots
+  //                         (math.availableSlots). Small on purpose so fleet composition
+  //                         (many small cars vs one supercar) is a live tradeoff (S8-T4).
+  //   rate                — logisticsMult = 1 + rate·Σ(equipped car.logisticsMult). Fitted
+  //                         (probe: a committed traveler mid-Act-II) so a mid-fleet lands a
+  //                         ~1.3–2× destination × comparable to the other lanes (S8-T1).
+  //   upkeepScale         — fleetUpkeep = Σ(equipped car.upkeep)·upkeepScale cash/s. Fitted
+  //                         so at fleet-introduction income the biggest car's upkeep is a
+  //                         real fraction of income (net still positive), making "run the
+  //                         supercar or not" a genuine decision (S8-T2/T3), not an auto-buy.
+  //                         A FLAT drain (like transport upkeep) — it bites hardest early,
+  //                         then income outgrows it, exactly the intended graduation curve.
+  //   destDiscountTraveler— the traveler branch's −15% destination-cost perk (S2-T7/S7-T2),
+  //                         applied in engine.destCost ONLY when story.branch==='traveler'
+  //                         (branch-gated ⇒ the vlogger harness never sees it).
+  //   wandererDestDiscount— Wanderer's Instinct (data/skilltree.js) is "−20% destinations &
+  //                         +1 slot per rank"; this is the −20%/rank cost figure, applied
+  //                         multiplicatively (×(1−this)^rank) and stacked with the traveler
+  //                         perk + the staged track's destDiscount, all in math.destDiscountMult.
+  //   destDiscountFloor   — hard floor on the STACKED destination discount: destDiscountMult
+  //                         never falls below this fraction (S8-T6/S10-T5), so traveler +
+  //                         Wanderer + full track can never drive a destination implausibly
+  //                         cheap. (Bounds cost from below; never affects the harness, whose
+  //                         stack is exactly 1.)
+  //   repossessGraceSec   — game-seconds of continuously-unmet upkeep before the costliest
+  //                         equipped car is auto-unequipped (repossession, S2-T9/S8-T8).
+  //                         Deterministic in game-time ⇒ offline replay matches online. Sized
+  //                         so accidental over-equipping is recoverable, not punishing.
+  //   buyPathNudge        — one-off traveler path-point per car PURCHASE (mirrors
+  //                         MARKET.buyPathNudge / DEST.visitPathPoints — a discrete action,
+  //                         never a per-tick trickle), credited via addPathPoints so it feeds
+  //                         ONLY a committed traveler life (the anti-hopping contract).
+  LOGISTICS: {
+    baseSlots: 2, rate: 0.5, upkeepScale: 320,
+    destDiscountTraveler: 0.15, wandererDestDiscount: 0.20, destDiscountFloor: 0.15,
+    repossessGraceSec: 60, buyPathNudge: 0.1,
+  },
+
   // ---- ascension / legacy ----
   // LEGACY_SCALE was retuned 1e6 → 1e10 with the ascension hard reset (math-proof §12,
   // the §7/P3 item): at 1e6 a single fitted ~8.5h run paid ~1,183 Legacy — enough to
