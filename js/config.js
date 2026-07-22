@@ -148,11 +148,12 @@ export const CONFIG = {
   // order [bungalow, overwater_villa]. Upgrade cost = base·growth^rank (growth 1.6). ownerPride is
   // a small BOUNDED flat × per owned property (max 2 owned ⇒ ≤ ×1.10) folded into the stack.
   PROPERTY: {
-    ownCost:     [5e9, 6e10],     // deed price — a few minutes of income at each property's unlock
-    baseComfort: [1.5e8, 4.5e8],  // persistent Comfort floor per property (~one rented tier's worth)
+    // indexed [bungalow, overwater_villa, villa (E23), estate (E23)]
+    ownCost:     [5e9, 6e10, 7e11, 8e12],       // deed price — a few minutes of income at each unlock
+    baseComfort: [1.5e8, 4.5e8, 1.4e9, 4e9],    // persistent Comfort floor per property
     base: 4e8,                    // upgrade cost base
     growth: 1.6,                  // upgrade cost growth per rank
-    ownerPride: 0.05,             // flat global × per owned property (bounded — max 2 ⇒ ≤ +10%)
+    ownerPride: 0.05,             // flat global × per owned property (bounded — max 4 ⇒ ≤ +20%)
   },
 
   // ---- accommodation ladder ----
@@ -438,6 +439,18 @@ export const CONFIG = {
   // household helps but never explodes; morale drifts toward 100 (or down when payroll is unpaid),
   // lifted by the housekeeper + Staff-Quarters amenities. 0 income effect when no income-× staff.
   MORALE: { rate: 0.25, M0: 30, min: 0.5, max: 1.5, decayPerHour: 6, target: 100 },
+
+  // ---- estate: grounds + estate staff + property×staff synergy (E23 "Villa Vita") ----
+  // The scale-both-together loop. Estate staff (gardener/pool tech/groundskeeper/estate manager,
+  // data/staff.js `estate:true`, xMultBase 0 so they stay OUT of L_staff) get their OWN wing: the
+  // cap only grows once a villa/estate deed is owned (staffSlots), so the greedy harness — which
+  // owns no property and hires no one — keeps cap 6 and never engages the wing. Synergy:
+  //   L_estate = 1 + synergyRate·sqrt(assignedEstateStaff · propertyLevel)      (sqrt-softened, §4)
+  // with the estate manager on the 'synergy' slot multiplying synergyRate by (1+managerBoost).
+  // L_estate is EXACTLY 1 whenever no estate staff are assigned (sqrt(0)=0), so it is harness-neutral
+  // and the fitted 29705s island cannot move. GROUNDS clusters are ordinary tag:'grounds' amenities
+  // (feed w_amen via amenityScoreTotal), gated on owning the villa/estate (unlockProperty).
+  ESTATE: { synergyRate: 0.6, managerBoost: 0.5, staffSlots: 4 },
 
   // ---- ascension / legacy ----
   // LEGACY_SCALE was retuned 1e6 → 1e10 with the ascension hard reset (math-proof §12,

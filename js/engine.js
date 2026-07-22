@@ -81,6 +81,9 @@ export function tick(state, dt) {
   state._logiCache = M.logisticsMult(state, DATA);
   // E20 household income × (L_staff): 1 unless an income-× role is hired (harness-neutral).
   state._staffMult = M.staffMult(state, DATA);
+  // E23 property×staff synergy (L_estate): 1 unless estate staff are assigned to owned grounds
+  // (sqrt-softened). The harness owns no property and hires no one, so this stays 1 — island unmoved.
+  state._estateMult = M.estateSynergy(state, DATA);
 
   const rt = runtimeMult(state);
 
@@ -179,6 +182,7 @@ export function tick(state, dt) {
   checkHousehold(state);
   checkPropertyReveal(state);
   checkOwner(state);
+  checkEstate(state);
   checkPathStages(state);
 
   // 7) concierge: bounded, off-by-default auto-purchase policy (E11 "Five-Star Frame of
@@ -1418,7 +1422,11 @@ export function staffUnlocked(state) {
   return state.story.seen.includes(19) || state.accommodation.tier >= 13;
 }
 // household staff cap (E20-S2-T7): a fixed cap that fits the whole roster (butler + 5 roles).
-export function staffCap(state) { return C.STAFF.staffCap; }
+// E23: the household base cap, plus a separate ESTATE WING that only opens once a villa/estate deed
+// is owned. The harness owns no property ⇒ estateActive false ⇒ cap stays the base 6, so the estate
+// wing is never hireable for it (belt-and-suspenders with hireStaff's own estate gate below).
+export function estateActive(state) { return propertyOwned(state, 'villa') || propertyOwned(state, 'estate'); }
+export function staffCap(state) { return C.STAFF.staffCap + (estateActive(state) ? C.ESTATE.staffSlots : 0); }
 export function hiredStaffCount(state) {
   let n = 0; for (const def of DATA.staff) if (state.staff[def.id]?.hired) n++; return n;
 }
@@ -1426,15 +1434,45 @@ export function hireStaff(state, id) {
   const def = staffDef(id); const st = state.staff[id];
   if (!def || !st || st.hired) return false;
   if (!staffUnlocked(state)) return false;
+  if (def.estate && !estateActive(state)) return false;          // E23: the estate wing needs an owned villa/estate
   if (hiredStaffCount(state) >= staffCap(state)) return false;   // E20: over the household cap
   const cost = M.staffHireCost(def);
   if (state.resources.cash < cost) return false;
   state.resources.cash -= cost;
   st.hired = true; st.morale = 100;
   st.policy.categories = def.categories.slice();
+  // E23: an estate role auto-assigns to the cluster it maintains (or the synergy slot for the manager),
+  // so hiring alone starts the synergy — assignStaff lets the player re-bind it later.
+  if (def.estate) st.assignedTo = def.automates;
   state._staffMult = M.staffMult(state, DATA);
+  state._estateMult = M.estateSynergy(state, DATA);
+  checkEstate(state);
   notify(state, 'unlock', `🔔 Hired: ${def.name}.`);
   return true;
+}
+
+// Bind a hired estate staffer to a grounds cluster kind, or 'synergy' for the estate manager.
+// Validates role↔cluster (a cluster staffer can go to its own cluster; the manager to 'synergy').
+export function assignStaff(state, id, target) {
+  const def = staffDef(id); const st = state.staff[id];
+  if (!def || !st || !st.hired || !def.estate) return false;
+  const ok = def.automates === 'synergy' ? (target === 'synergy') : (target === def.automates || target === 'synergy');
+  if (!ok) return false;
+  st.assignedTo = target;
+  state._estateMult = M.estateSynergy(state, DATA);
+  return true;
+}
+
+// Beat-24 estate flag: fires once the estate wing is genuinely in use — at least one estate staffer
+// hired AND at least one grounds amenity owned (the "your money makes your money nicer" moment). A
+// one-shot flag; the beat itself keeps its own accTier:18 gate (never re-gated, the 26-beat pin).
+export function checkEstate(state) {
+  if (state.story.flags.estate) return;
+  const hasEstateStaff = DATA.staff.some(d => d.estate && state.staff[d.id]?.hired);
+  const hasGrounds = DATA.amenities.some(a => a.tag === 'grounds' && (state.amenities[a.id]?.level || 0) > 0);
+  if (!hasEstateStaff || !hasGrounds) return;
+  state.story.flags.estate = true;
+  notify(state, 'celebrate', '🌳 Villa Vita: gardeners in the topiary, a technician in the pool complex, a manager who manages them all. You wake; the lawn is already mowed. You did nothing. This is the dream.');
 }
 export function staffLevelCost(state, id) { const def = staffDef(id); return M.staffLevelCost(def, state.staff[id].level); }
 export function levelStaff(state, id) {

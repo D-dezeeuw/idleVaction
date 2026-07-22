@@ -72,10 +72,13 @@ export function tierMultiplier(state, k) {
   // bought (the gate) — the harness never buys property, so the island is unmoved. Read directly
   // off state.property (owned count ≤ 2), no per-tick cache needed (docs/math-proof §3 bounded-flat).
   const L_owner = ownerPrideMult(state);
+  // L_estate (E23 property×staff synergy): sqrt-softened, exactly 1 when no estate staff are
+  // assigned or no property is owned — the harness never engages it, so the island is unmoved.
+  const L_estate = estateMultiplier(state);
   const L_ascension = 1 + 0.10 * (state.ascension.tree.compounding_interest || 0);
   const L_tree = treeIncomeMult(state);
 
-  return mMilestone * L_upgrade * L_path * L_skill * L_comfort * L_dest * L_exclusivity * L_logistics * L_staff * L_owner * L_ascension * L_tree;
+  return mMilestone * L_upgrade * L_path * L_skill * L_comfort * L_dest * L_exclusivity * L_logistics * L_staff * L_owner * L_estate * L_ascension * L_tree;
 }
 
 // production per second of tier k (in units of tier k output)
@@ -245,10 +248,74 @@ export function ownedPropertyCount(state) {
 }
 // Owner-pride global × (E22-S4-T5): a small BOUNDED flat × per owned property (docs/math-proof §3
 // class: bounded-flat, safe to fold into the stack — NOT a power of cash). Exactly 1 with nothing
-// owned (the gate), so the harness is unmoved; max ×(1 + ownerPride·2) with both deeds ⇒ ≤ +10%.
+// owned (the gate), so the harness is unmoved; max ×(1 + ownerPride·4) with all deeds ⇒ ≤ +20%.
 export function ownerPrideMult(state) {
   return 1 + C.PROPERTY.ownerPride * ownedPropertyCount(state);
 }
+
+// ---- estate: grounds Comfort + property×staff synergy (E23 "Villa Vita") ----
+// groundsScore: Σ bought tag:'grounds' amenities' comfort — a UI-facing selector (the nodes ALREADY
+// feed ComfortRaw via amenityScoreTotal's w_amen, so this must NOT be added again — no double-count).
+export function groundsScore(state, DATA) {
+  let s = 0;
+  for (const a of DATA.amenities) {
+    if (a.tag !== 'grounds') continue;
+    s += (state.amenities[a.id]?.level || 0) * a.comfort;
+  }
+  return s;
+}
+// propertyLevel: Σ owned properties' (1 + Σ their bought upgrade ranks) — grows with breadth AND
+// depth. 0 when nothing is owned. The "scale" half of the synergy's sqrt(staff·property) term.
+export function propertyLevel(state, DATA) {
+  const P = state.property;
+  if (!P) return 0;
+  let lvl = 0;
+  for (const p of DATA.property) {
+    const slot = P[p.id];
+    if (!slot?.owned) continue;
+    lvl += 1;
+    for (const u of p.upgrades) lvl += (slot.upgrades?.[u.id] || 0);
+  }
+  return lvl;
+}
+// assignedEstateStaff: count of hired estate roles bound to a grounds CLUSTER (garden/pool/court —
+// the estate manager's 'synergy' slot is excluded here; it boosts the RATE instead). The "staff"
+// half of the synergy term. 0 for the harness (never hires) ⇒ synergy stays 1.
+export function assignedEstateStaff(state, DATA) {
+  const staff = state.staff; if (!staff) return 0;
+  let n = 0;
+  for (const def of DATA.staff) {
+    if (!def.estate || def.automates === 'synergy') continue;
+    const st = staff[def.id];
+    if (st?.hired && st.assignedTo && st.assignedTo !== 'synergy') n++;
+  }
+  return n;
+}
+// estateSynergyRate: the base ESTATE.synergyRate, amplified by (1+managerBoost) when the estate
+// manager is hired and on the 'synergy' slot (the manager-of-managers effect, S4-T2).
+export function estateSynergyRate(state, DATA) {
+  let rate = C.ESTATE.synergyRate;
+  const staff = state.staff;
+  if (staff) {
+    const mgr = DATA.staff.find(d => d.estate && d.automates === 'synergy');
+    if (mgr && staff[mgr.id]?.hired && staff[mgr.id].assignedTo === 'synergy') rate *= (1 + C.ESTATE.managerBoost);
+  }
+  return rate;
+}
+// L_estate (E23-S2-T3): the property×staff synergy. 1 + rate·sqrt(assignedStaff·propertyLevel) —
+// sqrt-SOFTENED (docs/05 §4 anti-runaway: the exponent on the interaction is ½, never a power of
+// cash). EXACTLY 1 whenever no estate staff are assigned OR no property is owned (sqrt(0)=0), so a
+// fresh newGame() and the greedy harness leave it at 1 and the fitted 29705s island cannot move.
+export function estateSynergy(state, DATA) {
+  const staff = assignedEstateStaff(state, DATA);
+  if (staff <= 0) return 1;
+  const lvl = propertyLevel(state, DATA);
+  if (lvl <= 0) return 1;
+  return 1 + estateSynergyRate(state, DATA) * Math.sqrt(staff * lvl);
+}
+// per-tick cache reader (engine.tick sets state._estateMult before the tierProd snapshot, mirroring
+// _staffMult). Exactly 1 when the synergy system is inactive.
+export function estateMultiplier(state) { return state._estateMult ?? 1; }
 // sum of owned collection assets' flat Comfort (count·comfort) — feeds ComfortRaw for every
 // branch (the connoisseur +25% perk in computeComfort adds on top). 0 with nothing owned.
 export function collectionComfortTotal(state, DATA) {

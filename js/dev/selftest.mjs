@@ -3910,7 +3910,9 @@ console.log('\n[94] E19 At Your Service: the butler, payroll sink, bounded auto-
 // ---------- 95. E20 "The Whole Household": 5 roles, morale-scaled L_staff, cap, payroll aggregate.
 console.log('\n[95] E20 The Whole Household: staff roles, morale softcap, L_staff invariance');
 {
-  ok(DATA.staff.length === 6, 'the roster is 6 (butler + 5 household roles)');
+  ok(['butler','chef','trainer','driver','manager','housekeeper'].every(id => DATA.staff.some(d => d.id === id)),
+    'the household roster (butler + 5 roles) is present');
+  ok(DATA.staff.filter(d => !d.estate).length === 6, 'exactly 6 NON-estate (household) roles (E23 estate wing is separate)');
   ok(ST.newGame().staff.chef.hired === false, 'household roles start UNHIRED');
 
   // ---- harness invariance: no staff hired ⇒ L_staff 1, payroll 0
@@ -4027,8 +4029,8 @@ console.log('\n[96] E21 Seven Stars: Seven-Star Touches cluster, gated exclusivi
 console.log('\n[97] E22 A Bungalow of One\'s Own: owned property, persistent Comfort floor, owner-pride ×, invariance');
 {
   ok(validateProperty(), 'validateProperty() passes on the shipped PROPERTIES roster');
-  ok(DATA.property.length === 2 && DATA.property[0].id === 'bungalow' && DATA.property[1].id === 'overwater_villa',
-    'the roster is the bungalow (tier 16) + overwater villa (tier 17)');
+  ok(DATA.property[0].id === 'bungalow' && DATA.property[1].id === 'overwater_villa',
+    'the E22 roster leads with the bungalow (tier 16) + overwater villa (tier 17)');
 
   // ---- fresh game / harness: nothing owned ⇒ propertyScore 0, owner-pride ×1 (bit-identical Comfort)
   const fresh = ST.newGame();
@@ -4088,6 +4090,86 @@ console.log('\n[97] E22 A Bungalow of One\'s Own: owned property, persistent Com
   ok(Math.abs(islandAt - 29705) < 1, `harness island time is UNCHANGED by E22 (got ${fmtTime(islandAt)}, expected 29705s — the deed is opt-in, ladder stays Comfort-gated)`);
   ok(M.ownedPropertyCount(hs) === 0 && M.propertyScore(hs, DATA) === 0, 'the harness ends owning no property (propertyScore 0 throughout)');
   ok(M.ownerPrideMult(hs) === 1, 'the harness income is never touched by owner-pride (×1 throughout)');
+}
+
+console.log('\n[98] E23 Villa Vita: grounds mega-clusters, estate wing, property×staff synergy (L_estate), invariance');
+{
+  // ---- data: villa/estate properties + grounds clusters + estate roles all validate
+  ok(validateProperty(), 'validateProperty() passes with the villa/estate + grounds clusters');
+  ok(validateStaff(), 'validateStaff() passes with the estate roles');
+  ok(DATA.property.some(p => p.id === 'villa') && DATA.property.some(p => p.id === 'estate'), 'the villa (18) + estate (19) join the property roster');
+  ok(DATA.grounds.length === 3 && DATA.grounds.map(g => g.kind).join() === 'garden,pool,court', 'three grounds clusters: garden, pool, court');
+  const estateRoles = DATA.staff.filter(d => d.estate);
+  ok(estateRoles.length === 4 && estateRoles.every(d => d.xMultBase === 0), 'four estate roles, all xMultBase 0 (they feed L_estate, not L_staff)');
+  ok(estateRoles.every(d => d.automates === 'synergy' || DATA.grounds.some(g => g.kind === d.automates)), 'every estate role automates a real cluster or the synergy slot');
+
+  // ---- estate wing: cap only grows once a villa/estate deed is owned; roles gated on that
+  const g = ST.newGame(); g.accommodation.tier = 19; g.bank.tier = C.BANK.tiers - 1; g.resources.cash = 1e16;
+  g._comfortCache = M.computeComfort(g, DATA);
+  ok(E.staffCap(g) === C.STAFF.staffCap, 'with no property owned, the staff cap is the base household cap');
+  ok(E.hireStaff(g, 'gardener') === false, 'an estate role cannot be hired before a villa/estate is owned');
+  g.property.overwater_villa.owned = true; g.property.villa.owned = true;   // own up to the villa
+  ok(E.estateActive(g) === true, 'owning the villa activates the estate wing');
+  ok(E.staffCap(g) === C.STAFF.staffCap + C.ESTATE.staffSlots, 'the cap grows by ESTATE.staffSlots once the wing opens');
+  ok(E.hireStaff(g, 'gardener') === true, 'an estate role hires once the wing is active');
+  ok(g.staff.gardener.assignedTo === 'garden', 'a hired estate role auto-assigns to the cluster it maintains');
+
+  // ---- L_estate synergy: 1 when nothing assigned; rises with staff AND property; sqrt-softened
+  const base = ST.newGame();
+  ok(M.estateSynergy(base, DATA) === 1, 'estateSynergy is exactly 1 on a fresh game (no staff, no property)');
+  const syn = ST.newGame(); syn.property.overwater_villa.owned = true; syn.property.villa.owned = true;
+  ok(M.estateSynergy(syn, DATA) === 1, 'synergy is 1 with property owned but NO estate staff assigned (sqrt(0)=0)');
+  syn.staff.gardener.hired = true; syn.staff.gardener.assignedTo = 'garden';
+  const s1 = M.estateSynergy(syn, DATA);
+  ok(s1 > 1, 'assigning one estate staffer to owned grounds lights the synergy (>1)');
+  ok(approx(s1, 1 + C.ESTATE.synergyRate * Math.sqrt(M.assignedEstateStaff(syn, DATA) * M.propertyLevel(syn, DATA))), 'L_estate = 1 + rate·sqrt(assignedStaff·propertyLevel)');
+  syn.staff.pool_tech.hired = true; syn.staff.pool_tech.assignedTo = 'pool';
+  ok(M.estateSynergy(syn, DATA) > s1, 'more assigned staff raises synergy');
+  const beforeProp = M.estateSynergy(syn, DATA);
+  syn.property.villa.upgrades = { villa_gatehouse: 3 };   // deepen the property
+  ok(M.estateSynergy(syn, DATA) > beforeProp, 'a bigger property (more upgrade ranks) raises synergy too');
+  // sqrt-softening: doubling BOTH factors multiplies the delta by exactly 2 (not 4)
+  const rate = C.ESTATE.synergyRate;
+  const dA = rate * Math.sqrt(2 * 8), dB = rate * Math.sqrt(4 * 16);
+  ok(approx(dB / dA, 2), 'the synergy delta scales as sqrt (doubling staff·property doubles the bonus, no runaway)');
+
+  // ---- estate manager on synergy boosts the RATE (manager-of-managers)
+  const mg = ST.newGame(); mg.property.overwater_villa.owned = true; mg.property.villa.owned = true;
+  mg.staff.gardener.hired = true; mg.staff.gardener.assignedTo = 'garden';
+  const noMgr = M.estateSynergyRate(mg, DATA);
+  mg.staff.estate_manager.hired = true; mg.staff.estate_manager.assignedTo = 'synergy';
+  ok(approx(M.estateSynergyRate(mg, DATA), noMgr * (1 + C.ESTATE.managerBoost)), 'the estate manager on the synergy slot multiplies synergyRate by (1+managerBoost)');
+  ok(M.assignedEstateStaff(mg, DATA) === 1, 'the synergy-slot manager is NOT counted as an assigned cluster staffer');
+
+  // ---- assignStaff validation
+  ok(E.assignStaff(g, 'gardener', 'synergy') === true, 'a cluster staffer can be reassigned to the synergy slot');
+  ok(E.assignStaff(g, 'gardener', 'pool') === false, 'a gardener cannot be assigned to the pool cluster (role↔cluster match)');
+  ok(E.assignStaff(g, 'chef', 'garden') === false, 'a non-estate (household) role cannot be assigned to grounds');
+
+  // ---- estate staff stay OUT of L_staff (their income effect is L_estate only)
+  const ls = ST.newGame(); ls.property.overwater_villa.owned = true; ls.property.villa.owned = true;
+  ls.staff.gardener.hired = true; ls.staff.gardener.assignedTo = 'garden';
+  ok(M.staffMult(ls, DATA) === 1, 'a hired estate role adds nothing to L_staff (xMultBase 0)');
+
+  // ---- groundsScore selector (no double-count — nodes already feed amenityScoreTotal)
+  ok(M.groundsScore(base, DATA) === 0, 'groundsScore is 0 with no grounds amenities owned');
+
+  // ---- beat-24 estate flag fires on first estate hire + first grounds amenity
+  const bt = ST.newGame(); bt.property.overwater_villa.owned = true; bt.property.villa.owned = true;
+  bt.staff.gardener.hired = true; bt.amenities.grd_topiary.level = 1;
+  E.checkEstate(bt);
+  ok(bt.story.flags.estate === true, 'flags.estate fires once an estate staffer is hired AND a grounds node is owned');
+
+  // ---- stack-order: L_estate folds into tierMultiplier as a clean factor
+  const stk = ST.newGame(); stk.generators[0].bought = 20; stk.generators[0].count = 20;
+  const m0 = M.tierMultiplier(stk, 0); stk._estateMult = 1.5;
+  ok(approx(M.tierMultiplier(stk, 0) / m0, 1.5), 'tierMultiplier scales by exactly the L_estate ratio (clean global factor)');
+
+  // ---- harness invariance: no property, no estate staff ⇒ L_estate 1, island unchanged
+  const { s: hs, islandAt } = runCurve({ dt: 5, maxHours: 40 });
+  ok(Math.abs(islandAt - 29705) < 1, `harness island time is UNCHANGED by E23 (got ${fmtTime(islandAt)}, expected 29705s — the estate wing is opt-in)`);
+  ok(M.estateSynergy(hs, DATA) === 1 && (hs._estateMult ?? 1) === 1, 'the harness ends with L_estate 1 (grounds/estate never engaged)');
+  ok(DATA.staff.filter(d => d.estate).every(d => !hs.staff[d.id].hired), 'the harness hires no estate staff');
 }
 
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);
