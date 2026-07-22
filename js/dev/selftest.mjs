@@ -3698,5 +3698,101 @@ console.log('\n[91] E16 Sea Legs: boats/crew, sea-destination gating, marina inv
   ok(approx(man.resources.cash, off.resources.cash, 1e-3), 'offline boat/crew upkeep + logistics matches a manual macro-step tick loop');
 }
 
+// ---------- 92. E17 "Wheels Up": jets + the car+boat+jet capstone, air destinations, jet discount.
+console.log('\n[92] E17 Wheels Up: jets, the logistics capstone, air-destination gating, invariance');
+{
+  ok(DATA.jets.length === 5, '5 jets in the roster');
+  ok(DATA.destinations.filter(d => d.air).length === 3, '3 air destinations');
+
+  // ---- harness invariance: no jets, no capstone, no air destinations, no jet discount
+  const { s: hs, islandAt, peakLog } = runCurve({ dt: 5, maxHours: 40 });
+  ok(Math.abs(islandAt - 29705) < 1, `harness island time is UNCHANGED by E17 (got ${fmtTime(islandAt)}, expected ~8h15m05s / 29705s — the committed-path baseline)`);
+  ok(peakLog < 290, `peak log10(cash) (${peakLog.toFixed(1)}) stays under the ceiling`);
+  ok(DATA.jets.every(j => hs.vehicles.jets[j.id].count === 0), 'the harness never buys a jet');
+  ok(M.capstoneActive(hs, DATA) === false && M.jetTier(hs, DATA) === 0 && hs._logiCache === 1, 'the harness never lights the capstone (jetTier 0, _logiCache 1)');
+  ok(DATA.destinations.filter(d => d.air).every(d => !hs.destinations[d.id].owned), 'the harness never buys an air destination');
+  ok(M.destDiscountMult(hs) === 1, 'the harness gets no jet destination discount');
+
+  // ---- gate: owning a jet activates the lane and folds its mult in
+  const g = ST.newGame(); g.bank.tier = C.BANK.tiers - 1; g.resources.cash = 1e17;
+  ok(E.buyJet(g, 'turboprop') && g.vehicles.jets.turboprop.count === 1, 'buyJet hangars a jet');
+  ok(M.logisticsActive(g, DATA) === true, 'owning a jet activates the lane');
+  ok(M.jetTier(g, DATA) === 1, 'jetTier reflects the highest owned jet');
+  ok(M.availableSlots(g) === C.LOGISTICS.baseSlots + E.jetData('turboprop').slotBonus, 'a jet grants its slotBonus (via jetSlots)');
+  ok(approx(M.fleetUpkeep(g, DATA), E.jetData('turboprop').upkeep * C.LOGISTICS.upkeepScale), 'fleetUpkeep includes jet upkeep (the biggest drain)');
+
+  // ---- the capstone: only with car AND boat AND jet, a distinct × factor, no ghosting
+  const cap = ST.newGame(); cap.bank.tier = C.BANK.tiers - 1; cap.resources.cash = 1e17;
+  cap.vehicles.owned.rusty_hatchback.count = 1; E.equipCar(cap, 'rusty_hatchback');
+  E.buyBoat(cap, 'dinghy');
+  ok(M.capstoneActive(cap, DATA) === false, 'capstone is OFF with only car+boat');
+  const beforeJet = M.logisticsMult(cap, DATA);
+  E.buyJet(cap, 'turboprop');
+  ok(M.capstoneActive(cap, DATA) === true, 'capstone lights with car+boat+jet');
+  const afterJet = M.logisticsMult(cap, DATA);
+  // the jet adds its own mult AND the ×(1+capstone) factor multiplies the whole base
+  const baseNoJet = 1 + C.LOGISTICS.rate * E.carData('rusty_hatchback').logisticsMult + C.LOGISTICS.boatRate * E.boatData('dinghy').mult;
+  const baseWithJet = baseNoJet + C.LOGISTICS.jetRate * E.jetData('turboprop').mult;
+  ok(approx(beforeJet, baseNoJet), 'pre-jet logisticsMult = car + boat terms, no capstone');
+  ok(approx(afterJet, baseWithJet * (1 + C.LOGISTICS.capstone)), 'post-jet logisticsMult = (car+boat+jet base) × (1+capstone) — a distinct factor');
+  // removing a vehicle drops the capstone with no ghost multiplier
+  E.unequipCar(cap, 'rusty_hatchback'); cap.vehicles.owned.rusty_hatchback.count = 0;
+  cap._logiCache = M.logisticsMult(cap, DATA);
+  ok(M.capstoneActive(cap, DATA) === false, 'lacking a vehicle removes the capstone (no ghost ×)');
+
+  // ---- air-destination gating on jet tier (plus chain/comfort)
+  const air = ST.newGame(); air._comfortCache = 1e10;
+  for (const d of DATA.destinations) if (!d.air) air.destinations[d.id].owned = true;   // own everything up to the air chain
+  ok(E.destUnlocked(air, 'air_tokyo') === false, 'an air destination is LOCKED with no jet');
+  air.bank.tier = C.BANK.tiers - 1; air.resources.cash = 1e17; E.buyJet(air, 'turboprop'); air._comfortCache = 1e10;
+  ok(E.destUnlocked(air, 'air_tokyo') === true, 'a tier-1 jet unlocks the tier-1 air destination');
+  ok(E.destUnlocked(air, 'air_new_york') === false, 'a tier-3 air destination stays locked behind a tier-1 jet');
+
+  // ---- jet destination discount + floor
+  const jd = ST.newGame(); jd.bank.tier = C.BANK.tiers - 1; jd.resources.cash = 1e17;
+  ok(M.destDiscountMult(jd) === 1, 'no jet ⇒ no destination discount');
+  E.buyJet(jd, 'turboprop');
+  ok(approx(M.destDiscountMult(jd), 1 - C.LOGISTICS.jetDiscount), 'owning a jet applies the jetDiscount to destination cost');
+  jd.story.branch = 'traveler'; jd.ascension.tree.wanderer = 50;
+  ok(M.destDiscountMult(jd) === C.LOGISTICS.destDiscountFloor, 'stacked traveler+wanderer+jet discount clamps at the floor (never free)');
+
+  // ---- first-jet + capstone one-time flags; beat 17 neutral fallback
+  const fj = ST.newGame(); fj.story.branch = 'traveler'; fj.bank.tier = C.BANK.tiers - 1; fj.resources.cash = 1e17;
+  fj.vehicles.owned.rusty_hatchback.count = 1; E.equipCar(fj, 'rusty_hatchback'); E.buyBoat(fj, 'dinghy');
+  E.buyJet(fj, 'turboprop'); E.tick(fj, 1);
+  ok(fj.story.flags.firstJet === true, 'flags.firstJet fires once a jet is owned');
+  ok(fj.story.flags.capstone === true, 'flags.capstone fires once car+boat+jet align');
+  const p = fj.paths.traveler.points; E.checkFirstJet(fj); E.checkCapstone(fj);
+  ok(fj.paths.traveler.points === p, 'first-jet/capstone flags never re-fire');
+  ok(!E.hangarUnlocked(ST.newGame()), 'the hangar is locked on a fresh game');
+  const b17 = ST.newGame(); b17.story.seen = Array.from({ length: 16 }, (_, i) => i + 1); b17.story.beat = 16; b17._comfortCache = 2e7;
+  E.checkStory(b17);
+  ok(b17.story.seen.includes(17), 'beat 17 still fires on its comfort:2e7 gate for every branch (26-beat pin holds)');
+
+  // ---- migration: pre-E17 save (no jets/jetSlots) backfills clean
+  const pre17 = ST.newGame(); delete pre17.vehicles.jets; delete pre17.vehicles.jetSlots;
+  const mig = ST.migrate(JSON.parse(JSON.stringify(pre17)));
+  ok(mig.vehicles.jets && DATA.jets.every(j => mig.vehicles.jets[j.id].count === 0), 'migration backfills every jet at count 0');
+  ok(mig.vehicles.jetSlots === 0, 'migration recomputes jetSlots (0 for an empty hangar)');
+  E.tick(mig, 1);
+  ok(Number.isFinite(mig.resources.cash) && M.capstoneActive(mig, DATA) === false, 'ticking a migrated pre-E17 save is finite, capstone off');
+
+  // ---- offline determinism with a full trinity fleet
+  const seedFleet = () => {
+    const st = ST.newGame(); st.story.branch = 'traveler';
+    st.generators[0].bought = 15; st.generators[0].count = 15; st.resources.cash = 1e12; st.bank.tier = C.BANK.tiers - 1;
+    st.vehicles.owned.rusty_hatchback.count = 1; st.vehicles.equipped = ['rusty_hatchback'];
+    st.vehicles.boats.dinghy.count = 1; st.vehicles.boatSlots = 1;
+    st.vehicles.jets.turboprop.count = 1; st.vehicles.jetSlots = 1;
+    st.settings.offlineEnabled = true; st._logiCache = M.logisticsMult(st, DATA);
+    return st;
+  };
+  const man = seedFleet(); const off = JSON.parse(JSON.stringify(seedFleet()));
+  const elapsedMs = 3 * 3600 * 1000, total = Math.min(elapsedMs, C.OFFLINE_CAP_H * 3600 * 1000) / 1000, step = total / C.OFFLINE_STEPS;
+  for (let i = 0; i < C.OFFLINE_STEPS; i++) E.tick(man, step);
+  E.applyOffline(off, elapsedMs);
+  ok(approx(man.resources.cash, off.resources.cash, 1e-3), 'offline jet upkeep + capstone × matches a manual macro-step loop');
+}
+
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);
 process.exit(fails === 0 ? 0 : 1);

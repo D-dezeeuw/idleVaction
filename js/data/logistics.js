@@ -54,6 +54,29 @@ export const CREW = [
     flavor: 'Wears the hat unironically. Has earned the hat.' },
 ];
 
+// JETS (E17 "Wheels Up", Private Logistics III — the capstone): the same OWNED-vehicle contract
+// as boats (owning grants mult + slotBonus + upkeep, folded into L_logistics via
+// config.LOGISTICS.jetRate; jetSlots tracked in state.vehicles.jetSlots). Extra fields:
+//   — range: how far the jet reaches; the highest owned jet's tier gates air:true destinations
+//     (engine.jetTier / destUnlocked), and owning ANY jet applies config.LOGISTICS.jetDiscount
+//     to destination cost (destDiscountMult, clamped above zero — never free).
+//   — the flagship (airliner) is the arc's showpiece (S4): huge mult, top upkeep, range 5.
+// Owning a car AND a boat AND a jet lights the LOGISTICS.capstone × (math.capstoneActive) — the
+// payoff for the whole logistics arc. costBase ~10× the Yacht (6e11 → turboprop 6e12),
+// costGrowth 2.0 (the most expensive rung). First-pass; tune jetRate/capstone/jetDiscount.
+export const JETS = [
+  { id: 'turboprop',  name: 'Turboprop',   class: 'jet', tier: 1, costBase: 6e12, costGrowth: 2.0, upkeep: 5e5,   mult: 0.80, slotBonus: 1, range: 1,
+    flavor: 'It is technically flying. Your ears file a formal dissent.' },
+  { id: 'light_jet',  name: 'Light Jet',   class: 'jet', tier: 2, costBase: 3e13, costGrowth: 2.0, upkeep: 2e6,   mult: 1.50, slotBonus: 1, range: 2,
+    flavor: 'Four seats, one of which is for the ice bucket. Priorities.' },
+  { id: 'midsize_jet',name: 'Midsize Jet', class: 'jet', tier: 3, costBase: 1.5e14, costGrowth: 2.0, upkeep: 8e6, mult: 2.80, slotBonus: 2, range: 3,
+    flavor: 'You can stand up in it. You do, constantly, just because you can.' },
+  { id: 'heavy_jet',  name: 'Heavy Jet',   class: 'jet', tier: 4, costBase: 8e14, costGrowth: 2.0, upkeep: 3e7,   mult: 5.00, slotBonus: 2, range: 4,
+    flavor: 'Intercontinental, and there is a bed. A real one. In the sky.' },
+  { id: 'airliner',   name: 'Private Airliner', class: 'jet', tier: 5, costBase: 4e15, costGrowth: 2.0, upkeep: 1.2e8, mult: 9.00, slotBonus: 3, range: 5,
+    flavor: 'A commercial airliner, for one passenger. From a bus stop in the drizzle to this. The stroopwafel made it too.' },
+];
+
 // Dev schema guard (mirrors validateVehicles): boat ids unique + strictly-increasing costBase,
 // crew ids unique, every field present + right type/sign, tier/slotBonus/crewCap non-negative
 // integers, costGrowth>1, mult>0, upkeep≥0. Throws on failure. No CONFIG param (this file never
@@ -88,6 +111,23 @@ export function validateLogistics() {
     if (!(c.mult > 0)) errors.push(`${c.id}: mult must be > 0`);
     if (!(c.upkeep >= 0)) errors.push(`${c.id}: upkeep must be >= 0`);
     if (c.preStaff !== true) errors.push(`${c.id}: preStaff must be true (flags E19 absorption)`);
+  }
+  const seenJ = new Set();
+  let prevJ = 0;
+  for (const j of JETS) {
+    if (seenJ.has(j.id)) errors.push(`duplicate jet id: ${j.id}`);
+    seenJ.add(j.id);
+    for (const k of ['id', 'name', 'flavor']) if (typeof j[k] !== 'string' || !j[k]) errors.push(`${j.id}: "${k}" must be a non-empty string`);
+    for (const k of ['costBase', 'costGrowth', 'upkeep', 'mult', 'tier', 'slotBonus', 'range']) if (typeof j[k] !== 'number' || !Number.isFinite(j[k])) errors.push(`${j.id}: "${k}" must be a finite number`);
+    if (j.class !== 'jet') errors.push(`${j.id}: class must be 'jet'`);
+    if (!Number.isInteger(j.tier) || j.tier <= 0) errors.push(`${j.id}: tier must be a positive integer`);
+    if (!Number.isInteger(j.slotBonus) || j.slotBonus < 0) errors.push(`${j.id}: slotBonus must be a non-negative integer`);
+    if (!Number.isInteger(j.range) || j.range <= 0) errors.push(`${j.id}: range must be a positive integer`);
+    if (!(j.costBase > prevJ)) errors.push(`${j.id}: costBase (${j.costBase}) not strictly increasing (prev ${prevJ})`);
+    prevJ = j.costBase;
+    if (!(j.costGrowth > 1)) errors.push(`${j.id}: costGrowth must be > 1`);
+    if (!(j.mult > 0)) errors.push(`${j.id}: mult must be > 0`);
+    if (!(j.upkeep >= 0)) errors.push(`${j.id}: upkeep must be >= 0`);
   }
   if (errors.length) throw new Error('validateLogistics() failed:\n' + errors.join('\n'));
   return true;

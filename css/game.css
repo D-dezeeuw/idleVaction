@@ -225,6 +225,12 @@ body { background: var(--iv-bg); color: var(--iv-ink); font-family: system-ui, s
 .iv-warn { background: #3a2a12; border: 1px solid #d9a441; color: #f3c675; border-radius: 6px;
   padding: 6px 8px; margin: 6px 0; font-size: .82rem; }
 
+/* Logistics capstone banner (E17 "Wheels Up"): lit gold when car+boat+jet all owned, muted otherwise. */
+.iv-capstone-on { background: #2a2410; border: 1px solid #e2c14e; color: #ffe08a; border-radius: 6px;
+  padding: 6px 8px; margin: 6px 0; font-size: .85rem; }
+.iv-capstone-off { color: var(--iv-sub); border: 1px dashed var(--iv-line); border-radius: 6px;
+  padding: 6px 8px; margin: 6px 0; font-size: .82rem; }
+
 /* "While you were away" summary (E02-S9-T5): dismissible, mobile-friendly overlay. */
 .iv-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex;
   align-items: center; justify-content: center; z-index: 20; padding: 16px; }

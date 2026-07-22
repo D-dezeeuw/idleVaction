@@ -39,6 +39,7 @@ export function render(state) {
   renderCollection(state);
   renderGarage(state);
   renderMarina(state);
+  renderHangar(state);
   renderSkills(state);
   renderPaths(state);
   renderAscension(state);
@@ -1016,6 +1017,39 @@ function renderMarina(s) {
   el('marina').innerHTML = html;
 }
 
+// ---------- The Hangar: jets + the logistics capstone (E17 "Wheels Up") ----------
+function hangarRevealed(s) { return E.hangarUnlocked(s); }
+
+function jetRowHtml(s, j) {
+  const owned = s.vehicles.jets[j.id].count;
+  const cost = E.jetCost(s, j.id);
+  const jetX = (1 + C.LOGISTICS.jetRate * j.mult).toFixed(2);
+  return `<div class="iv-btn iv-content-item" title="${j.flavor}">
+    <b>${j.name}</b> <small>owned ${owned} · range ${j.range}</small>
+    <div class="iv-sub">×${jetX} logistics · +${j.slotBonus} slot${j.slotBonus > 1 ? 's' : ''} · upkeep <span class="iv-upkeep">${fmt(j.upkeep * C.LOGISTICS.upkeepScale)}/s</span></div>
+    <div class="iv-row-buy">${btn('buy-jet', j.id, `Buy<br><small>${fmt(cost)}</small>`, afford(cost))}</div>
+  </div>`;
+}
+
+function renderHangar(s) {
+  const card = el('hangarCard');
+  const reveal = hangarRevealed(s);
+  if (card) card.hidden = !reveal;
+  if (!reveal) { if (el('hangar')) el('hangar').innerHTML = ''; return; }
+
+  const cap = M.capstoneActive(s, DATA);
+  let html = `<div class="iv-sub">✈️ Jet tier <b>${M.jetTier(s, DATA)}</b> · logistics bonus <b>×${M.logisticsMult(s, DATA).toFixed(2)}</b> · fleet upkeep <span class="iv-upkeep">${fmt(M.fleetUpkeep(s, DATA))}/s</span></div>`;
+  // capstone banner (S3-T5): lights when car + boat + jet are all owned.
+  html += `<div class="${cap ? 'iv-capstone-on' : 'iv-capstone-off'}">🏁 Logistics Capstone — car + boat + jet ${cap ? `<b>ACTIVE ×${(1 + C.LOGISTICS.capstone).toFixed(2)}</b> on all income` : '<small>(own one of each to light it)</small>'}</div>`;
+  html += `<div class="iv-sub">🌍 A jet cuts destination cost and unlocks air-only cities (check the map).</div>`;
+
+  html += '<div class="iv-tag">the hangar</div><div class="iv-amenities">';
+  for (const j of DATA.jets) html += jetRowHtml(s, j);
+  html += '</div>';
+
+  el('hangar').innerHTML = html;
+}
+
 // live footer energy readout, "near the tap button" (E10-S4-T8): #energyMini is a
 // persistent node created once by renderControls's template (like the aria-live
 // regions above) and refreshed here on every render() cycle, since renderControls
@@ -1383,6 +1417,7 @@ function handle(action, arg, btnEl) {
     // Marina (E16 "Sea Legs"): buy a boat / hire crew — generic afford/cap-gated flow.
     case 'buy-boat': E.buyBoat(S, arg); break;
     case 'buy-crew': E.buyCrew(S, arg); break;
+    case 'buy-jet': E.buyJet(S, arg); break;   // E17 Hangar
     case 'buy-content': E.buyContent(S, arg); break;
     case 'buy-content-boost': E.buyContentBoost(S, arg); break;
     case 'accept-sponsor': {
@@ -1465,6 +1500,7 @@ function handle(action, arg, btnEl) {
     // marina debug hooks (E16): grant a boat, hire crew.
     case 'dbg-boat': S.vehicles.boats['dinghy'].count++; S.vehicles.boatSlots += E.boatData('dinghy').slotBonus; break;
     case 'dbg-crew': if (M.crewCount(S, DATA) < M.crewCapTotal(S, DATA)) S.vehicles.crew['deckhand'].count++; break;
+    case 'dbg-jet': S.vehicles.jets['turboprop'].count++; S.vehicles.jetSlots += E.jetData('turboprop').slotBonus; break;
     case 'export': hooks.exportSave(); break;
     case 'import': hooks.importSave(); break;
     case 'reset': if (confirm('Hard reset? This wipes everything.')) hooks.hardReset(); break;
@@ -1562,5 +1598,6 @@ function renderDebug() {
     ${btn('dbg-slots', '', '+1 garage slot')}
     ${btn('dbg-repossess', '', 'force repossess')}
     ${btn('dbg-boat', '', 'grant boat')}
-    ${btn('dbg-crew', '', 'hire crew')}`;
+    ${btn('dbg-crew', '', 'hire crew')}
+    ${btn('dbg-jet', '', 'grant jet')}`;
 }

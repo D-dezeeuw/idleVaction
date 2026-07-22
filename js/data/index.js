@@ -14,7 +14,7 @@ import { COINS, MARKET_EVENTS, HEDGES } from './crypto.js';
 import { BANK_ACCOUNTS } from './bank.js';
 import { ART, WINE } from './collections.js';
 import { CARS } from './vehicles.js';
-import { BOATS, CREW } from './logistics.js';
+import { BOATS, CREW, JETS } from './logistics.js';
 
 export const DATA = {
   generators: GENERATORS,
@@ -50,4 +50,7 @@ export const DATA = {
   // live in DATA.destinations (flagged sea:true); the yacht amenity cluster is tag:'yacht'.
   boats: BOATS,
   crew: CREW,
+  // logistics-III (E17 "Wheels Up"): jets + the car+boat+jet capstone. Air destinations live in
+  // DATA.destinations (air:true); the jet-cabin cluster is tag:'jet'.
+  jets: JETS,
 };

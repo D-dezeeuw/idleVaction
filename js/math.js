@@ -595,13 +595,30 @@ export function availableSlots(state) {
     + (state.story.branch === 'traveler' ? 1 : 0)
     + (state.ascension.tree.wanderer || 0)
     + (state.vehicles?.garageSlots || 0)
-    + (state.vehicles?.boatSlots || 0);   // E16: owned boats grant transport slots (buyBoat maintains boatSlots)
+    + (state.vehicles?.boatSlots || 0)    // E16: owned boats grant transport slots (buyBoat maintains boatSlots)
+    + (state.vehicles?.jetSlots || 0);    // E17: owned jets grant slots too (buyJet maintains jetSlots)
 }
 // highest owned boat tier — gates sea:true destinations (engine.destUnlocked). 0 with no boats.
 export function boatTier(state, DATA) {
   let t = 0;
   for (const b of DATA.boats) if ((state.vehicles?.boats?.[b.id]?.count || 0) > 0) t = Math.max(t, b.tier);
   return t;
+}
+// highest owned jet tier — gates air:true destinations (E17). 0 with no jets.
+export function jetTier(state, DATA) {
+  let t = 0;
+  for (const j of DATA.jets) if ((state.vehicles?.jets?.[j.id]?.count || 0) > 0) t = Math.max(t, j.tier);
+  return t;
+}
+// the logistics capstone (E17-S2-T4): a car AND a boat AND a jet all owned. A distinct
+// multiplicative × on L_logistics (config.LOGISTICS.capstone). False for the harness (no vehicles).
+export function capstoneActive(state, DATA) {
+  const v = state.vehicles;
+  if (!v) return false;
+  const anyCar = DATA.vehicles.some(c => (v.owned?.[c.id]?.count || 0) > 0);
+  const anyBoat = DATA.boats.some(b => (v.boats?.[b.id]?.count || 0) > 0);
+  const anyJet = DATA.jets.some(j => (v.jets?.[j.id]?.count || 0) > 0);
+  return anyCar && anyBoat && anyJet;
 }
 // total crew capacity = Σ owned boats' crewCap; and current crew count = Σ owned crew.
 export function crewCapTotal(state, DATA) {
@@ -630,6 +647,7 @@ export function logisticsActive(state, DATA) {
   // E16: an OWNED boat or crew also turns the lane on (boats aren't "equipped" — owning is enough).
   if (v?.boats) for (const b of DATA.boats) if ((v.boats[b.id]?.count || 0) > 0) return true;
   if (v?.crew) for (const c of DATA.crew) if ((v.crew[c.id]?.count || 0) > 0) return true;
+  if (v?.jets) for (const j of DATA.jets) if ((v.jets[j.id]?.count || 0) > 0) return true;   // E17
   return false;
 }
 // logisticsMult = 1 + rate·Σ(equipped car.mult) + boatRate·Σ(owned boat.mult) + crewRate·Σ(owned
@@ -646,7 +664,12 @@ export function logisticsMult(state, DATA) {
   for (const b of DATA.boats) boatSum += (v.boats?.[b.id]?.count || 0) * b.mult;
   let crewSum = 0;
   for (const c of DATA.crew) crewSum += (v.crew?.[c.id]?.count || 0) * c.mult;
-  return 1 + C.LOGISTICS.rate * carSum + C.LOGISTICS.boatRate * boatSum + C.LOGISTICS.crewRate * crewSum;
+  let jetSum = 0;   // E17
+  for (const j of DATA.jets) jetSum += (v.jets?.[j.id]?.count || 0) * j.mult;
+  const base = 1 + C.LOGISTICS.rate * carSum + C.LOGISTICS.boatRate * boatSum
+    + C.LOGISTICS.crewRate * crewSum + C.LOGISTICS.jetRate * jetSum;
+  // E17 capstone: a DISTINCT × when car+boat+jet are all owned (the arc's payoff). ×1 otherwise.
+  return base * (capstoneActive(state, DATA) ? (1 + C.LOGISTICS.capstone) : 1);
 }
 // the per-tick cache reader tierMultiplier uses (mirrors destMultiplier reading _destCache /
 // exclusivityMult reading _exclCache). Exactly 1 when the cache is 1 (system inactive).
@@ -663,6 +686,7 @@ export function fleetUpkeep(state, DATA) {
   // E16: owned boats + crew also draw upkeep (a hull is a money pit even at anchor).
   for (const b of DATA.boats) up += (v.boats?.[b.id]?.count || 0) * b.upkeep;
   for (const c of DATA.crew) up += (v.crew?.[c.id]?.count || 0) * c.upkeep;
+  for (const j of DATA.jets) up += (v.jets?.[j.id]?.count || 0) * j.upkeep;   // E17: jets are the biggest drain
   return up * C.LOGISTICS.upkeepScale;
 }
 // equipped cars' flat Comfort (Σ comfort) — feeds computeComfort exactly like collection
@@ -683,7 +707,11 @@ export function destDiscountMult(state) {
   if (state.story.branch === 'traveler') m *= (1 - C.LOGISTICS.destDiscountTraveler);   // branch perk
   const wander = state.ascension.tree.wanderer || 0;
   if (wander > 0) m *= Math.pow(1 - C.LOGISTICS.wandererDestDiscount, wander);            // tree node
-  return Math.max(C.LOGISTICS.destDiscountFloor, m);
+  // E17: owning ANY jet cuts destination cost (the jet collapses the cost side). No DATA needed —
+  // a plain scan of the owned map. The vlogger harness owns no jet ⇒ no discount ⇒ island unmoved.
+  const anyJet = state.vehicles?.jets && Object.values(state.vehicles.jets).some(j => (j.count || 0) > 0);
+  if (anyJet) m *= (1 - C.LOGISTICS.jetDiscount);
+  return Math.max(C.LOGISTICS.destDiscountFloor, m);   // floored — destinations never hit zero
 }
 // equipped cars' total speed (Σ speed) — engine.transportSpeed adds this to the active ride's
 // speed, so a car shortens destCost exactly like transport does (E15-S2-T5). 0 with nothing

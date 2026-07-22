@@ -170,6 +170,9 @@ export function tick(state, dt) {
   checkFirstCar(state);
   checkMarinaReveal(state);
   checkFirstBoat(state);
+  checkHangarReveal(state);
+  checkFirstJet(state);
+  checkCapstone(state);
   checkPathStages(state);
 
   // 7) concierge: bounded, off-by-default auto-purchase policy (E11 "Five-Star Frame of
@@ -466,6 +469,8 @@ export function destUnlocked(state, id) {
   // required tier — a hull literally opens places you couldn't reach. The greedy-vlogger harness
   // owns no boat (boatTier 0), so sea destinations never unlock ⇒ L_dest / island are unmoved.
   if (d.sea && M.boatTier(state, DATA) < d.requiresBoatTier) return false;
+  // E17: an air:true destination needs a jet of the required tier (jetTier 0 for the harness).
+  if (d.air && M.jetTier(state, DATA) < d.requiresJetTier) return false;
   const chainOk = !d.unlockAfter || !!state.destinations[d.unlockAfter]?.owned;
   return chainOk && state._comfortCache >= (d.unlockComfort || 0);
 }
@@ -1326,6 +1331,63 @@ export function checkFirstBoat(state) {
   addPathPoints(state, 'traveler', FIRST_BOAT_PATH_BONUS);
   addPathPoints(state, 'connoisseur', FIRST_BOAT_PATH_BONUS);
   notify(state, 'celebrate', '⛵ Sea Legs: your first hull. The sea turns out to be just more places — a whole blue continent of them, and the coves the guidebooks skipped are suddenly yours.');
+}
+
+// ---------- the Hangar: jets + the logistics capstone (E17 "Wheels Up", Private Logistics III) ----------
+// Jets are OWNED like boats — owning grants mult + slotBonus + upkeep (folded into L_logistics /
+// fleetUpkeep) plus a jetTier that gates air:true destinations and a jetDiscount on destination
+// cost. Owning a car AND a boat AND a jet lights the LOGISTICS.capstone × (math.capstoneActive).
+// All opt-in: a fresh newGame() and the vlogger harness own no jet ⇒ jetTier 0, no discount, no
+// capstone ⇒ the fitted island is unmoved.
+export function jetData(id) { return DATA.jets.find(j => j.id === id); }
+export function jetTier(state) { return M.jetTier(state, DATA); }
+export function capstoneActive(state) { return M.capstoneActive(state, DATA); }
+export function jetCost(state, id) {
+  const j = jetData(id);
+  return bulkCost(j.costBase, j.costGrowth, state.vehicles.jets[id].count, 1) * M.commsCostMult(state);
+}
+export function buyJet(state, id) {
+  const j = jetData(id);
+  if (!j) return false;
+  const cost = jetCost(state, id);
+  if (state.resources.cash < cost) return false;
+  state.resources.cash -= cost;
+  state.vehicles.jets[id].count += 1;
+  state.vehicles.jetSlots = (state.vehicles.jetSlots || 0) + j.slotBonus;
+  addPathPoints(state, 'traveler', C.LOGISTICS.buyPathNudge);
+  state._logiCache = M.logisticsMult(state, DATA);
+  notify(state, 'unlock', `✈️ Now in the hangar: ${j.name}`);
+  return true;
+}
+// Hangar reveal (mirrors marinaUnlocked): beat 17 fired, OR tier 11, OR a jet is owned.
+export function hangarUnlocked(state) {
+  return state.story.seen.includes(17) || state.accommodation.tier >= 11
+      || DATA.jets.some(j => (state.vehicles.jets[j.id]?.count || 0) > 0);
+}
+export function checkHangarReveal(state) {
+  if (state.story.flags.hangarRevealed) return;
+  if (!hangarUnlocked(state)) return;
+  state.story.flags.hangarRevealed = true;
+  notify(state, 'unlock', '✈️ The Hangar opens: buy a jet, put the whole map one tap away.');
+}
+// "Wheels Up" one-time bonus (mirrors checkFirstBoat): a one-shot flag the moment a jet is owned.
+// Beat 17 itself stays on its comfort:2e7 gate for every branch (the 26-beat pin / neutral fallback).
+const FIRST_JET_PATH_BONUS = 2;
+export function checkFirstJet(state) {
+  if (state.story.flags.firstJet) return;
+  if (!DATA.jets.some(j => (state.vehicles.jets[j.id]?.count || 0) > 0)) return;
+  state.story.flags.firstJet = true;
+  addPathPoints(state, 'traveler', FIRST_JET_PATH_BONUS);
+  notify(state, 'celebrate', '✈️ Wheels Up: your own jet. From a rainy bus stop to your own runway — every city on earth is now a nap away.');
+}
+// Logistics capstone celebration (E17-S2-T8/S10-T5): a one-shot when car+boat+jet first align.
+// The × itself is computed live in math.logisticsMult (no stored flag drives the multiplier — the
+// flag is display/notify only, so it can never ghost a bonus the vehicles don't currently justify).
+export function checkCapstone(state) {
+  if (state.story.flags.capstone) return;
+  if (!M.capstoneActive(state, DATA)) return;
+  state.story.flags.capstone = true;
+  notify(state, 'celebrate', `🏁 Logistics Capstone: car + boat + jet — the holy trinity of not taking the bus. All income ×${(1 + C.LOGISTICS.capstone).toFixed(2)}.`);
 }
 
 export function nextAccTier(state) { return state.accommodation.tier + 1; }

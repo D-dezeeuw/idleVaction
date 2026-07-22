@@ -62,6 +62,8 @@ export function newGame() {
   DATA.boats.forEach(b => { boatsOwned[b.id] = { count: 0 }; });
   const crewOwned = {};
   DATA.crew.forEach(c => { crewOwned[c.id] = { count: 0 }; });
+  const jetsOwned = {};
+  DATA.jets.forEach(j => { jetsOwned[j.id] = { count: 0 }; });
 
   return {
     version: C.SAVE_VERSION,
@@ -71,7 +73,8 @@ export function newGame() {
     resources: { cash: 15, comfort: 0, clout: 0, legacy: 0, energy: C.ENERGY.base },
     generators, amenities, skills, training, paths, npcsMet, destinations, content, collections,
     vehicles: { owned: vehiclesOwned, equipped: [], garageSlots: 0, upkeepAccrued: 0,
-      boats: boatsOwned, crew: crewOwned, boatSlots: 0 },
+      boats: boatsOwned, crew: crewOwned, boatSlots: 0,
+      jets: jetsOwned, jetSlots: 0 },
     // crypto portfolio (E13): holdings/hedges own state; market is the seeded scheduler's
     // own state — phase starts 'calm', mult 1, cursor 0. engine.marketTick is a no-op
     // until crypto path points are spent or a coin is held (see config.MARKET's comment
@@ -192,6 +195,10 @@ export function migrate(s) {
     s.vehicles.crew ||= {};
     for (const c of DATA.crew) if (!s.vehicles.crew[c.id]) s.vehicles.crew[c.id] = { count: 0 };
     s.vehicles.boatSlots = DATA.boats.reduce((n, b) => n + (s.vehicles.boats[b.id]?.count || 0) * b.slotBonus, 0);
+    // jets (E17): backfill + recompute jetSlots from the owned fleet.
+    s.vehicles.jets ||= {};
+    for (const j of DATA.jets) if (!s.vehicles.jets[j.id]) s.vehicles.jets[j.id] = { count: 0 };
+    s.vehicles.jetSlots = DATA.jets.reduce((n, j) => n + (s.vehicles.jets[j.id]?.count || 0) * j.slotBonus, 0);
   }
   return s;
 }
