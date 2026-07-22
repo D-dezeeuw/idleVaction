@@ -18,97 +18,116 @@
 
   <div id="notifs" class="iv-notifs"></div>
 
-  <main class="iv-grid">
-    <section class="iv-card"><h3>📖 Story</h3><div id="story"></div></section>
-    <section class="iv-card"><h3 id="accTitle">🏨 Accommodation</h3><div id="accommodation"></div></section>
-    <section class="iv-card"><h3 id="bankTitle">🏦 Bank Account</h3><div id="bank"></div></section>
-    <section class="iv-card iv-wide" id="destCard" hidden><h3>🌍 Destinations</h3><div id="destinations"></div></section>
-    <section class="iv-card" id="transportCard" hidden><h3>🚌 Getting Around</h3><div id="transport"></div></section>
-    <section class="iv-card iv-wide"><h3>💶 Income Tiers</h3><div id="generators"></div></section>
-    <section class="iv-card iv-wide"><h3>🛎️ Amenities <small>(small wins)</small></h3><div id="amenities"></div></section>
-    <section class="iv-card iv-wide" id="poolCard" hidden>
-      <h3>🏊 Poolside</h3>
-      <div id="poolAnnounce" class="iv-sr-only" aria-live="polite"></div>
-      <div id="poolside"></div>
-    </section>
-    <section class="iv-card iv-wide" id="beachCard" hidden>
-      <h3>🏖️ Beachfront</h3>
-      <div id="beachAnnounce" class="iv-sr-only" aria-live="polite"></div>
-      <div id="beachfront"></div>
-    </section>
-    <section class="iv-card iv-wide" id="wellnessCard" hidden>
-      <h3>💪🧖 Wellness Wing</h3>
-      <div id="wellnessAnnounce" class="iv-sr-only" aria-live="polite"></div>
-      <div id="wellness"></div>
-    </section>
-    <section class="iv-card iv-wide" id="conciergeCard" hidden>
-      <h3>🛎️ Concierge Desk</h3>
-      <div id="conciergeAnnounce" class="iv-sr-only" aria-live="polite"></div>
-      <div id="concierge"></div>
-    </section>
-    <section class="iv-card iv-wide" id="creatorCard" hidden>
-      <h3>📸 Creator Dashboard</h3>
-      <div id="creatorAnnounce" class="iv-sr-only" aria-live="polite"></div>
-      <div id="creator"></div>
-    </section>
-    <section class="iv-card iv-wide" id="cryptoCard" hidden>
-      <h3>📈 Crypto Poolside Lounge</h3>
-      <div id="cryptoAnnounce" class="iv-sr-only" aria-live="polite"></div>
-      <div id="crypto"></div>
-    </section>
-    <section class="iv-card iv-wide" id="collectionCard" hidden>
-      <h3>🖼️ The Gallery &amp; Cellar</h3>
-      <div id="collectionAnnounce" class="iv-sr-only" aria-live="polite"></div>
-      <div id="collection"></div>
-    </section>
-    <section class="iv-card iv-wide" id="garageCard" hidden>
-      <h3>🔑 The Garage</h3>
-      <div id="garageAnnounce" class="iv-sr-only" aria-live="polite"></div>
-      <div id="garage"></div>
-    </section>
-    <section class="iv-card iv-wide" id="marinaCard" hidden>
-      <h3>⛵ The Marina</h3>
-      <div id="marinaAnnounce" class="iv-sr-only" aria-live="polite"></div>
-      <div id="marina"></div>
-    </section>
-    <section class="iv-card iv-wide" id="hangarCard" hidden>
-      <h3>✈️ The Hangar</h3>
-      <div id="hangarAnnounce" class="iv-sr-only" aria-live="polite"></div>
-      <div id="hangar"></div>
-    </section>
-    <section class="iv-card iv-wide" id="staffCard" hidden>
-      <h3>🔔 Staff</h3>
-      <div id="staffAnnounce" class="iv-sr-only" aria-live="polite"></div>
-      <div id="staff"></div>
-    </section>
-    <section class="iv-card iv-wide" id="propertyCard" hidden>
-      <h3>🏡 Property</h3>
-      <div id="propertyAnnounce" class="iv-sr-only" aria-live="polite"></div>
-      <div id="property"></div>
-    </section>
-    <section class="iv-card">
-      <h3>💪 Personal Growth</h3>
-      <div id="skillAnnounce" class="iv-sr-only" aria-live="polite"></div>
-      <div id="skills"></div>
-    </section>
-    <section class="iv-card"><h3>🧭 Build Paths</h3><div id="paths"></div></section>
-    <section class="iv-card iv-wide" id="islandListingCard" hidden>
-      <h3>🏝️ The Island Listing</h3>
-      <div id="islandListingAnnounce" class="iv-sr-only" aria-live="polite"></div>
-      <div id="islandListing"></div>
-    </section>
-    <section class="iv-card"><h3>✨ Ascension</h3><div id="ascension"></div></section>
-    <section class="iv-card iv-wide"><h3>🌳 Permanent Skill Tree</h3><div id="tree"></div></section>
-    <section class="iv-card iv-wide" id="legendCard" hidden>
-      <h3>👑 Legend &amp; New Game+</h3>
-      <div id="legendAnnounce" class="iv-sr-only" aria-live="polite"></div>
-      <div id="legend"></div>
-    </section>
-    <section class="iv-card iv-wide">
-      <h3>🏆 Trophies &amp; Statistics</h3>
-      <div id="achievementsAnnounce" class="iv-sr-only" aria-live="polite"></div>
-      <div id="achievements"></div>
-    </section>
+  <!-- Story: the persistent narrative throughline, above the tabs (always visible). -->
+  <div class="iv-story-strip"><section class="iv-card" id="storyCard"><h3>📖 Story</h3><div id="story"></div></section></div>
+
+  <!-- Tab bar (rendered by ui.renderTabs — only tabs with unlocked content appear: the future stays hidden). -->
+  <nav id="tabbar" class="iv-tabbar" role="tablist" aria-label="Sections"></nav>
+
+  <main id="tabpanels">
+    <div class="iv-tabpanel iv-grid" data-tab="home" role="tabpanel">
+      <section class="iv-card" id="accCard"><h3 id="accTitle">🏨 Accommodation</h3><div id="accommodation"></div></section>
+      <section class="iv-card" id="bankCard"><h3 id="bankTitle">🏦 Bank Account</h3><div id="bank"></div></section>
+      <section class="iv-card iv-wide" id="amenitiesCard"><h3>🛎️ Amenities <small>(small wins)</small></h3><div id="amenities"></div></section>
+      <section class="iv-card iv-wide" id="poolCard" hidden>
+        <h3>🏊 Poolside</h3>
+        <div id="poolAnnounce" class="iv-sr-only" aria-live="polite"></div>
+        <div id="poolside"></div>
+      </section>
+      <section class="iv-card iv-wide" id="beachCard" hidden>
+        <h3>🏖️ Beachfront</h3>
+        <div id="beachAnnounce" class="iv-sr-only" aria-live="polite"></div>
+        <div id="beachfront"></div>
+      </section>
+      <section class="iv-card iv-wide" id="wellnessCard" hidden>
+        <h3>💪🧖 Wellness Wing</h3>
+        <div id="wellnessAnnounce" class="iv-sr-only" aria-live="polite"></div>
+        <div id="wellness"></div>
+      </section>
+      <section class="iv-card iv-wide" id="conciergeCard" hidden>
+        <h3>🛎️ Concierge Desk</h3>
+        <div id="conciergeAnnounce" class="iv-sr-only" aria-live="polite"></div>
+        <div id="concierge"></div>
+      </section>
+      <section class="iv-card iv-wide" id="propertyCard" hidden>
+        <h3>🏡 Property</h3>
+        <div id="propertyAnnounce" class="iv-sr-only" aria-live="polite"></div>
+        <div id="property"></div>
+      </section>
+      <section class="iv-card iv-wide" id="islandListingCard" hidden>
+        <h3>🏝️ The Island Listing</h3>
+        <div id="islandListingAnnounce" class="iv-sr-only" aria-live="polite"></div>
+        <div id="islandListing"></div>
+      </section>
+    </div>
+
+    <div class="iv-tabpanel iv-grid" data-tab="income" role="tabpanel" hidden>
+      <section class="iv-card iv-wide" id="generatorsCard"><h3>💶 Income Tiers</h3><div id="generators"></div></section>
+      <section class="iv-card iv-wide" id="creatorCard" hidden>
+        <h3>📸 Creator Dashboard</h3>
+        <div id="creatorAnnounce" class="iv-sr-only" aria-live="polite"></div>
+        <div id="creator"></div>
+      </section>
+      <section class="iv-card iv-wide" id="cryptoCard" hidden>
+        <h3>📈 Crypto Poolside Lounge</h3>
+        <div id="cryptoAnnounce" class="iv-sr-only" aria-live="polite"></div>
+        <div id="crypto"></div>
+      </section>
+      <section class="iv-card iv-wide" id="collectionCard" hidden>
+        <h3>🖼️ The Gallery &amp; Cellar</h3>
+        <div id="collectionAnnounce" class="iv-sr-only" aria-live="polite"></div>
+        <div id="collection"></div>
+      </section>
+      <section class="iv-card iv-wide" id="staffCard" hidden>
+        <h3>🔔 Staff</h3>
+        <div id="staffAnnounce" class="iv-sr-only" aria-live="polite"></div>
+        <div id="staff"></div>
+      </section>
+    </div>
+
+    <div class="iv-tabpanel iv-grid" data-tab="travel" role="tabpanel" hidden>
+      <section class="iv-card iv-wide" id="destCard" hidden><h3>🌍 Destinations</h3><div id="destinations"></div></section>
+      <section class="iv-card" id="transportCard" hidden><h3>🚌 Getting Around</h3><div id="transport"></div></section>
+      <section class="iv-card iv-wide" id="garageCard" hidden>
+        <h3>🔑 The Garage</h3>
+        <div id="garageAnnounce" class="iv-sr-only" aria-live="polite"></div>
+        <div id="garage"></div>
+      </section>
+      <section class="iv-card iv-wide" id="marinaCard" hidden>
+        <h3>⛵ The Marina</h3>
+        <div id="marinaAnnounce" class="iv-sr-only" aria-live="polite"></div>
+        <div id="marina"></div>
+      </section>
+      <section class="iv-card iv-wide" id="hangarCard" hidden>
+        <h3>✈️ The Hangar</h3>
+        <div id="hangarAnnounce" class="iv-sr-only" aria-live="polite"></div>
+        <div id="hangar"></div>
+      </section>
+    </div>
+
+    <div class="iv-tabpanel iv-grid" data-tab="growth" role="tabpanel" hidden>
+      <section class="iv-card" id="skillsCard">
+        <h3>💪 Personal Growth</h3>
+        <div id="skillAnnounce" class="iv-sr-only" aria-live="polite"></div>
+        <div id="skills"></div>
+      </section>
+      <section class="iv-card" id="pathsCard"><h3>🧭 Build Paths</h3><div id="paths"></div></section>
+    </div>
+
+    <div class="iv-tabpanel iv-grid" data-tab="legacy" role="tabpanel" hidden>
+      <section class="iv-card" id="ascensionCard"><h3>✨ Ascension</h3><div id="ascension"></div></section>
+      <section class="iv-card iv-wide" id="treeCard"><h3>🌳 Permanent Skill Tree</h3><div id="tree"></div></section>
+      <section class="iv-card iv-wide" id="legendCard" hidden>
+        <h3>👑 Legend &amp; New Game+</h3>
+        <div id="legendAnnounce" class="iv-sr-only" aria-live="polite"></div>
+        <div id="legend"></div>
+      </section>
+      <section class="iv-card iv-wide" id="achievementsCard">
+        <h3>🏆 Trophies &amp; Statistics</h3>
+        <div id="achievementsAnnounce" class="iv-sr-only" aria-live="polite"></div>
+        <div id="achievements"></div>
+      </section>
+    </div>
   </main>
 
   <footer id="controls" class="iv-controls"></footer>

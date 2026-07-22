@@ -11,6 +11,21 @@ let hooks = {};               // { save, exportSave, importSave, hardReset }
 // buy quantity (1 | 10 | 'max') now lives in state.ui.bulkMode (E03-S1-T6) so the
 // toggle survives reload instead of being lost as a transient module var.
 
+// ---- tabbed navigation (UI declutter + progressive disclosure) ----
+// Panels are grouped into a few tabs; a tab only appears once ≥1 of its cards is unlocked (the
+// future stays hidden). The player sees one focused screen at a time. activeTab/seenTabs are
+// transient (reset to Home on reload) — a deliberate light touch, no save-schema change.
+const TABS = [
+  { id: 'home',   label: 'Home',   icon: '🏨', cards: ['accCard', 'bankCard', 'amenitiesCard', 'poolCard', 'beachCard', 'wellnessCard', 'conciergeCard', 'propertyCard', 'islandListingCard'] },
+  { id: 'income', label: 'Income', icon: '💶', cards: ['generatorsCard', 'creatorCard', 'cryptoCard', 'collectionCard', 'staffCard'] },
+  { id: 'travel', label: 'Travel', icon: '🌍', cards: ['destCard', 'transportCard', 'garageCard', 'marinaCard', 'hangarCard'] },
+  { id: 'growth', label: 'Growth', icon: '💪', cards: ['skillsCard', 'pathsCard'] },
+  { id: 'legacy', label: 'Legacy', icon: '👑', cards: ['ascensionCard', 'treeCard', 'legendCard', 'achievementsCard'] },
+];
+let activeTab = 'home';
+const seenTabs = new Set(['home']);
+let lastTabSig = '';
+
 export function bind(state, h) { S = state; hooks = h; wireEvents(); }
 export function setState(state) { S = state; }
 
@@ -50,6 +65,44 @@ export function render(state) {
   renderAscension(state);
   renderTree(state);
   renderEnergyMini(state);
+  // progressive disclosure: gate the panels that used to be always-on, then (re)build the tab bar
+  // from what's actually unlocked. Runs LAST so it reads every render*()'s freshly-set hidden state.
+  applyCardReveals(state);
+  renderTabs(state);
+}
+
+// Reveal the previously-always-visible panels only when they become relevant, so the future stays
+// hidden (the other systems' cards already gate themselves in their own render fns). The Home and
+// Income tabs' core cards (accommodation/bank/amenities/income tiers) stay visible from the start.
+function applyCardReveals(s) {
+  const setHidden = (id, h) => { const e = el(id); if (e) e.hidden = h; };
+  // Growth appears once you have a little traction (not turn 0)
+  const growth = (s.stats.bestComfort || 0) >= 20 || s.accommodation.tier >= 1;
+  setHidden('skillsCard', !growth);
+  setHidden('pathsCard', !(s.story.seen.includes(6) || s.story.branch !== 'neutral'));
+  // Legacy = your record + the prestige systems. Trophies appear with your first one; Ascension when
+  // the game surfaces it (beat 26) or you've already ascended; the tree after your first ascension.
+  const anyTrophy = DATA.achievements.some(a => E.achievementUnlocked(s, a.id));
+  setHidden('achievementsCard', !anyTrophy);
+  setHidden('ascensionCard', !(s.story.seen.includes(26) || (s.ascension?.count || 0) > 0));
+  setHidden('treeCard', !((s.ascension?.count || 0) > 0));
+}
+
+// Build the tab bar from the tabs that currently have unlocked content, and show only the active
+// panel. A tab is "new" (pulsing dot) until the player visits it. Guarded so it only rebuilds when
+// the visible set / active tab / new-state actually changes (no per-tick flicker on hover).
+function tabHasContent(tab) { return tab.cards.some(id => { const e = el(id); return e && !e.hidden; }); }
+function renderTabs(s) {
+  const visible = TABS.filter(tabHasContent);
+  if (!visible.some(t => t.id === activeTab)) activeTab = visible.length ? visible[0].id : 'home';
+  const sig = visible.map(t => `${t.id}${t.id === activeTab ? '*' : ''}${seenTabs.has(t.id) ? '' : '!'}`).join(',');
+  if (sig !== lastTabSig) {
+    lastTabSig = sig;
+    const bar = el('tabbar');
+    if (bar) bar.innerHTML = visible.map(t =>
+      `<button class="iv-tab-btn ${t.id === activeTab ? 'iv-tab-active' : ''} ${seenTabs.has(t.id) ? '' : 'iv-tab-new'}" role="tab" aria-selected="${t.id === activeTab}" data-action="switch-tab" data-arg="${t.id}">${t.icon} ${t.label}</button>`).join('');
+  }
+  document.querySelectorAll('.iv-tabpanel').forEach(p => { p.hidden = p.dataset.tab !== activeTab; });
 }
 
 function afford(cost) { return S.resources.cash >= cost; }
@@ -147,7 +200,9 @@ function renderStory(s) {
 // stays legible at a glance without scrolling through tiers decades away. The gating
 // shown here is always E.accUnlocked(s) itself (never a re-derived copy), so the panel
 // can never drift from the real purchase gate (E05-D guardrail).
-const ACC_LOOKAHEAD = 5;
+// Progressive disclosure: show the NEXT rung named (your active goal), then a couple of MYSTERY
+// rungs ("🔒 ???" — the Comfort target is shown, the name is a surprise) so the future stays hidden.
+const ACC_LOOKAHEAD = 3;
 function renderAccommodation(s) {
   const t = s.accommodation.tier;
   const maxTier = DATA.accommodation.length - 1;
@@ -184,14 +239,15 @@ function renderAccommodation(s) {
         ${gateOk ? btn('buy-acc', '', `Check in — ${fmt(cost)}`, afford(cost), 'btn-primary') : ''}
       </div>`;
     } else {
-      html += `<div class="iv-acc-row iv-acc-locked" title="${acc.flavor}">
-        🔒 ${acc.name} <small>needs Comfort ≥ ${fmt(need)} · ${fmt(cost)}</small>
+      // a mystery rung — name hidden (the surprise is the point), only the Comfort target shown.
+      html += `<div class="iv-acc-row iv-acc-locked">
+        🔒 <b>???</b> <small>needs Comfort ≥ ${fmt(need)}</small>
       </div>`;
     }
   }
   const remaining = maxTier - lastShown;
   if (remaining > 0) {
-    html += `<div class="iv-acc-row iv-acc-more">…and ${remaining} more stop${remaining > 1 ? 's' : ''} up to ${DATA.accommodation[maxTier].name}</div>`;
+    html += `<div class="iv-acc-row iv-acc-more">…the road keeps climbing.</div>`;
   } else if (t >= maxTier) {
     html += '<div class="iv-acc-row"><em>You own the dot on the map. There is nowhere higher.</em></div>';
   }
@@ -378,6 +434,7 @@ function renderAmenities(s) {
     // tan/gym/wellness tags ship straight into their own card instead, same as pool did.
     if (a.tag === 'tan' || a.tag === 'gym' || a.tag === 'wellness') continue;
     if (a.tag === 'gear') continue; // the dedicated Creator Dashboard (E12) owns this tag
+    if (a.tag === 'cryptogear' && !E.cryptoActive(s)) continue; // crypto gear stays hidden until you engage crypto (no early spoiler)
     if (a.tag === 'grounds') continue; // the dedicated Property card (E23) groups these by cluster
     if (!E.amenityUnlocked(s, a.id)) continue;
     (byTag[a.tag] ||= []).push(a);
@@ -1688,6 +1745,8 @@ function wireEvents() {
 
 function handle(action, arg, btnEl) {
   switch (action) {
+    // UI: switch the active tab (marks it seen ⇒ clears the "new" dot). render(S) below re-lays out.
+    case 'switch-tab': activeTab = arg; seenTabs.add(arg); lastTabSig = ''; break;
     case 'set-qty': S.ui.bulkMode = arg === 'max' ? 'max' : Number(arg); break;
     case 'buy-gen': { const [k, q] = arg.split('|'); E.buyGenerator(S, Number(k), q === 'max' ? 'max' : Number(q)); break; }
     case 'buy-gen-upg': E.buyGenUpgrade(S, Number(arg)); break;

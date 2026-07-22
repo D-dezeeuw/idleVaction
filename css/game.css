@@ -37,6 +37,24 @@ body { background: var(--iv-bg); color: var(--iv-ink); font-family: system-ui, s
 .iv-wide { grid-column: 1 / -1; }
 @media (max-width: 720px) { .iv-grid { grid-template-columns: 1fr; } }
 
+/* ---- tabbed navigation (UI declutter): one focused screen at a time; future tabs stay hidden ---- */
+.iv-story-strip { max-width: 1100px; margin: 0 auto; padding: 12px 12px 0; }
+.iv-tabbar { position: sticky; top: 0; z-index: 8; display: flex; flex-wrap: wrap; gap: 6px;
+  max-width: 1100px; margin: 0 auto; padding: 8px 12px; background: var(--iv-bg);
+  border-bottom: 1px solid var(--iv-line); }
+.iv-tab-btn { background: var(--iv-card); color: var(--iv-sub); border: 1px solid var(--iv-line);
+  border-radius: 999px; padding: 6px 14px; font-size: .9rem; cursor: pointer; white-space: nowrap;
+  transition: background .12s, color .12s, border-color .12s; }
+.iv-tab-btn:hover { color: var(--iv-ink); border-color: var(--iv-accent); }
+.iv-tab-btn.iv-tab-active { background: var(--iv-accent); color: #0c151b; border-color: var(--iv-accent); font-weight: bold; }
+/* a subtle dot marks a tab that has newly-unlocked content the player hasn't visited yet */
+.iv-tab-btn.iv-tab-new::after { content: ''; display: inline-block; width: 7px; height: 7px; margin-left: 6px;
+  border-radius: 50%; background: var(--iv-good); vertical-align: middle; animation: iv-tabpulse 1.4s ease-in-out infinite; }
+@keyframes iv-tabpulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .iv-tab-btn.iv-tab-new::after { animation: none; } }
+.iv-tabpanel[hidden] { display: none; }
+@media (max-width: 720px) { .iv-tabbar { overflow-x: auto; flex-wrap: nowrap; } }
+
 .iv-btn { background: #1f3a47; color: var(--iv-ink); border: 1px solid var(--iv-line); border-radius: 6px;
   padding: 6px 8px; margin: 2px; cursor: pointer; font-size: .78rem; line-height: 1.15; text-align: center; height: auto; }
 .iv-btn:hover:not(:disabled) { background: #26505f; border-color: var(--iv-accent); }
