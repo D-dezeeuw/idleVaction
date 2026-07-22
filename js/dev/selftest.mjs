@@ -10,6 +10,7 @@ import * as P from '../prestige.js';
 import { validateDestinations } from '../data/destinations.js';
 import { validateBank } from '../data/bank.js';
 import { validatePaths } from '../data/paths.js';
+import { validateCollections } from '../data/collections.js';
 import { fmt, fmtTime, rng } from '../util.js';
 // E11 harness-invariance guard ([62] below): importing runCurve does NOT auto-run the
 // harness's own report() — that's guarded behind `process.argv[1].endsWith('harness.mjs')`,
@@ -3172,6 +3173,234 @@ console.log('\n[88] Jack of All Trades: earned path mixing, slot caps, depth, re
   ok(m.ascension.tree.jack_of_trades === 1, 'Jack persists across ascension — it is an ability bought with points');
   ok(m.paths.traveler.focusBought === 0 && m.story.branch === 'neutral',
     'the opened side-roads reset with the run — the next life re-commits and re-opens');
+}
+
+// ---------- 89. E14 "Acquired Taste" (Connoisseur): exclusivity ×, luxury discount,
+// appreciating collections, set bonus, +25% luxury Comfort perk — all GATED OFF for the
+// default/greedy player so the fitted island time is UNCHANGED (config.TASTE/EXCLUSIVITY/
+// APPRECIATION, math.computeExclusivity/exclusivityMult/luxuryCostMult/appreciationValue,
+// engine.buyAsset/sellAsset/connoisseurActive/checkProvenance). ----------
+console.log('\n[89] E14 connoisseur: exclusivity ×, luxury discount, appreciation, gate invariance');
+{
+  // data guard
+  ok(validateCollections(), 'validateCollections() passes on the shipped ART/WINE arrays');
+  ok(DATA.collections.art.length === 6 && DATA.collections.wine.length === 6, '6 art + 6 wine assets');
+
+  // ---- harness invariance: the committed-vlogger harness never engages the connoisseur
+  // system, so the exclusivity/discount/appreciation/perk are all no-ops → island UNCHANGED.
+  const { s: hs, islandAt, peakLog } = runCurve({ dt: 5, maxHours: 40 });
+  ok(Math.abs(islandAt - 29705) < 1, `harness island time is UNCHANGED by E14 (got ${fmtTime(islandAt)}, expected ~8h15m05s / 29705s — the committed-path baseline)`);
+  ok(peakLog < 290, `peak log10(cash) (${peakLog.toFixed(1)}) stays far under the double-overflow ceiling`);
+  ok([...DATA.collections.art, ...DATA.collections.wine].every(a => hs.collections[a.id].count === 0),
+    'the harness never buys a single collection asset (not in its greedy policy)');
+  ok(hs._exclCache === 0 && M.connoisseurActive(hs) === false,
+    'the harness run leaves the connoisseur system inactive (exclusivity 0) start to finish');
+
+  // ---- gate: exclusivity/discount are exactly no-ops when inactive
+  const inact = ST.newGame();
+  ok(M.connoisseurActive(inact) === false, 'a fresh newGame() is connoisseur-INACTIVE (no points, no owned assets)');
+  ok(M.computeExclusivity(inact, DATA) === 0, 'computeExclusivity is exactly 0 when inactive');
+  ok(M.exclusivityMult(inact) === 1, 'exclusivityMult is exactly 1 when inactive (never moves the harness)');
+  ok(M.luxuryCostMult(inact) === 1, 'luxuryCostMult is exactly 1 when inactive (no ungated luxury discount)');
+  ok(E.connoisseurActive(inact) === false, 'engine.connoisseurActive re-exports the same gate');
+  // a committed connoisseur life (points>0) OR any owned asset trips the gate
+  const byPoints = ST.newGame(); byPoints.paths.connoisseur.points = 3;
+  ok(M.connoisseurActive(byPoints) === true, 'connoisseur path points>0 activate the system');
+  const byOwn = ST.newGame(); byOwn.collections.velvet_elvis.count = 1;
+  ok(M.connoisseurActive(byOwn) === true, 'owning any collection asset activates the system');
+
+  // ---- exclusivity: monotone + softcapped (no cliff), ≡1 inactive
+  const em = ST.newGame(); em.story.branch = 'connoisseur'; em.paths.connoisseur.points = 5;
+  let prevScore = -1, monoS = true;
+  for (const a of [...DATA.collections.art, ...DATA.collections.wine]) {
+    em.collections[a.id].count += 3;
+    const sc = M.computeExclusivity(em, DATA);
+    if (sc < prevScore - 1e-9) monoS = false;
+    prevScore = sc;
+  }
+  ok(monoS, 'computeExclusivity is monotone non-decreasing as more assets are owned');
+  const ex = ST.newGame();
+  let prevL = -Infinity, monoL = true, geOne = true, noCliff = true;
+  for (const e of [0, 1, 10, 50, 100, 500, 1000, 1e4, 1e5, 1e6]) {
+    ex._exclCache = e; const L = M.exclusivityMult(ex);
+    if (L < 1 - 1e-9) geOne = false;
+    if (L < prevL - 1e-9) monoL = false;
+    prevL = L;
+  }
+  ok(monoL && geOne, 'exclusivityMult is monotone non-decreasing and always >= 1 across a wide score range');
+  for (const e of [0, 1, 100, 1e4, 1e6]) {
+    ex._exclCache = e; const L1 = M.exclusivityMult(ex);
+    ex._exclCache = e + 1e-3; const L2 = M.exclusivityMult(ex);
+    if (Math.abs(L2 - L1) > 0.01) noCliff = false;
+  }
+  ok(noCliff, 'exclusivityMult is continuous — no cliffs (the softcapped log shape, same family as L_comfort)');
+
+  // ---- stack-order regression: L_exclusivity folds in as a clean multiplicative factor
+  const stk = ST.newGame();
+  stk.generators[0].bought = 20; stk.generators[0].count = 20;
+  const mBefore = M.tierMultiplier(stk, 0), eBefore = M.exclusivityMult(stk);
+  stk._exclCache = 100;
+  const mAfter = M.tierMultiplier(stk, 0), eAfter = M.exclusivityMult(stk);
+  ok(approx(mAfter / mBefore, eAfter / eBefore),
+    'tierMultiplier scales by EXACTLY the L_exclusivity ratio when only _exclCache changes — a clean global factor in the M_k stack');
+
+  // ---- luxury discount: clamps at the 0.4 floor; ≡1 when inactive
+  const lc = ST.newGame(); lc.story.branch = 'connoisseur'; lc.collections.velvet_elvis.count = 1;
+  lc.skills.taste.level = 0;
+  ok(approx(M.luxuryCostMult(lc), 1), 'luxuryCostMult is 1 at taste level 0 (active connoisseur, no discount yet)');
+  lc.skills.taste.level = 15;
+  ok(approx(M.luxuryCostMult(lc), Math.max(0.4, 1 - C.TASTE.discount * 15)), 'luxuryCostMult = 1 − discount·tasteLevel while above the floor');
+  lc.skills.taste.level = 1000;
+  ok(M.luxuryCostMult(lc) === 0.4, 'luxuryCostMult clamps at the 0.4 floor (−60%) even at extreme taste (S8-T2)');
+  // and it discounts a tag:'luxury' amenity purchase only for an active connoisseur
+  const lca = ST.newGame(); lca.amenities.butler_bell.level = 0;
+  const costVlogger = E.amenityCost(lca, 'butler_bell');
+  lca.story.branch = 'connoisseur'; lca.collections.velvet_elvis.count = 1; lca.skills.taste.level = 15;
+  ok(E.amenityCost(lca, 'butler_bell') < costVlogger, 'an active connoisseur pays less for a tag:luxury amenity (the old-money haggle)');
+
+  // ---- appreciation: PURE, deterministic, hard-capped
+  const v1 = M.appreciationValue(1e4, 5 * 3600, 0.05);
+  M.appreciationValue(9e9, 123, 0.08); M.appreciationValue(7, 4e6, 0.01); // perturb: prove no hidden internal state
+  ok(M.appreciationValue(1e4, 5 * 3600, 0.05) === v1, 'appreciationValue is PURE — identical (boughtValue,age,rate) ⇒ identical value, no wall-clock (S10-T3)');
+  ok(v1 > 1e4, 'a held piece appreciates above its purchase price over game-time');
+  for (const id of ['grand_cru', 'judgment_of_paris_lot']) {
+    const a = E.assetData(id);
+    const capped = M.appreciationValue(a.costBase, 1e9 * 3600, a.appreciationRate);
+    ok(approx(capped, a.costBase * C.APPRECIATION.valueCap), `${id}: appreciation hard-caps at boughtValue·valueCap at extreme age (S10-T6)`);
+  }
+  ok(M.appreciationValue(1e6, 1e12, 0.08) <= 1e6 * C.APPRECIATION.valueCap + 1e-6, 'value never exceeds valueCap even at extreme age/GAME_SPEED');
+  ok(M.appreciationValue(1e4, 0, 0.05) === 1e4, 'a just-bought piece (age 0) is worth exactly its purchase price');
+
+  // ---- buyAsset → appreciate → sellAsset round-trip
+  const rt = ST.newGame();
+  rt.story.branch = 'connoisseur'; rt.paths.connoisseur.points = 5;
+  rt.bank.tier = C.BANK.tiers - 1; rt.resources.cash = 1e9;
+  const cashBefore = rt.resources.cash;
+  ok(E.buyAsset(rt, 'grand_cru'), 'buyAsset succeeds when affordable');
+  const rc = rt.collections.grand_cru;
+  ok(rc.count === 1, 'count incremented to 1');
+  const spent = cashBefore - rt.resources.cash;
+  ok(approx(rc.boughtValue, spent), 'boughtValue equals the cash actually spent');
+  ok(rc.age === 0, 'a fresh stack starts aging from purchase time (age 0), not epoch');
+  ok(rt.skills.taste.xp >= E.assetData('grand_cru').tasteXp, 'buying grants the asset’s Taste XP');
+  ok(rt.paths.connoisseur.points > 5, 'buying nudges the committed connoisseur path (one-off, like buyCoin)');
+  rc.age = 10 * 3600; // 10 game-hours held
+  const a = E.assetData('grand_cru');
+  const sellFrac = Math.min(C.TASTE.sellCap, C.TASTE.sellFrac + C.TASTE.sellTastePerLevel * rt.skills.taste.level);
+  const expectedProceeds = M.appreciationValue(rc.boughtValue, rc.age, a.appreciationRate) * sellFrac;
+  const cashBeforeSell = rt.resources.cash;
+  ok(E.sellAsset(rt, 'grand_cru'), 'sellAsset succeeds');
+  ok(approx(rt.resources.cash - cashBeforeSell, expectedProceeds, 1e-6), 'sell proceeds = appreciated value · taste sellFrac, banked through gainCash (one inflow rule)');
+  ok(rc.count === 0 && rc.boughtValue === 0 && rc.age === 0, 'selling the last copy clears count/boughtValue/age (a re-bought stack ages fresh)');
+  ok(expectedProceeds < M.appreciationValue(spent, 10 * 3600, a.appreciationRate), 'the sell haircut (sellFrac<1) makes a buy→sell round-trip a real cost, never free');
+
+  // ---- set bonus toggles the × exactly once (branch left non-connoisseur to isolate the set factor)
+  const sb = ST.newGame(); sb.paths.connoisseur.points = 5; // active, but branch 'neutral' ⇒ no branch/golden factor
+  const rawWine = DATA.collections.wine.reduce((t, x) => t + x.exclusivity, 0);
+  for (const x of DATA.collections.wine) sb.collections[x.id].count = 1;
+  ok(approx(M.computeExclusivity(sb, DATA), Math.pow(rawWine, C.EXCLUSIVITY.softExp) * (1 + C.EXCLUSIVITY.setBonus)),
+    'completing the WINE set applies the setBonus × exactly once');
+  for (const x of DATA.collections.wine) sb.collections[x.id].count = 2;
+  ok(approx(M.computeExclusivity(sb, DATA), Math.pow(2 * rawWine, C.EXCLUSIVITY.softExp) * (1 + C.EXCLUSIVITY.setBonus)),
+    'buying MORE copies of a complete set does not re-apply the bonus (×(1+setBonus), no double-count)');
+  sb.collections[DATA.collections.wine[0].id].count = 0;
+  const rawBroken = 2 * rawWine - DATA.collections.wine[0].exclusivity * 2;
+  ok(approx(M.computeExclusivity(sb, DATA), Math.pow(rawBroken, C.EXCLUSIVITY.softExp)),
+    'breaking the set toggles the bonus off cleanly (no residue)');
+
+  // ---- +25% luxury Comfort perk: connoisseur branch only, luxury (amenities + collections) only
+  const mkLux = () => { const st = ST.newGame(); st.amenities.butler_bell.level = 3; return st; };
+  const luxV = mkLux(); luxV.story.branch = 'vlogger';
+  const luxC = mkLux(); luxC.story.branch = 'connoisseur';
+  const luxComfort = 3 * E.amenityData('butler_bell').comfort;
+  ok(approx(M.computeComfort(luxC, DATA) - M.computeComfort(luxV, DATA), C.COMFORT.wAmen * luxComfort * C.TASTE.luxuryComfortPerk),
+    'the connoisseur branch adds exactly +25% Comfort on tag:luxury amenities (vlogger gets +0)');
+  const nlV = ST.newGame(); nlV.amenities.bug_spray.level = 5; nlV.story.branch = 'vlogger';
+  const nlC = ST.newGame(); nlC.amenities.bug_spray.level = 5; nlC.story.branch = 'connoisseur';
+  ok(approx(M.computeComfort(nlC, DATA), M.computeComfort(nlV, DATA)), 'a NON-luxury amenity gets no branch perk — connoisseur == vlogger Comfort');
+  const colN = ST.newGame(); colN.collections.abstract_beige.count = 2;
+  ok(M.computeComfort(colN, DATA) > M.computeComfort(ST.newGame(), DATA), 'owned collections feed ComfortRaw for every branch (count·comfort)');
+  const colV = ST.newGame(); colV.collections.abstract_beige.count = 2; colV.story.branch = 'vlogger';
+  const colC = ST.newGame(); colC.collections.abstract_beige.count = 2; colC.story.branch = 'connoisseur';
+  ok(approx(M.computeComfort(colC, DATA) - M.computeComfort(colV, DATA), C.COMFORT.wAmen * 2 * E.assetData('abstract_beige').comfort * C.TASTE.luxuryComfortPerk),
+    'the connoisseur +25% Comfort perk applies to owned collections too, connoisseur branch only');
+
+  // ---- Provenance one-time bonus (mirrors Whale Watching): connoisseur + beat 14 → gift + XP, once
+  const pv = ST.newGame();
+  pv.story.branch = 'connoisseur';
+  pv.accommodation.tier = 11; pv.accommodation.owned = Array.from({ length: 12 }, (_, i) => i);
+  pv.skills.charisma.xp = 1e6; pv.skills.body.xp = 1e7;
+  const tasteBefore = pv.skills.taste.xp;
+  E.tick(pv, 1);
+  ok(pv.story.seen.includes(14), 'beat 14 fires for a connoisseur on the shared gate');
+  ok(E.beatCopy(pv, DATA.story.find(b => b.id === 14)).title === 'Provenance', 'the connoisseur sees the "Provenance" variant');
+  ok(pv.story.flags.provenance === true, 'flags.provenance fires once beat 14 lands for a connoisseur');
+  ok(pv.skills.taste.xp > tasteBefore, 'Provenance grants a one-time Taste XP bonus');
+  ok(pv.collections.actual_bordeaux.count === 1, 'Provenance gifts one signature appreciating piece (the Bordeaux)');
+  const giftCount = pv.collections.actual_bordeaux.count;
+  E.checkProvenance(pv);
+  ok(pv.collections.actual_bordeaux.count === giftCount, 'Provenance never re-fires (one-shot)');
+  const nonConn = ST.newGame();
+  nonConn.story.branch = 'vlogger';
+  nonConn.accommodation.tier = 11; nonConn.accommodation.owned = Array.from({ length: 12 }, (_, i) => i);
+  nonConn.skills.charisma.xp = 1e6; nonConn.skills.body.xp = 1e7;
+  E.tick(nonConn, 1);
+  ok(nonConn.story.seen.includes(14) && !nonConn.story.flags.provenance, 'a non-connoisseur passes beat 14 with NO provenance gift (neutral fallback, no build stranded)');
+
+  // ---- collection reveal gate (mirrors cryptoDeskUnlocked)
+  ok(!E.collectionUnlocked(ST.newGame()), 'the gallery is locked on a fresh game');
+  const rv = ST.newGame(); rv.paths.connoisseur.points = 1;
+  ok(E.collectionUnlocked(rv), 'any connoisseur investment unlocks the gallery reveal');
+
+  // ---- migration: a pre-E14 save (no collections / no _exclCache / missing a new amenity id)
+  const pre14 = ST.newGame();
+  delete pre14.collections; delete pre14._exclCache; delete pre14.amenities.butler_drawn_bath;
+  const mig = ST.migrate(JSON.parse(JSON.stringify(pre14)));
+  ok(mig.collections && [...DATA.collections.art, ...DATA.collections.wine].every(x =>
+    mig.collections[x.id] && mig.collections[x.id].count === 0 && mig.collections[x.id].boughtValue === 0 && mig.collections[x.id].age === 0),
+    'migration backfills every collection asset at count/boughtValue/age = 0 (no NaN, S9-T10)');
+  ok(mig.amenities.butler_drawn_bath && mig.amenities.butler_drawn_bath.level === 0, 'migration backfills the new connoisseur amenity id at level 0');
+  ok(mig._exclCache === 0, 'migration backfills the _exclCache transient at 0');
+  E.tick(mig, 1);
+  ok(Number.isFinite(mig.resources.cash) && Number.isFinite(mig._exclCache), 'ticking a migrated pre-E14 save is finite — no NaN anywhere');
+  mig.story.branch = 'connoisseur'; mig.paths.connoisseur.points = 5; mig.resources.cash = 1e9; mig.bank.tier = C.BANK.tiers - 1;
+  ok(E.buyAsset(mig, 'velvet_elvis') && mig.collections.velvet_elvis.age === 0, 'a piece bought after migration starts aging from purchase time, not epoch');
+  E.tick(mig, 100);
+  ok(approx(mig.collections.velvet_elvis.age, 100), 'appreciation age advances by game-time after purchase');
+
+  // ---- offline determinism: appreciation via applyOffline matches a manual tick() loop
+  const seedConn = () => {
+    const st = ST.newGame();
+    st.story.branch = 'connoisseur'; st.paths.connoisseur.points = 10;
+    st.collections.grand_cru.count = 3; st.collections.grand_cru.boughtValue = 3 * E.assetData('grand_cru').costBase;
+    st.collections.velvet_elvis.count = 2; st.collections.velvet_elvis.boughtValue = 2 * E.assetData('velvet_elvis').costBase;
+    st.settings.offlineEnabled = true; st.bank.tier = C.BANK.tiers - 1;
+    return st;
+  };
+  const manual = seedConn();
+  const viaOffline = ST.migrate(JSON.parse(JSON.stringify(seedConn())));
+  const elapsedMs = 4 * 3600 * 1000;
+  const total = Math.min(elapsedMs, C.OFFLINE_CAP_H * 3600 * 1000) / 1000;
+  const step = total / C.OFFLINE_STEPS;
+  for (let i = 0; i < C.OFFLINE_STEPS; i++) E.tick(manual, step);
+  E.applyOffline(viaOffline, elapsedMs);
+  ok(viaOffline.collections.grand_cru.age > 0, 'offline replay actually advanced asset age (not vacuous)');
+  ok(approx(manual.collections.grand_cru.age, viaOffline.collections.grand_cru.age, 1e-6), 'offline age advance matches a manual macro-step tick loop (game-time, deterministic)');
+  ok(approx(M.collectionNetWorth(manual, DATA), M.collectionNetWorth(viaOffline, DATA), 1e-6), 'offline appreciated net worth matches the manual loop (S9-T3)');
+
+  // ---- net-worth is display-only: appreciation never touches lifetimeCash/Legacy accounting.
+  // A connoisseur with ZERO income (no generators bought) isolates appreciation: net worth
+  // climbs as assets age, but the banked-cash-only lifetime counters stay put.
+  const nw = ST.newGame();
+  nw.story.branch = 'connoisseur';
+  nw.collections.grand_cru.count = 5; nw.collections.grand_cru.boughtValue = 5 * E.assetData('grand_cru').costBase;
+  nw.collections.grand_cru.age = 10 * 3600;
+  const nwBefore = M.collectionNetWorth(nw, DATA);
+  const lifeBefore = nw.stats.lifetimeCash, treeBefore = nw.stats.lifetimeCashThisTree;
+  E.tick(nw, 100);
+  ok(M.collectionNetWorth(nw, DATA) > nwBefore, 'appreciation raises the display net worth as held assets age');
+  ok(nw.stats.lifetimeCash === lifeBefore && nw.stats.lifetimeCashThisTree === treeBefore,
+    'appreciated collection value NEVER feeds lifetimeCash/lifetimeCashThisTree (banked-cash-only — wallet-cap §11 + Legacy §12 unaffected; S2-T7 superseded)');
 }
 
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);

@@ -65,6 +65,15 @@ export function tick(state, dt) {
   if (state._comfortCache > state.stats.bestComfort) state.stats.bestComfort = state._comfortCache;
   state._destCache = M.destMult(state, DATA);
 
+  // connoisseur economy (E14 "Acquired Taste"): advance each held asset's age in GAME-TIME
+  // (so offline macro-step replay is automatically identical, exactly like the crypto
+  // scheduler), then refresh the exclusivity cache BEFORE the tier-production snapshot so the
+  // L_exclusivity layer sees it. GATED behind connoisseurActive (points or an owned asset),
+  // so a fresh newGame() and the committed-vlogger harness leave _exclCache at 0 (⇒ ×1) and
+  // age nothing — the fitted 29705s island cannot move.
+  advanceAppreciation(state, dt);
+  state._exclCache = M.computeExclusivity(state, DATA);
+
   const rt = runtimeMult(state);
 
   // 2) snapshot tier production, then apply (no intra-tick feedback)
@@ -142,6 +151,8 @@ export function tick(state, dt) {
   checkContentUnlocks(state);
   checkCryptoDeskReveal(state);
   checkWhaleWatching(state);
+  checkCollectionReveal(state);
+  checkProvenance(state);
   checkPathStages(state);
 
   // 7) concierge: bounded, off-by-default auto-purchase policy (E11 "Five-Star Frame of
@@ -633,7 +644,11 @@ export function amenityCost(state, id) {
   const a = amenityData(id); const lvl = state.amenities[id].level;
   const g = a.costGrowth || C.AMENITY.growthDefault;
   // connoisseur stage 2 (On the List): flat amenity discount on top of commsCostMult.
-  return a.costBase * Math.pow(g, lvl) * (1 - M.pathBonus(state, 'amenityDiscount')) * M.commsCostMult(state);
+  // luxuryCostMult (E14-S2-T2) additionally discounts tag:'luxury' amenities — but it is
+  // GATED to connoisseur-active (returns exactly 1 otherwise), so the greedy vlogger harness
+  // buying luxury amenities sees ×1 and the fitted island time is unmoved.
+  const lux = a.tag === 'luxury' ? M.luxuryCostMult(state) : 1;
+  return a.costBase * Math.pow(g, lvl) * (1 - M.pathBonus(state, 'amenityDiscount')) * lux * M.commsCostMult(state);
 }
 export function amenityUnlocked(state, id) {
   return state._comfortCache >= (amenityData(id).unlockComfort || 0) || state.amenities[id].level > 0;
@@ -961,6 +976,119 @@ export function checkWhaleWatching(state) {
   addPathPoints(state, 'crypto', WHALE_WATCH_PATH_BONUS);
   refreshSkillLevels(state);
   notify(state, 'celebrate', '🐋 Whale Watching: you clocked the pattern before the chart did. Savvy sharpens — the market, ever so slightly, notices you noticing.');
+}
+
+// ---------- connoisseur collections: art/wine appreciating assets (E14 "Acquired Taste") ----------
+// The whole lane is GATED OFF by default, mirroring cryptoActive EXACTLY: nothing here fires
+// for a fresh newGame() or the committed-vlogger harness, so the fitted 29705s island cannot
+// move. The gate logic itself is single-sourced in math.js (M.connoisseurActive, pure — no
+// engine↔math cycle); this thin re-export gives the engine API the same shape cryptoActive has.
+export function connoisseurActive(state) { return M.connoisseurActive(state); }
+
+// age every held asset by dt (game-time). No-op while inactive (nothing owned ⇒ nothing to
+// age); the connoisseurActive guard also keeps the vlogger harness from even iterating.
+function advanceAppreciation(state, dt) {
+  if (!M.connoisseurActive(state)) return;
+  const col = state.collections;
+  for (const id in col) if (col[id].count > 0) col[id].age += dt;
+}
+
+// Reveal gate (E14-S3-T8/S6): mirrors cryptoDeskUnlocked's exact OR contract — the connoisseur
+// path has points (a committed aesthete life), OR beat 14 (Provenance) has fired, OR the
+// tier-11 band is reached, whichever first. A one-shot flag for the UI gallery.
+export function collectionUnlocked(state) {
+  return state.paths.connoisseur.points > 0 || state.story.seen.includes(14) || state.accommodation.tier >= 11;
+}
+export function checkCollectionReveal(state) {
+  if (state.story.flags.collectionRevealed) return;
+  if (!collectionUnlocked(state)) return;
+  state.story.flags.collectionRevealed = true;
+  notify(state, 'unlock', '🖼️ The Gallery & Cellar open: art and wine that quietly appreciate while you own them.');
+}
+
+// asset lookup across BOTH arrays (ids are unique across art∪wine — see data/collections.js).
+export function assetData(id) {
+  return DATA.collections.art.find(a => a.id === id) || DATA.collections.wine.find(a => a.id === id);
+}
+// buy cost of the NEXT copy: the SAME geometric bulkCost every purchase uses, with the luxury
+// discount (gated to connoisseur-active) and the comms discount. luxuryCostMult is 1 for the
+// first copy of a neutral player's first asset (not yet active), then the haggle kicks in.
+export function assetCost(state, id) {
+  const a = assetData(id);
+  return bulkCost(a.costBase, a.costGrowth, state.collections[id].count, 1)
+       * M.luxuryCostMult(state) * M.commsCostMult(state);
+}
+// buy one copy: afford-gate, spend cash, count++, accumulate boughtValue, grant Taste XP, a
+// one-off connoisseur path nudge (mirrors buyCoin — credits ONLY a committed connoisseur
+// life), and recompute the exclusivity/comfort caches (holding raises both). A freshly
+// (re)started stack ages from NOW (age reset when count was 0), so appreciation starts from
+// purchase time (E14-S9-T10), never epoch.
+export function buyAsset(state, id) {
+  const a = assetData(id);
+  if (!a) return false;
+  const cost = assetCost(state, id);
+  if (state.resources.cash < cost) return false;
+  state.resources.cash -= cost;
+  const c = state.collections[id];
+  if (c.count === 0) c.age = 0;
+  c.count += 1;
+  c.boughtValue += cost;
+  state.skills.taste.xp += a.tasteXp;
+  refreshSkillLevels(state);
+  addPathPoints(state, 'connoisseur', C.TASTE.buyPathNudge);
+  state._exclCache = M.computeExclusivity(state, DATA);
+  state._comfortCache = M.computeComfort(state, DATA);
+  notify(state, 'unlock', `🖼️ Acquired: ${a.name}`);
+  return true;
+}
+// liquidate `qty` copies at their CURRENT appreciated value × a taste-scaled sell fraction
+// (capped short of 1 so a round-trip is never free — mirrors sellCoin). Proceeds bank through
+// gainCash (the one inflow rule). Reduces count + boughtValue proportionally, and sheds the
+// pieces' exclusivity + Comfort — the real hold-vs-sell tradeoff (E14-S4-T3/T4).
+export function sellAsset(state, id, qty = 1) {
+  const a = assetData(id);
+  if (!a) return false;
+  qty = Math.max(0, Math.floor(qty));
+  const c = state.collections[id];
+  if (qty <= 0 || qty > c.count) return false;
+  const perCopyBought = c.boughtValue / c.count;
+  const perCopyValue = M.appreciationValue(perCopyBought, c.age, a.appreciationRate);
+  const sellFrac = Math.min(C.TASTE.sellCap, C.TASTE.sellFrac + C.TASTE.sellTastePerLevel * state.skills.taste.level);
+  const proceeds = perCopyValue * qty * sellFrac;
+  c.boughtValue -= perCopyBought * qty;
+  c.count -= qty;
+  if (c.count === 0) { c.age = 0; c.boughtValue = 0; }
+  gainCash(state, proceeds);
+  state._exclCache = M.computeExclusivity(state, DATA);
+  state._comfortCache = M.computeComfort(state, DATA);
+  return true;
+}
+
+// "Provenance" one-time bonus (E14-S7-T5): mirrors checkWhaleWatching (an automatic one-shot
+// flag tied to the EXISTING beat-14 gate, never a second interactive choice beat) — fires once
+// beat 14 has fired for a connoisseur-branch player. Sets flags.provenance, grants Taste XP, a
+// connoisseur path nudge, and GIFTS one signature appreciating piece (the Bordeaux the beat's
+// auction house noticed) at its base cost, ageing from now.
+const PROVENANCE_TASTE_BONUS = 200;
+const PROVENANCE_PATH_BONUS = 2;
+const PROVENANCE_GIFT_ID = 'actual_bordeaux';
+export function checkProvenance(state) {
+  if (state.story.flags.provenance) return;
+  if (state.story.branch !== 'connoisseur' || !state.story.seen.includes(14)) return;
+  state.story.flags.provenance = true;
+  state.skills.taste.xp += PROVENANCE_TASTE_BONUS;
+  refreshSkillLevels(state);
+  const gift = assetData(PROVENANCE_GIFT_ID);
+  const c = state.collections[PROVENANCE_GIFT_ID];
+  if (gift && c) {
+    if (c.count === 0) c.age = 0;
+    c.count += 1;
+    c.boughtValue += gift.costBase;
+  }
+  addPathPoints(state, 'connoisseur', PROVENANCE_PATH_BONUS);
+  state._exclCache = M.computeExclusivity(state, DATA);
+  state._comfortCache = M.computeComfort(state, DATA);
+  notify(state, 'celebrate', '🍷 Provenance: an auction house calls YOU. A signature bottle is couriered over, already gaining value in your cellar. Taste sharpens; doors open.');
 }
 
 export function nextAccTier(state) { return state.accommodation.tier + 1; }

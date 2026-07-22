@@ -53,10 +53,15 @@ export function tierMultiplier(state, k) {
   // global layers
   const L_comfort = comfortMultiplier(state);
   const L_dest = destMultiplier(state);
+  // L_exclusivity (E14 "Acquired Taste"): a NEW global layer, same bounded-log shape as
+  // L_comfort, reading the per-tick state._exclCache (engine.tick sets it before this snapshot,
+  // mirroring _comfortCache/_destCache). It is EXACTLY 1 whenever the connoisseur system is
+  // inactive (exclCache 0), so the greedy-vlogger harness is unmoved — see exclusivityMult.
+  const L_exclusivity = exclusivityMult(state);
   const L_ascension = 1 + 0.10 * (state.ascension.tree.compounding_interest || 0);
   const L_tree = treeIncomeMult(state);
 
-  return mMilestone * L_upgrade * L_path * L_skill * L_comfort * L_dest * L_ascension * L_tree;
+  return mMilestone * L_upgrade * L_path * L_skill * L_comfort * L_dest * L_exclusivity * L_ascension * L_tree;
 }
 
 // production per second of tier k (in units of tier k output)
@@ -163,9 +168,44 @@ export function amenityScoreTotal(state, DATA) {
 export function computeComfort(state, DATA) {
   // connoisseur stage bonuses (data/paths.js): flat, additive-within-source scalars on
   // the amenity/accommodation terms and one on the total — zero for every other path.
+  //
+  // E14 additions — BOTH are provably 0 for the non-connoisseur / no-collection case, so
+  // computeComfort is BIT-IDENTICAL to before (x+0 and x·1 are exact in IEEE754) and the
+  // fitted 29705s island cannot drift. amenityScoreTotal is left UNCHANGED (same array
+  // accumulation order) so no summation-order re-association can perturb it:
+  //   · connoisseur branch +25% luxury Comfort perk (E14-S2-T8/S7-T1): amenityScoreTotal
+  //     already counts luxury amenities at 100%, so the perk adds a further luxPerk· of their
+  //     comfort (and the same on owned collections). Applied ONLY on story.branch==='connoisseur'.
+  //   · owned collection assets feed ComfortRaw at count·comfort for EVERY branch (E14 brief),
+  //     via collectionComfortTotal — 0 with nothing owned.
+  const conn = state.story.branch === 'connoisseur';
+  const collComfort = collectionComfortTotal(state, DATA);
+  const luxBonus = conn
+    ? (luxuryAmenityComfort(state, DATA) + collComfort) * C.TASTE.luxuryComfortPerk
+    : 0;
+  const amenTerm = amenityScoreTotal(state, DATA) + collComfort + luxBonus;
   return (C.COMFORT.wAcc * accScore(state.accommodation.tier) * (1 + pathBonus(state, 'accComfort'))
-        + C.COMFORT.wAmen * amenityScoreTotal(state, DATA) * (1 + pathBonus(state, 'amenityComfort'))
+        + C.COMFORT.wAmen * amenTerm * (1 + pathBonus(state, 'amenityComfort'))
         + C.COMFORT.wBody * state.skills.body.level) * (1 + pathBonus(state, 'comfortAll'));
+}
+// sum of owned collection assets' flat Comfort (count·comfort) — feeds ComfortRaw for every
+// branch (the connoisseur +25% perk in computeComfort adds on top). 0 with nothing owned.
+export function collectionComfortTotal(state, DATA) {
+  let s = 0;
+  for (const arr of [DATA.collections.art, DATA.collections.wine]) {
+    for (const a of arr) s += (state.collections[a.id]?.count || 0) * a.comfort;
+  }
+  return s;
+}
+// sum of owned tag:'luxury' amenities' Comfort (level·comfort) — the base the connoisseur
+// +25% perk is a fraction OF (amenityScoreTotal already counts it at 100%).
+export function luxuryAmenityComfort(state, DATA) {
+  let s = 0;
+  for (const a of DATA.amenities) {
+    if (a.tag !== 'luxury') continue;
+    s += (state.amenities[a.id]?.level || 0) * a.comfort;
+  }
+  return s;
 }
 // Comfort required to unlock a given accommodation tier (see config.ACC.unlockFrac).
 export function accUnlockComfort(tier) {
@@ -408,6 +448,91 @@ export function cryptoYieldPerSec(state, DATA) {
   // full track — bounded by data, still exactly zero with no holdings.
   return base * pathMult(state.paths.crypto.points) * (1 + pathBonus(state, 'yieldMult'))
        * marketMult(state, DATA);
+}
+
+// ---- connoisseur economy (E14 "Acquired Taste") ----
+// Everything below is a hard no-op until the connoisseur system is genuinely engaged — the
+// gate below (points OR an owned collection asset) mirrors engine.cryptoActive EXACTLY, so a
+// fresh newGame() and the committed-vlogger harness see exclusivity 0, luxuryCostMult 1, no
+// appreciation — the fitted 29705s island cannot move. The multiplier folded into the stack
+// is a bounded LOG (never a power of cash — docs/math-proof.md §3/§4).
+
+// The gate (pure — math owns it so there's no engine↔math import cycle; engine.connoisseurActive
+// re-exports it for API symmetry with cryptoActive). True iff a committed connoisseur life
+// (path points>0) OR any collection asset is actually held (count>0).
+export function connoisseurActive(state) {
+  if ((state.paths.connoisseur?.points || 0) > 0) return true;
+  const col = state.collections;
+  if (col) for (const id in col) if ((col[id].count || 0) > 0) return true;
+  return false;
+}
+// Bounded exclusivity SCORE. 0 when inactive (the gate). When active:
+//   raw = Σ owned collections' count·exclusivity + Σ owned luxury amenities' level·(excl||0)
+//   score = raw^softExp                                   (softExp<1 tames the sum, E14-S2-T3)
+//         · (1 + setBonus per completed themed set)       (all ART and/or all WINE, E14-S4-T5)
+//         · (1 + branchBonus  when branch==='connoisseur')(the branch × perk, E14-S7-T2)
+//         · (1 + 0.1·goldenRatioRank)                     (Golden Ratio tree synergy, E14-S7-T8:
+//            the data-side node is deferred to the skilltree owner; reads 0 today ⇒ ×1 no-op)
+// Monotone in every owned quantity and softcapped (no cliff). DATA passed explicitly (house
+// convention); engine.tick caches the result as state._exclCache (like _comfortCache).
+export function computeExclusivity(state, DATA) {
+  if (!connoisseurActive(state)) return 0;
+  let raw = 0;
+  for (const arr of [DATA.collections.art, DATA.collections.wine]) {
+    for (const a of arr) raw += (state.collections[a.id]?.count || 0) * a.exclusivity;
+  }
+  for (const a of DATA.amenities) {
+    if (a.tag !== 'luxury') continue;
+    raw += (state.amenities[a.id]?.level || 0) * (a.exclusivity || 0);
+  }
+  if (raw <= 0) return 0;
+  let score = Math.pow(raw, C.EXCLUSIVITY.softExp);
+  const fullSet = arr => arr.every(a => (state.collections[a.id]?.count || 0) > 0);
+  let setMult = 1;
+  if (fullSet(DATA.collections.art)) setMult += C.EXCLUSIVITY.setBonus;
+  if (fullSet(DATA.collections.wine)) setMult += C.EXCLUSIVITY.setBonus;
+  score *= setMult;
+  if (state.story.branch === 'connoisseur') score *= (1 + C.EXCLUSIVITY.branchBonus);
+  score *= (1 + 0.1 * (state.ascension.tree.golden_ratio || 0));
+  return score;
+}
+// L_exclusivity = 1 + rate·log10(1 + exclCache/E0) — reads the per-tick cache (like
+// comfortMultiplier reads _comfortCache). Exactly 1 when the cache is 0 (system inactive).
+export function exclusivityMult(state) {
+  const e = state._exclCache ?? 0;
+  return 1 + C.EXCLUSIVITY.rate * Math.log10(1 + e / C.EXCLUSIVITY.E0);
+}
+// Luxury purchase discount (E14-S2-T2): clamp(1 − discount·tasteLevel, 0.4, 1), the −60%
+// floor at S8-T2. GATED to connoisseur-active — returns 1 otherwise — so the discount is the
+// committed aesthete's "old-money haggle" and can NEVER cheapen the luxury amenities the
+// greedy vlogger buys (which would move the fitted island). Applied to every tag:'luxury'
+// purchase (engine.amenityCost / engine.assetCost).
+export function luxuryCostMult(state) {
+  if (!connoisseurActive(state)) return 1;
+  return clamp(1 - C.TASTE.discount * state.skills.taste.level, 0.4, 1);
+}
+// PURE appreciation (E14-S4-T1): value = boughtValue·(1 + rate·globalRate)^ageYears, hard-
+// capped at boughtValue·valueCap. Same (boughtValue, ageSec, rate) ⇒ same value, no
+// wall-clock — age is game-time advanced in engine.tick, so offline replay is identical.
+export function appreciationValue(boughtValue, ageSec, appreciationRate) {
+  if (!(boughtValue > 0)) return 0;
+  const years = Math.max(0, ageSec) / C.APPRECIATION.yearSec;
+  const grown = boughtValue * Math.pow(1 + appreciationRate * C.APPRECIATION.globalRate, years);
+  return Math.min(grown, boughtValue * C.APPRECIATION.valueCap);
+}
+// display-only net worth of the whole collection (appreciated). Deliberately NOT fed into
+// stats.lifetimeCash/lifetimeCashThisTree (the wallet-cap §11 / Legacy §12 invariants depend
+// on those being banked-cash-only) — the mandated conservative choice, superseding S2-T7.
+export function collectionNetWorth(state, DATA) {
+  let v = 0;
+  for (const arr of [DATA.collections.art, DATA.collections.wine]) {
+    for (const a of arr) {
+      const c = state.collections[a.id];
+      if (!c || c.count <= 0) continue;
+      v += appreciationValue(c.boughtValue, c.age, a.appreciationRate);
+    }
+  }
+  return v;
 }
 
 // ---- prestige ----

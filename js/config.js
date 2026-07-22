@@ -254,6 +254,77 @@ export const CONFIG = {
     maxCrashDamp: 0.95,
   },
 
+  // ---- connoisseur economy (E14 "Acquired Taste"): OPT-IN, gated-off-by-default ----
+  // The whole Old-Money Aesthete lane (exclusivity ×, luxury discount, appreciation, the
+  // +25% luxury-Comfort perk) stays a hard no-op until the connoisseur system is genuinely
+  // engaged — engine.connoisseurActive is true only once state.paths.connoisseur.points>0
+  // OR a collection asset is owned (count>0), EXACTLY mirroring engine.cryptoActive's gate.
+  // A fresh newGame() and the harness/selftest playStep (a committed VLOGGER that never buys
+  // collections and never earns connoisseur points) therefore see exclusivity 0, luxuryCostMult
+  // 1, no appreciation advance, and no Comfort perk — so the fitted 29705s island time cannot
+  // move (see the harness-invariance tests [62]/[68]/[80]/[89]). All three blocks below feed
+  // ONLY log/bounded terms: exclusivity is a bounded log × (same shape as L_comfort), the
+  // discount is clamped, and appreciation is display-only and hard-capped — none of them is a
+  // positive power of cash (the finite-time-singularity class, docs/math-proof.md §3/§4).
+
+  // TASTE: the luxury cost discount + connoisseur sell/comfort scalars. NOTE: the `taste`
+  // skill LEVELS on the shared SKILL curve (base 50, growth 1.25) — deliberately NOT a
+  // separate TASTE.base/growth (the epic's S2-T1 literal ask is SUPERSEDED: a second XP curve
+  // would desync the beat-25 `taste:25` gate and risk the harness; one unified skill curve).
+  //   discount            — luxury cost multiplier is clamp(1 − discount·tasteLevel, 0.4, 1),
+  //                         the −60% floor at S8-T2 (reached at tasteLevel 30). GATED to
+  //                         connoisseur-active — the "old-money haggle" only a committed
+  //                         aesthete gets — so an ungated discount can't cheapen the luxury
+  //                         amenities the greedy vlogger buys and move the island.
+  //   luxuryComfortPerk   — the connoisseur branch's +25% Comfort on tag:'luxury' amenities
+  //                         AND owned collections (E14-S2-T8/S7-T1), applied ONLY when
+  //                         story.branch==='connoisseur' (math.computeComfort). +0 for the
+  //                         vlogger harness ⇒ Comfort invariant.
+  //   buyPathNudge        — one-off connoisseur path-point per asset PURCHASE (mirrors
+  //                         MARKET.buyPathNudge/DEST.visitPathPoints exactly — a discrete
+  //                         action, never a per-tick trickle), credited via addPathPoints so
+  //                         it feeds ONLY a committed connoisseur life.
+  //   sellFrac/sellTastePerLevel/sellCap — liquidating an appreciated piece pays
+  //                         min(sellCap, sellFrac + sellTastePerLevel·tasteLevel) of its
+  //                         current appreciated value (engine.sellAsset), so Taste sells
+  //                         better but a round-trip is never free (cap < 1). Selling also
+  //                         sheds the piece's exclusivity + Comfort — the real hold-vs-sell
+  //                         tradeoff (E14-S4-T3/T4).
+  TASTE: { discount: 0.02, luxuryComfortPerk: 0.25, buyPathNudge: 0.1,
+    sellFrac: 0.6, sellTastePerLevel: 0.01, sellCap: 0.95 },
+
+  // EXCLUSIVITY: refinement → a bounded GLOBAL × folded into the multiplier stack alongside
+  // L_comfort. L_exclusivity = 1 + rate·log10(1 + exclScore/E0) — a LOG of a bounded score,
+  // never a power of cash (the only safe multiplier shape, docs/math-proof.md §4). The score
+  // is exclScore = (Σ owned collections' count·exclusivity + Σ owned luxury amenities'
+  // level·(exclusivity||0))^softExp — softExp<1 tames the raw sum (E14-S2-T3) — then a
+  // one-time ×(1+setBonus) per completed themed set (all ART and/or all WINE, E14-S4-T5) and
+  // the connoisseur branch's own ×(1+branchBonus) exclusivity perk (E14-S7-T2). Zero (⇒ ×1)
+  // whenever the connoisseur system is inactive, so the harness is unaffected.
+  // Fitted (probe: a committed connoisseur mid-Act-II) to a ~1.5–3× global × — comparable to
+  // the other lanes, never dominant (E14-S8-T1/S10-T10).
+  EXCLUSIVITY: { rate: 0.8, E0: 7, softExp: 0.7, setBonus: 0.25, branchBonus: 0.25 },
+
+  // APPRECIATION: art/wine quietly grow in stored value while held. value =
+  // boughtValue·(1 + appreciationRate·globalRate)^ageYears, ageYears = age(game-seconds)/
+  // yearSec, HARD-capped at boughtValue·valueCap so no single piece runs away (E14-S4-T8/
+  // S10-T6). Deterministic + PURE (same boughtValue+age+rate ⇒ same value, no wall-clock —
+  // E14-S10-T3): age advances in GAME-TIME inside engine.tick, so offline macro-step replay
+  // is automatically identical (E14-S2-T6/S9-T3), exactly like the crypto scheduler.
+  //   globalRate — a single dial scaling every asset's own appreciationRate (0.01–0.08).
+  //   yearSec    — game-seconds per appreciation "year": 3600 ⇒ a full ~20h run ages a piece
+  //                ~20 years, so a grand cru (rate 0.05) grows ~×2.6 and the fastest lot
+  //                (0.08) ~×4.7 — FELT within a multi-hour session yet far SLOWER than active
+  //                income, which outpaces it into the billions (E14-S4-T10/S8-T3).
+  //   valueCap   — the hard ceiling as a MULTIPLE of purchase price (×8): even at extreme
+  //                age/GAME_SPEED a piece is capped, never a runaway.
+  // NET-WORTH DECISION (mandated): the appreciated value feeds a DISPLAY-ONLY
+  // math.collectionNetWorth and does NOT feed stats.lifetimeCash / lifetimeCashThisTree —
+  // the wallet cap (§11) and Legacy (§12) invariants depend on those being banked-cash-only,
+  // so the epic's S2-T7 ("feed Savvy/prestige lifetimeCash") is SUPERSEDED by this
+  // conservative choice; appreciated value never couples into Savvy or Legacy.
+  APPRECIATION: { globalRate: 1.0, yearSec: 3600, valueCap: 8 },
+
   // ---- ascension / legacy ----
   // LEGACY_SCALE was retuned 1e6 → 1e10 with the ascension hard reset (math-proof §12,
   // the §7/P3 item): at 1e6 a single fitted ~8.5h run paid ~1,183 Legacy — enough to
