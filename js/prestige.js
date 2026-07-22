@@ -105,6 +105,7 @@ export function ascend(state, heir) {
   fresh.stats.totalLegacyEverEarned = state.stats.totalLegacyEverEarned; // E29: the Legend √-base survives
   fresh.legend = state.legend;      // E29: the Legend layer is meta — it survives ascension untouched
   fresh.ngPlus = state.ngPlus;      // E29: the NG+ cycle counter is meta
+  fresh.achievements = state.achievements; // E30: the trophy record is permanent (survives every reset)
   fresh.meta = state.meta;
   fresh.meta.runStartSec = 0;
   // E25-A lineage keep-list: carry the album forward (append the retiree, oldest compacted past the
@@ -219,6 +220,7 @@ export function legendReset(state) {
   fresh.meta = state.meta; fresh.meta.runStartSec = 0;
   fresh.stats.totalLegacyEverEarned = state.stats.totalLegacyEverEarned;   // the √-base persists
   fresh.lineage = state.lineage;                                           // family album persists
+  fresh.achievements = state.achievements;                                 // E30: trophy record persists
   if (state.island && state.island.owned) {                               // the island stays owned
     fresh.island = { owned: true, purchasedAt: state.island.purchasedAt, relocated: state.island.relocated, buildings: fresh.island.buildings };
     fresh.accommodation.homeBase = 'island';
@@ -271,6 +273,7 @@ export function startNgPlus(state) {
   fresh.meta = state.meta; fresh.meta.runStartSec = 0;
   fresh.stats.totalLegacyEverEarned = state.stats.totalLegacyEverEarned;
   fresh.lineage = state.lineage;
+  fresh.achievements = state.achievements;   // E30: trophy record persists across NG+
   if (state.island && state.island.owned) {
     fresh.island = { owned: true, purchasedAt: state.island.purchasedAt, relocated: state.island.relocated, buildings: fresh.island.buildings };
     fresh.accommodation.homeBase = 'island';

@@ -87,6 +87,11 @@ export function tick(state, dt) {
   // E29 Legend meta-meta income × (L_legend): 1 unless a shop income perk is bought (harness never
   // Legends). Cached before the tierProd snapshot, like _staffMult/_estateMult.
   state._legendMult = M.computeLegendMult(state, DATA);
+  // E30 achievements: evaluate unlock conditions, then cache the completionist × (L_achieve, meta-
+  // gated ⇒ 1 for the harness) and the seasonal live-ops × (island-gated ⇒ 1 for the harness).
+  evaluateAchievements(state);
+  state._achieveMult = M.computeAchieveMult(state, DATA);
+  state._seasonalMult = M.seasonalMult(state, DATA);
 
   const rt = runtimeMult(state);
 
@@ -1586,6 +1591,39 @@ export function checkIslandListing(state) {
   if (!islandListingUnlocked(state)) return;
   state.story.flags.islandListing = true;
   notify(state, 'unlock', '🏝️ A listing crosses your desk: "Private Island — 40 hectares, one (1) confused goat, no Wi-Fi yet. Motivated seller." You read it three times.');
+}
+
+// ---- achievements (E30 "Legends of Leisure") ----
+// The pure metric evaluator: maps an achievement's `metric` key to a live state value. Used by the
+// condition evaluator below and by the stats screen. In-run metrics (accTier/comfort/cash) are what
+// the harness reaches — but their achievements carry reward 0, so unlocking them never moves income.
+export function stateMetric(state, metric) {
+  switch (metric) {
+    case 'accTier':      return state.accommodation.tier;
+    case 'bestComfort':  return state.stats.bestComfort || 0;
+    case 'lifetimeCash': return state.stats.lifetimeCash || 0;
+    case 'ascensionCount': return state.ascension?.count || 0;
+    case 'legendCount':  return state.legend?.count || 0;
+    case 'ngPlus':       return state.ngPlus || 0;
+    case 'islandOwned':  return state.island?.owned ? 1 : 0;
+    case 'buildingsBuilt': return DATA.buildings.reduce((n, b) => n + M.buildingCount(state, b.id), 0);
+    case 'premiumDestOwned': return M.premiumDestOwned(state, DATA);
+    default: return 0;
+  }
+}
+export function achievementUnlocked(state, id) { return !!state.achievements?.unlocked?.[id]; }
+// Evaluate every achievement's condition; unlock newly-satisfied ones (a one-shot per id) and toast.
+// Called each tick. The harness satisfies only reward-0 in-run trophies, so L_achieve stays 1.
+export function evaluateAchievements(state) {
+  if (!state.achievements) state.achievements = { unlocked: {} };
+  const u = state.achievements.unlocked;
+  for (const a of DATA.achievements) {
+    if (u[a.id]) continue;
+    if (stateMetric(state, a.metric) >= a.threshold) {
+      u[a.id] = true;
+      notify(state, 'celebrate', `🏆 Achievement: ${a.name} — ${a.desc}${a.reward > 0 ? ` (+${(a.reward * 100).toFixed(0)}% income)` : ''}`);
+    }
+  }
 }
 
 // ---- island buildings (E28 "Building Paradise") ----

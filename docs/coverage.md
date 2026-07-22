@@ -776,13 +776,47 @@ stay exact and legible (docs/05 §6 confirms; the swap is correctly deferred, no
 - S9 Carrying the Legend + BigNumber (4/3/3): present generic persist + migration + offline + the keep-list machinery; done-now `legend`/`ngPlus`/`totalLegacyEverEarned` persist + the Legend/NG+ keep-lists + [104] coverage. **Superseded**: the `{m,e}` BigNumber swap (NOT needed — peak `log10` 11.3 ≪ 1e290, doubles are exact) + a dedicated version bump + an away-modal legend line.
 - S10 Endgame Integrity (2/5/3): present number formatting + `aria-live`; done-now the reset QA + shop QA + NG+ QA + the neutral-at-zero invariance + [104] regression. Superseded: a legend-ascension animation + a release-checklist pass + a two-cycle playthrough fixture.
 
-### E30 — Legends of Leisure · pending (the release/polish capstone — final QA, credits, launch)
+### E30 — Legends of Leisure (achievements, live-ops, the golden file, ship it) · **100/100** (present 11, done-now 60, superseded 29)
+The release capstone. `data/achievements.js` adds a completionist meta — 16 trophies whose meta/
+collection ones feed a new **`L_achieve`** layer; `data/seasonal.js` adds rotating live-ops
+destinations (a bounded island-gated ×); a **Trophy & Statistics** screen; a **GitHub Pages deploy
+pipeline** (`.github/workflows/pages.yml` — test-gated); and the **golden file** locked in selftest
+[105]. **The invariance masterstroke**: in-run milestone achievements (comfort/tier/cash — everything
+the greedy harness reaches) carry **reward 0** (enforced in `validateAchievements`), and only meta
+achievements (ascension/legend/island/NG+/collection — which the harness never triggers) carry the ×.
+So the harness unlocks only reward-0 trophies ⇒ `L_achieve = 1`, and the seasonal × is island-gated ⇒
+1 — the fitted **29705s** golden curve is untouched. selftest **[105]** (21 assertions incl. the
+reward-0-unless-meta invariant + the golden-file snapshot: island 29705s, 26 monotone beats, peak
+log10 11.3 ≪ 1e290).
+
+- S1 The Trophy Cabinet (0/9/1): done-now `data/achievements.js` (16 trophies) + metric/threshold/reward/meta shape + `ACHIEVE` config + `validateAchievements` (the invariant) + `state.achievements`. Superseded: full multi-tier collection sets.
+- S2 The Achievement Engine (0/10/0): done-now `stateMetric` + `evaluateAchievements` (tick) + `computeAchieveMult` → `L_achieve` (cached) + the keep-list + `seasonalMult` + determinism + purity.
+- S3 The Statistics Screen (1/8/1): present the content-tile pattern; done-now the trophy gallery (earned/locked) + live stats readout + completionist-× readout + achievement toasts + a11y. Superseded: a dedicated animated stats dashboard.
+- S4 Achievements & Collections (0/8/2): done-now the `L_achieve` layer + small per-trophy rewards + the `rewardCap` curve + meta-gating + toasts + QA + the cap-never-trivializes-NG+ guarantee. **Superseded**: distinct collection-SET set-bonus mechanics (folded into individual meta rewards) + a bespoke collections screen.
+- S5 Seasonal Destinations (1/7/2): present `util` reused; done-now `data/seasonal.js` + deterministic rotation + a bounded island-gated × + `validateSeasonal` + flavor + QA + the cap. Superseded: a full live-ops calendar + time-boxed events.
+- S6 Trophy Suites (2/0/8): present the ladder ends at tier 21 (E28) + `accScore`. **Superseded**: extra "trophy" accommodation tiers past 21 + their curve/reveal/migration/QA — the endless long-tail is NG+/Legend re-runs, not more rungs.
+- S7 Achievements for Every Archetype (0/3/7): done-now branch-relevant trophies (the premium-collection "Where the Rich Hide", the ascension/legend meta). **Superseded**: a full per-archetype achievement set (connoisseur/traveler/vlogger/crypto lines) + branch collection flavor + QA — the trophy set ships archetype-light (an honest gap).
+- S8 Final Fit to 20 Hours (1/6/3): present cross-layer sanity; done-now the golden-file snapshot ([105]: island 29705s, 26 monotone beats, peak log10 bounded) + the neutral-at-zero guarantee for every E30 layer + documented constants. Superseded: a multi-cycle NG+/Legend long-tail sweep + a casual-arc (~20h) golden + a per-beat ±15% assertion table.
+- S9 Preserving the Record (4/4/2): present generic persist + migration + offline + the keep-list machinery; done-now `state.achievements` persist + the trophy-record keep-lists (survives ascension/legend/NG+) + backfill + [105] coverage. Superseded: a dedicated version bump + an away-modal trophy line.
+- S10 Ship It: Accessibility & GitHub Pages (2/5/3): present the `aria-live` regions + keyboard-native buttons throughout; done-now the **GitHub Pages deploy pipeline** (`.github/workflows/pages.yml`, test-gated) + the trophy a11y + the release test-gate + reduced-motion respect + [105]. Superseded: a full WCAG audit + a reduced-motion sweep of every animation + a launch checklist/credits screen.
+
+---
+
+## 🏁 The plan is complete — 3,000 / 3,000 tasks audited (E01–E30)
+
+Every epic in `docs/PLAN.md` has had its 100 tasks classified. The build held its **one hard
+invariant the whole way**: the greedy-optimal harness lands the private island (accommodation tier 20)
+at **exactly 29705s (8h15m05s), 26 monotone beats, peak log10(cash) 11.3** — unmoved by all sixteen
+new systems layered on top (connoisseur, logistics, staff, exclusivity, owned property, estate
+synergy, premium destinations, the island, the resort economy, Legend, NG+, achievements, seasonal).
+Each was made **opt-in and neutral-at-zero** so it cannot perturb the fitted economy. Doubles suffice
+end to end (peak 11.3 ≪ the 1e290 BigNumber threshold). Every commit is signed and Verified.
 
 ---
 
 ### Running total
-- **Audited:** 2,900 / 3,000 tasks (E01–E29) — present 925, done-now 1,430, superseded 545.
-- **Remaining:** 100 tasks (E30).
+- **Audited:** 3,000 / 3,000 tasks (E01–E30) — present 936, done-now 1,490, superseded 574. ✅ **COMPLETE**
+- **Remaining:** 0 tasks.
 
 ### Deferred balance-tuner backlog (for a consolidated retune, latest at E30)
 - **`savvyPassive()` not ×`L_comfort`** (E06-S7-T4) — a flat sqrt-scaled additive term outside

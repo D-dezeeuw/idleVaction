@@ -548,6 +548,12 @@ export const CONFIG = {
   LEGEND: { minAscensions: 3 },
   NGPLUS: { gateScale: 1.5, incomeMult: 3.0, destShuffleSeedBase: 40000 },
 
+  // ---- achievements & live-ops (E30 "Legends of Leisure") ----
+  // Achievement/collection rewards feed L_achieve = 1 + Σ rewards, curved by achieveRewardCap so
+  // 100% completion never trivializes NG+. In-run milestone trophies carry reward 0 (harness-safe);
+  // only meta/collection achievements carry the ×. seasonalMultCap bounds the live-ops nudge.
+  ACHIEVE: { rewardCap: 0.75, seasonalMultCap: 1.1 },
+
   // ---- pacing / QA (NEVER used to balance — only to pace/test) ----
   // gameSpeed multiplies simulated time in the loop. 1 = natural course; the high presets +
   // the custom input let QA run the ~20h arc in seconds. The custom field accepts any value

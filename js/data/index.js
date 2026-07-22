@@ -19,6 +19,8 @@ import { STAFF_DATA } from './staff.js';
 import { PROPERTIES, PROPERTY_UPGRADES, GROUNDS } from './property.js';
 import { BUILDINGS } from './island.js';
 import { LEGEND_PERKS } from './legend.js';
+import { ACHIEVEMENTS } from './achievements.js';
+import { SEASONAL } from './seasonal.js';
 
 export const DATA = {
   generators: GENERATORS,
@@ -74,4 +76,10 @@ export const DATA = {
   // legend perks (E29 "Empire of Leisure"): the meta-meta shop bought with Legend points. Neutral
   // until a perk is bought; validateLegend lives in data/legend.js. Harness never Legends → L_legend 1.
   legendPerks: LEGEND_PERKS,
+  // achievements (E30 "Legends of Leisure"): completionist trophies. In-run milestones are cosmetic
+  // (reward 0); meta/collection achievements carry the L_achieve × — the harness reaches only the
+  // reward-0 ones, so L_achieve stays 1. validateAchievements lives in data/achievements.js.
+  achievements: ACHIEVEMENTS,
+  // seasonal (E30): rotating live-ops destinations, a small bounded × gated on owning the island.
+  seasonal: SEASONAL,
 };

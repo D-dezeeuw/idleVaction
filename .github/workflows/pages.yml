@@ -1,0 +1,45 @@
+# GitHub Pages deploy (E30-S10 "Ship It"). idleVaction is a dependency-free, build-step-free static
+# site — GitHub Pages serves js/, index.html, and the assets directly. This workflow runs the headless
+# test suite as a release gate, then publishes the repo root to Pages on every push to main.
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      # release gate: the economy self-test must pass before anything ships (npm test = js/dev/selftest.mjs)
+      - run: npm test
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      # the whole repo IS the site (no build) — upload it as the Pages artifact
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - id: deployment
+        uses: actions/deploy-pages@v4
