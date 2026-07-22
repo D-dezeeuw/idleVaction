@@ -494,7 +494,11 @@ console.log('\n[14] E04 destMult (L_dest)');
     if (got < prev - 1e-9) monotonic = false;
     prev = got;
   }
-  ok(approx(prev, expected), 'destMult with ALL destinations owned equals the product of every row\'s mult');
+  // E24: destMult now also folds the premium set-collection bonus (destSetMult), so with ALL owned
+  // the expected value is the row-product × the set bonus for owning every premium destination.
+  const premiumCount = DATA.destinations.filter(x => x.premium).length;
+  expected *= M.destSetMult(premiumCount);
+  ok(approx(prev, expected), 'destMult with ALL destinations owned equals the product of every row\'s mult × the premium set bonus');
   ok(monotonic, 'destMult is monotonic non-decreasing as more destinations are owned');
   ok(prev >= 1, 'destMult (L_dest) is always >= 1');
 }
@@ -4170,6 +4174,62 @@ console.log('\n[98] E23 Villa Vita: grounds mega-clusters, estate wing, property
   ok(Math.abs(islandAt - 29705) < 1, `harness island time is UNCHANGED by E23 (got ${fmtTime(islandAt)}, expected 29705s — the estate wing is opt-in)`);
   ok(M.estateSynergy(hs, DATA) === 1 && (hs._estateMult ?? 1) === 1, 'the harness ends with L_estate 1 (grounds/estate never engaged)');
   ok(DATA.staff.filter(d => d.estate).every(d => !hs.staff[d.id].hired), 'the harness hires no estate staff');
+}
+
+console.log('\n[99] E24 Where the Rich Hide: premium destinations, set-collection bonus, hard gate, invariance');
+{
+  const premiums = DATA.destinations.filter(d => d.premium);
+  ok(premiums.length === 5, 'five premium destinations (Monaco/Dubai/Maldives/Aspen/St. Barths)');
+  ok(premiums.map(d => d.id).join() === 'dest_monaco,dest_dubai,dest_maldives,dest_aspen,dest_st_barths', 'the premium roster is the five in ascending order');
+  // every premium destination's signature amenity exists and is unlockDest-gated on that place
+  for (const d of premiums) {
+    const sig = DATA.amenities.find(a => a.id === d.signature);
+    ok(sig && sig.tag === 'signature' && sig.unlockDest === d.id, `${d.name}'s signature amenity exists and is gated on owning it`);
+  }
+  ok(premiums.every((d, i) => i === 0 || d.tasteGate >= premiums[i - 1].tasteGate), 'tasteGates are non-decreasing');
+  ok(premiums[premiums.length - 1].tasteGate === 25, 'the last premium (St. Barths) gates at Taste L25 (beat 25)');
+
+  // ---- the HARD gate: a maxed-Taste player with NO property and NO exclusivity cannot unlock one
+  const bare = ST.newGame(); bare.skills.taste.level = 99; bare._comfortCache = 1e12; bare._exclCache = 0;
+  ok(M.ownedPropertyCount(bare) === 0, 'the bare player owns no property');
+  ok(E.destUnlocked(bare, 'dest_monaco') === false, 'Taste alone does NOT unlock a premium destination (the harness case)');
+  // owning a property opens the gate (summit era)
+  const owner = ST.newGame(); owner.skills.taste.level = 20; owner._comfortCache = 1e12; owner.property.bungalow.owned = true;
+  ok(E.destUnlocked(owner, 'dest_monaco') === true, 'a property owner with enough Taste unlocks the premium destination');
+  ok(E.destUnlocked(owner, 'dest_st_barths') === false, 'St. Barths stays gated until Taste L25 even for a property owner');
+  // exclusivity alone (connoisseur) also opens it
+  const conn = ST.newGame(); conn.skills.taste.level = 20; conn._comfortCache = 1e12; conn._exclCache = 5;
+  ok(E.destUnlocked(conn, 'dest_monaco') === true, 'a connoisseur (exclusivity > 0) with enough Taste also unlocks it');
+
+  // ---- set-collection bonus: destSetMult escalates, folds into destMult, 1 for 0–1 owned
+  ok(M.destSetMult(0) === 1 && M.destSetMult(1) === 1, 'the set bonus is 1 for 0 or 1 premium owned (harness-neutral)');
+  ok(M.destSetMult(2) > 1 && M.destSetMult(5) > M.destSetMult(4) && M.destSetMult(4) > M.destSetMult(3), 'the set bonus escalates with 2→3→4→5 owned');
+  ok(M.destSetMult(99) === M.destSetMult(5), 'the set bonus clamps at the full set');
+  // fold: destMult includes each owned premium mult × the set bonus
+  const col = ST.newGame();
+  col.destinations.dest_monaco.owned = true; col.destinations.dest_dubai.owned = true; col.destinations.dest_maldives.owned = true;
+  const expected = premiums[0].mult * premiums[1].mult * premiums[2].mult * M.destSetMult(3);
+  ok(approx(M.destMult(col, DATA), expected), 'destMult folds owned premium mults × the set bonus');
+  ok(M.premiumDestOwned(col, DATA) === 3, 'premiumDestOwned counts the owned premium destinations');
+
+  // ---- signature amenity: locked until its destination is owned
+  const sigState = ST.newGame(); sigState._comfortCache = 1e12;
+  ok(E.amenityUnlocked(sigState, 'sig_casino_suite') === false, 'a signature amenity is locked until its premium destination is owned');
+  sigState.destinations.dest_monaco.owned = true;
+  ok(E.amenityUnlocked(sigState, 'sig_casino_suite') === true, 'owning the destination unlocks its signature amenity');
+
+  // ---- beat-25 flags: richHide on first premium, set milestone at ≥2
+  const flg = ST.newGame(); flg.destinations.dest_monaco.owned = true;
+  E.checkRichHide(flg);
+  ok(flg.story.flags.richHide === true, 'flags.richHide fires on the first premium destination owned');
+  flg.destinations.dest_dubai.owned = true; E.checkRichHide(flg);
+  ok(flg.story.flags.richHideSet === 2, 'the set milestone flag tracks the premium count at ≥2');
+
+  // ---- harness invariance: never owns a premium destination ⇒ set bonus 1, island unchanged
+  const { s: hs, islandAt } = runCurve({ dt: 5, maxHours: 40 });
+  ok(Math.abs(islandAt - 29705) < 1, `harness island time is UNCHANGED by E24 (got ${fmtTime(islandAt)}, expected 29705s — premium gate needs property/exclusivity)`);
+  ok(M.premiumDestOwned(hs, DATA) === 0 && M.destSetMult(0) === 1, 'the harness owns no premium destination (set bonus 1 throughout)');
+  ok(premiums.every(d => !E.destUnlocked(hs, d.id)), 'no premium destination ever unlocks for the harness (0 property, 0 exclusivity)');
 }
 
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);

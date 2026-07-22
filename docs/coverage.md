@@ -629,13 +629,35 @@ manager boost, `assignStaff` validation, estate-out-of-`L_staff`, beat-24 flag, 
 - S9 Save/offline (4/4/2): present offline synergy recompute + export/import + backup rotation + generic migration; done-now `assignedTo` persist + backfill + assignment serialize + migration test. Superseded: a dedicated version bump + an away-modal grounds line.
 - S10 QA/juice (2/5/3): present number formatting + `aria-live` region; done-now `assignStaff` validation + synergy QA + one-shot event correctness + zero-cash reuse + [98] regression. Superseded: assignment edge-juice + confetti + reveal animation.
 
-## Act II–VI — E24–E30
+### E24 — Where the Rich Hide (premium-destination meta-game) · **100/100** (present 26, done-now 54, superseded 20)
+Turns destinations into an endgame collection. Five **premium destinations** (Monaco, Dubai,
+Maldives, Aspen, St. Barths) extend the E04 destination system — each a unique larger global × + a
+**signature amenity** (`tag:'signature'`, `unlockDest`-gated) — with an escalating **set-collection
+bonus** (`DEST.setBonus`, own 2/3/4/5 → ×1.15/1.35/1.6/2.0) folded into `destMult`. The invariance
+lynchpin: `premium:true` routes them through a **hard gate** in `destUnlocked` — a Taste level AND
+the summit era (own a property OR have exclusivity > 0) — a gate the greedy harness (0 property, 0
+exclusivity, despite high Taste) can **never** clear, so it never unlocks/buys one and the set bonus
+stays 1 → **island unchanged at 29705s**. Beat 25 keeps its Taste-L25 gate; `checkRichHide` fires
+collection flags. Built inline. selftest **[99]** (26 assertions: the hard gate both ways, set-bonus
+escalation + `destMult` fold, signature-amenity gating, harness invariance).
+
+- S1 Data model (2/8/0): present the E04 destination schema + validation harness reused; done-now 5 premium rows + `premium`/`tasteGate`/`signature`/`mult` fields + `DEST.setBonus` + config-driven + flavor + `validateDestinations` premium checks.
+- S2 Core (3/6/1): present `buyDestination` + visit/travel + `_destCache` recompute reused; done-now the `premium` gate + `destMult` set-bonus fold + `destSetMult` + `premiumDestOwned` + `checkRichHide` + determinism. Superseded: a bespoke "travel-between-premium" mechanic (reuses the existing visit).
+- S3 UI (4/5/1): present the destinations map + region grouping + buy/visit buttons + `aria-live`; done-now the premium collection board + set-bonus readout + gate-visible-only-in-summit + next-tier hint + intent wiring. Superseded: a dedicated animated collection screen.
+- S4 Set-collection (1/8/1): present the `L_dest` layer; done-now the set-bonus centerpiece + escalation + beat-25 `checkRichHide` + set-milestone flag + surfaced math (UI) + diminishing-but-worth-it + collection board + QA. Superseded: a bespoke "own all 5" mega-reward beyond ×2.0.
+- S5 Signature amenities (1/8/1): present the `buyAmenity` flow reused; done-now 5 `tag:'signature'` amenities + `unlockDest` gating + Comfort feed + flavor + reveal + QA + save. Superseded: per-destination unique *mechanics* (they are standard Comfort amenities with a hard gate).
+- S6 Destination residences (3/4/3): present the E22 owned-property model + `buyDestination` ownership + signature-as-residence-content; done-now the premium purchase = residence + its signature amenity + set membership + migration. **Superseded**: a separate `property.js` residence entry per destination (folded into the destination+signature model — one owned thing, not two) + its upgrade tree + that QA.
+- S7 Path flavor (2/3/5): present `pathAffinity` + `addPathPoints` reused; done-now traveler stamps + connoisseur exclusivity read (premium buy credits both `pathAffinity` lanes) + branch-neutral gate. **Superseded**: distinct per-branch premium flavor text + discretion-vs-stamps mechanics + hybrid reward + branch-switch QA.
+- S8 Balance (2/6/2): present cross-layer sanity + cadence (harness); done-now `setBonus` values + `tasteGate` ladder + premium `mult`s + documented constants + [99] golden. Superseded: a gate/bonus sweep + a per-branch time-to-collect metric.
+- S9 Save/offline (6/2/2): present premium `owned` flags persist via the existing destinations slice + signature levels via amenities + generic migration + offline (static ×) + export/import + backup; done-now `richHide`/`richHideSet` flags + migration coverage. Superseded: a dedicated version bump + an away-modal collection line.
+- S10 QA/juice (2/4/4): present number formatting + `aria-live`; done-now the hard-gate QA (both ways) + set-bonus QA + signature-gating QA + [99] regression. Superseded: collection-complete confetti + per-stamp juice + reveal animation + save-compat fixture.
+
+## Act II–VI — E25–E30
 
 _Pending — appended as each phase's build pass audits its 100 tasks._
 
 | Epic | Status |
 |---|---|
-| E24 Where the Rich Hide | pending |
 | E25 Letting Go | pending — mechanics largely shipped early (prestige.js + hard reset + gate scaling, math-proof §12); **amendment E25-A (retirement & lineage)** added to the epic file, unbuilt |
 | E26 Who You Become | pending |
 | E27 The Island Listing | pending |
@@ -646,8 +668,8 @@ _Pending — appended as each phase's build pass audits its 100 tasks._
 ---
 
 ### Running total
-- **Audited:** 2,300 / 3,000 tasks (E01–E23) — present 716, done-now 1,153, superseded 431.
-- **Remaining:** 700 tasks (E24–E30).
+- **Audited:** 2,400 / 3,000 tasks (E01–E24) — present 742, done-now 1,207, superseded 451.
+- **Remaining:** 600 tasks (E25–E30).
 
 ### Deferred balance-tuner backlog (for a consolidated retune, latest at E30)
 - **`savvyPassive()` not ×`L_comfort`** (E06-S7-T4) — a flat sqrt-scaled additive term outside

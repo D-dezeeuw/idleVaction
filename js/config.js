@@ -187,7 +187,14 @@ export const CONFIG = {
   //   NOT a per-tick trickle — L_dest already multiplies across every generator tier, so
   //   an UNBOUNDED per-second point source compounds into a runaway; see docs/05 golden-
   //   drift note / harness §9 and the E04 balance-tuner escalation note in math.js).
-  DEST: { costGrowth: 1.15, baseMult: 1.10, visitYield: 15, visitPathPoints: 0.2 },
+  DEST: { costGrowth: 1.15, baseMult: 1.10, visitYield: 15, visitPathPoints: 0.2,
+    // E24 "Where the Rich Hide": the premium set-collection bonus. Owning N premium destinations
+    // (Monaco/Dubai/Maldives/Aspen/St. Barths) grants an escalating GLOBAL × via math.destSetMult —
+    // indexed by count, so [1]=own 1 (no bonus yet), [2..5] escalate. Folded into destMult (the
+    // L_dest layer). 1 for 0–1 owned, so the greedy harness (owns 0 premium) is unmoved. The gate
+    // (engine.destUnlocked) additionally needs the summit era (owned property OR exclusivity > 0),
+    // which the harness never has — belt-and-suspenders on the 29705s invariant.
+    setBonus: [1, 1, 1.15, 1.35, 1.6, 2.0] },   // index = premium count owned (0..5)
 
   // ---- vlogger clout ----
   // dClout/dt = (contentRate + content-tier/gear contentRate) · (1+charismaBoost·charisma) ·

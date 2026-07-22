@@ -93,6 +93,30 @@ export const DESTINATIONS = [
     costBase: 1.3e9, mult: 1.055, unlockAfter: 'air_new_york', unlockComfort: 1.2e9, tag: 'air',
     pathAffinity: { traveler: 1.0 }, travelTime: 240, air: true, requiresJetTier: 5,
     flavor: 'The far side of the planet, reached before lunch. The jet lag files a complaint you ignore.' },
+
+  // --- Premium destinations (E24 "Where the Rich Hide"): the endgame collection meta-game. Five
+  // places the rich actually hide, each a UNIQUE, larger global × + a signature amenity, and an
+  // escalating SET bonus for owning many (math.destSetMult). `premium:true` routes them through a
+  // HARD gate in engine.destUnlocked — a Taste level AND being in the summit era (owning a property
+  // OR having any exclusivity) — a gate the greedy harness (0 property, 0 exclusivity) can NEVER
+  // clear, so it never unlocks/buys one ⇒ destMult stays put ⇒ the fitted 29705s island is unmoved.
+  // `signature` names the tag:'signature' amenity that unlocks with the place. costBase strictly
+  // increasing past Sydney; tasteGate culminates at L25 (beat 25, "Where the Rich Hide"). ---
+  { id: 'dest_monaco', name: 'Monaco', region: 'Riviera', premium: true, tasteGate: 15, signature: 'sig_casino_suite',
+    costBase: 3e9, mult: 1.15, unlockComfort: 0, tag: 'premium', pathAffinity: { traveler: 1.5, connoisseur: 1.0 }, travelTime: 200,
+    flavor: 'A country the size of a car park, entirely full of money. You fit right in, which is the alarming part.' },
+  { id: 'dest_dubai', name: 'Dubai', region: 'Gulf', premium: true, tasteGate: 18, signature: 'sig_burj_floor',
+    costBase: 8e9, mult: 1.18, unlockComfort: 0, tag: 'premium', pathAffinity: { traveler: 1.5, connoisseur: 1.0 }, travelTime: 210,
+    flavor: 'They built a city where there was sand, then air-conditioned the outdoors. You do not ask what it cost. You know what it cost.' },
+  { id: 'dest_maldives', name: 'The Maldives', region: 'Indian Ocean', premium: true, tasteGate: 20, signature: 'sig_private_atoll',
+    costBase: 2e10, mult: 1.20, unlockComfort: 0, tag: 'premium', pathAffinity: { traveler: 1.5, connoisseur: 1.0 }, travelTime: 230,
+    flavor: 'A ring of sand around a lagoon, rented by the night for the price of a house. The house had rain. This does not.' },
+  { id: 'dest_aspen', name: 'Aspen', region: 'Rockies', premium: true, tasteGate: 22, signature: 'sig_ski_chalet',
+    costBase: 5e10, mult: 1.22, unlockComfort: 0, tag: 'premium', pathAffinity: { traveler: 1.5, connoisseur: 1.0 }, travelTime: 220,
+    flavor: 'You do not ski. You own the après-ski, the chalet, and the fur nobody in Utrecht would have believed. You still cannot ski.' },
+  { id: 'dest_st_barths', name: 'St. Barths', region: 'Caribbean', premium: true, tasteGate: 25, signature: 'sig_harbour_villa',
+    costBase: 1.2e11, mult: 1.25, unlockComfort: 0, tag: 'premium', pathAffinity: { traveler: 1.5, connoisseur: 1.0 }, travelTime: 235,
+    flavor: 'The last one. A harbour full of boats that cost more than nations, and yours moored among them. This is where the rich hide. You found it. You ARE it.' },
 ];
 
 // TRANSPORT row shape: { id, name, speed, costBase, upkeep, flavor }. `speed` shortens
@@ -133,6 +157,14 @@ export function validateDestinations() {
     if (d.air !== undefined) {
       if (d.air !== true) errors.push(`${d.id}: air must be true when present (got ${d.air})`);
       if (!Number.isInteger(d.requiresJetTier) || d.requiresJetTier <= 0) errors.push(`${d.id}: air destination needs a positive-integer requiresJetTier`);
+    }
+    // premium destinations (E24): premium:true rows carry a positive-integer tasteGate + a signature
+    // amenity id (cross-referenced against DATA.amenities in the selftest, not here — no import cycle).
+    if (d.premium !== undefined) {
+      if (d.premium !== true) errors.push(`${d.id}: premium must be true when present (got ${d.premium})`);
+      if (!Number.isInteger(d.tasteGate) || d.tasteGate <= 0) errors.push(`${d.id}: premium destination needs a positive-integer tasteGate`);
+      if (typeof d.signature !== 'string' || !d.signature) errors.push(`${d.id}: premium destination needs a signature amenity id`);
+      if (!(d.mult > 1)) errors.push(`${d.id}: premium destination mult must be > 1 (got ${d.mult})`);
     }
   }
   if (errors.length) throw new Error('validateDestinations() failed:\n' + errors.join('\n'));

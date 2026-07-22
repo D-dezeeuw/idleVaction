@@ -94,10 +94,26 @@ export function tierProd(state, k) {
 // imports data/ and the config→util→math→data chain stays acyclic.
 export function destMult(state, DATA) {
   let m = 1;
+  let premiumOwned = 0;
   for (const d of DATA.destinations) {
-    if (state.destinations[d.id]?.owned) m *= d.mult;
+    if (state.destinations[d.id]?.owned) { m *= d.mult; if (d.premium) premiumOwned++; }
   }
+  // E24 premium set-collection bonus: an escalating GLOBAL × for owning many of the rich's hiding
+  // spots. 1 for 0–1 owned (the harness owns 0 ⇒ this is exactly 1 and the island is unmoved).
+  m *= destSetMult(premiumOwned);
   return m;
+}
+// The premium set bonus for owning `n` premium destinations, from config.DEST.setBonus (clamped to
+// the table's last entry above 5). Exactly 1 for n ≤ 1 — the gate is baked into the table.
+export function destSetMult(n) {
+  const t = C.DEST.setBonus;
+  return t[Math.min(n, t.length - 1)] ?? 1;
+}
+// how many premium destinations are currently owned (UI + set-bonus readout). 0 for the harness.
+export function premiumDestOwned(state, DATA) {
+  let n = 0;
+  for (const d of DATA.destinations) if (d.premium && state.destinations[d.id]?.owned) n++;
+  return n;
 }
 // tierMultiplier reads the per-tick cache (engine.tick sets state._destCache via
 // destMult(state, DATA)) rather than DATA directly — mirrors comfortMultiplier()
