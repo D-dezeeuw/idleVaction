@@ -1497,20 +1497,50 @@ function renderPaths(s) {
   el('paths').innerHTML = html;
 }
 
+// small HTML escaper for defence-in-depth on player-entered names (sanitizeName already strips the
+// dangerous chars at input; this guards the render path too — E25-A-T2/T10).
+function esc(str) {
+  return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
 function renderAscension(s) {
   const preview = P.legacyPreview(s);
   const can = P.canAscend(s);
-  const nextBeat = DATA.story.find(b => b.id === 26);
   const unlocked = s.story.seen.includes(26) || s.ascension.count > 0;
   if (!unlocked) {
     el('ascension').innerHTML = `<em>Ascension unlocks at Beat 26 (Comfort ≥ ${fmt(1e9)}). Keep climbing.</em>`;
     return;
   }
+  // E25-A: the ascend surfaces reframed as the character's RETIREMENT — presentation only, same
+  // prestige.ascend() underneath. Legacy reads as "the inheritance"; the run resets, the album grows.
+  const L = s.lineage || { name: '', generation: 1, album: [] };
+  const who = L.name ? esc(L.name) : 'this tourist';
   el('ascension').innerHTML = `
-    <div>Ascend to reset this run for permanent <b>Legacy</b>.</div>
-    <div class="iv-sub">Run time: ${fmtTime(s.stats.runSec)} · Ascensions: ${s.ascension.count}</div>
-    <div>Ascend now → <b>+${fmt(preview)} Legacy</b> ${btn('ascend', '', 'Ascend ✨', can)}</div>
-    ${!can ? `<div class="iv-sub">(need ≥1 Legacy and ≥${C.ASCEND_MIN_RUN_SEC}s run time)</div>` : ''}`;
+    <div>🕯️ <b>${who}</b> can retire now — shed the old self, wipe the trip, and pass on the <b>inheritance</b>.</div>
+    <div class="iv-sub">Generation ${L.generation} · run time ${fmtTime(s.stats.runSec)} · retirements so far: ${s.ascension.count} · ${btn('name-lineage', '', L.name ? 'Rename ✏️' : 'Name this tourist ✏️', true)}</div>
+    <div>Retire &amp; inherit → <b>+${fmt(preview)} Legacy</b> ${btn('ascend', '', 'Retire 🕯️', can)}</div>
+    ${!can ? `<div class="iv-sub">(need ≥1 Legacy and ≥${C.ASCEND_MIN_RUN_SEC}s run time)</div>` : ''}
+    ${albumHtml(s)}`;
+}
+
+// The Family Album (E25-A-T5): the lineage newest-first, with an empty state before the first
+// retirement. Names are escaped; epitaphs are authored by the pure generator (no user text).
+function albumHtml(s) {
+  const album = (s.lineage && s.lineage.album) || [];
+  if (!album.length) return `<div class="iv-tag">the family album</div><div class="iv-sub"><em>No album yet — this trip is still being lived.</em></div>`;
+  let html = `<div class="iv-tag">the family album <small>(${album.length})</small></div><div class="iv-amenities">`;
+  const emblem = { neutral: '🧳', traveler: '🧭', vlogger: '🎥', crypto: '📈', connoisseur: '🍷' };
+  for (let i = album.length - 1; i >= 0; i--) {
+    const r = album[i];
+    const place = (DATA.accommodation[r.peakTier] && DATA.accommodation[r.peakTier].name) || 'the road';
+    html += `<div class="iv-btn iv-content-item">
+      <b>${emblem[r.branch] || '🧳'} Gen ${r.generation} · ${esc(r.name) || 'A tourist'}</b>
+      <div class="iv-sub">${esc(r.epitaph)}</div>
+      <div class="iv-sub"><small>reached ${place} · ${fmtTime(r.runSec)}</small></div>
+    </div>`;
+  }
+  html += '</div>';
+  return html;
 }
 
 function renderTree(s) {
@@ -1632,6 +1662,12 @@ function handle(action, arg, btnEl) {
     case 'buy-transport': E.buyTransport(S, arg); break;
     case 'story-choice': { const [id, set] = arg.split('|'); E.applyStoryChoice(S, Number(id), set); break; }
     case 'ascend': if (P.ascend(S)) { setState(S); } break;
+    // E25-A: name/rename the current character at the bus stop (cosmetic; sanitized in prestige).
+    case 'name-lineage': {
+      const raw = (typeof prompt === 'function') ? prompt('Name this tourist (they/them by default):', (S.lineage && S.lineage.name) || '') : null;
+      if (raw !== null) P.setLineageName(S, raw);
+      break;
+    }
     case 'buy-node': P.buyNode(S, arg); break;
     case 'respec': if (confirm('Refund all Legacy and clear the tree?')) P.respec(S); break;
     case 'click': { const gain = E.click(S); showTapPopup(gain); if (gain > 0) { pulseEnergy(); pulseCombo(); } break; }

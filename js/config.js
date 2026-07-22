@@ -447,6 +447,13 @@ export const CONFIG = {
   // lifted by the housekeeper + Staff-Quarters amenities. 0 income effect when no income-× staff.
   MORALE: { rate: 0.25, M0: 30, min: 0.5, max: 1.5, decayPerHour: 6, target: 100 },
 
+  // ---- lineage (E25-A "The Family Album"): retirement & the family album ----
+  // A strictly COSMETIC layer over the shipped ascension. Retiring pushes the character onto an
+  // album (capped, oldest compacted) and starts an heir a generation later. `state.lineage` joins
+  // the ascension keep-list as BOOKKEEPING — NEVER read by any math.js/engine.js income path (docs/04
+  // §1b rule 1), so it cannot affect balance and the harness (which never ascends) is untouched.
+  LINEAGE: { albumCap: 100, nameMaxLen: 24 },
+
   // ---- estate: grounds + estate staff + property×staff synergy (E23 "Villa Vita") ----
   // The scale-both-together loop. Estate staff (gardener/pool tech/groundskeeper/estate manager,
   // data/staff.js `estate:true`, xMultBase 0 so they stay OUT of L_staff) get their OWN wing: the
