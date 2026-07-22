@@ -62,7 +62,7 @@ Full conventions: **[`docs/06-plan-format.md`](06-plan-format.md)**.
 | 22 | A Bungalow of One's Own | owned property begins | [epic-22](epics/epic-22.md) |
 | 23 | Villa Vita | private villa + grounds + estate staff | [epic-23](epics/epic-23.md) |
 | 24 | Where the Rich Hide | exclusive-destinations meta-game | [epic-24](epics/epic-24.md) |
-| 25 | Letting Go | **ascension I** — Legacy | [epic-25](epics/epic-25.md) |
+| 25 | Letting Go | **ascension I** — Legacy · retirement & the **lineage** (named heirs) | [epic-25](epics/epic-25.md) |
 | 26 | Who You Become | permanent **skill tree** | [epic-26](epics/epic-26.md) |
 | 27 | The Island Listing | buy the **private island** | [epic-27](epics/epic-27.md) |
 | 28 | Building Paradise | develop the island / host guests | [epic-28](epics/epic-28.md) |

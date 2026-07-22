@@ -36,6 +36,41 @@ character changes that stick across every future vacation.
   every ascension ≥ **8h**, on a stable ~9–12h greedy-bot band (runs 1–6: 8h37m, 9h13m,
   10h08m, 10h37m, 11h18m, 11h30m).
 
+## 1b. Retirement & the Lineage (the narrative frame for ascension)
+
+Ascension is presented as a **retirement**: the named character you played retires where
+their run ended, and you choose to continue as their **son, daughter, or heir** — named
+by you — starting from nothing. Over many ascensions this builds a **family lineage**
+across generations. (Design amendment; task breakdown in `docs/epics/epic-25.md` §E25-A.)
+
+Why this frame is *mechanically honest* — every hard-reset rule above becomes diegetic:
+
+| Mechanic (already shipped) | Fiction |
+|---|---|
+| HARD reset — cash/skills/story/bank all restart at 0 | A new **person**: the child has no money, no reputation, no tan, and hasn't lived the story yet |
+| Story re-fires; the branch is re-chosen each run | The child re-lives the journey **their own way** — a vlogger's daughter may become a connoisseur |
+| Only tree abilities cross (`ascension.tree`) | **Upbringing** — what the family actually passes down (Ageless = good genes, Magnetic = the family charm, Head Start = born in a better hotel, Silver Tongue = raised haggling) |
+| Legacy currency (√ payout) | The **inheritance** — literally named Legacy since E25 |
+| Phase gates rise `×base^(√count·…)` | **The family bar rises** — each generation aims higher than the last; the shed is still cheap, the island expects more |
+| The wallet-cap ladder resets | The heir opens their own first bank account (Soggy Money Belt, again) |
+| E29 Legend layer (resets Legacy + tree) | A **dynasty** ends; a new family name begins |
+
+**Design rules (binding):**
+1. **Cosmetic-only.** Son/daughter/heir and names change flavor text and pronouns ONLY —
+   never a stat, cost, or multiplier. Anything mechanical must stay a tree ability, or it
+   violates the §1 hard-reset contract (and couples narrative choice to balance).
+2. **The lineage album is bookkeeping, not power.** `state.lineage` (current character +
+   a capped album of retired ones: name, pronoun, generation, branch lived, peak tier,
+   run length, epitaph) joins settings/meta on the ascension keep-list — it must never be
+   read by `math.js`/`engine.js` income paths, and the selftest [86] keep-list audit
+   extends to assert exactly that.
+3. **Retirement is wherever the run ended.** Retiring ON the island is the completed
+   life; retiring earlier is recorded honestly in the epitaph ("made it to the 3-star
+   pool; never doubted the poncho"). No penalty either way — the album celebrates, never
+   scolds.
+4. **Names are player text.** Length-capped, markup-stripped, skippable — a wry Dutch
+   default-name pool (Willem has been waiting since the bank flavor) fills the gap.
+
 ## 2. When can you ascend?
 
 - **First unlock:** story beat 26 ("Letting Go"), which triggers once the player crosses the
