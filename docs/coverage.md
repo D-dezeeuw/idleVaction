@@ -703,13 +703,37 @@ to `[\x00-\x1f]` text. Island **29705s** (run 1 has no tree).
 - S9 Save/migration (9/0/1): present the tree persists in `state.ascension.tree` across resets + migration + offline. Superseded: a dedicated tree-version migration.
 - S10 QA/juice (5/3/2): present formatting + a11y + event correctness + regression; done-now the [101] audit + requires-gate QA + binary-file cleanup. Superseded: node-unlock juice + a constellation animation.
 
-## Act II–VI — E27–E30
+### E27 — The Island Listing (multi-currency island acquisition) · **100/100** (present 18, done-now 62, superseded 20)
+The dream purchase — a new system, done-now-heavy. The private island is a **separate opt-in
+multi-currency acquisition** (`ISLAND.price = {cash, comfort, clout, legacy}`) on top of the
+Comfort-gated accommodation tier-20 rung (which the harness still reaches at 29705s). Comfort is a
+**threshold** (a derived stat — cannot be debited); cash/clout/legacy are **debited** all-or-nothing.
+Buying flips `state.island.owned`, moves `homeBase` to `'island'`, relocates logistics/staff as flags
+(a bonus, not a re-buy), and lights **`L_island`** — a bounded flat × relocation reward that is a
+**meta key** surviving ascension (the run's tier still resets). **The invariance lynchpin**: the
+listing only appears at beat 28 (`legacy ≥ legacyGate`), and the price needs Legacy — the greedy
+harness (0 Legacy, never ascends, never sees beat 28) can **never** see or afford the island, so
+`island.owned` stays false, `L_island` stays 1, and the island rung holds at **29705s**. Built inline.
+selftest **[102]** (24 assertions: the gate, all-or-nothing purchase, Legacy-debit-not-tree,
+idempotent one-way, meta-key persistence across ascension, harness invariance).
+
+- S1 The Brochure (2/8/0): present tier 20 + beat 28 already exist; done-now the multi-currency price + listing copy + relocation manifest + `homeBase` flag + island starter cluster + `legacyGate` + `state.island` schema + labels.
+- S2 Making an Offer (0/10/0): done-now `canAffordIsland` + `buyIsland` transaction + Comfort-as-threshold + Legacy-debit-not-tree + one-way guard + set-home-base + `relocateToIsland` + post-purchase unlocks + idempotency + purity.
+- S3 The Listing Screen (1/8/1): present `util.fmt` reused; done-now the listing card + four per-currency progress bars + Make-an-Offer button + shortfall readout + brochure flavor + confirm modal + SOLD state + a11y. Superseded: a per-currency time-to-afford ETA.
+- S4 Welcome Home (1/9/0): present tier 20's Comfort jump (accScore exists); done-now the purchase moment + home-base switch + relocation + relocation bonus (`L_island`) + beat-29 hook + first-time flag + persistence + meta-key promotion + QA.
+- S5 Setting Up Camp (0/8/2): done-now 6 `tag:'island'` starter amenities (dock/generator/well/goat pen/solar/jetty bar) + `unlockIsland` gate + Comfort feed + `buyAmenity` reuse + flavor + QA. Superseded: the full starter cluster + slot-cap.
+- S6 The Tier That Ends the Ladder (6/2/2): present tier 20 exists + biggest `accScore` step + reveal + canonical ladder + Comfort derivation; done-now the island-as-home-base framing + migration. Superseded: a bespoke ladder-terminus screen + that QA.
+- S7 Everyone Moves to the Island (0/2/8): done-now the relocation flag + relocation bonus (branch-neutral). **Superseded**: per-branch relocation flavor + branch-specific island framing + hybrid + copy + QA — relocation shipped branch-agnostic (an honest gap for a later flavor pass).
+- S8 Pricing Paradise (2/6/2): present cross-layer sanity + the Legacy gate matches beat 28; done-now the multi-currency price + calibration to ~1–2 ascensions + the Comfort-threshold decision (documented) + `incomeMult` sizing + documented constants + [102] golden. Superseded: a full price sweep + a per-branch time-to-afford metric.
+- S9 Keeping Paradise (4/4/2): present generic persist + migration + offline + one-way guard; done-now `state.island`/`homeBase` persist + the meta-key keep-list in `prestige.ascend` + backfill + [102] coverage. Superseded: a dedicated version bump + an away-modal island line.
+- S10 The Keys Fit (2/5/3): present number formatting + `aria-live`; done-now purchase-flow QA + idempotency + one-way + meta-key + [102] regression. Superseded: keys-jingle/confetti + a relocation animation + a mainland→island backdrop swap.
+
+## Act II–VI — E28–E30
 
 _Pending — appended as each phase's build pass audits its 100 tasks._
 
 | Epic | Status |
 |---|---|
-| E27 The Island Listing | pending |
 | E28 Building Paradise | pending |
 | E29 Empire of Leisure | pending |
 | E30 Legends of Leisure | pending |
@@ -717,8 +741,8 @@ _Pending — appended as each phase's build pass audits its 100 tasks._
 ---
 
 ### Running total
-- **Audited:** 2,600 / 3,000 tasks (E01–E26) — present 884, done-now 1,242, superseded 474.
-- **Remaining:** 400 tasks (E27–E30).
+- **Audited:** 2,700 / 3,000 tasks (E01–E27) — present 902, done-now 1,304, superseded 494.
+- **Remaining:** 300 tasks (E28–E30).
 
 ### Deferred balance-tuner backlog (for a consolidated retune, latest at E30)
 - **`savvyPassive()` not ×`L_comfort`** (E06-S7-T4) — a flat sqrt-scaled additive term outside

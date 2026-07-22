@@ -75,10 +75,13 @@ export function tierMultiplier(state, k) {
   // L_estate (E23 property×staff synergy): sqrt-softened, exactly 1 when no estate staff are
   // assigned or no property is owned — the harness never engages it, so the island is unmoved.
   const L_estate = estateMultiplier(state);
+  // L_island (E27 relocation reward): a bounded flat × once the private island is bought. Exactly 1
+  // while unowned — the harness never buys the island (0 legacy, never sees beat 28), so it's unmoved.
+  const L_island = islandMult(state);
   const L_ascension = 1 + 0.10 * (state.ascension.tree.compounding_interest || 0);
   const L_tree = treeIncomeMult(state);
 
-  return mMilestone * L_upgrade * L_path * L_skill * L_comfort * L_dest * L_exclusivity * L_logistics * L_staff * L_owner * L_estate * L_ascension * L_tree;
+  return mMilestone * L_upgrade * L_path * L_skill * L_comfort * L_dest * L_exclusivity * L_logistics * L_staff * L_owner * L_estate * L_island * L_ascension * L_tree;
 }
 
 // production per second of tier k (in units of tier k output)
@@ -267,6 +270,14 @@ export function ownedPropertyCount(state) {
 // owned (the gate), so the harness is unmoved; max ×(1 + ownerPride·4) with all deeds ⇒ ≤ +20%.
 export function ownerPrideMult(state) {
   return 1 + C.PROPERTY.ownerPride * ownedPropertyCount(state);
+}
+
+// L_island (E27 relocation reward): a bounded flat × once the private island is owned (docs/math-proof
+// §3 class: bounded-flat, safe — NOT a power of cash). Exactly 1 while unowned (the gate), so the
+// harness — which never buys the island — is unmoved. Permanent: island.owned is a meta key that
+// survives ascension, so the reward persists across runs (an earned, one-time endgame purchase).
+export function islandMult(state) {
+  return state.island?.owned ? C.ISLAND.incomeMult : 1;
 }
 
 // ---- estate: grounds Comfort + property×staff synergy (E23 "Villa Vita") ----

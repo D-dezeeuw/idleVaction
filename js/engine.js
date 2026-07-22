@@ -183,6 +183,7 @@ export function tick(state, dt) {
   checkPropertyReveal(state);
   checkOwner(state);
   checkEstate(state);
+  checkIslandListing(state);
   checkPathStages(state);
 
   // 7) concierge: bounded, off-by-default auto-purchase policy (E11 "Five-Star Frame of
@@ -779,6 +780,9 @@ export function amenityUnlocked(state, id) {
   // E24 signature amenities: gated on OWNING the named premium destination (a hard gate the harness
   // never clears, since it owns no premium destination). undefined for every pre-E24 amenity.
   if (a.unlockDest && !state.destinations?.[a.unlockDest]?.owned) return false;
+  // E27 island starter amenities: gated on OWNING the private island (a hard gate the harness never
+  // clears — it never buys the island). undefined for every pre-E27 amenity ⇒ bit-identical there.
+  if (a.unlockIsland && !state.island?.owned) return false;
   return state._comfortCache >= (a.unlockComfort || 0);
 }
 export function buyAmenity(state, id) {
@@ -1503,6 +1507,68 @@ export function checkEstate(state) {
   if (!hasEstateStaff || !hasGrounds) return;
   state.story.flags.estate = true;
   notify(state, 'celebrate', '🌳 Villa Vita: gardeners in the topiary, a technician in the pool complex, a manager who manages them all. You wake; the lawn is already mowed. You did nothing. This is the dream.');
+}
+
+// ---- the private island (E27 "The Island Listing") ----
+// The dream purchase: a MULTI-CURRENCY mega-cost, the single biggest sink. A SEPARATE opt-in
+// acquisition on top of the Comfort-gated accommodation tier-20 rung. The listing only appears at
+// beat 28 (legacy ≥ ISLAND.legacyGate), which the greedy harness (0 legacy, never ascends) never
+// reaches — so it can never afford or even see the island, and island.owned stays false ⇒ L_island 1.
+export function islandListingUnlocked(state) {
+  return state.story.seen.includes(28) || (state.resources.legacy >= C.ISLAND.legacyGate) || state.island?.owned;
+}
+// Per-currency shortfalls (0 = satisfied). Comfort is a THRESHOLD (a derived stat — cannot be
+// debited); cash/clout/legacy are debited on purchase. Pure — for the listing's progress bars.
+export function islandShortfall(state) {
+  const p = C.ISLAND.price, r = state.resources;
+  const comfort = state._comfortCache ?? r.comfort ?? 0;
+  return {
+    cash: Math.max(0, p.cash - r.cash),
+    comfort: Math.max(0, p.comfort - comfort),
+    clout: Math.max(0, p.clout - (r.clout || 0)),
+    legacy: Math.max(0, p.legacy - (r.legacy || 0)),
+  };
+}
+export function canAffordIsland(state) {
+  if (state.island?.owned) return false;
+  if (!islandListingUnlocked(state)) return false;
+  const s = islandShortfall(state);
+  return s.cash === 0 && s.comfort === 0 && s.clout === 0 && s.legacy === 0;
+}
+// All-or-nothing purchase: debit cash/clout/legacy (Comfort is a threshold, untouched), flip the
+// one-way owned/relocated flags, move the home base to the island, relocate logistics+staff as flags
+// (a bonus, not a re-buy), and fire the arrival beat. Idempotent — a second call is a no-op.
+export function buyIsland(state) {
+  if (!canAffordIsland(state)) return false;
+  const p = C.ISLAND.price;
+  state.resources.cash -= p.cash;
+  state.resources.clout = (state.resources.clout || 0) - p.clout;
+  state.resources.legacy = (state.resources.legacy || 0) - p.legacy;   // banked Legacy only; never touches the tree
+  state.island.owned = true;
+  state.island.purchasedAt = Math.round(state.stats.runSec || 0);
+  state.accommodation.homeBase = 'island';
+  if (state.accommodation.tier < 20) {
+    state.accommodation.tier = 20;
+    state.accommodation.owned = Array.from({ length: 21 }, (_, i) => i);
+  }
+  relocateToIsland(state);
+  state.story.flags.islandOwned = true;
+  notify(state, 'celebrate', '🏝️ SOLD — welcome home. The island is yours: forty hectares, one confused goat, and a horizon with your name on it. The mainland era is over. Now — what will you build?');
+  return true;
+}
+// Relocation: flip a flag so logistics/staff read as "on the island" — a bonus (L_island), never a
+// re-purchase. One-way. Kept separate so the purchase transaction and the move are independently clear.
+export function relocateToIsland(state) {
+  if (!state.island?.owned || state.island.relocated) return false;
+  state.island.relocated = true;
+  return true;
+}
+// Reveal the listing at beat 28 (a one-shot UI flash). No-op for the harness (never sees beat 28).
+export function checkIslandListing(state) {
+  if (state.story.flags.islandListing) return;
+  if (!islandListingUnlocked(state)) return;
+  state.story.flags.islandListing = true;
+  notify(state, 'unlock', '🏝️ A listing crosses your desk: "Private Island — 40 hectares, one (1) confused goat, no Wi-Fi yet. Motivated seller." You read it three times.');
 }
 export function staffLevelCost(state, id) { const def = staffDef(id); return M.staffLevelCost(def, state.staff[id].level); }
 export function levelStaff(state, id) {
