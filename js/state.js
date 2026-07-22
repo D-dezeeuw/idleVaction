@@ -34,6 +34,14 @@ export function newLineage() {
   return { name: '', pronoun: 'they', generation: 1, album: [] };
 }
 
+// island buildings slice (E28): one entry per DATA.buildings, count 0. Guest income + upkeep only
+// run once the island is owned, so a fresh game and the harness (never buys the island) are unmoved.
+function newBuildingSlice() {
+  const b = {};
+  DATA.buildings.forEach(def => { b[def.id] = { count: 0 }; });
+  return b;
+}
+
 export function newGame() {
   const generators = {};
   DATA.generators.forEach((g, k) => { generators[k] = { count: 0, bought: 0, upgrades: 0, unlocked: k === 0 }; });
@@ -125,7 +133,9 @@ export function newGame() {
     accommodation: { tier: 0, owned: [0], homeBase: 'mainland' },
     // island (E27 "The Island Listing"): the one-way mega-purchase. owned/relocated survive ascension
     // (meta keys); L_island reads island.owned. false ⇒ ×1, so the harness (never buys it) is unmoved.
-    island: { owned: false, purchasedAt: null, relocated: false },
+    // buildings (E28 "Building Paradise"): the resort you erect on the island — a { <id>: {count} } map
+    // seeded per DATA.buildings, all 0. Guest income + upkeep only run when island.owned (harness-neutral).
+    island: { owned: false, purchasedAt: null, relocated: false, buildings: newBuildingSlice() },
     // transport (E04-S1): no ride bought yet — a null activeSlot means no speed bonus
     // and no upkeep drain (engine.tick/engine.destCost both check for it).
     transport: { owned: [], activeSlot: null },

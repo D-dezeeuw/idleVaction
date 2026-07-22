@@ -17,6 +17,7 @@ import { CARS } from './vehicles.js';
 import { BOATS, CREW, JETS } from './logistics.js';
 import { STAFF_DATA } from './staff.js';
 import { PROPERTIES, PROPERTY_UPGRADES, GROUNDS } from './property.js';
+import { BUILDINGS } from './island.js';
 
 export const DATA = {
   generators: GENERATORS,
@@ -66,4 +67,7 @@ export const DATA = {
   // grounds (E23 "Villa Vita"): garden/pool/court mega-cluster metadata; the nodes themselves are
   // tag:'grounds' amenities in data/amenities.js. Estate staff assign to a cluster kind.
   grounds: GROUNDS,
+  // island buildings (E28 "Building Paradise"): generator+amenity hybrids that host paying guests.
+  // validateIsland lives in data/island.js. All gated on owning the island (E27) — harness-neutral.
+  buildings: BUILDINGS,
 };

@@ -110,6 +110,15 @@ export function tick(state, dt) {
   cashGain += cryptoYield;
   state.crypto.lifetimeYield += cryptoYield;
 
+  // 3c) island resort economy (E28 "Building Paradise"): guest income is a parallel revenue tier —
+  // guestDemand·Σ(count·guestBase·milestone), scaled by the runtime mult. GATED on state.island.owned
+  // (guestIncomeRaw returns 0 otherwise), and the greedy harness never owns the island, so guest
+  // income never enters dCash and the fitted 29705s island cannot move. Upkeep is a scaling cash
+  // sink drained below (clamped ≥ 0 like transport upkeep). guestDemand is log-softcapped ⇒ no runaway.
+  const guestIncome = M.guestIncomeRaw(state, DATA) * rt * dt;
+  cashGain += guestIncome;
+  if (guestIncome > 0) state.island.lifetimeGuest = (state.island.lifetimeGuest || 0) + guestIncome;
+
   // bank the tick's income through the wallet cap (gainCash above): only the BANKED
   // portion exists from here on — it is what lifetime stats saw, and what the XP
   // trickle below feeds on — so an overflowing wallet pauses the whole income-coupled
@@ -143,6 +152,11 @@ export function tick(state, dt) {
   // into the same L_path term compounded into a harness-measured runaway (island time
   // collapsed from ~19h to ~6h in testing). See math.js's destMult comment.
   applyTransportUpkeep(state, dt);
+
+  // 5c) island upkeep (E28): the resort's scaling cash sink, drained like transport upkeep (clamped
+  // ≥ 0). 0 unless the island is owned + built, so a fresh game and the harness are unaffected.
+  const upkeep = M.islandUpkeep(state, DATA) * dt;
+  if (upkeep > 0) state.resources.cash = Math.max(0, state.resources.cash - upkeep);
 
   // 5c) Fleet upkeep (E15-S2-T4/T9): equipped cars drain cash/s; clamped so cash never goes
   // negative (offline included — applyOffline just calls tick()). If upkeep can't be met for
@@ -1570,6 +1584,34 @@ export function checkIslandListing(state) {
   state.story.flags.islandListing = true;
   notify(state, 'unlock', '🏝️ A listing crosses your desk: "Private Island — 40 hectares, one (1) confused goat, no Wi-Fi yet. Motivated seller." You read it three times.');
 }
+
+// ---- island buildings (E28 "Building Paradise") ----
+// You can only BUILD once you OWN the island (E27). The harness never owns it, so it never builds,
+// guest income stays 0, and the fitted 29705s island time is unmoved.
+export function canBuildIsland(state) { return !!state.island?.owned; }
+export function buildingCount(state, id) { return M.buildingCount(state, id); }
+export function buildingCost(state, id) { return M.buildingCost(state, id, DATA); }
+export function buyBuilding(state, id) {
+  if (!canBuildIsland(state)) return false;
+  const b = DATA.buildings.find(x => x.id === id);
+  if (!b) return false;
+  const cost = buildingCost(state, id);
+  if (state.resources.cash < cost) return false;
+  state.resources.cash -= cost;
+  state.island.buildings[id].count = buildingCount(state, id) + 1;
+  state._comfortCache = M.computeComfort(state, DATA);   // buildings raise Comfort (recompute on change)
+  checkParadise(state);
+  return true;
+}
+// Beat-29 "Building Paradise" flag: fires once the first building goes up (you PRODUCE luxury now,
+// hosting paying guests). The beat itself keeps its own accTier:20 gate (never re-gated).
+export function checkParadise(state) {
+  if (state.story.flags.paradise) return;
+  const built = DATA.buildings.some(b => buildingCount(state, b.id) > 0);
+  if (!built) return;
+  state.story.flags.paradise = true;
+  notify(state, 'celebrate', '🏗️ Building Paradise: the first villa goes up on your own island. For the first time, you PRODUCE luxury instead of buying it — and guests, actual paying guests, arrive. You host now.');
+}
 export function staffLevelCost(state, id) { const def = staffDef(id); return M.staffLevelCost(def, state.staff[id].level); }
 export function levelStaff(state, id) {
   const def = staffDef(id); const st = state.staff[id];
@@ -1770,6 +1812,9 @@ export function accUnlocked(state) {
   // a non-connoisseur has exclusivity 0 and must still be able to enter).
   const gate = DATA.accommodation[t]?.tasteGate;
   if (gate && state.skills.taste.level < gate) return false;
+  // E28 tier 21 (Island Resort Empire): a hard gate on OWNING the island (E27). The harness never
+  // buys the island, so it stops at tier 20 — the "island (tier 20)" harness metric is untouched.
+  if (DATA.accommodation[t]?.requiresIsland && !state.island?.owned) return false;
   return state._comfortCache >= M.accUnlockComfort(t);
 }
 export function buyAccommodation(state) {

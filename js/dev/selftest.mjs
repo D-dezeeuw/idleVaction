@@ -15,6 +15,7 @@ import { validateVehicles } from '../data/vehicles.js';
 import { validateLogistics } from '../data/logistics.js';
 import { validateStaff } from '../data/staff.js';
 import { validateProperty } from '../data/property.js';
+import { validateIsland } from '../data/island.js';
 import { fmt, fmtTime, rng } from '../util.js';
 // E11 harness-invariance guard ([62] below): importing runCurve does NOT auto-run the
 // harness's own report() — that's guarded behind `process.argv[1].endsWith('harness.mjs')`,
@@ -744,7 +745,8 @@ console.log('\n[23] E05 ladder-panel-vs-accUnlocked consistency (no drift)');
     { tier: 3, comfort: M.accUnlockComfort(4) - 0.01 },
     { tier: 3, comfort: M.accUnlockComfort(4) },
     { tier: 19, comfort: M.accUnlockComfort(20) },
-    { tier: 20, comfort: 1e12 },   // top tier: no next tier exists
+    { tier: 20, comfort: 1e12 },   // E28: tier 21 exists but is requiresIsland-gated (island unowned)
+    { tier: 21, comfort: 1e12 },   // top tier: no next tier exists
   ];
   let consistent = true;
   for (const p of probes) {
@@ -752,7 +754,12 @@ console.log('\n[23] E05 ladder-panel-vs-accUnlocked consistency (no drift)');
     st.accommodation.tier = p.tier;
     st._comfortCache = p.comfort;
     const nextT = E.nextAccTier(st);
-    const panelGateOk = nextT < DATA.accommodation.length && st._comfortCache >= M.accUnlockComfort(nextT);
+    const nextDef = DATA.accommodation[nextT];
+    // mirror accUnlocked's full gate set: Comfort + the E18 tasteGate + the E28 requiresIsland gate.
+    const panelGateOk = nextT < DATA.accommodation.length
+      && st._comfortCache >= M.accUnlockComfort(nextT)
+      && !(nextDef?.tasteGate && st.skills.taste.level < nextDef.tasteGate)
+      && !(nextDef?.requiresIsland && !st.island?.owned);
     if (panelGateOk !== E.accUnlocked(st)) consistent = false;
   }
   ok(consistent, "the ladder panel's next-tier gate matches E.accUnlocked() exactly across owned/next/top-tier states");
@@ -4423,6 +4430,63 @@ console.log('\n[102] E27 The Island Listing: multi-currency purchase, relocation
   ok(Math.abs(islandAt - 29705) < 1, `harness island time is UNCHANGED by E27 (got ${fmtTime(islandAt)}, expected 29705s — the island needs Legacy the harness never has)`);
   ok(hs.island.owned === false && M.islandMult(hs) === 1, 'the harness never buys the island (L_island 1 throughout)');
   ok(E.islandListingUnlocked(hs) === false, 'the listing never even appears for the harness (0 legacy, no beat 28)');
+}
+
+console.log('\n[103] E28 Building Paradise: island buildings, guest income, upkeep, tier 21, invariance');
+{
+  ok(validateIsland(), 'validateIsland() passes on the shipped BUILDINGS roster');
+  ok(DATA.buildings.length === 6, 'six island buildings');
+
+  // ---- everything is gated on OWNING the island (E27)
+  const fresh = ST.newGame();
+  ok(E.canBuildIsland(fresh) === false, 'you cannot build before owning the island');
+  ok(E.buyBuilding(fresh, 'guest_villa') === false, 'buyBuilding is refused before the island is owned');
+  ok(M.guestIncomeRaw(fresh, DATA) === 0 && M.islandUpkeep(fresh, DATA) === 0, 'guest income + upkeep are 0 before the island is owned');
+  ok(M.buildingComfortTotal(fresh, DATA) === 0, 'building Comfort is 0 before the island is owned (computeComfort bit-identical)');
+
+  // ---- own the island, then build
+  const g = ST.newGame(); g.island.owned = true; g.resources.cash = 1e16; g._comfortCache = M.computeComfort(g, DATA);
+  ok(E.canBuildIsland(g) === true, 'owning the island enables building');
+  const villa = DATA.buildings.find(b => b.id === 'guest_villa');
+  ok(E.buildingCost(g, 'guest_villa') === villa.costBase, 'first building costs costBase');
+  const comfBefore = M.computeComfort(g, DATA);
+  ok(E.buyBuilding(g, 'guest_villa') === true, 'buyBuilding succeeds when owned + affordable');
+  ok(M.buildingCount(g, 'guest_villa') === 1, 'the building count increments');
+  ok(approx(E.buildingCost(g, 'guest_villa'), villa.costBase * villa.costGrowth), 'the next copy costs costBase·costGrowth (geometric)');
+  ok(M.computeComfort(g, DATA) > comfBefore, 'a building raises Comfort (like an amenity)');
+  ok(g.story.flags.paradise === true, 'flags.paradise (beat 29) fires on the first building');
+
+  // ---- guest income: > 0 once built + demand, log-softcapped
+  g._comfortCache = M.computeComfort(g, DATA);
+  ok(M.guestIncomeRaw(g, DATA) > 0, 'guest income is positive once a building hosts guests');
+  const d1 = M.guestDemand({ ...g, _comfortCache: 1e10 });
+  const d2 = M.guestDemand({ ...g, _comfortCache: 1e11 });
+  ok(d2 > d1 && d2 < d1 * 2, 'guestDemand is log-softcapped (10× Comfort ⇒ well under 2× demand — no runaway)');
+  ok(M.occupancy(g) > 0 && M.occupancy(g) < 1, 'occupancy is a saturating 0..1 metric');
+
+  // ---- upkeep scales with count
+  const u1 = M.islandUpkeep(g, DATA);
+  E.buyBuilding(g, 'guest_villa'); E.buyBuilding(g, 'guest_villa');
+  ok(M.islandUpkeep(g, DATA) > u1, 'island upkeep scales up as more is built (a real sink)');
+
+  // ---- tier 21 requiresIsland gate
+  ok(DATA.accommodation.length === 22 && DATA.accommodation[21].name === 'Island Resort Empire', 'tier 21 (Island Resort Empire) tops the ladder');
+  const t21 = ST.newGame(); t21.accommodation.tier = 20; t21._comfortCache = 1e14;
+  ok(E.accUnlocked(t21) === false, 'tier 21 is locked without owning the island (harness stops at tier 20)');
+  t21.island.owned = true;
+  ok(E.accUnlocked(t21) === true, 'owning the island unlocks tier 21');
+
+  // ---- migration: a pre-E28 island (no buildings slice) backfills
+  const old = ST.newGame(); old.island = { owned: true, purchasedAt: 1, relocated: true };   // pre-E28 shape
+  const mig = ST.migrate(JSON.parse(JSON.stringify(old)));
+  ok(mig.island.buildings && DATA.buildings.every(b => mig.island.buildings[b.id] && mig.island.buildings[b.id].count === 0),
+    'a pre-E28 island save backfills the buildings slice (all 0)');
+
+  // ---- harness invariance: never owns the island ⇒ no buildings, no guest income
+  const { s: hs, islandAt } = runCurve({ dt: 5, maxHours: 40 });
+  ok(Math.abs(islandAt - 29705) < 1, `harness island time is UNCHANGED by E28 (got ${fmtTime(islandAt)}, expected 29705s — no island ⇒ no resort)`);
+  ok(hs.island.owned === false && M.guestIncomeRaw(hs, DATA) === 0 && M.buildingComfortTotal(hs, DATA) === 0, 'the harness builds nothing (guest income + building Comfort 0)');
+  ok(E.accUnlocked(hs) === false || hs.accommodation.tier < 21, 'the harness never climbs past tier 20 (tier 21 needs the island)');
 }
 
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);

@@ -519,6 +519,16 @@ export const CONFIG = {
     relocate: ['logistics', 'staff', 'signatureAmenities'],
   },
 
+  // ---- island resort economy (E28 "Building Paradise") ----
+  // Buildings (data/island.js) host paying GUESTS — a new revenue tier where other people's money
+  // finally flows TO the former shed-dweller. guestDemand = GUEST_K·log10(1+Comfort/GUEST_C0)·
+  // exclusivityMult (log-softcapped, no runaway). guestIncome = guestDemand·Σ(count·guestBase),
+  // then the full M_k stack applies via the runtime multiplier. Upkeep is a scaling cash sink so
+  // "bigger" is a CHOICE, not a no-brainer. ALL of it is gated on state.island.owned (the engine
+  // runs no island production until then), so the greedy harness — which never buys the island —
+  // sees guest income 0, builds nothing, and the fitted 29705s island time cannot move.
+  GUEST_K: 0.5, GUEST_C0: 1e8, GUEST_MILESTONE_STEP: 10, UPKEEP_SCALE: 1.0,
+
   // ---- permanent skill tree (E26 "Who You Become") ----
   // costLegacy(rank) = nodeBase·nodeGrowth^rank. respecFee is the Legacy cost of a full respec,
   // deducted from the refund (E26-S4/S8: "0 before the Legend layer" — free now, a lever E30 can

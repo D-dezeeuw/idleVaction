@@ -34,4 +34,9 @@ export const ACCOMMODATION = [
   { tier: 18, name: 'Private Villa & Grounds',   flavor: 'A gate. Your gate. With your name.' },
   { tier: 19, name: 'Private Estate',            flavor: 'You get lost in your own hallways.' },
   { tier: 20, name: 'Private Island',            flavor: 'The dot on the map is you.' },
+  // tier 21 (E28 "Building Paradise"): the ladder's true summit — the island developed into a
+  // working resort. requiresIsland gates it on OWNING the island (E27), so the greedy harness (which
+  // never buys the island) STOPS at tier 20 and the fitted 29705s "island (tier 20)" metric is
+  // unmoved. The biggest Comfort jump on the ladder (accScore = ACC_BASE·ACC_GROWTH^21).
+  { tier: 21, name: 'Island Resort Empire',      flavor: 'You stopped buying luxury. You build it now. Guests arrive. You host.', requiresIsland: true },
 ];

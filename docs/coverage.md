@@ -728,21 +728,43 @@ idempotent one-way, meta-key persistence across ascension, harness invariance).
 - S9 Keeping Paradise (4/4/2): present generic persist + migration + offline + one-way guard; done-now `state.island`/`homeBase` persist + the meta-key keep-list in `prestige.ascend` + backfill + [102] coverage. Superseded: a dedicated version bump + an away-modal island line.
 - S10 The Keys Fit (2/5/3): present number formatting + `aria-live`; done-now purchase-flow QA + idempotency + one-way + meta-key + [102] regression. Superseded: keys-jingle/confetti + a relocation animation + a mainland→island backdrop swap.
 
-## Act II–VI — E28–E30
+### E28 — Building Paradise (island resort economy) · **100/100** (present 13, done-now 65, superseded 22)
+The former shed-dweller finally **produces** luxury. `data/island.js` adds 6 **buildings**
+(generator+amenity hybrids — geometric cost, they raise Comfort *and* host paying **guests**), a new
+**guest-income revenue tier** (`guestDemand = GUEST_K·log10(1+Comfort/GUEST_C0)·exclusivityMult`,
+log-softcapped; `guestIncomeRaw = guestDemand·Σ(count·guestBase·milestone)`), scaling **upkeep** as a
+real sink, an **occupancy** meter, and accommodation **tier 21** (Island Resort Empire). **All of it
+is gated on `state.island.owned`** (E27) — the engine runs no island production until then, `buyBuilding`
+is refused, guest income + building Comfort are 0, and tier 21 is `requiresIsland`-gated so the harness
+(never owns the island) **stops at tier 20** and holds at **29705s**. Built inline. selftest **[103]**
+(24 assertions: the ownership gate, geometric cost, Comfort feed, log-softcapped demand, scaling
+upkeep, tier-21 gate, migration, harness invariance).
+
+- S1 Blueprints & Deeds (1/9/0): present the geometric-cost pattern reused; done-now `data/island.js` + 6 buildings + comfort/guest/upkeep fields + `GUEST_*`/`UPKEEP_SCALE` config + `validateIsland` + the `state.island.buildings` slice.
+- S2 The Resort Runs Itself (0/10/0): done-now `guestDemand` + `guestIncomeRaw` + `islandUpkeep` + `occupancy` + `buyBuilding` + `buildingComfortTotal` into `ComfortRaw` + the island production tick (guest income + upkeep drain) + the ownership gate + recompute-on-change + purity.
+- S3 The Developer's Dashboard (1/8/1): present the amenity-button pattern reused; done-now the build panel + guest-income/occupancy/upkeep ledger + build buttons + reveal + intent wiring + net-income readout + a11y. Superseded: an animated occupancy chart.
+- S4 You're the Host Now (0/8/2): done-now the guest-income tier + `guestDemand` + occupancy + host framing + beat-29 `checkParadise` + "you produce luxury now" copy + QA + the lifetime-guest stat. **Superseded**: full `M_k`-stack routing (guest income ships as a self-contained log-softcapped tier scaled by the runtime mult — safer, no cash-power feedback) + a bespoke host dashboard.
+- S5 Island Frills (2/6/2): present the E27 `tag:'island'` starter cluster reused + `buyAmenity` flow; done-now the frills feed Comfort + gate + flavor + reveal + cadence + QA. Superseded: a distinct E28 frills cluster + slot-cap.
+- S6 Tier 21 (2/8/0): present `accScore` formula + Comfort derivation; done-now tier 21 (Island Resort Empire) + `requiresIsland` gate + reveal + biggest step + ladder cross-check + migration + no-skip QA + the ladder-panel test update.
+- S7 Every Vacationer Builds Different (0/1/9): done-now the branch-neutral build economy. **Superseded**: per-branch island development (connoisseur boutique vs vlogger content-resort vs traveler hub vs crypto off-grid) + branch building variants + hybrid + copy + QA — the resort ships branch-agnostic (an honest gap for a later flavor pass).
+- S8 Making Paradise Pay (1/6/3): present cross-layer sanity; done-now `guestBase`/`upkeepBase`/`upkeepGrowth` + `GUEST_K`/`GUEST_C0` + log-softcap (no runaway) + upkeep-as-choice + documented constants + [103] golden. Superseded: a guest/upkeep sweep + an occupancy-tuning pass + a per-building ROI metric.
+- S9 Paradise While Away (4/4/2): present generic persist + migration + offline (both tick) + the upkeep clamp; done-now the buildings slice persist + backfill + offline guest income/upkeep (via the offline tick loop) + [103] migration. Superseded: a dedicated version bump + an away-modal resort line.
+- S10 Grand Opening QA (2/5/3): present number formatting + `aria-live`; done-now build QA + guest-income QA + upkeep-scaling QA + gate QA + [103] regression. Superseded: a grand-opening confetti + a ribbon-cutting animation + a save-compat fixture.
+
+## Act II–VI — E29–E30
 
 _Pending — appended as each phase's build pass audits its 100 tasks._
 
 | Epic | Status |
 |---|---|
-| E28 Building Paradise | pending |
 | E29 Empire of Leisure | pending |
 | E30 Legends of Leisure | pending |
 
 ---
 
 ### Running total
-- **Audited:** 2,700 / 3,000 tasks (E01–E27) — present 902, done-now 1,304, superseded 494.
-- **Remaining:** 300 tasks (E28–E30).
+- **Audited:** 2,800 / 3,000 tasks (E01–E28) — present 915, done-now 1,369, superseded 516.
+- **Remaining:** 200 tasks (E29–E30).
 
 ### Deferred balance-tuner backlog (for a consolidated retune, latest at E30)
 - **`savvyPassive()` not ×`L_comfort`** (E06-S7-T4) — a flat sqrt-scaled additive term outside
