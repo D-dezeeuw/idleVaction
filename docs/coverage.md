@@ -652,13 +652,38 @@ escalation + `destMult` fold, signature-amenity gating, harness invariance).
 - S9 Save/offline (6/2/2): present premium `owned` flags persist via the existing destinations slice + signature levels via amenities + generic migration + offline (static ×) + export/import + backup; done-now `richHide`/`richHideSet` flags + migration coverage. Superseded: a dedicated version bump + an away-modal collection line.
 - S10 QA/juice (2/4/4): present number formatting + `aria-live`; done-now the hard-gate QA (both ways) + set-bonus QA + signature-gating QA + [99] regression. Superseded: collection-complete confetti + per-stamp juice + reveal animation + save-compat fixture.
 
-## Act II–VI — E25–E30
+### E25 — Letting Go (ascension) + **E25-A The Family Album** · **100/100** (present 64, done-now 22, superseded 14)
+The prestige loop itself (`prestige.js`, Legacy, the hard reset, `L_ascension`, `ASCEND_GATE`
+scaling, beat 26) **shipped in the foundational build** (see [86]), so the base epic is present-heavy.
+This phase built the **E25-A amendment — retirement & the lineage**: a strictly **cosmetic** layer
+that reframes ascension as the character's *retirement*. `state.lineage = {name, pronoun, generation,
+album}` joins the ascension keep-list; `prestige.ascend(state, heir)` retires the character onto the
+**Family Album** (capped, oldest compacted), starts the heir a generation later, and generates a
+**deterministic epitaph**. Per docs/04 §1b rule 1, **no `math.js`/`engine.js` income path may read
+`state.lineage`** — verified behaviourally (mutating a 50-entry album leaves `tierMultiplier`/
+`computeComfort`/`legacyGain` bit-identical) and by grep (only narrative comments mention it). Name
+input is sanitized (`sanitizeName` — strips markup, caps length) and escaped at render; `withName`
+interpolates the character name with a safe "you" fallback. Built inline. selftest **[100]** (20
+assertions: keep-list persistence, album cap, epitaph determinism, the no-income-leak invariant,
+sanitization, migration). Harness untouched (it never ascends): island **29705s**.
+
+- S1 Ledger / data model (6/4/0): present the run-vs-meta partition + keep-list + stats/resources reset accounting; done-now the `state.lineage` model + album shape + generation + pronoun.
+- S2 The Great Unpacking (8/2/0): present `ascend()` reset + fresh run + tree/head-start/milestone carry + determinism; done-now the album push on retire + generation bump.
+- S3 The Big Red Button (5/5/0): present the ascension panel + Legacy preview + button + gate copy; done-now the retirement reframe + Family Album panel + name/rename prompt + "inheritance" copy + heir framing.
+- S4 Knowing When to Fold (8/0/2): present `canAscend`/`legacyPreview` + ROI break-even + age floor + √-payout + one-click + hint. Superseded: a dedicated break-even chart + auto-ascend.
+- S5 First Thing Wisdom Buys (7/0/3): present the permanent tree meta-spend (Legacy sink) + nodes + `L_ascension` + costs/ranks/persist/reveal. Superseded: a bespoke "first purchase" one-off + 2 node-detail tasks.
+- S6 Waking Up in the Shed (6/4/0): present the fresh-run setup + head-start + tier reset + re-pace + reveal; done-now the heir choice + naming + generation seed + default-name fallback.
+- S7 Four Ways to Say Goodbye (3/0/7): present the branch reset (re-pick a path next life) + neutral + `L_path`. **Superseded**: four branch-specific goodbye *variants* + hybrid + branch copy + QA — the retirement ceremony is branch-agnostic beyond the album emblem.
+- S8 Tuning the Point of No Return (8/0/2): present `LEGACY_K`/`SCALE`/`EXP` (√ anti-runaway) + gate scaling + age floor + break-even + golden + documented + interaction. Superseded: a re-tune sweep + amendment-specific balance (lineage is cosmetic, has none).
+- S9 Not Losing the Trip (6/4/0): present ascension persist + migration + offline + export/import + backup + keep-list; done-now the lineage persist + album serialize + migration backfill + cap-on-load.
+- S10 Shedding Gracefully (7/3/0): present formatting + gameSpeed + console + event correctness + regression + a11y + two-run flow; done-now name sanitization (XSS/length) + album a11y + save-size guard.
+
+## Act II–VI — E26–E30
 
 _Pending — appended as each phase's build pass audits its 100 tasks._
 
 | Epic | Status |
 |---|---|
-| E25 Letting Go | pending — mechanics largely shipped early (prestige.js + hard reset + gate scaling, math-proof §12); **amendment E25-A (retirement & lineage)** added to the epic file, unbuilt |
 | E26 Who You Become | pending |
 | E27 The Island Listing | pending |
 | E28 Building Paradise | pending |
@@ -668,8 +693,8 @@ _Pending — appended as each phase's build pass audits its 100 tasks._
 ---
 
 ### Running total
-- **Audited:** 2,400 / 3,000 tasks (E01–E24) — present 742, done-now 1,207, superseded 451.
-- **Remaining:** 600 tasks (E25–E30).
+- **Audited:** 2,500 / 3,000 tasks (E01–E25) — present 806, done-now 1,229, superseded 465.
+- **Remaining:** 500 tasks (E26–E30).
 
 ### Deferred balance-tuner backlog (for a consolidated retune, latest at E30)
 - **`savvyPassive()` not ×`L_comfort`** (E06-S7-T4) — a flat sqrt-scaled additive term outside

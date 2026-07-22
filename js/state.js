@@ -27,6 +27,13 @@ function newPropertySlice() {
   return property;
 }
 
+// lineage slice (E25-A "The Family Album"): the current character + the album of retired ancestors.
+// Purely cosmetic bookkeeping (name/pronoun/generation/album) — NEVER read by any income path. name
+// starts empty (copy falls back to "you" until the player names the character at the bus stop).
+export function newLineage() {
+  return { name: '', pronoun: 'they', generation: 1, album: [] };
+}
+
 export function newGame() {
   const generators = {};
   DATA.generators.forEach((g, k) => { generators[k] = { count: 0, bought: 0, upgrades: 0, unlocked: k === 0 }; });
@@ -155,6 +162,9 @@ export function newGame() {
     // the ascension keep-list, so each life re-buys deeds (a hard reset zeroes ownership, S4-T7).
     property: newPropertySlice(),
     ascension: { count: 0, legacyBanked: 0, legacySpent: 0, tree: {} },
+    // lineage (E25-A): cosmetic retirement/album bookkeeping. Carried across ascension by
+    // prestige.ascend (the keep-list) — never read by any income path.
+    lineage: newLineage(),
     story: { beat: 1, seen: [1], branch: 'neutral', flags: {} },
     // ui.bulkMode (E03-S1-T6): the ×1/×10/max buy-quantity toggle, persisted so the
     // choice survives reload instead of living in a transient ui.js module var.

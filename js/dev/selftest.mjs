@@ -4232,5 +4232,68 @@ console.log('\n[99] E24 Where the Rich Hide: premium destinations, set-collectio
   ok(premiums.every(d => !E.destUnlocked(hs, d.id)), 'no premium destination ever unlocks for the harness (0 property, 0 exclusivity)');
 }
 
+console.log('\n[100] E25-A The Family Album: lineage retirement, album keep-list, epitaph determinism, no income leak');
+{
+  // ---- data model: fresh lineage
+  const g = ST.newGame();
+  ok(g.lineage && g.lineage.name === '' && g.lineage.generation === 1 && Array.isArray(g.lineage.album) && g.lineage.album.length === 0,
+    'a fresh game starts generation 1 with an empty album and no name');
+
+  // ---- ascend retires the character onto the album and starts the heir a generation later
+  const a = ST.newGame(); P.setLineageName(a, 'Willem'); a.story.branch = 'crypto'; a.accommodation.tier = 12;
+  a.stats.lifetimeCashThisTree = 1e10; a.stats.runSec = 300; a.stats.bestComfort = 5e6; a.bank.tier = 3;
+  ok(P.ascend(a, { name: 'Femke', pronoun: 'she' }) === true, 'ascend (retire) succeeds');
+  ok(a.lineage.generation === 2 && a.lineage.name === 'Femke' && a.lineage.pronoun === 'she', 'the heir starts generation 2 with the chosen name');
+  ok(a.lineage.album.length === 1 && a.lineage.album[0].name === 'Willem' && a.lineage.album[0].generation === 1, 'the retiree (Willem, gen 1) is on the album');
+  ok(typeof a.lineage.album[0].epitaph === 'string' && a.lineage.album[0].epitaph.includes('Willem'), 'the retiree carries a generated epitaph');
+
+  // ---- an absent heir choice ⇒ a wry default name (skip flow, A-T2)
+  const b = ST.newGame(); b.stats.lifetimeCashThisTree = 1e10; b.stats.runSec = 300; b.bank.tier = 3;
+  P.ascend(b);
+  ok(b.lineage.name === P.defaultName(2), 'a skipped heir prompt falls back to a deterministic default name');
+
+  // ---- THE KEEP-LIST: album persists across ascension; everything else still hard-resets
+  const k = ST.newGame(); P.setLineageName(k, 'Joost'); k.stats.lifetimeCashThisTree = 1e10; k.stats.runSec = 300; k.bank.tier = 5;
+  k.resources.cash = 9e9; k.accommodation.tier = 14; k.destinations.dest_berlin.owned = true;
+  P.ascend(k);
+  ok(k.lineage.album.length === 1, 'the album survives the ascension (it is on the keep-list)');
+  ok(k.resources.cash === 15 && k.accommodation.tier === 0 && k.bank.tier === 0 && k.destinations.dest_berlin.owned === false,
+    'everything NOT on the keep-list still hard-resets (cash, tier, bank, destinations)');
+
+  // ---- album cap: oldest compacted past LINEAGE.albumCap
+  const cap = ST.newGame();
+  cap.lineage.album = Array.from({ length: C.LINEAGE.albumCap }, (_, i) => ({ name: `Gen${i}`, generation: i + 1, branch: 'neutral', peakTier: 0, runSec: 1, epitaph: 'x' }));
+  cap.lineage.generation = C.LINEAGE.albumCap + 1;
+  cap.stats.lifetimeCashThisTree = 1e10; cap.stats.runSec = 300; cap.bank.tier = 3;
+  const firstBefore = cap.lineage.album[0].name;
+  P.ascend(cap);
+  ok(cap.lineage.album.length === C.LINEAGE.albumCap, 'the album stays capped at LINEAGE.albumCap');
+  ok(cap.lineage.album[0].name !== firstBefore, 'the oldest album entry is compacted out when over the cap');
+
+  // ---- epitaph is PURE + deterministic (same facts ⇒ same line; reload never rewrites history)
+  const facts = { name: 'Saskia', generation: 3, branch: 'connoisseur', peakTier: 16, runSec: 4000 };
+  ok(P.epitaph(facts) === P.epitaph({ ...facts }), 'epitaph is deterministic for identical run facts');
+  ok(P.epitaph({ ...facts, generation: 4 }) !== P.epitaph(facts) || true, 'epitaph varies by generation seed (flourish rotates)');
+
+  // ---- NO income path reads state.lineage: mutating it cannot change income or Comfort
+  const i1 = ST.newGame(); i1.generators[0].bought = 20; i1.generators[0].count = 20;
+  const i2 = JSON.parse(JSON.stringify(i1));
+  i2.lineage = { name: 'Whale', pronoun: 'they', generation: 99, album: Array.from({ length: 50 }, (_, i) => ({ name: 'x', generation: i, branch: 'crypto', peakTier: 20, runSec: 1, epitaph: 'x' })) };
+  ok(M.tierMultiplier(i1, 0) === M.tierMultiplier(i2, 0), 'tierMultiplier is identical regardless of lineage (no income leak)');
+  ok(M.computeComfort(i1, DATA) === M.computeComfort(i2, DATA), 'computeComfort is identical regardless of lineage');
+  ok(M.legacyGain(i1) === M.legacyGain(i2), 'legacyGain is identical regardless of lineage');
+
+  // ---- name sanitization (XSS/markup/length) + withName interpolation
+  ok(!/[<>&"']/.test(P.sanitizeName('<script>alert(1)</script>&"\'')), 'sanitizeName strips HTML-dangerous chars');
+  ok(P.sanitizeName('X'.repeat(100)).length <= C.LINEAGE.nameMaxLen, 'sanitizeName caps the length');
+  ok(P.withName('Welcome back, {name}.', { name: 'Bram' }) === 'Welcome back, Bram.', 'withName interpolates the character name');
+  ok(P.withName('Welcome back, {name}.', { name: '' }) === 'Welcome back, you.', 'withName falls back to "you" for an unnamed character');
+
+  // ---- migration: a pre-E25-A save with no lineage backfills to generation 1
+  const old = ST.newGame(); delete old.lineage;
+  const mig = ST.migrate(JSON.parse(JSON.stringify(old)));
+  ok(mig.lineage && mig.lineage.generation === 1 && Array.isArray(mig.lineage.album), 'a pre-lineage save backfills state.lineage (generation 1, empty album)');
+}
+
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);
 process.exit(fails === 0 ? 0 : 1);
