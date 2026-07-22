@@ -79,6 +79,8 @@ export function tick(state, dt) {
   // GATED behind an equipped car — a fresh newGame() and the committed-vlogger harness (no car
   // ever equipped) leave _logiCache at exactly 1 (⇒ ×1), so the fitted 29705s island is unmoved.
   state._logiCache = M.logisticsMult(state, DATA);
+  // E20 household income × (L_staff): 1 unless an income-× role is hired (harness-neutral).
+  state._staffMult = M.staffMult(state, DATA);
 
   const rt = runtimeMult(state);
 
@@ -174,6 +176,7 @@ export function tick(state, dt) {
   checkFirstJet(state);
   checkCapstone(state);
   checkButlerReveal(state);
+  checkHousehold(state);
   checkPathStages(state);
 
   // 7) concierge: bounded, off-by-default auto-purchase policy (E11 "Five-Star Frame of
@@ -1406,16 +1409,23 @@ export function staffUnlocked(state) {
   // (tier 13) is owned — the story wires both. (Comfort 4e7 gates beat 19.)
   return state.story.seen.includes(19) || state.accommodation.tier >= 13;
 }
+// household staff cap (E20-S2-T7): a fixed cap that fits the whole roster (butler + 5 roles).
+export function staffCap(state) { return C.STAFF.staffCap; }
+export function hiredStaffCount(state) {
+  let n = 0; for (const def of DATA.staff) if (state.staff[def.id]?.hired) n++; return n;
+}
 export function hireStaff(state, id) {
   const def = staffDef(id); const st = state.staff[id];
   if (!def || !st || st.hired) return false;
   if (!staffUnlocked(state)) return false;
+  if (hiredStaffCount(state) >= staffCap(state)) return false;   // E20: over the household cap
   const cost = M.staffHireCost(def);
   if (state.resources.cash < cost) return false;
   state.resources.cash -= cost;
-  st.hired = true;
+  st.hired = true; st.morale = 100;
   st.policy.categories = def.categories.slice();
-  notify(state, 'unlock', `🔔 Hired: ${def.name}. He introduces himself and silently reorganizes your minibar.`);
+  state._staffMult = M.staffMult(state, DATA);
+  notify(state, 'unlock', `🔔 Hired: ${def.name}.`);
   return true;
 }
 export function staffLevelCost(state, id) { const def = staffDef(id); return M.staffLevelCost(def, state.staff[id].level); }
@@ -1426,65 +1436,92 @@ export function levelStaff(state, id) {
   if (state.resources.cash < cost) return false;
   state.resources.cash -= cost;
   st.level += 1;
-  // +1 auto-buy category per level (from a fixed order), so leveling widens scope (E19-S2-T6).
-  const extra = ['generator', 'upgrade'];
-  const want = def.categories.concat(extra.slice(0, st.level));
-  st.policy.categories = [...new Set(want)];
+  // the butler widens its auto-buy scope with level (E19-S2-T6); income-× roles just level their ×.
+  if (id === 'butler') {
+    const want = def.categories.concat(['generator', 'upgrade'].slice(0, st.level));
+    st.policy.categories = [...new Set(want)];
+  }
+  state._staffMult = M.staffMult(state, DATA);
   return true;
 }
-// per-butler effective auto-buy interval: base, −10%/level, floored (E19-S2-T6).
-function butlerInterval(state, st) {
+// effective auto-buy interval for a role: base, −10%/level, floored (E19-S2-T6).
+function staffInterval(state, st) {
   return Math.max(C.STAFF.minInterval, C.STAFF.autoBuyInterval * Math.pow(0.9, st.level));
 }
-// payroll drain + bounded auto-buy, run every tick from engine.tick. Deterministic in game-time,
-// so offline macro-step replay matches online exactly.
-function staffTick(state, dt) {
-  const payroll = M.payrollTotal(state, DATA);
-  if (payroll <= 0) return;   // nobody hired ⇒ no-op (harness path)
-  const due = payroll * dt;
-  const bt = state.staff.butler;
-  if (state.resources.cash >= due) {
-    state.resources.cash -= due;
-    bt.totalWages += due;
-    state.story.flags.payrollUnpaid = false;
-  } else {
-    // can't make payroll: pay what we can, pause automation, nudge morale down (feeds E20).
-    bt.totalWages += state.resources.cash;
-    state.resources.cash = 0;
-    state.story.flags.payrollUnpaid = true;
-    bt.morale = Math.max(0, bt.morale - 5 * dt);
-    return;   // no automation while unpaid
-  }
-  // butler auto-buy (bounded, reusing the concierge ROI candidates)
-  if (!bt.hired || !bt.policy.autoBuy) return;
-  bt.tickAccum = (bt.tickAccum || 0) + dt;
-  const iv = butlerInterval(state, bt);
-  if (bt.tickAccum < iv) return;
-  bt.tickAccum = 0;
-  const reserve = C.STAFF.reserveSec * payroll;          // keep N seconds of wages in reserve
-  let budget = bt.policy.budgetFrac * state.resources.cash;
-  const cands = conciergeCandidates(state, bt.policy.categories);
+// one hired role's bounded auto-buy pass (reuses the concierge ROI candidates with the role's
+// categories). Shared reserve floor so no role starves payroll; returns the item names bought.
+function runStaffAutoBuy(state, def, st, payroll) {
+  if (!st.policy.autoBuy || !st.policy.categories.length) return [];
+  st.tickAccum = (st.tickAccum || 0);
+  if (st.tickAccum < staffInterval(state, st)) return [];
+  st.tickAccum = 0;
+  const reserve = C.STAFF.reserveSec * payroll;
+  let budget = st.policy.budgetFrac * state.resources.cash;
   const names = [];
-  for (const c of cands) {
+  for (const c of conciergeCandidates(state, st.policy.categories)) {
     if (c.cost > budget) continue;
-    if (state.resources.cash - c.cost < reserve) continue;   // never starve payroll
+    if (state.resources.cash - c.cost < reserve) continue;
     let ok = false;
     if (c.category === 'amenity') { const n = amenityData(c.id).name; ok = buyAmenity(state, c.id); if (ok) names.push(n); }
     else if (c.category === 'generator') { ok = buyGenerator(state, c.k, 1); if (ok) names.push(DATA.generators[c.k].name); }
     else if (c.category === 'upgrade') { ok = buyGenUpgrade(state, c.k); if (ok) names.push(DATA.generators[c.k].name + ' upgrade'); }
-    if (ok) { budget -= c.cost; bt.totalSpent += c.cost; }
+    if (ok) { budget -= c.cost; st.totalSpent += c.cost; }
   }
-  if (names.length) {
-    bt.lastActions = names.slice(-5);
-    // batched, not per-item (E19-S10-T4) — one quiet line per scheduler tick.
-    notify(state, 'autobuy', `🤵 The Butler acquired ${names.length} item${names.length > 1 ? 's' : ''}. He did not smile.`);
+  return names;
+}
+// payroll drain (aggregate) + per-role morale drift + per-role auto-buy, every tick from
+// engine.tick. Deterministic in game-time ⇒ offline replay matches online. No-op unless someone
+// is hired (harness path). Sets the L_staff cache after any morale/level change.
+function staffTick(state, dt) {
+  const payroll = M.payrollTotal(state, DATA);
+  if (payroll <= 0) { state._staffMult = 1; return; }
+  const due = payroll * dt;
+  let paid = true;
+  if (state.resources.cash >= due) {
+    state.resources.cash -= due;
+    state.story.flags.payrollUnpaid = false;
+  } else {
+    state.resources.cash = 0;
+    state.story.flags.payrollUnpaid = true;
+    paid = false;
   }
+  // morale + automation per hired role
+  const hk = state.staff.housekeeper;
+  const houseBonus = (hk?.hired ? C.STAFF.housekeeperMoraleGain * (1 + hk.level) : 0);
+  for (const def of DATA.staff) {
+    const st = state.staff[def.id];
+    if (!st?.hired) continue;
+    // morale drifts toward a target (100 + housekeeper bonus) when paid; falls when unpaid.
+    const target = paid ? Math.min(120, 100 + houseBonus) : 0;
+    st.morale += (target - st.morale) * Math.min(1, 0.02 * dt);
+    st.morale = clamp(st.morale, 0, 120);
+    if (paid && st.policy.autoBuy) {
+      st.tickAccum = (st.tickAccum || 0) + dt;
+      const names = runStaffAutoBuy(state, def, st, payroll);
+      if (names.length) {
+        st.totalWages = st.totalWages;   // (wages are aggregate; tracked below)
+        st.lastActions = names.slice(-5);
+        notify(state, 'autobuy', `🔔 ${def.name} handled ${names.length} thing${names.length > 1 ? 's' : ''} for you.`);
+      }
+    }
+  }
+  // attribute the aggregate wages to the butler slot's counter for the UI readout (display only).
+  const bt = state.staff.butler; if (bt?.hired) bt.totalWages += (paid ? due : 0);
+  state._staffMult = M.staffMult(state, DATA);   // recompute the L_staff cache (morale changed)
 }
 export function checkButlerReveal(state) {
   if (state.story.flags.butlerRevealed) return;
   if (!staffUnlocked(state)) return;
   state.story.flags.butlerRevealed = true;
-  notify(state, 'unlock', '🔔 Staff quarters open: you may hire a Butler to automate the tedium — for a wage, of course.');
+  notify(state, 'unlock', '🔔 Staff quarters open: hire a Butler — and, in time, a whole household — to automate the tedium, for a wage.');
+}
+// E20 "The Whole Household" one-shot: fires once five+ staff are hired (a celebratory flag layered
+// on top — beat 20 itself stays on its comfort:1.2e8 gate for every branch, the 26-beat pin).
+export function checkHousehold(state) {
+  if (state.story.flags.household) return;
+  if (hiredStaffCount(state) < 5) return;
+  state.story.flags.household = true;
+  notify(state, 'celebrate', '🏛️ The Whole Household: five staff, one still-damp poncho. The help now outnumbers the luggage. You are, technically, an employer.');
 }
 
 export function nextAccTier(state) { return state.accommodation.tier + 1; }

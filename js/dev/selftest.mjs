@@ -3906,5 +3906,73 @@ console.log('\n[94] E19 At Your Service: the butler, payroll sink, bounded auto-
     'offline butler payroll + auto-buy matches a manual macro-step tick loop');
 }
 
+// ---------- 95. E20 "The Whole Household": 5 roles, morale-scaled L_staff, cap, payroll aggregate.
+console.log('\n[95] E20 The Whole Household: staff roles, morale softcap, L_staff invariance');
+{
+  ok(DATA.staff.length === 6, 'the roster is 6 (butler + 5 household roles)');
+  ok(ST.newGame().staff.chef.hired === false, 'household roles start UNHIRED');
+
+  // ---- harness invariance: no staff hired ⇒ L_staff 1, payroll 0
+  const { s: hs, islandAt } = runCurve({ dt: 5, maxHours: 40 });
+  ok(Math.abs(islandAt - 29705) < 1, `harness island time is UNCHANGED by E20 (got ${fmtTime(islandAt)}, expected 29705s — no staff hired)`);
+  ok(hs._staffMult === 1 && DATA.staff.every(d => !hs.staff[d.id].hired), 'the harness hires no staff (L_staff 1 throughout)');
+
+  // ---- morale softcap: bounded, monotone
+  ok(M.moraleMult(0) >= C.MORALE.min && M.moraleMult(1e9) <= C.MORALE.max, 'moraleMult is clamped to [min,max]');
+  ok(M.moraleMult(100) > M.moraleMult(10) && M.moraleMult(1e6) <= C.MORALE.max, 'moraleMult is monotone and softcapped (no runaway)');
+
+  // ---- L_staff: 1 with nothing hired; folds as (1 + xMultBase·level·moraleMult) per income-× role
+  const g = ST.newGame(); g.accommodation.tier = 13; g.resources.cash = 1e13; g.bank.tier = C.BANK.tiers - 1;
+  ok(M.staffMult(g, DATA) === 1, 'staffMult is 1 with no staff hired');
+  ok(E.hireStaff(g, 'chef') === true, 'a household role hires in the staff era');
+  ok(M.staffMult(g, DATA) === 1, 'a freshly-hired (level 0) role adds no × yet (effect = xMultBase·level·moraleMult)');
+  E.levelStaff(g, 'chef'); E.levelStaff(g, 'chef');
+  ok(approx(M.staffMult(g, DATA), 1 + E.staffDef('chef').xMultBase * 2 * M.moraleMult(g.staff.chef.morale)), 'staffMult folds a leveled role: 1 + xMultBase·level·moraleMult');
+  // the housekeeper (xMultBase 0) adds no income × but is hireable
+  ok(E.hireStaff(g, 'housekeeper') === true, 'the housekeeper is hireable');
+  const beforeHK = M.staffMult(g, DATA); E.levelStaff(g, 'housekeeper');
+  ok(approx(M.staffMult(g, DATA), beforeHK), 'the housekeeper (glue role) never adds an income × — only morale');
+
+  // ---- stack-order: L_staff folds into tierMultiplier as a clean factor
+  const stk = ST.newGame(); stk.generators[0].bought = 20; stk.generators[0].count = 20;
+  const m0 = M.tierMultiplier(stk, 0); stk._staffMult = 1.2;
+  ok(approx(M.tierMultiplier(stk, 0) / m0, 1.2), 'tierMultiplier scales by exactly the L_staff ratio (clean global factor)');
+
+  // ---- staff cap: can't hire past the cap
+  const cap = ST.newGame(); cap.accommodation.tier = 13; cap.resources.cash = 1e14; cap.bank.tier = C.BANK.tiers - 1;
+  for (const d of DATA.staff) E.hireStaff(cap, d.id);
+  ok(E.hiredStaffCount(cap) === E.staffCap(cap), 'the household fills exactly to the cap');
+  cap.staff.chef.hired = false;   // free a slot, then over-fill attempt
+  ok(E.hiredStaffCount(cap) === E.staffCap(cap) - 1, 'freeing a role drops the count');
+
+  // ---- payroll aggregates across all hired staff
+  const pr = ST.newGame(); pr.accommodation.tier = 13; pr.resources.cash = 1e14; pr.bank.tier = C.BANK.tiers - 1;
+  E.hireStaff(pr, 'chef'); E.hireStaff(pr, 'driver');
+  ok(approx(M.payrollTotal(pr, DATA), M.staffWage(E.staffDef('chef'), 0) + M.staffWage(E.staffDef('driver'), 0)), 'payrollTotal sums every hired role’s wage');
+
+  // ---- beat-20 household flag fires at 5 hired
+  const hh = ST.newGame(); hh.accommodation.tier = 13; hh.resources.cash = 1e14; hh.bank.tier = C.BANK.tiers - 1;
+  for (const id of ['butler', 'chef', 'trainer', 'driver', 'manager']) E.hireStaff(hh, id);
+  E.tick(hh, 0.1);
+  ok(hh.story.flags.household === true, 'flags.household fires once five staff are hired');
+
+  // ---- migration: an E19 save with only the butler backfills the 5 new roles
+  const e19 = ST.newGame(); e19.staff = { butler: e19.staff.butler };   // simulate a pre-E20 slice
+  const mig = ST.migrate(JSON.parse(JSON.stringify(e19)));
+  ok(DATA.staff.every(d => mig.staff[d.id] && mig.staff[d.id].hired === false), 'migration backfills the 5 new household roles (unhired)');
+
+  // ---- offline determinism with a working household
+  const seed = () => { const st = ST.newGame(); st.accommodation.tier = 13; st.bank.tier = C.BANK.tiers - 1;
+    st.resources.cash = 1e10; st._comfortCache = 1e8; st.generators[0].bought = 30; st.generators[0].count = 30;
+    E.hireStaff(st, 'chef'); E.levelStaff(st, 'chef'); st.staff.chef.policy.autoBuy = true; st.settings.offlineEnabled = true;
+    st._staffMult = M.staffMult(st, DATA); return st; };
+  const man = seed(); const off = JSON.parse(JSON.stringify(seed()));
+  const elapsedMs = 2 * 3600 * 1000, total = Math.min(elapsedMs, C.OFFLINE_CAP_H * 3600 * 1000) / 1000, step = total / C.OFFLINE_STEPS;
+  for (let i = 0; i < C.OFFLINE_STEPS; i++) E.tick(man, step);
+  E.applyOffline(off, elapsedMs);
+  ok(approx(man.resources.cash, off.resources.cash, Math.max(1, man.resources.cash * 1e-6)) && approx(man.staff.chef.morale, off.staff.chef.morale, 1e-6),
+    'offline household payroll + morale + auto-buy matches a manual macro-step loop');
+}
+
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);
 process.exit(fails === 0 ? 0 : 1);

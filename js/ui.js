@@ -1055,34 +1055,46 @@ function renderHangar(s) {
 // ---------- Staff: the Butler (E19 "At Your Service") ----------
 function staffRevealed(s) { return E.staffUnlocked(s); }
 
+const STAFF_ICON = { automation: '🤵', comfort: '🍳', body: '🏋️', logistics: '🚗', clout: '📣', morale: '🧹' };
+
+function staffTileHtml(s, def) {
+  const st = s.staff[def.id];
+  const wage = M.staffWage(def, st.level);
+  const icon = STAFF_ICON[def.subsystem] || '🔔';
+  if (!st.hired) {
+    const cost = M.staffHireCost(def);
+    const overCap = E.hiredStaffCount(s) >= E.staffCap(s);
+    return `<div class="iv-btn iv-content-item" title="${def.desc}">
+      <b>${icon} ${def.name}</b> <small>${def.subsystem}</small>
+      <div class="iv-sub">wage <span class="iv-upkeep">${fmt(wage)}/s</span>${def.xMultBase > 0 ? ` · +${(def.xMultBase * 100).toFixed(0)}%×/level` : ' · glue role'}</div>
+      <div class="iv-row-buy">${btn('hire-staff', def.id, overCap ? 'Household full' : `Hire — ${fmt(cost)}`, !overCap && afford(cost), 'btn-primary')}</div>
+    </div>`;
+  }
+  const lvlCost = E.staffLevelCost(s, def.id);
+  const moralePct = clamp(st.morale, 0, 120) / 120 * 100;
+  return `<div class="iv-btn iv-content-item" title="${def.desc}">
+    <b>${icon} ${def.name}</b> <small>lvl ${st.level} · ${def.subsystem}</small>
+    <div class="iv-comfort-meter" role="progressbar" aria-valuemin="0" aria-valuemax="120" aria-valuenow="${Math.round(st.morale)}" aria-label="${def.name} morale"><i style="width:${moralePct.toFixed(0)}%"></i></div>
+    <div class="iv-sub">morale ${Math.round(st.morale)} · wage <span class="iv-upkeep">${fmt(wage)}/s</span>${def.xMultBase > 0 ? ` · now ×${(1 + def.xMultBase * st.level * M.moraleMult(st.morale)).toFixed(3)}` : ''}</div>
+    <div class="iv-row-buy">
+      ${def.policy && def.categories.length ? '' : ''}${st.policy.categories.length ? btn('staff-toggle', def.id, `Auto: ${st.policy.autoBuy ? 'ON' : 'off'}`, true, st.policy.autoBuy ? 'btn-primary' : '') : ''}
+      ${btn('level-staff', def.id, `Level — ${fmt(lvlCost)}`, afford(lvlCost))}
+    </div>
+  </div>`;
+}
+
 function renderStaff(s) {
   const card = el('staffCard');
   const reveal = staffRevealed(s);
   if (card) card.hidden = !reveal;
   if (!reveal) { if (el('staff')) el('staff').innerHTML = ''; return; }
 
-  const def = E.staffDef('butler'); const bt = s.staff.butler;
-  const wage = M.staffWage(def, bt.level);
-  let html = `<div class="iv-flavor">${def.desc}</div>`;
-  if (!bt.hired) {
-    const cost = M.staffHireCost(def);
-    html += `<div class="iv-sub">Wage once hired: <span class="iv-upkeep">${fmt(wage)}/s</span> — a paid convenience, not a win button.</div>`;
-    html += btn('hire-staff', 'butler', `Hire the Butler — ${fmt(cost)}`, afford(cost), 'btn-primary');
-  } else {
-    html += `<div class="iv-sub">🤵 The Butler · level <b>${bt.level}</b> · payroll <span class="iv-upkeep">${fmt(wage)}/s</span>${s.story.flags.payrollUnpaid ? ' — ⚠️ <span class="iv-upkeep">unpaid! automation paused</span>' : ''}</div>`;
-    html += `<div class="iv-sub">He spent <b>${fmt(bt.totalSpent)}</b> for you · paid himself <b>${fmt(bt.totalWages)}</b> · categories: ${bt.policy.categories.join(', ')}</div>`;
-    // policy toggles
-    html += `<div class="iv-row-buy">
-      ${btn('staff-toggle', 'autoBuy', `Auto-buy: ${bt.policy.autoBuy ? 'ON' : 'off'}`, true, bt.policy.autoBuy ? 'btn-primary' : '')}
-      ${btn('staff-toggle', 'autoCollect', `Auto-collect: ${bt.policy.autoCollect ? 'ON' : 'off'}`, true, bt.policy.autoCollect ? 'btn-primary' : '')}
-    </div>`;
-    // budget presets
-    html += `<div class="iv-sub">Budget per action: ${[0.05, 0.1, 0.25, 0.5].map(f => `<button class="btn btn-sm ${Math.abs(bt.policy.budgetFrac - f) < 1e-9 ? 'btn-primary' : ''}" data-action="staff-budget" data-arg="${f}">${(f * 100).toFixed(0)}%</button>`).join(' ')}</div>`;
-    // level up
-    const lvlCost = E.staffLevelCost(s, 'butler');
-    html += btn('level-staff', 'butler', `Level up (+1 category, faster) — ${fmt(lvlCost)}`, afford(lvlCost));
-    if (bt.lastActions.length) html += `<div class="iv-sub">recently: ${bt.lastActions.join(', ')}</div>`;
-  }
+  const payroll = M.payrollTotal(s, DATA);
+  const lstaff = M.staffMult(s, DATA);
+  let html = `<div class="iv-sub">🏛️ Household <b>${E.hiredStaffCount(s)}/${E.staffCap(s)}</b> · payroll <span class="iv-upkeep">${fmt(payroll)}/s</span> · staff income bonus <b>×${lstaff.toFixed(3)}</b>${s.story.flags.payrollUnpaid ? ' — ⚠️ <span class="iv-upkeep">payroll unpaid! automation paused</span>' : ''}</div>`;
+  html += '<div class="iv-amenities">';
+  for (const def of DATA.staff) html += staffTileHtml(s, def);
+  html += '</div>';
   el('staff').innerHTML = html;
 }
 
@@ -1457,8 +1469,7 @@ function handle(action, arg, btnEl) {
     // E19 Staff (the Butler)
     case 'hire-staff': E.hireStaff(S, arg); break;
     case 'level-staff': E.levelStaff(S, arg); break;
-    case 'staff-toggle': S.staff.butler.policy[arg] = !S.staff.butler.policy[arg]; break;
-    case 'staff-budget': S.staff.butler.policy.budgetFrac = Number(arg); break;
+    case 'staff-toggle': if (S.staff[arg]) S.staff[arg].policy.autoBuy = !S.staff[arg].policy.autoBuy; break;
     case 'buy-content': E.buyContent(S, arg); break;
     case 'buy-content-boost': E.buyContentBoost(S, arg); break;
     case 'accept-sponsor': {

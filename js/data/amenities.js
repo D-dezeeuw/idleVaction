@@ -349,4 +349,13 @@ export const AMENITIES = [
   { id: 'ironed_newspaper',  name: 'Ironed Morning Newspaper',   tag: 'butler', costBase: 3.2e8, costGrowth: 1.5, comfort: 3400, xMult: 0.05, xScope: 'all', unlockComfort: 1.3e8, flavor: 'The news is ironed flat and warm. The news itself remains terrible. The ironing helps.' },
   { id: 'standing_valet',    name: 'Standing Valet',             tag: 'butler', costBase: 4.8e8, costGrowth: 1.5, comfort: 3600, xMult: 0.055,xScope: 'all', unlockComfort: 1.7e8, flavor: 'A wooden frame that holds your suit overnight, more dignified than most of your twenties.' },
   { id: 'monogrammed_cufflinks', name: 'Monogrammed Cufflinks',  tag: 'butler', costBase: 7.2e8, costGrowth: 1.5, comfort: 3800, xMult: 0.06, xScope: 'all', unlockComfort: 2.2e8, flavor: 'The monogram is slightly wrong. Nobody dares mention it.' },
+
+  // --- Staff Quarters (E20 "The Whole Household" — S5): comforts for the people who comfort you.
+  // Plain tag:'quarters' Comfort amenities for the household era (unlockComfort ~beat-20 scale). ---
+  { id: 'staff_kitchen',   name: 'Proper Staff Kitchen',        tag: 'quarters', costBase: 1.5e8, costGrowth: 1.5, comfort: 3600, xMult: 0.05, xScope: 'all', unlockComfort: 1.2e8, flavor: 'The staff eat better than you did for thirty years. This seems only fair.' },
+  { id: 'staff_lounge',    name: 'Staff Lounge',                tag: 'quarters', costBase: 2.4e8, costGrowth: 1.5, comfort: 3800, xMult: 0.05, xScope: 'all', unlockComfort: 1.6e8, flavor: 'A lounge for the household. There is a better coffee machine in here than in your penthouse.' },
+  { id: 'staff_quarters_beds', name: 'Proper Staff Quarters',   tag: 'quarters', costBase: 3.8e8, costGrowth: 1.5, comfort: 4000, xMult: 0.055,xScope: 'all', unlockComfort: 2.2e8, flavor: 'Real rooms, real beds, real doors. Morale, mysteriously, improves.' },
+  { id: 'staff_gym',       name: 'Staff Gym',                   tag: 'quarters', costBase: 6e8,   costGrowth: 1.5, comfort: 4200, xMult: 0.06, xScope: 'all', unlockComfort: 3e8,   flavor: 'The trainer trains the staff now. The staff are terrifyingly fit.' },
+  { id: 'staff_shuttle',   name: 'Staff Shuttle',               tag: 'quarters', costBase: 9.5e8, costGrowth: 1.5, comfort: 4400, xMult: 0.06, xScope: 'all', unlockComfort: 4e8,   flavor: 'Nobody on your household takes the bus. You remember the bus. You bought a shuttle.' },
+  { id: 'staff_holiday',   name: 'Paid Staff Holidays',         tag: 'quarters', costBase: 1.5e9, costGrowth: 1.5, comfort: 4600, xMult: 0.065,xScope: 'all', unlockComfort: 5.4e8, flavor: 'You send the staff on holiday. To a resort. That you also own. It is holidays all the way down.' },
 ];

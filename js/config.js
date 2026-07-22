@@ -408,7 +408,15 @@ export const CONFIG = {
   // hire point; wageGrowth 1.18 so leveling scales cost faster than benefit past a point.
   // autoBuyInterval/minInterval pace the policy; reserveSec keeps ≥ N seconds of wages in reserve
   // so the butler never bankrupts you (auto-buy never crosses that floor).
-  STAFF: { autoBuyInterval: 2, minInterval: 0.5, reserveSec: 20, roiHintEnabled: true },
+  STAFF: { autoBuyInterval: 2, minInterval: 0.5, reserveSec: 20, roiHintEnabled: true,
+    // E20 "The Whole Household": staffCap (base hireable roles; +serviceWingSlots from the
+    // Service Wing accommodation upgrade). Income-× roles (chef/trainer/driver/manager) each add
+    // xMultBase·level·moraleMult to one bounded L_staff layer; the housekeeper lifts morale.
+    staffCap: 6, serviceWingSlots: 3, housekeeperMoraleGain: 8 },
+  // MORALE (E20): moraleMult(m) = clamp(1 + rate·log10(1+m/M0), min, max) — a softcap so a happy
+  // household helps but never explodes; morale drifts toward 100 (or down when payroll is unpaid),
+  // lifted by the housekeeper + Staff-Quarters amenities. 0 income effect when no income-× staff.
+  MORALE: { rate: 0.25, M0: 30, min: 0.5, max: 1.5, decayPerHour: 6, target: 100 },
 
   // ---- ascension / legacy ----
   // LEGACY_SCALE was retuned 1e6 → 1e10 with the ascension hard reset (math-proof §12,
