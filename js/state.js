@@ -3,6 +3,18 @@ import { CONFIG as C } from './config.js';
 import { DATA } from './data/index.js';
 import { bankCapAt, availableSlots } from './math.js';
 
+// staff slice (E19 butler + E20 household): one entry per DATA.staff role, all UNHIRED so the
+// harness (which never hires) sees payroll 0 and L_staff 1 — the fitted island cannot move.
+function newStaffSlice() {
+  const staff = {};
+  DATA.staff.forEach(def => {
+    staff[def.id] = { hired: false, level: 0, morale: 100, tickAccum: 0, totalSpent: 0, totalWages: 0,
+      lastActions: [], policy: { autoBuy: false, autoCollect: false, budgetFrac: 0.25, minRoi: 2,
+        categories: def.categories.slice() } };
+  });
+  return staff;
+}
+
 export function newGame() {
   const generators = {};
   DATA.generators.forEach((g, k) => { generators[k] = { count: 0, bought: 0, upgrades: 0, unlocked: k === 0 }; });
@@ -126,9 +138,7 @@ export function newGame() {
     // butler's own toggles. morale is a seed for E20 (the household). Run-scoped? NO — staff is a
     // meta convenience like settings; but to stay safe with ascension it's rebuilt by newGame()
     // and NOT in the keep-list, so each life re-hires (consistent with the run-scoped concierge).
-    staff: { butler: { hired: false, level: 0, morale: 100, tickAccum: 0, totalSpent: 0, totalWages: 0,
-      lastActions: [], policy: { autoBuy: false, autoCollect: false, budgetFrac: 0.25, minRoi: 2,
-        categories: ['amenity'] } } },
+    staff: newStaffSlice(),
     ascension: { count: 0, legacyBanked: 0, legacySpent: 0, tree: {} },
     story: { beat: 1, seen: [1], branch: 'neutral', flags: {} },
     // ui.bulkMode (E03-S1-T6): the ×1/×10/max buy-quantity toggle, persisted so the
@@ -145,7 +155,7 @@ export function newGame() {
     // so its NEUTRAL value is 1 — engine.tick recomputes it every tick via logisticsMult
     // (exactly 1 while nothing is equipped). Seeded to 1 (NOT 0) so any tierMultiplier read
     // before the first tick multiplies by the identity, never zeroes income.
-    _comfortCache: 0, _destCache: 1, _combo: 1, _comboTimer: 0, _pathBonus: {}, _exclCache: 0, _logiCache: 1,
+    _comfortCache: 0, _destCache: 1, _combo: 1, _comboTimer: 0, _pathBonus: {}, _exclCache: 0, _logiCache: 1, _staffMult: 1,
   };
 }
 

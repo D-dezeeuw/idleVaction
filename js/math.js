@@ -65,10 +65,13 @@ export function tierMultiplier(state, k) {
   // EXACTLY 1 whenever no car is equipped (the gate), so the greedy-vlogger harness is
   // unmoved — see logisticsMult / logisticsMultiplier.
   const L_logistics = logisticsMultiplier(state);
+  // L_staff (E20 household): a bounded flat × from hired income-× roles, morale-scaled. Exactly 1
+  // when no such role is hired (the gate) — the harness never hires, so the island is unmoved.
+  const L_staff = staffMultiplier(state);
   const L_ascension = 1 + 0.10 * (state.ascension.tree.compounding_interest || 0);
   const L_tree = treeIncomeMult(state);
 
-  return mMilestone * L_upgrade * L_path * L_skill * L_comfort * L_dest * L_exclusivity * L_logistics * L_ascension * L_tree;
+  return mMilestone * L_upgrade * L_path * L_skill * L_comfort * L_dest * L_exclusivity * L_logistics * L_staff * L_ascension * L_tree;
 }
 
 // production per second of tier k (in units of tier k output)
@@ -745,6 +748,29 @@ export function payrollTotal(state, DATA) {
   }
   return w;
 }
+// E20 morale softcap: clamp(1 + rate·log10(1+morale/M0), min, max) — bounded, so a happy
+// household helps but never runs away (docs/05 §4). Pure.
+export function moraleMult(morale) {
+  return clamp(1 + C.MORALE.rate * Math.log10(1 + Math.max(0, morale || 0) / C.MORALE.M0), C.MORALE.min, C.MORALE.max);
+}
+// E20 household income ×: a BOUNDED flat product over HIRED income-× roles (chef/trainer/driver/
+// manager) of (1 + xMultBase·level·moraleMult(role.morale)). Exactly 1 when no such role is hired
+// (the gate) — so the greedy harness (never hires) sees L_staff 1 and the fitted island is
+// unmoved. Bounded by construction: ≤ ~6 roles, each a small morale-capped flat term. Housekeeper
+// (xMultBase 0) contributes nothing here — it lifts morale in engine.staffTick instead.
+export function staffMult(state, DATA) {
+  const staff = state.staff; if (!staff) return 1;
+  let m = 1;
+  for (const def of DATA.staff) {
+    if (!(def.xMultBase > 0)) continue;
+    const st = staff[def.id];
+    if (!st?.hired) continue;
+    m *= 1 + def.xMultBase * st.level * moraleMult(st.morale);
+  }
+  return m;
+}
+// per-tick cache reader (like logisticsMultiplier). 1 when no income-× staff hired.
+export function staffMultiplier(state) { return state._staffMult ?? 1; }
 
 // ---- prestige ----
 export function legacyGain(state) {
