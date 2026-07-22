@@ -9,6 +9,7 @@ import * as M from '../math.js';
 import * as P from '../prestige.js';
 import { validateDestinations } from '../data/destinations.js';
 import { validateBank } from '../data/bank.js';
+import { validatePaths } from '../data/paths.js';
 import { fmt, fmtTime, rng } from '../util.js';
 // E11 harness-invariance guard ([62] below): importing runCurve does NOT auto-run the
 // harness's own report() — that's guarded behind `process.argv[1].endsWith('harness.mjs')`,
@@ -2180,7 +2181,7 @@ console.log('\n[62] E11 harness invariance: concierge OFF by default never moves
   // plausible number".
   const { islandAt, peakLog } = runCurve({ dt: 5, maxHours: 40 });
   ok(islandAt !== null, 'the harness still reaches the island (tier 20) within the cap');
-  ok(Math.abs(islandAt - 31020) < 1, `harness island time is UNCHANGED by E11 (got ${fmtTime(islandAt)}, expected ~8h37m00s / 31020s)`);
+  ok(Math.abs(islandAt - 29705) < 1, `harness island time is UNCHANGED by E11 (got ${fmtTime(islandAt)}, expected ~8h15m05s / 29705s)`);
   ok(peakLog < 290, `peak log10(cash) (${peakLog.toFixed(1)}) stays far under the double-overflow ceiling (~308)`);
 }
 
@@ -2371,7 +2372,7 @@ console.log('\n[68] E12 harness invariance: content/sponsors never touched by th
   ok(DATA.content.every(c => s.content[c.id].level === 0 && s.content[c.id].boosts === 0),
     "the harness never buys/boosts any content tier (not in its greedy policy) — Clout stays on the pre-E12 baseline formula");
   ok(s.sponsors.active === null, 'the harness never accepts a sponsor deal — no active multiplier ever appears in the max-speed run');
-  ok(Math.abs(islandAt - 31020) < 1, `harness island time is UNCHANGED by E12 (got ${fmtTime(islandAt)}, expected ~8h37m00s / 31020s — the wallet-cap baseline)`);
+  ok(Math.abs(islandAt - 29705) < 1, `harness island time is UNCHANGED by E12 (got ${fmtTime(islandAt)}, expected ~8h15m05s / 29705s — the committed-path baseline)`);
   ok(peakLog < 290, `peak log10(cash) (${peakLog.toFixed(1)}) stays far under the double-overflow ceiling`);
 
   ok(beatTime[14] !== undefined, 'Beat 14 (Going Viral) still fires within the harness run');
@@ -2426,11 +2427,12 @@ console.log('\n[70] E12 content-tier buy flow (buyContent/buyContentBoost) + cre
   ok(s.resources.cash >= 0, 'cash never goes negative on a failed content buy');
 
   s.resources.cash = 1e7;
+  s.story.branch = 'vlogger';   // committed-path contract: the nudge only lands on the chosen road
   const before = M.cloutRate(s, DATA);
   const pathBefore = s.paths.vlogger.points;
   ok(E.buyContent(s, c0.id), 'buying an unlocked, affordable content tier succeeds');
   ok(s.content[c0.id].level === 1, 'content level increments by exactly 1 per buy');
-  ok(s.paths.vlogger.points > pathBefore, 'a content-tier purchase grants a small one-off vlogger path-point nudge (E12-S7-T4)');
+  ok(s.paths.vlogger.points > pathBefore, 'a content-tier purchase grants a small one-off vlogger path-point nudge (E12-S7-T4) to a COMMITTED vlogger');
   ok(M.cloutRate(s, DATA) > before, 'cloutRate recomputes higher immediately after a content-tier buy');
 
   s.resources.cash = 1e12;
@@ -2534,22 +2536,36 @@ console.log('\n[73] E12 edge: extreme game speed keeps Clout/combo/sponsors fini
   ok(s.resources.clout >= 0, 'Clout never goes negative');
 }
 
-// ---------- 74. E12 regression: no lock-in — neutral branch still earns Clout, mixed
-// builds never punished (E12-S7-T8/T9, S10-T10). ----------
-console.log('\n[74] E12 regression: no lock-in — neutral branch still earns Clout, mixed builds never punished');
+// ---------- 74. Committed-path contract (SUPERSEDES the old E12 "no lock-in" doctrine
+// by design directive): one path per run/life, chosen at the beat-6 crossroads; focus
+// and nudges only flow into the chosen road; the ascension hard reset hands the choice
+// back. A neutral player is never PUNISHED (baseline Clout etc. still flows) — they
+// just haven't committed yet. ----------
+console.log('\n[74] committed-path contract: one road per life, focus/nudges only on the chosen path');
 {
   const neutral = ST.newGame();
   ok(neutral.story.branch === 'neutral', 'sanity: fresh game starts neutral');
   E.tick(neutral, 1);
-  ok(neutral.resources.clout > 0, 'a neutral-branch player still earns baseline Clout');
+  ok(neutral.resources.clout > 0, 'a neutral (uncommitted) player still earns baseline Clout — never punished, just uncommitted');
+  neutral.resources.cash = 1e9; neutral.bank.tier = C.BANK.tiers - 1;
+  ok(!E.buyPathFocus(neutral, 'vlogger'), 'focus is BLOCKED before the crossroads commitment — no pre-choice dabbling');
+  ok(neutral.paths.vlogger.points === 0, 'no points accrue before commitment');
 
   const mixed = ST.newGame();
-  mixed.resources.cash = 1e9;
-  ok(E.buyPathFocus(mixed, 'vlogger'), 'buying vlogger path focus succeeds');
-  ok(E.buyPathFocus(mixed, 'traveler'), 'buying traveler path focus ALSO succeeds — paths are never mutually exclusive');
-  ok(E.buyPathFocus(mixed, 'crypto'), 'buying crypto path focus ALSO succeeds — a mixed build is never punished or stranded');
-  ok(mixed.paths.vlogger.points > 0 && mixed.paths.traveler.points > 0 && mixed.paths.crypto.points > 0,
-    'all three paths carry independent, simultaneous point totals');
+  mixed.resources.cash = 1e9; mixed.bank.tier = C.BANK.tiers - 1;
+  mixed.story.seen.push(2, 3, 4, 5, 6);
+  ok(E.applyStoryChoice(mixed, 6, 'vlogger'), 'the beat-6 crossroads choice commits the run to one path');
+  ok(mixed.story.branch === 'vlogger' && mixed.paths.vlogger.points === 5, 'commitment sets the branch and grants the +5 starter points');
+  ok(!E.applyStoryChoice(mixed, 6, 'crypto'), 'the crossroads cannot be re-answered — one commitment per life (no hopping)');
+  ok(E.buyPathFocus(mixed, 'vlogger'), 'focus into the COMMITTED path succeeds');
+  ok(!E.buyPathFocus(mixed, 'traveler') && !E.buyPathFocus(mixed, 'crypto'),
+    'focus into any OTHER path is a hard no-op for the rest of the run');
+  ok(mixed.paths.traveler.points === 0 && mixed.paths.crypto.points === 0,
+    'non-chosen paths hold zero points — hopping earns nothing');
+  // cross-path nudges are no-ops too: a committed vlogger buying a coin earns no crypto points
+  mixed.crypto.holdings = { ...mixed.crypto.holdings };
+  E.buyCoin(mixed, DATA.crypto.coins[0].id, 1);
+  ok(mixed.paths.crypto.points === 0, "a committed vlogger's coin buy grants NO crypto path points (nudges follow the chosen road)");
 
   const noPoints = ST.newGame();
   noPoints.story.branch = 'vlogger';   // branch chosen, but zero points invested
@@ -2673,6 +2689,7 @@ console.log('\n[79] E13 crypto buy/sell: affordability gates, holdings, path-poi
 {
   const b = ST.newGame();
   b.bank.tier = C.BANK.tiers - 1;    // crafted cash exceeds the tier-0 wallet — uncap it ([85] tests the cap)
+  b.story.branch = 'crypto';         // committed-path contract: the buy nudge only lands on the chosen road
   const coin = DATA.crypto.coins[0];
   b.resources.cash = 0;
   ok(!E.buyCoin(b, coin.id, 1), 'buyCoin is blocked at zero cash');
@@ -2718,7 +2735,7 @@ console.log('\n[80] E13 harness invariance: crypto gated off by default, fitted 
 
   const { islandAt, peakLog } = runCurve({ dt: 5, maxHours: 40 });
   ok(islandAt !== null, 'the harness still reaches the island (tier 20) within the cap');
-  ok(Math.abs(islandAt - 31020) < 1, `harness island time is UNCHANGED by E13 (got ${fmtTime(islandAt)}, expected ~8h37m00s / 31020s — the wallet-cap baseline)`);
+  ok(Math.abs(islandAt - 29705) < 1, `harness island time is UNCHANGED by E13 (got ${fmtTime(islandAt)}, expected ~8h15m05s / 29705s — the committed-path baseline)`);
   ok(peakLog < 290, `peak log10(cash) (${peakLog.toFixed(1)}) stays far under the double-overflow ceiling (~308)`);
 }
 
@@ -3009,7 +3026,8 @@ console.log('\n[86] ascension: hard reset, parabolic gate scaling, gate-invarian
 
   // run 2 pacing: spend Legacy greedily on the tree (cheapest first), replay the SAME
   // greedy policy, and hold the design contract: ≥8h total, early tiers FASTER than an
-  // un-ascended run, the island SLOWER (the parabola). Fitted expectation ≈ 9h13m.
+  // un-ascended run, the island SLOWER (the parabola). Fitted expectation ≈ 8h40m
+  // (committed-path baseline).
   for (;;) {
     let best = null;
     for (const n of DATA.tree) {
@@ -3033,6 +3051,60 @@ console.log('\n[86] ascension: hard reset, parabolic gate scaling, gate-invarian
   ok(run2Island > run1Island, `the gate makes the ascended run's island SLOWER than run 1 (${fmtTime(run2Island)} > ${fmtTime(run1Island)})`);
   ok(tierT2[5] < run1Island * 0.17, `early tiers are FASTER than run 1's pace (tier 5 at ${fmtTime(tierT2[5])} — the parabola's fast half)`);
   ok(hr.story.seen.includes(26), 'the story re-fires along the new run (beat 26 reached again)');
+}
+
+// ---------- 87. Staged path tracks: thresholds ("X levels before progressing"), the
+// story-continuation reveal, and each path's unique stage bonuses (data/paths.js
+// `stages`, math.computePathBonuses/pathBonus, engine.checkPathStages). ----------
+console.log('\n[87] staged path tracks: thresholds, stage reveals, unique per-path bonuses');
+{
+  ok(validatePaths(), 'validatePaths passes: unique ids, ascending stage thresholds, known bonus vocabulary');
+  ok(DATA.paths.every(p => p.stages.length >= 4), 'every path has a full staged track (≥4 stages)');
+
+  // stage firing + threshold gating (vlogger)
+  const v = ST.newGame();
+  v.story.branch = 'vlogger';
+  E.addPathPoints(v, 'vlogger', 4);
+  ok(!v.story.flags.pathStage_vlogger_5, 'one point shy of the threshold: the stage has NOT fired');
+  ok(M.pathBonus(v, 'comboMax') === 0, 'no bonus before the threshold');
+  E.addPathPoints(v, 'vlogger', 1);
+  ok(v.story.flags.pathStage_vlogger_5 === true, 'crossing the threshold fires the stage exactly at X points');
+  ok(v._notifications.some(n => /First Thousand/.test(n.text)), "the stage announces the path's story continuation (name + desc)");
+  ok(M.pathBonus(v, 'comboMax') === 1, "the stage's unique bonus is live immediately (vlogger S1: +1 combo headroom)");
+  ok(M.effectiveComboMax(v) === C.CLOUT.comboMax + C.CLOUT.vloggerComboBonus + 1,
+    'effectiveComboMax folds the stage bonus in on top of the branch bonus');
+  const preStage2 = M.cloutRate(v, DATA);
+  E.addPathPoints(v, 'vlogger', 10);   // 15 total → stage 2 (cloutMult +0.25)
+  ok(v.story.flags.pathStage_vlogger_15 === true, 'the next stage needs its own higher threshold (15) — staged, not all-at-once');
+  ok(M.cloutRate(v, DATA) > preStage2, 'vlogger S2 (The Algorithm Stirs) raises cloutRate');
+
+  // unique bonuses are per-path: the same points on other paths grant different things
+  const t = ST.newGame(); t.story.branch = 'traveler';
+  const costBefore = E.destCost(t, DATA.destinations[0].id);
+  E.addPathPoints(t, 'traveler', 5);
+  ok(E.destCost(t, DATA.destinations[0].id) < costBefore, 'traveler S1 (Stamped Passport) cuts destination costs');
+  ok(M.pathBonus(t, 'comboMax') === 0, "traveler's track grants NO vlogger bonuses — each road is unique");
+
+  const c = ST.newGame(); c.story.branch = 'crypto';
+  c.crypto.holdings[DATA.crypto.coins[0].id] = 10;
+  const yieldBefore = M.cryptoYieldPerSec(c, DATA);
+  E.addPathPoints(c, 'crypto', 5);
+  ok(M.cryptoYieldPerSec(c, DATA) > yieldBefore * 1.2, 'crypto S1 (First Cold Wallet) raises coin yield ×1.25 (net of the pathMult the points also give)');
+
+  const k = ST.newGame(); k.story.branch = 'connoisseur';
+  k.amenities.bug_spray.level = 10;
+  const comfortBefore = M.computeComfort(k, DATA);
+  E.addPathPoints(k, 'connoisseur', 5);
+  ok(M.computeComfort(k, DATA) > comfortBefore, 'connoisseur S1 (A Discerning Eye) raises amenity Comfort');
+
+  // stages/points are run-scoped: the ascension hard reset hands back a clean track
+  const a = ST.newGame(); a.story.branch = 'vlogger';
+  E.addPathPoints(a, 'vlogger', 20);
+  a.stats.lifetimeCashThisTree = 1e10; a.stats.runSec = 300; a.accommodation.tier = 12;
+  ok(P.ascend(a), 'ascend() succeeds mid-track');
+  ok(a.story.branch === 'neutral' && a.paths.vlogger.points === 0 && !a.story.flags.pathStage_vlogger_5,
+    'the hard reset clears branch, points AND stage flags — the next life re-walks (or re-picks) its road');
+  ok(Object.keys(M.computePathBonuses(a, DATA)).length === 0, 'no stage bonuses survive into the new life');
 }
 
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);

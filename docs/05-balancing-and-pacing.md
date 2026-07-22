@@ -46,7 +46,9 @@ Ordered by how coarsely they move the curve:
 3. `MILESTONE_STEP` + doubling magnitude — mid-game acceleration.
 4. `COMFORT.mult`, `COMFORT.C0`, `COMFORT.cap` — strength of the global multiplier.
 5. `SKILL.rate`, `SKILL.base`, `SKILL.growth` — personal-growth power & speed.
-6. `PATH.rate`, `PATH.softcapExp` — branch strength.
+6. `PATH.rate`, `PATH.softcapExp` — branch strength; plus the per-stage flat bonuses in
+   `data/paths.js` (the committed path's staged track — bounded by construction, but
+   the vlogger `social` row moves the greedy island directly; `docs/math-proof.md §13`).
 7. `AMENITY.base`, `AMENITY.growth`, `AMENITY.comfort` — small-win cadence.
 8. `ACC.base`, `ACC.growth`, `ACC.unlock[]` — big-step ladder pacing.
 9. `LEGACY_K`, `LEGACY_SCALE`, `LEGACY_EXP` — ascension loop length.
@@ -201,14 +203,16 @@ Beat 14–15  ~3h18m      (vlogger / cars)
 Beat 16–18  4h05m–4h28m (boats / jets / 6★)
 Beat 19–21  4h55m–5h27m (butler / household / 7★)
 Beat 22–26  6h20m–6h54m (bungalow → villa → ascension unlock)
-ISLAND (tier 20)         8h 37m       peak log10(cash) = 11.3 (safe; double maxes ~308)
+ISLAND (tier 20)         8h 15m       peak log10(cash) = 11.3 (safe; double maxes ~308)
 ```
 
-> **Baseline re-pin (wallet cap):** the island moved 8h26m55s → **8h37m00s (31 020 s)**
-> when the bank-account wallet cap landed — a *deliberate* economy change (the ladder is
-> a genuine new sink and the greedy policy now climbs it; `docs/math-proof.md §11.5`).
-> The harness-invariance tests pin this new number; everything else in the snapshot
-> (monotone beats, 26 reached, peak magnitude) is unchanged.
+> **Baseline re-pin history** (the pin only ever moves for a *deliberate* economy
+> change; the harness-invariance tests always assert the current value):
+> 8h26m55s → **8h37m00s (31 020 s)** when the bank-account wallet cap landed (a genuine
+> new sink; `docs/math-proof.md §11.5`), → **8h15m05s (29 705 s)** when the
+> committed-path staged tracks landed (the bot's vlogger commitment earns the bounded
+> stage bonuses; `docs/math-proof.md §13`). Everything else in the snapshot (monotone
+> beats, 26 reached, peak magnitude) is unchanged throughout.
 
 Because the harness plays *perfectly at infinite speed and never wastes a euro*, this is a **hard
 lower bound** on active time — a real player (10 tps, sub-optimal buys, and, crucially, *mostly

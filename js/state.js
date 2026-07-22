@@ -95,7 +95,7 @@ export function newGame() {
     stats: { lifetimeCash: 0, lifetimeCashThisTree: 0, bestComfort: 0, totalClicks: 0, runSec: 0,
       tapWindowSec: 0, tapWindowCount: 0, overflowLost: 0 },
     // transient caches (not strictly needed in save, recomputed each tick)
-    _comfortCache: 0, _destCache: 1, _combo: 1, _comboTimer: 0,
+    _comfortCache: 0, _destCache: 1, _combo: 1, _comboTimer: 0, _pathBonus: {},
   };
 }
 

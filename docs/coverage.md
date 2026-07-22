@@ -340,6 +340,40 @@ What shipped:
 - selftest **[86]**: gate/deflator formula properties, complete hard-reset keep-list
   audit, and a full simulated ascended run held in the 8–14h band.
 
+## Cross-cutting pass — committed paths & staged tracks (one road per life)
+
+Third correction in the series (design directive: *exclusive branching paths — commit,
+no hopping; ≥X points per stage before progressing; a story continuation + a unique
+bonus per stage; re-pick each ascension*). Supersedes the E12-era "no lock-in" doctrine
+by explicit design decision. Full reasoning + boundedness argument + measurements:
+**`docs/math-proof.md §13`**.
+
+What shipped:
+- **Commitment:** the beat-6 crossroads (`applyStoryChoice`, now neutral-only — no
+  re-answering) is the ONE ritual per run/life; `buyPathFocus` works only for
+  `story.branch`; ALL path-point nudges route through `engine.addPathPoints`, which
+  no-ops for non-chosen paths (destination affinities, content buys, coin buys, crash
+  survivals). The ascension hard reset hands the choice back — variety across paths
+  lives between lineage generations.
+- **Staged tracks** (`data/paths.js` `stages` + `validatePaths`): thresholds 5/15/30/50
+  points per path; each stage fires once per run with its story-continuation `desc` and
+  ONE unique flat bonus from a fixed 14-key vocabulary, aggregated by
+  `math.computePathBonuses` into the per-tick `state._pathBonus` cache (the
+  `_comfortCache` pattern). Consumption: `L_path` additive terms, cloutRate,
+  effectiveComboMax, sponsor duration, crypto yield/crash-damp/sell-frac, destination
+  cost, transport speed, amenity cost/Comfort, total Comfort. Bounded by construction —
+  flat data constants, ≤4 stages, one path.
+- **UI:** the Build Paths card is now a compare view pre-commitment and the chosen
+  path's staged track after (reached stages + next-threshold progress + its
+  continuation text + name-only teasers).
+- Hybrid flavor flags (E10/E12) are now dormant within a run — kept for debug/legacy
+  saves and earmarked for lineage-hybrids (E25-A: a vlogger parent + traveler child).
+- Tests: **[74]** rewritten to the committed-path contract, **[87]** new (thresholds,
+  per-path bonus uniqueness, hard-reset track clearing); nudge tests updated to commit
+  first. **Baseline re-pin:** greedy island 8h37m00s → **8h15m05s (29 705 s)** (the
+  bot's committed vlogger earns the stage bonuses); ascension band re-fit 8h40m–10h40m
+  across five ascensions, all ≥ 8h with the early-fast/late-slow parabola intact.
+
 ## Act II–VI — E14–E30
 
 _Pending — appended as each phase's build pass audits its 100 tasks. Each row will carry the
@@ -347,7 +381,7 @@ same `present / done-now / superseded` disposition and a per-phase tally in the 
 
 | Epic | Status |
 |---|---|
-| E14 Acquired Taste | pending |
+| E14 Acquired Taste | pending — the connoisseur's staged track (Comfort scalars, amenity discount) shipped early with the committed-path pass; the epic's Taste/exclusivity systems remain |
 | E15 Keys to the Coupe | pending |
 | E16 Sea Legs | pending |
 | E17 Wheels Up | pending |

@@ -87,7 +87,7 @@ A vertical slice implementing the core of the above lives at repo root and **run
   - `npm test` → `js/dev/selftest.mjs` asserts economy growth, ladder climb, ascension, tree,
     save round-trip, offline. **All pass.**
   - `npm run harness` → `js/dev/harness.mjs` prints the full **~20h pacing curve** (greedy-
-    optimal ROI island ≈ **8h37m** — a hard *lower bound*; guard band 6–12h, casual/offline
+    optimal ROI island ≈ **8h15m** — a hard *lower bound*; guard band 6–12h, casual/offline
     play lands ~20h+; beats spread monotonically; peak cash `1e11`, safely inside `double`).
 
 > **Balance status:** the economy is **fitted to the ~20h target** (`docs/05 §9` has the golden

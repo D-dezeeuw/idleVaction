@@ -93,8 +93,16 @@ listed in `config.STORY_GATES`. Beats 26–30 are the ascension/endgame loop and
 
 ## Branch definitions (`story.branch`)
 
-Each branch = a flavor + one persistent perk + branch-only beat variants at 14/18/22.
-All four still reach beat 30.
+Each branch = a flavor + one persistent perk + a **staged path track** (thresholds at
+5/15/30/50 points; each stage a story continuation + one unique bonus — `docs/01 §5`,
+`data/paths.js`) + branch-only beat variants at 14/18/22. All four still reach beat 30.
+
+**Commitment (supersedes the earlier "emphasis, not exile" doctrine, by design
+directive):** the beat-6 crossroads is answered ONCE per run/life — focus and path
+points flow only into the chosen road, so there is no mid-run hopping. The ascension
+hard reset (retirement, `docs/04 §1b`) hands the choice back: the heir may walk a
+different road, which is where build variety now lives. Every branch still passes the
+same 30 gates, so no life is ever stranded.
 
 - **`traveler` — The Grand Tourist.** Perk: destinations `−15%` cost, `+1` transport slot.
   Fantasy: "been everywhere, seen everything." Beat variants emphasize maps, stamps, logistics.

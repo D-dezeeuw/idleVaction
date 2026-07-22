@@ -181,8 +181,11 @@ XP is earned passively (a trickle proportional to relevant activity) and via spe
 
 ## 5. Build paths (branching strategy)
 
-Four archetypes; the player pours "focus" into any mix (no lock-in → the *combination*
-builds emerge organically, exactly as the brief wants):
+Four archetypes — **one committed road per run/life** (design directive, superseding the
+original "any mix" model): the beat-6 crossroads choice sets `story.branch`, focus and
+every path-point nudge flow ONLY into that path (`engine.buyPathFocus`/`addPathPoints`),
+and the ascension hard reset hands the choice back — each generation of the lineage can
+walk a different road. Variety across paths now lives *between lives*, not within one:
 
 | Path | Fantasy | Mechanical identity |
 |---|---|---|
@@ -194,6 +197,17 @@ builds emerge organically, exactly as the brief wants):
 Path points come from spending + story choices. Path bonus example (vlogger):
 `L_path(social) = 1 + PATH_RATE·points` with diminishing softcap:
 `= 1 + PATH_RATE·points^0.85` so early points feel great, whales don't runaway.
+
+**Staged tracks (the anti-hopping ladder).** On top of the smooth softcap, each path is
+a track of **stages** (`data/paths.js`): thresholds at 5/15/30/50 points — you must gain
+at least X points before progressing to the next stage. Each stage fires once per run
+(story-flagged, wiped by the ascension hard reset) with a **story continuation** of that
+path and ONE **unique flat bonus** (vlogger: combo/Clout/social/sponsor-duration;
+crypto: yield/crash-damp/sell-fraction; traveler: destination-cost/speed/global;
+connoisseur: amenity-Comfort/discount/accommodation-Comfort/all-Comfort). Bonuses are
+sums of flat data constants from a fixed, validated vocabulary
+(`math.computePathBonuses`, cached as `state._pathBonus`), so the stage layer is
+**bounded by construction** — it can never compound into a runaway.
 
 **Clout (vlogger currency)** grows like a second economy:
 `dClout/dt = contentRate · (1 + charisma·0.02) · comboMult`, where `comboMult` rewards

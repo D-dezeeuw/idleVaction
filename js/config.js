@@ -280,12 +280,13 @@ export const CONFIG = {
   //     √-count gate rises on the same curve the tree does and the two settle into a
   //     stable band.
   // Fitted with the ascension probe (greedy-bot lower bounds; run 1 untouched, count=0
-  // ⇒ ×1 everywhere): runs 1..6 = 8h37m, 9h13m, 10h08m, 10h37m, 11h18m, 11h30m —
-  // every ascension ≥ 8h, early tiers faster than run 1 (t5 ≈ 1h19 vs 1h26), late
-  // tiers slower, increments decaying toward a ~11-12h plateau. The bank ladder
-  // absorbs the scaling untouched — higher gates simply pull the wallet-cap tiers you
-  // must reach for each phase up with them (probe: peak bank tier 9 → 10 across six
-  // ascensions; BANK.growth 10 outruns ACC.growth 2.6 × the gate's local slope).
+  // ⇒ ×1 everywhere; re-measured after the committed-path stage tracks landed): runs
+  // 1..6 = 8h15m, 8h40m, 9h29m, 9h54m, 10h30m, 10h40m — every ascension ≥ 8h, early
+  // tiers faster than run 1 (t5 ≈ 1h19-1h23 vs 1h27), late tiers slower, increments
+  // decaying toward a ~10-11h plateau. The bank ladder absorbs the scaling untouched —
+  // higher gates simply pull the wallet-cap tiers you must reach for each phase up
+  // with them (probe: peak bank tier 9 → 10 across six ascensions; BANK.growth 10
+  // outruns ACC.growth 2.6 × the gate's local slope).
   ASCEND_GATE: { base: 6, exp: 2, span: 20, countExp: 0.5 },
 
   // ---- permanent skill tree ----
