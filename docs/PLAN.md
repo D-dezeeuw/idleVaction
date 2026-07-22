@@ -30,7 +30,7 @@ Full conventions: **[`docs/06-plan-format.md`](06-plan-format.md)**.
 6. **[`05-balancing-and-pacing.md`](05-balancing-and-pacing.md)** — the 20h pacing contract, the 12 tuning levers, the balance harness, softcaps, the fun-cadence spec, the BigNumber swap, and the **honest prototype balance status**.
 7. **[`06-plan-format.md`](06-plan-format.md)** — the agile mapping & per-file structure.
 8. **[`07-code-snippets.md`](07-code-snippets.md)** — concrete JS for every complex part (the game loop + pace modifier, cost/production curves, the soft-capped milestone, the multiplier stack, Comfort, skills, prestige, offline, save/migrate, the harness) — mirrored from `js/**`.
-9. **[`math-proof.md`](math-proof.md)** — a measured investigation of the economy at scale: does one run hold to 20h (**yes — fitted to island ≈ 18h**), does it scale with ascensions/skill trees, precision — with the root-cause derivation of the finite-time singularity, the verified soft-cap fix, and prioritized improvements (P0 + P1 applied, P2–P5 proposed).
+9. **[`math-proof.md`](math-proof.md)** — a measured investigation of the economy at scale: does one run hold to 20h (**yes — fitted**), does it scale with ascensions/skill trees, is offline/away income bounded (**yes — the bank-account wallet cap**, §11), precision — with the root-cause derivation of the finite-time singularity, the verified soft-cap fix, the measured offline-lump fix, and prioritized improvements (P0, P1 + P6 applied, P2–P5 proposed).
 
 > **Common progression curves** (linear vs. parabola vs. geometric vs. log/√/logistic — and *which* the game uses *where*) are explained in **[`01-math-foundation.md §11`](01-math-foundation.md)**. Short version: **costs are geometric/exponential**, **cash-over-time is polynomial (a parabola at 2 active tiers)** — never linear.
 
@@ -76,19 +76,25 @@ A vertical slice implementing the core of the above lives at repo root and **run
 - `index.html` + `css/game.css` + `js/**` — vanilla ES modules, Spectre.css from CDN, no build.
 - Implements: the tick loop, 8-tier income ladder, amenities/Comfort, the 5 skills, 4 paths,
   the 30 story beats (monotonic, with the branch choice), accommodation ladder, **ascension +
-  Legacy + the permanent skill tree**, **offline progress**, save/load/export/import/migrate, a
-  **pace modifier** (`GAME_SPEED` presets `0.25…10000×` + a custom input up to `1e6×` for
-  hyperspeed testing), a debug/grant panel, and an optional clicker.
+  Legacy + the permanent skill tree**, **offline progress bounded by the bank-account
+  wallet cap** (the Soggy Money Belt → Platinum Plus Ultra → Numberless Account ladder —
+  away income fills the wallet, never leapfrogs the game; `docs/math-proof.md §11`),
+  save/load/export/import/migrate, a **pace modifier** (`GAME_SPEED` presets `0.25…10000×` +
+  a custom input up to `1e6×` for hyperspeed testing), a debug/grant panel, and an optional
+  clicker.
 - **Run it:** `npm run serve` then open `http://localhost:8080` (or push to GitHub Pages).
 - **Verify headlessly:**
   - `npm test` → `js/dev/selftest.mjs` asserts economy growth, ladder climb, ascension, tree,
     save round-trip, offline. **All pass.**
   - `npm run harness` → `js/dev/harness.mjs` prints the full **~20h pacing curve** (greedy-
-    optimal island ≈ **18h**; beats spread monotonically; peak cash `1e11`, safely inside `double`).
+    optimal ROI island ≈ **8h37m** — a hard *lower bound*; guard band 6–12h, casual/offline
+    play lands ~20h+; beats spread monotonically; peak cash `1e11`, safely inside `double`).
 
 > **Balance status:** the economy is **fitted to the ~20h target** (`docs/05 §9` has the golden
-> curve). It got there through a real fix — the first pass was a finite-time singularity, now
-> corrected (`docs/math-proof.md`). Remaining polish (even gate spacing, playtest, the ascension
+> curve). It got there through two real fixes — the first pass was a finite-time singularity,
+> and offline/away income was an unbounded lump that let one overnight absence leapfrog half
+> the accommodation ladder; both are corrected and measured (`docs/math-proof.md`, §1–§6 and
+> §11 — the wallet cap). Remaining polish (even gate spacing, playtest, the ascension
 > meta-layer, endgame precision) is tracked in E30 and the math-proof's P2–P5.
 
 ## Design pillars (traceability)

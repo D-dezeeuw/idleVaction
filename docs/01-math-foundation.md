@@ -230,7 +230,7 @@ early play. There are hundreds (see epics) so the "new thing every turn" feeling
 
 ---
 
-## 7. Offline / away progress
+## 7. Offline / away progress — and the wallet cap that bounds it
 
 On load: `elapsed = clamp(now − lastSeen, 0, OFFLINE_CAP)` (`OFFLINE_CAP` default 12h).
 We advance the **same** `engine.tick` in `OFFLINE_STEPS` macro-steps:
@@ -244,6 +244,32 @@ few % — acceptable and always in the player's favor if we round steps generous
 A closed-form fast-path exists for the common "no purchases while away" case:
 integrate the tier polynomial (§1.1) directly. Show a summary modal:
 `+cash, +clout, +XP, "you leveled up X"`.
+
+**The wallet cap (bank-account ladder).** Because the tier chain is polynomial (§1.1),
+an away-lump grows like `t^D` while nothing is spent — measured at **135× linear
+accrual** over 12 h for a young save, enough to chain-buy 12 accommodation tiers on
+return (the full derivation and before/after measurements are in
+`docs/math-proof.md §11`). The time-cap alone can't fix that (it bounds *time*, not
+*magnitude*, and never applies to an open tab), so the wallet itself is capped:
+
+```
+cap(bankTier)     = BANK.base · BANK.growth^bankTier      // 4e3 · 10^tier; top tier = ∞
+upgradeCost(tier) = BANK.costFrac · cap(tier) · commsCostMult
+banked            = min(inflow, cap − cash)               // engine.gainCash, the ONE clamp
+```
+
+Every cash inflow (tick income, taps, visit yields, coin sales) banks through
+`engine.gainCash`; **only banked cash** counts toward `lifetimeCash` (so tier reveals,
+Savvy's `√lifetimeCash` and Legacy are wallet-paced too), the spill lands in
+`stats.overflowLost`, and cash already above the cap is never confiscated (inflow-only
+clamp; `migrate()` grandfathers pre-cap saves to the smallest sufficient account).
+Invariants: `costFrac < 1` (the next account always fits in the current cap — no
+soft-lock), `BANK.growth > ACC.growth` (the cap ladder outruns the spend ladder), and
+the last account is uncapped so endgame D6–D8/NG+ magnitudes stay reachable. Chain-buy
+depth from a full wallet `W` against next-tier cost `c` is
+`j ≤ log_g(1 + (g−1)·W/c)` with `g = ACC.growth` — ≈ 2–4 tiers worst-case. Account
+names (Soggy Money Belt → Platinum Plus Ultra → … → The Numberless Account) live in
+`js/data/bank.js`.
 
 ## 8. BigNumber abstraction (future-proof)
 

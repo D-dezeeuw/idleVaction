@@ -15,8 +15,9 @@ Every story below lists its 10-task disposition as `present / done-now / superse
 always sum to 10. "Superseded" tasks are enumerated by T-number so the reasoning is auditable.
 
 > **Balance guardrail applies throughout:** no phase changes a fitted balance constant without
-> the `@balance-tuner`; the harness must keep the island in the 15–20h band with peak
-> `log10(cash)` under ~290 (see `docs/05` §9 and the golden-drift policy).
+> the `@balance-tuner`; the harness must keep the greedy ROI island in the **6–12h band** with
+> peak `log10(cash)` under ~290 (see `docs/05` §9 and the golden-drift policy — the band
+> replaced this note's original 15–20h wording when the ROI harness landed at E07½).
 
 ---
 
@@ -283,6 +284,32 @@ estimated — the implementer's report was lost to the container restart; work v
 | S10 QA/Polish/Juice | 2 / 7 / 1 | Done-now: rng determinism, bounded-event, Unshakeable-halves-crash, offline-determinism, harness-invariance tests. Superseded: fuzz tooling. |
 
 ---
+
+## Cross-cutting pass — the bank-account wallet cap (offline-lump control)
+
+Not an epic task-audit but a measured **economy correction** landed between E13 and E14,
+after playtesting surfaced that away-time income was unbounded: `applyOffline` replays the
+full production chain with no spending outlet, so the polynomial tier chain compounded a
+20-minute save's 12h absence into **+1.7e8 cash (135× linear accrual)** — enough to
+chain-buy **12 of the 20 accommodation tiers** on return, collapsing the entire Act I/II
+pacing into one click session. Full derivation, before/after measurements, and ladder
+invariants: **`docs/math-proof.md §11`** (P6, applied & verified).
+
+What shipped (mirrors the house patterns exactly):
+- `config.BANK` (base/growth/costFrac/tiers) + `data/bank.js` (23 named accounts, Soggy
+  Money Belt → Platinum Plus Ultra → the uncapped Numberless Account; `validateBank`
+  mirrors `validateDestinations`).
+- `engine.gainCash` — the ONE inflow clamp (tick income, taps, visit yields, coin sales);
+  banked-only lifetime stats; `stats.overflowLost`; one-shot wallet-full nudge per tier.
+- `engine.buyBankUpgrade` + Bank card in the UI (fill meter, next-account button), header
+  `cash / cap` readout, offline-summary overflow row.
+- `state.bank` (run-scoped; ascension resets it), migration grandfathering (a pre-cap
+  save gets the smallest account covering its cash — never frozen, never confiscated).
+- selftest **[85]** (ladder invariants, clamp, offline bound, chain-buy regression ≤ 4,
+  migration, ascension reset) + harness/`playStep` policies now climb the ladder.
+- **Baseline re-pin:** greedy island 8h26m55s → **8h37m00s (31 020 s)** — a deliberate
+  economy change (the ladder is a real sink); peak `log10` 11.3 and beat monotonicity
+  unchanged; harness-invariance tests updated to the new pin.
 
 ## Act II–VI — E14–E30
 

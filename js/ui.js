@@ -25,6 +25,7 @@ export function render(state) {
   renderNotifications(state);
   renderStory(state);
   renderAccommodation(state);
+  renderBank(state);
   renderDestinations(state);
   renderTransport(state);
   renderGenerators(state);
@@ -51,8 +52,14 @@ function renderHeader(s) {
   const perSec = M.tierProd(s, 0) + M.savvyPassive(s);
   const lComfort = M.comfortMultiplier(s);
   const lDest = M.destMultiplier(s);
+  // wallet cap readout (config.BANK): show capacity next to cash, and flag a
+  // (nearly) full wallet — income is overflowing, the bank card has the fix.
+  const cap = M.walletCap(s);
+  const capHtml = Number.isFinite(cap)
+    ? ` / ${fmt(cap)}${s.resources.cash >= cap * 0.98 ? ' ⚠️' : ''}`
+    : '';
   el('hdr').innerHTML = `
-    <span class="iv-res">💶 <b>${fmt(s.resources.cash)}</b> <small>(+${fmt(perSec)}/s)</small></span>
+    <span class="iv-res">💶 <b>${fmt(s.resources.cash)}</b><small>${capHtml}</small> <small>(+${fmt(perSec)}/s)</small></span>
     <span class="iv-res">😌 Comfort <b>${fmt(s.resources.comfort)}</b> <small>(bonus ×${fmt(lComfort)})</small></span>
     <span class="iv-res">📣 Clout <b>${fmt(s.resources.clout)}</b></span>
     <span class="iv-res">🏆 Legacy <b>${fmt(s.resources.legacy)}</b></span>
@@ -180,6 +187,44 @@ function renderAccommodation(s) {
   }
   html += '</div>';
   el('accommodation').innerHTML = html;
+}
+
+// ---------- Bank Account panel (the wallet cap — offline-lump control) ----------
+// Always visible: the wallet cap clamps ALL cash inflow from minute one (see
+// config.BANK / engine.gainCash), so the account ladder is core progression, not a
+// reveal-gated subsystem. Shows the current account + a fill meter, the next account
+// upgrade (the ONLY way to raise the cap), and what has spilled to overflow so far.
+function renderBank(s) {
+  const box = el('bank');
+  if (!box) return;
+  const acct = DATA.bank[s.bank.tier];
+  const cap = M.walletCap(s);
+  const titleEl = el('bankTitle');
+  if (titleEl) titleEl.textContent = `🏦 ${acct.name}`;
+  let html = `<div class="iv-flavor">${acct.flavor}</div>`;
+  if (Number.isFinite(cap)) {
+    const pct = clamp(100 * s.resources.cash / cap, 0, 100);
+    const full = s.resources.cash >= cap * 0.98;
+    html += `
+      <div class="iv-comfort-meter" role="progressbar" aria-valuemin="0" aria-valuemax="100"
+        aria-valuenow="${pct.toFixed(0)}" aria-label="Wallet ${pct.toFixed(0)} percent full">
+        <i style="width:${pct.toFixed(1)}%"></i>
+      </div>
+      <div class="iv-sub">Holds up to <b>${fmt(cap)}</b> — ${pct.toFixed(0)}% full${full ? ' ⚠️ <b>income is overflowing</b>' : ''}</div>`;
+  } else {
+    html += '<div class="iv-sub">Holds <b>∞</b> — past a certain point the ledger simply stops counting.</div>';
+  }
+  if (!E.bankMaxed(s)) {
+    const next = DATA.bank[s.bank.tier + 1];
+    const cost = E.bankUpgradeCost(s);
+    const nextCap = M.bankCapAt(s.bank.tier + 1);
+    html += `<div class="iv-sub">Next: <b>${next.name}</b> — holds ${Number.isFinite(nextCap) ? fmt(nextCap) : '∞'}</div>
+      ${btn('buy-bank', '', `Open account — ${fmt(cost)}`, afford(cost), s.resources.cash >= cap * 0.98 ? 'btn-primary' : '')}`;
+  }
+  if (s.stats.overflowLost > 0) {
+    html += `<div class="iv-sub">💸 ${fmt(s.stats.overflowLost)} has overflowed past your wallet, lifetime. The bank does not apologize.</div>`;
+  }
+  box.innerHTML = html;
 }
 
 // Destinations panel + Getting Around row reveal together once the map exists —
@@ -1101,6 +1146,7 @@ function handle(action, arg, btnEl) {
       break;
     }
     case 'buy-acc': E.buyAccommodation(S); break;
+    case 'buy-bank': E.buyBankUpgrade(S); break;
     case 'buy-dest': E.buyDestination(S, arg); break;
     case 'visit-dest': E.visitDestination(S, arg); break;
     case 'buy-transport': E.buyTransport(S, arg); break;
@@ -1164,6 +1210,7 @@ export function showOfflineSummary(state, rep) {
     ${rep.conciergeBought ? `<div class="iv-offline-row">🛎️ The concierge bought <b>${rep.conciergeBought}</b> item${rep.conciergeBought > 1 ? 's' : ''} for <b>${fmt(rep.conciergeSpent)}</b></div>` : ''}
     ${rep.sponsorsExpired ? `<div class="iv-offline-row">📴 <b>${rep.sponsorsExpired}</b> sponsor deal${rep.sponsorsExpired > 1 ? 's' : ''} wrapped up while you were away</div>` : ''}
     ${rep.cryptoYield ? `<div class="iv-offline-row">📈 <b>+${fmt(rep.cryptoYield)}</b> from your portfolio tanning without you${rep.marketEvents ? ` — ${rep.marketEvents} market event${rep.marketEvents > 1 ? 's' : ''} survived` : ''}</div>` : ''}
+    ${rep.overflowLost > 0 ? `<div class="iv-offline-row">💼 Your <b>${DATA.bank[state.bank.tier].name}</b> filled up — <b>${fmt(rep.overflowLost)}</b> overflowed. A bigger account would have caught it.</div>` : ''}
     <div class="iv-sub">😌 Comfort is now ${fmt(state.resources.comfort)} — a bonus of ×${fmt(lComfort)} on income while you were gone.</div>`;
   overlay.hidden = false;
 }

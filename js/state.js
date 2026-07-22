@@ -1,6 +1,7 @@
 // state.js — canonical game state + save/load/migrate/export. Plain JSON only.
 import { CONFIG as C } from './config.js';
 import { DATA } from './data/index.js';
+import { bankCapAt } from './math.js';
 
 export function newGame() {
   const generators = {};
@@ -46,6 +47,12 @@ export function newGame() {
     // and engine's cryptoActive gate), so neither section ever advances for a fresh game
     // or the harness — the fitted ~8h26m island time cannot move.
     crypto: { holdings: cryptoHoldings, hedges: cryptoHedges, lifetimeYield: 0 },
+    // bank account (wallet cap): tier indexes data/bank.js rows; capacity comes from
+    // config.BANK via math.bankCapAt. Starts at the Soggy Money Belt. Run-scoped —
+    // ascension resets it with the rest of the run (prestige.ascend's keep-list
+    // deliberately excludes it), so every run's offline inflow is paced from the
+    // bottom of the ladder again. See config.BANK's comment / docs/math-proof.md §11.
+    bank: { tier: 0 },
     market: { seed: C.MARKET.seed, cursor: 0, phase: 'calm', eventId: null, mult: 1,
       nextEventT: 0, expiresAtSec: 0, eventLog: [], totalEvents: 0 },
     accommodation: { tier: 0, owned: [0] },
@@ -86,7 +93,7 @@ export function newGame() {
     ui: { bulkMode: 1 },
     settings: { gameSpeed: C.DEFAULT_GAME_SPEED, offlineEnabled: true, debug: false },
     stats: { lifetimeCash: 0, lifetimeCashThisTree: 0, bestComfort: 0, totalClicks: 0, runSec: 0,
-      tapWindowSec: 0, tapWindowCount: 0 },
+      tapWindowSec: 0, tapWindowCount: 0, overflowLost: 0 },
     // transient caches (not strictly needed in save, recomputed each tick)
     _comfortCache: 0, _destCache: 1, _combo: 1, _comboTimer: 0,
   };
@@ -121,6 +128,13 @@ export function migrate(s) {
   // leaving every migrated save on the same shared default seed — the first (and so
   // far only) seeded-RNG state the codebase ships, so no other field has this pattern.
   if (!hadMarket) s.market.seed = (s.meta.createdAt || Date.now()) >>> 0;
+  // bank grandfathering: a save from before the wallet cap existed (backfilled to
+  // tier 0 above) may already hold far more cash than the Soggy Money Belt allows.
+  // The inflow clamp (engine.gainCash) never confiscates, but it WOULD silently
+  // freeze that save's income until it spent back under the cap — so instead grant
+  // the smallest account whose capacity covers the cash they already legitimately
+  // earned. Never lowers a tier, never touches saves already within their cap.
+  while (s.bank.tier < C.BANK.tiers - 1 && s.resources.cash > bankCapAt(s.bank.tier)) s.bank.tier++;
   return s;
 }
 

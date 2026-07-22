@@ -27,6 +27,7 @@ hand-waving. Two questions drive it:
 | Scales with ascensions? | ⚠️ **Mechanically correct** (banked-Legacy accounting is exact; √-prestige verified) but the meta-reward layer is **inconsistent** (additive vs multiplicative) and under-rewarding (~N^0.10). Fixable. | §7 |
 | Scales with skill tree? | ✅ **Bounded & safe** (capped ranks; permanent mult ×~8–40). Pre-fix it *multiplied the runaway*; post-fix it's fine. One node (`faster_metab`) worsened the pre-fix singularity. | §8 |
 | Precision plan sound? | ⚠️ The `{m,e}` BigNumber plan is correct, but the trigger must be **watched from mid-game**, not "endgame only," once any power-law feedback exists. | §9 |
+| Offline income bounded? | ⚠️→✅ **Now yes (wallet cap).** As shipped through E13 it was not — a 20-minute save left offline 12 h returned **+1.7e8 cash (135× linear accrual)** and chain-bought **12 of the 20 accommodation tiers** on return. The bank-account wallet cap bounds the returning lump to one wallet (measured: +3.8e4, 3 tiers) and makes it invariant to away-length. | §11 |
 
 ---
 
@@ -326,13 +327,143 @@ needs ≥ `6·(KNEE+1) = 30` bought to pass the knee — always true past early 
 | **P3** | Make the ascension meta layer multiplicative with a target speed-up curve | `math.js` + `config.TREE` | proposed | Ascensions *feel* rewarding; fixes additive/multiplicative split |
 | **P4** | Keep tree nodes multiplicative & capped; guard `step` vs `KNEE` | audit | mostly done | Tree stays a clean bounded multiplier |
 | **P5** | Magnitude-triggered `{m,e}` BigNumber + CI assertion `log10 < 290` | harness + `math.js` | proposed | No overflow across prestige layers + NG+ |
+| **P6** | Bank-account wallet cap (`config.BANK` + `engine.gainCash` clamp) | config + data + 1 clamp point | ✅ **applied** | Bounds the offline/idle-away lump to one wallet; chain-buy leapfrog 12 tiers → ≤ 4 worst-case; closes the open-tab loophole (§11) |
 
 **Bottom line.** The *architecture* is sound and the prestige *accounting* is exact. The single
 structural flaw was the milestone doubling behaving as a power of cash, which turned the whole
 economy into a finite-time singularity and overflowed `double` in minutes. That is now fixed and
 verified at the mechanism level; hitting the precise 20-hour curve is the remaining work, and it
 is ordinary tuning (E30) rather than a redesign — because the curve is finally monotone,
-bounded, and tweakable.
+bounded, and tweakable. The second structural finding — unbounded offline/away lumps
+leapfrogging the accommodation ladder — is likewise fixed and measured (§11): stored cash,
+not elapsed time, is what the wallet cap bounds.
+
+---
+
+## 11. Offline lumps & the wallet cap (P6, **applied & verified**)
+
+### 11.1 The problem — offline accrual is super-linear and spend-free
+
+`applyOffline` replays the **same** `tick()` in `OFFLINE_STEPS` macro-steps (good: no
+separate math to drift). But while away, nothing is *spent* — the whole multiplier stack
+runs at full rate with no reinvestment outlet, and Engine A (the tier chain, §1) keeps
+compounding: with `D` active tiers, `count₁` grows like `t^{D−1}` and the away-lump like
+`t^D`. So the lump is **super-linear in away-time** — and `OFFLINE_CAP_H` bounds the
+*time*, not the *magnitude*, and never applies at all to a tab left open overnight.
+
+**Measured** (greedy player for `T_active`, then `applyOffline`, then chain-buying
+accommodation on return — pre-cap engine):
+
+| active | away | lump | ×linear accrual | acc tiers chain-bought on return |
+|---|---|---|---|---|
+| 20 m (tier 0) | 1 h | +3.1e5 | 3.0× | **5** (0 → 5) |
+| 20 m (tier 0) | 12 h | +1.7e8 | **135×** | **12** (0 → 12) |
+| 45 m (tier 3) | 12 h | +2.1e8 | 38× | 9 (3 → 12) |
+| 90 m (tier 5) | 12 h | +1.2e9 | 29× | 9 (5 → 14) |
+| 3 h (tier 10) | 12 h | +7.1e10 | 21× | 8 (10 → 18) |
+
+The `×linear` column is the polynomial fingerprint (`t^D / (rate·t)` grows with `t` and
+with `D`). The last column is the design failure: the Comfort gate self-satisfies once a
+tier is owned (`ACC.unlockFrac 0.33 < 1/ACC.growth 0.385` — deliberately "never a hard
+stall"), so a lump of cash converts **directly** into a chain of tier-ups. One overnight
+absence let a 20-minute-old save skip more than half the accommodation ladder — the
+entire Act I/II pacing (amenity reveals, story beats, path seeds) collapsed into one
+click session.
+
+### 11.2 Why not scale `OFFLINE_CAP_H` or an efficiency knob
+
+- A shorter time-cap punishes sleep (against the no-monetization stance, `docs/05 §8`)
+  and still leaves the lump super-linear inside the window.
+- An offline-efficiency multiplier (`×0.5` etc.) rescales the lump but keeps it
+  **unbounded** — the same leapfrog, one night later. §4's lesson applies unchanged:
+  you cannot fix a shape problem by scaling a constant.
+- Neither touches the **open-tab loophole**: idling online overnight was already an
+  uncapped lump with no "offline" involved at all.
+
+The correct control is a bound on the **stored quantity** — a wallet cap.
+
+### 11.3 The mechanism — a bank-account ladder capping the wallet
+
+Shipped (all knobs in `config.BANK`, flavor rows in `data/bank.js`):
+
+```
+cap(tier)      = BANK.base · BANK.growth^tier          // 4e3 · 10^tier
+cap(TOP)       = ∞                                     // last row uncapped, by design
+upgradeCost(t) = BANK.costFrac · cap(t) · commsCostMult   // 0.35 · current capacity
+```
+
+- **One clamp point**: every cash inflow (tick income, taps, visit yields, coin sales)
+  banks through `engine.gainCash`, which credits `min(amount, cap − cash)` and counts
+  the spill in `stats.overflowLost`. Purchases subtract directly — spending is never
+  gated.
+- **Inflow-only**: cash already above the cap (old saves, debug grants) is never
+  confiscated; it just can't grow. `migrate()` grandfathers pre-cap saves to the
+  smallest sufficient account so their income never silently freezes.
+- **Lifetime stats count banked cash only** — so `checkUnlocks`' lifetime-cash tier
+  reveals, `savvyPassive`'s `√lifetimeCash`, and Legacy's `√cumCash` are all paced by
+  the wallet too. The cap bounds the whole income-coupled loop, not just the readout.
+- **Run-scoped**: ascension resets the bank with the rest of the run, so every run's
+  offline inflow re-paces from the bottom of the ladder. (A future tree node may relax
+  this — it must never grant the ∞ account outright.)
+
+**Safety invariants** (asserted in `selftest [85]` / `data/bank.js validateBank`):
+
+1. **No soft-lock:** `costFrac < 1` ⇒ `upgradeCost(t) < cap(t)` at every tier — a full
+   wallet can always afford the next account.
+2. **The cap ladder outruns the spend ladder:** `BANK.growth (10) > ACC.growth (2.6)`,
+   so a diligent banker always has room for the next accommodation tier; the wallet
+   paces *lumps*, never blocks *progression*.
+3. **No permanent block on endgame content:** the top account is uncapped (∞), so D6–D8
+   (`base 8e17…8e23`), their upgrades, and NG+ magnitudes stay reachable; the §9
+   magnitude assertion (`log10 < 290`) still owns that regime.
+
+### 11.4 The bound — chain-buy depth is now a small constant
+
+With a full wallet `W` and the next accommodation tier costing `c`, the chain of
+affordable consecutive tiers `j` satisfies the geometric sum
+`c·(g^j − 1)/(g − 1) ≤ W` with `g = ACC.growth = 2.6`, i.e.
+
+```
+j ≤ log_g(1 + (g−1)·W/c)
+```
+
+Between bank upgrades, `W/c` sweeps ≈ 1.6…40 (caps step ×10, acc costs step ×2.6), so
+`j ≤ log₂.₆(1 + 1.6·40) ≈ 4` **worst-case**, 1–3 typical — instead of 12. The lump is
+also **invariant to away-length** once the wallet fills, which is the actual "control
+the inflow" requirement.
+
+**Measured** (same probe, post-cap engine — compare §11.1):
+
+| active | away | lump | acc tiers chain-bought on return |
+|---|---|---|---|
+| 20 m (tier 0) | 1 h / 4 h / 12 h | +3.8e4 (constant) | **3** (0 → 3) |
+| 45 m (tier 2) | 1 h / 4 h / 12 h | +3.7e5 (constant) | 3 (2 → 5) |
+| 90 m (tier 5) | 1 h / 4 h / 12 h | +2.0e5 (constant) | 1 (5 → 6) |
+| 3 h (tier 10) | 1 h / 4 h / 12 h | +2.1e7 (constant) | 1 (10 → 11) |
+
+An automation-minded player can still beat the bound the honest way: the concierge
+(E11), left on with a budget, keeps *spending* while away — reinvesting income under the
+cap exactly like an active player. That is intended: automation is the designed answer
+to the wallet, foreshadowing E19/E20 staff.
+
+### 11.5 Pacing impact (re-fit)
+
+The greedy harness policy now climbs the bank ladder (upgrade when the wallet is ~70%
+full — `cost = 0.35·cap ≤ 0.5·cash`). The ladder is a genuine new sink (~1.6e11
+cumulative to the island-band account, comparable to the island's own 2.5e11), and the
+measured effect is mild and healthy:
+
+| metric | pre-cap | post-cap |
+|---|---|---|
+| greedy island | 8 h 26 m 55 s | **8 h 37 m 00 s** (in the 6–12 h guard band) |
+| peak log10(cash) | 11.3 | 11.3 (unchanged) |
+| beats reached / monotone | 26 / yes | 26 / yes |
+
+The harness-invariance tests re-pin the island baseline at **31 020 s** (a deliberate
+economy change — the one legitimate reason that constant ever moves). Tuning levers if
+the wallet ever feels too tight/loose: `BANK.costFrac` (sink size & upgrade cadence),
+`BANK.growth` (chain-buy bound ceiling), `BANK.base` (how soon the first offline return
+is capped).
 
 ---
 
@@ -347,4 +478,5 @@ node js/dev/selftest.mjs      # shipped harness: prints the story-beat curve + a
 
 Key constants involved (all in `js/config.js`): `GEN.base`, `GEN.growth`, `GEN.perUnit`,
 `MILESTONE_STEP`, `MILESTONE_MULT`, `MILESTONE_SOFT_KNEE`, `MILESTONE_SOFT_LIN`,
-`COMFORT.MULT/C0`, `ACC.growth/cashMult/unlockFrac`, `LEGACY_K/SCALE/EXP`, `TREE.nodeBase/nodeGrowth`.
+`COMFORT.MULT/C0`, `ACC.growth/cashMult/unlockFrac`, `LEGACY_K/SCALE/EXP`, `TREE.nodeBase/nodeGrowth`,
+`BANK.base/growth/costFrac/tiers` (§11 — the wallet cap; named account rows in `js/data/bank.js`).

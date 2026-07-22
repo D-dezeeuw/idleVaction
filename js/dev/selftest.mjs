@@ -8,6 +8,7 @@ import * as E from '../engine.js';
 import * as M from '../math.js';
 import * as P from '../prestige.js';
 import { validateDestinations } from '../data/destinations.js';
+import { validateBank } from '../data/bank.js';
 import { fmt, fmtTime, rng } from '../util.js';
 // E11 harness-invariance guard ([62] below): importing runCurve does NOT auto-run the
 // harness's own report() — that's guarded behind `process.argv[1].endsWith('harness.mjs')`,
@@ -22,6 +23,11 @@ function playStep(s) {
   // 0) bootstrap: if there is no income at all, buy the cheapest tier outright
   //    (a real player spends their last €15 to get the engine turning).
   if (M.tierProd(s, 0) <= 0 && E.genCost(s, 0, 1) <= s.resources.cash) E.buyGenerator(s, 0, 1);
+
+  // 0b) bank account (wallet cap): cost = BANK.costFrac·cap, so "cost ≤ half my cash"
+  //     ⇔ the wallet is ~70% full — upgrade before income overflows (mirrors harness).
+  let bg = 0;
+  while (!E.bankMaxed(s) && E.bankUpgradeCost(s) <= s.resources.cash * 0.5 && bg++ < 4) E.buyBankUpgrade(s);
 
   // 1) accommodation: big Comfort jumps — always worth it when unlocked+affordable
   let guard = 0;
@@ -203,6 +209,7 @@ ok(fixed.paths && fixed.paths.vlogger, 'migration backfills missing sections');
 // ---------- 6. offline ----------
 console.log('\n[6] offline progress');
 const s2 = ST.newGame(); s2.resources.cash = 1e12; E.buyGenerator(s2, 0, 20); E.buyGenerator(s2, 1, 10);
+s2.bank.tier = C.BANK.tiers - 1;       // top (uncapped) account — this test is about accrual, [83] tests the cap
 ok(M.tierProd(s2, 0) > 0, `generators produce income pre-offline (${fmt(M.tierProd(s2, 0))}/s)`);
 const cashPre = s2.resources.cash;
 const rep = E.applyOffline(s2, 3600 * 1000); // 1h away
@@ -1538,6 +1545,7 @@ console.log('\n[46] E10 tap spends energy, floors at empty, Body XP on full taps
 {
   const tp = ST.newGame();
   tp.resources.cash = 1e6;
+  tp.bank.tier = C.BANK.tiers - 1;   // crafted cash exceeds the tier-0 wallet — uncap it ([85] tests the cap)
   E.buyGenerator(tp, 0, 20);         // idle income so baseGain isn't just the €1 floor
   const energyBefore = tp.resources.energy;
   const bodyXpBefore = tp.skills.body.xp;
@@ -1746,6 +1754,7 @@ console.log('\n[52] E10 anti-clicker: sustained tapping stays a modest, floor-do
 {
   const ac = ST.newGame();
   ac.resources.cash = 1e9;
+  ac.bank.tier = C.BANK.tiers - 1;   // crafted cash exceeds the tier-0 wallet — uncap it ([85] tests the cap)
   E.buyGenerator(ac, 0, 30);
   ac.skills.body.level = 20;         // a well-trained Body — the BEST case for the clicker
 
@@ -2029,6 +2038,10 @@ console.log('\n[59] E11 offline determinism: applyOffline mirrors a manual tick(
     s.resources.cash = 1e9;   // ample cash so the generator buy below actually succeeds
     E.buyGenerator(s, 0, 20);
     s.resources.cash = 1e6;   // then set the ACTUAL starting cash for the away-time test
+    // pin the bank tier EXPLICITLY: the crafted 1e6 cash exceeds the tier-0 wallet, and
+    // migrate()'s grandfathering would otherwise raise viaOffline's tier while the
+    // un-migrated manual copy stayed at 0 — a real state divergence, not a determinism bug.
+    s.bank.tier = C.BANK.tiers - 1;
     s.concierge.on = true;
     s.settings.offlineEnabled = true;
     return s;
@@ -2162,11 +2175,13 @@ console.log('\n[62] E11 harness invariance: concierge OFF by default never moves
 
   // the REAL regression guard: actually run the balance harness's own greedy-optimal
   // runCurve() (dev/harness.mjs) — which constructs ST.newGame() and never touches
-  // state.concierge — and confirm the reported island time matches this epic's
-  // baseline (~8h26m55s = 30415s) exactly, not just "some plausible number".
+  // state.concierge — and confirm the reported island time matches the current fitted
+  // baseline (~8h37m00s = 31020s — re-pinned once when the wallet-cap ladder landed, a
+  // deliberate economy change; see docs/math-proof.md §11) exactly, not just "some
+  // plausible number".
   const { islandAt, peakLog } = runCurve({ dt: 5, maxHours: 40 });
   ok(islandAt !== null, 'the harness still reaches the island (tier 20) within the cap');
-  ok(Math.abs(islandAt - 30415) < 1, `harness island time is UNCHANGED by E11 (got ${fmtTime(islandAt)}, expected ~8h26m55s / 30415s)`);
+  ok(Math.abs(islandAt - 31020) < 1, `harness island time is UNCHANGED by E11 (got ${fmtTime(islandAt)}, expected ~8h37m00s / 31020s)`);
   ok(peakLog < 290, `peak log10(cash) (${peakLog.toFixed(1)}) stays far under the double-overflow ceiling (~308)`);
 }
 
@@ -2357,7 +2372,7 @@ console.log('\n[68] E12 harness invariance: content/sponsors never touched by th
   ok(DATA.content.every(c => s.content[c.id].level === 0 && s.content[c.id].boosts === 0),
     "the harness never buys/boosts any content tier (not in its greedy policy) — Clout stays on the pre-E12 baseline formula");
   ok(s.sponsors.active === null, 'the harness never accepts a sponsor deal — no active multiplier ever appears in the max-speed run');
-  ok(Math.abs(islandAt - 30415) < 1, `harness island time is UNCHANGED by E12 (got ${fmtTime(islandAt)}, expected ~8h26m55s / 30415s)`);
+  ok(Math.abs(islandAt - 31020) < 1, `harness island time is UNCHANGED by E12 (got ${fmtTime(islandAt)}, expected ~8h37m00s / 31020s — the wallet-cap baseline)`);
   ok(peakLog < 290, `peak log10(cash) (${peakLog.toFixed(1)}) stays far under the double-overflow ceiling`);
 
   ok(beatTime[14] !== undefined, 'Beat 14 (Going Viral) still fires within the harness run');
@@ -2658,6 +2673,7 @@ console.log('\n[78] E13 market events: bounded (crash floor / boom cap), gated o
 console.log('\n[79] E13 crypto buy/sell: affordability gates, holdings, path-point nudge');
 {
   const b = ST.newGame();
+  b.bank.tier = C.BANK.tiers - 1;    // crafted cash exceeds the tier-0 wallet — uncap it ([85] tests the cap)
   const coin = DATA.crypto.coins[0];
   b.resources.cash = 0;
   ok(!E.buyCoin(b, coin.id, 1), 'buyCoin is blocked at zero cash');
@@ -2703,7 +2719,7 @@ console.log('\n[80] E13 harness invariance: crypto gated off by default, fitted 
 
   const { islandAt, peakLog } = runCurve({ dt: 5, maxHours: 40 });
   ok(islandAt !== null, 'the harness still reaches the island (tier 20) within the cap');
-  ok(Math.abs(islandAt - 30415) < 1, `harness island time is UNCHANGED by E13 (got ${fmtTime(islandAt)}, expected ~8h26m55s / 30415s)`);
+  ok(Math.abs(islandAt - 31020) < 1, `harness island time is UNCHANGED by E13 (got ${fmtTime(islandAt)}, expected ~8h37m00s / 31020s — the wallet-cap baseline)`);
   ok(peakLog < 290, `peak log10(cash) (${peakLog.toFixed(1)}) stays far under the double-overflow ceiling (~308)`);
 }
 
@@ -2827,6 +2843,106 @@ console.log('\n[84] E13 QA polish: savvyPassive purity + zero-holdings/zero-cash
   ok(M.cryptoYieldPerSec(zeroCrypto, DATA) === 0, 'cryptoYieldPerSec is exactly 0 with no coins held — no sqrt/log weirdness, no divide-by-zero');
   ok(M.cryptoHoldingsValue(zeroCrypto, DATA) === 0, 'cryptoHoldingsValue is exactly 0 with no coins held');
   ok(M.cryptoNetWorth(zeroCrypto, DATA) === zeroCrypto.resources.cash, 'cryptoNetWorth with zero holdings equals plain wallet cash');
+}
+
+// ---------- 85. Bank account / wallet cap: the offline-lump control (config.BANK,
+// engine.gainCash/buyBankUpgrade, math.bankCapAt, data/bank.js, state migration).
+// See config.BANK's comment + docs/math-proof.md §11 for the measured runaway this
+// exists to fix (a 20-minute save away 12h returned 135× linear accrual and chain-
+// bought 12 of 20 accommodation tiers). ----------
+console.log('\n[85] bank account / wallet cap: ladder data, inflow clamp, offline bound, migration');
+{
+  // data + ladder invariants
+  ok(validateBank(C), 'validateBank passes: row count matches config.BANK.tiers, ids unique, costFrac in (0,1)');
+  ok(DATA.bank.length === C.BANK.tiers, 'DATA.bank rows == config.BANK.tiers (cap formula indexes rows by tier)');
+  let capsMonotone = true, ladderAffordable = true;
+  for (let t = 0; t < C.BANK.tiers - 1; t++) {
+    if (!(M.bankCapAt(t + 1) > M.bankCapAt(t))) capsMonotone = false;
+    // the next account must always fit inside the CURRENT cap — else the ladder soft-locks
+    const probe = ST.newGame(); probe.bank.tier = t;
+    if (!(E.bankUpgradeCost(probe) < M.bankCapAt(t))) ladderAffordable = false;
+  }
+  ok(capsMonotone, 'bank caps are strictly increasing up the ladder');
+  ok(ladderAffordable, 'bankUpgradeCost(t) < bankCapAt(t) at EVERY tier — a full wallet can always afford the next account (no soft-lock)');
+  ok(M.bankCapAt(C.BANK.tiers - 1) === Infinity, 'the LAST account is uncapped (Infinity) — endgame D6–D8 buys and NG+ magnitudes can never be permanently blocked');
+  ok(M.bankCapAt(0) === C.BANK.base && approx(M.bankCapAt(3) / M.bankCapAt(2), C.BANK.growth), 'cap formula: base·growth^tier');
+  ok(C.BANK.growth > C.ACC.growth, 'the cap ladder outruns the accommodation ladder (BANK.growth > ACC.growth) — a diligent banker is never wallet-gated');
+
+  // inflow clamp: income stops at the cap, overflow is tracked, lifetime counts BANKED only
+  const w = ST.newGame();
+  E.buyGenerator(w, 0, 1); w.generators[0].count = 1000;      // strong D1 income
+  w.resources.cash = M.walletCap(w) - 50;                     // 50 of room left
+  const lifetimeBefore = w.stats.lifetimeCash;
+  E.tick(w, 10);                                               // way more than 50 produced
+  ok(w.resources.cash <= M.walletCap(w) + 1e-9, `online income clamps at the wallet cap (cash ${fmt(w.resources.cash)} ≤ cap ${fmt(M.walletCap(w))})`);
+  ok(w.stats.overflowLost > 0, `the refused inflow is tracked in stats.overflowLost (+${fmt(w.stats.overflowLost)})`);
+  ok(approx(w.stats.lifetimeCash - lifetimeBefore, 50, 1e-6), 'lifetimeCash counts ONLY the banked portion — tier reveals/Savvy/Legacy are paced by the wallet too');
+  ok(w._notifications.some(n => /full/i.test(n.text)), 'the first overflow fires a one-shot "wallet full" nudge');
+  const notifCount = w._notifications.filter(n => /full/i.test(n.text)).length;
+  E.tick(w, 10);
+  ok(w._notifications.filter(n => /full/i.test(n.text)).length === notifCount, 'the wallet-full nudge never re-fires for the same account tier (one-shot per tier)');
+
+  // no confiscation: cash above cap is kept, it just can't grow
+  const rich = ST.newGame(); E.buyGenerator(rich, 0, 1);
+  rich.resources.cash = 1e6;                                   // way over the tier-0 cap
+  E.tick(rich, 5);
+  ok(rich.resources.cash >= 1e6 - 1e-9, 'cash already above the cap is never confiscated (inflow-only clamp)');
+
+  // gainCash returns what actually landed; taps/visit yields/coin sales share the rule
+  const g = ST.newGame(); g.resources.cash = M.walletCap(g) - 10;
+  ok(E.gainCash(g, 25) === 10 && g.resources.cash === M.walletCap(g), 'gainCash banks min(amount, room) and returns the banked amount');
+  ok(E.gainCash(g, 25) === 0, 'gainCash at a full wallet banks nothing');
+  ok(E.click(g) === 0, 'a tap into a full wallet returns 0 — the popup never claims cash the wallet refused');
+
+  // bank upgrade mechanics
+  const b = ST.newGame(); b.resources.cash = M.walletCap(b);
+  const cost = E.bankUpgradeCost(b);
+  ok(approx(cost, C.BANK.costFrac * M.bankCapAt(0) * M.commsCostMult(b)), 'bankUpgradeCost = costFrac·cap(current)·commsCostMult');
+  ok(E.buyBankUpgrade(b), 'buyBankUpgrade succeeds with a full wallet');
+  ok(b.bank.tier === 1 && approx(M.walletCap(b) / M.bankCapAt(0), C.BANK.growth), 'upgrade advances one tier and multiplies capacity by BANK.growth');
+  ok(E.drainNotifications(b).some(n => /New account/i.test(n.text)), 'a bank upgrade announces the new account');
+  b.bank.tier = C.BANK.tiers - 1;
+  ok(E.bankMaxed(b) && !E.buyBankUpgrade(b), 'the top (uncapped) account is terminal — no further upgrade');
+
+  // offline: the away-lump is bounded by the wallet, and the report says what spilled
+  const off = ST.newGame();
+  E.buyGenerator(off, 0, 1); off.generators[0].count = 500; off.bank.tier = 2;
+  off.resources.cash = 100;
+  const offRep = E.applyOffline(off, 12 * 3600 * 1000);
+  ok(off.resources.cash <= M.walletCap(off) + 1e-9, `a 12h offline lump is bounded by the wallet cap (cash ${fmt(off.resources.cash)} ≤ cap ${fmt(M.walletCap(off))})`);
+  ok(offRep.overflowLost > 0, `the offline report carries the spilled income (+${fmt(offRep.overflowLost)}) for the "while you were away" nudge`);
+
+  // the headline regression: a young greedy save away 12h can no longer leapfrog the
+  // accommodation ladder. Pre-cap this measured 12 chain-bought tiers (0 → 12); the
+  // wallet bounds the chain to ≈ log_ACC.growth(1 + (growth−1)·cap/nextCost) ≈ 2–4.
+  const young = ST.newGame();
+  for (let t = 0; t <= 20 * 60; t += 5) { E.tick(young, 5); playStep(young); }
+  const tierBefore = young.accommodation.tier;
+  E.applyOffline(young, 12 * 3600 * 1000);
+  let chain = 0, chainGuard = 0;
+  while (E.accUnlocked(young) && E.accCost(young) <= young.resources.cash && chainGuard++ < 30) {
+    E.buyAccommodation(young); chain++;
+  }
+  ok(chain <= 4, `a 20-minute save away 12h chain-buys ≤ 4 accommodation tiers on return (got ${chain}, from tier ${tierBefore}) — was 12 before the wallet cap`);
+
+  // migration: pre-cap saves are grandfathered, never frozen or confiscated
+  const legacy = ST.newGame();
+  legacy.resources.cash = 1e9;
+  delete legacy.bank; delete legacy.stats.overflowLost;
+  const mig = ST.migrate(JSON.parse(JSON.stringify(legacy)));
+  ok(mig.bank && typeof mig.bank.tier === 'number', 'migration backfills state.bank for a pre-cap save');
+  ok(mig.stats.overflowLost === 0, 'migration backfills stats.overflowLost at 0');
+  ok(M.walletCap(mig) >= mig.resources.cash, 'grandfathering: the migrated save gets the smallest account that already covers its cash — income never silently freezes');
+  ok(mig.bank.tier === Math.min(C.BANK.tiers - 1, Math.max(0, Math.ceil(Math.log(1e9 / C.BANK.base) / Math.log(C.BANK.growth)))), 'grandfathering picks the SMALLEST sufficient tier, not the top');
+  const within = ST.newGame(); within.resources.cash = 100;
+  ok(ST.migrate(JSON.parse(JSON.stringify(within))).bank.tier === 0, 'a save within its cap keeps its own bank tier (grandfathering never fires spuriously)');
+
+  // ascension: the bank is run-scoped — the ladder re-paces every run's offline inflow
+  const asc = ST.newGame();
+  asc.bank.tier = 7;
+  asc.stats.lifetimeCashThisTree = 1e10; asc.stats.runSec = 300; asc.accommodation.tier = 12;
+  ok(P.ascend(asc), 'ascend() succeeds from a mid-ladder bank tier');
+  ok(asc.bank.tier === 0, 'ascension resets the bank to the Soggy Money Belt (run-scoped, like cash itself)');
 }
 
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);

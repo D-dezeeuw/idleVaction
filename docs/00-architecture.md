@@ -40,6 +40,7 @@
 │   │   ├── skills.js     # personal-growth attributes (charisma/body/…)
 │   │   ├── paths.js      # branching build archetypes (vlogger/crypto/…)
 │   │   ├── skilltree.js  # permanent ascension nodes (physique/character)
+│   │   ├── bank.js       # bank-account ladder rows (the wallet-cap tiers; caps from config.BANK)
 │   │   └── story.js      # branching storyline beats (>=30 levels)
 │   ├── state.js          # canonical game state + save/load/migrate + export
 │   ├── engine.js         # tick loop, offline calc, purchase logic, unlock checks
@@ -117,6 +118,8 @@ Idle economies overflow `double` (≈1.8e308) in long runs. Strategy:
 
 ## 6. Offline / away progress
 On load compute `elapsed = now - meta.lastSeen`. Simulate in **coarse macro-steps** (e.g. `min(elapsed, cap)` split into ≤ `config.OFFLINE_STEPS` chunks) through the *same* `engine.tick` so offline == online math exactly. No monetization ⇒ offline is **generous** (default cap 12h, configurable, can be disabled). Show an "While you were away…" summary. Details & closed-form fast-path in `docs/01-math-foundation.md §7`.
+
+**The away-lump is bounded by the wallet, not the clock:** all cash inflow banks through `engine.gainCash`, clamped to the bank-account wallet cap (`config.BANK`, `state.bank.tier`, named rows in `js/data/bank.js`) — so a returning player's purchasing power is ≈ one wallet regardless of time away, and the same clamp covers a tab left open overnight. Rationale + measurements: `docs/math-proof.md §11`.
 
 ## 7. Testing hooks (built in, shipped, hidden behind a toggle)
 - Debug panel: set `gameSpeed`, grant resources, jump story beat, force-unlock, trigger ascension, dump/replace state.

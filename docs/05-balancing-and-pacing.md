@@ -42,8 +42,14 @@ Ordered by how coarsely they move the curve:
 8. `ACC.base`, `ACC.growth`, `ACC.unlock[]` — big-step ladder pacing.
 9. `LEGACY_K`, `LEGACY_SCALE`, `LEGACY_EXP` — ascension loop length.
 10. `TREE.*` — meta multiplier strength.
-11. `OFFLINE_CAP`, `OFFLINE_STEPS` — away generosity.
+11. `OFFLINE_CAP`, `OFFLINE_STEPS` — away generosity (simulation length only — the
+    *magnitude* of away income is bounded by lever 13, the wallet).
 12. `GAME_SPEED` — **pace/QA only, never used to balance.**
+13. `BANK.base/growth/costFrac` — the **wallet cap** (bank-account ladder): bounds how
+    much cash can pile up while away/idle, and how many accommodation tiers a returning
+    lump can chain-buy (`costFrac` sets the sink size + upgrade cadence, `growth` the
+    chain-buy ceiling, `base` how soon a fresh save's first return is capped). See
+    `docs/math-proof.md §11`.
 
 ## 3. The balance harness (ships in-repo, dev-only)
 
@@ -86,6 +92,10 @@ not a redesign. Commit the resulting curve as a golden file so regressions are c
 - **Legacy:** `sqrt` payout → prestige is worthwhile but self-limiting.
 - **Communication discount:** clamped to −60% → costs never reach zero.
 - **Milestone doublings:** free but gated behind geometric cost → self-balancing.
+- **Wallet cap (bank ladder):** all cash inflow clamps to `BANK.base·growth^tier` →
+  away/idle lumps are bounded by *stored cash*, not elapsed time; only banked cash
+  counts toward `lifetimeCash`, so the Savvy/Legacy/tier-reveal loops above are paced
+  with it. (`docs/math-proof.md §11` — the measured offline-leapfrog fix.)
 
 Each softcap is a one-line formula with a single exponent constant → trivially tunable.
 
@@ -142,6 +152,14 @@ Offline is generous (default 12h cap, configurable, disable-able). Every wait ca
 by the player themselves via `GAME_SPEED`. Pacing comes from the *economy curve*, not from
 withholding — which is exactly why the math has to be this solid.
 
+The **wallet cap** (`config.BANK`) is part of that economy curve, not a monetization
+timer: offline still earns at the full 100% rate until the wallet is full, nothing is
+ever confiscated, and the fix is always a purchase the player already wants (the next
+bank account — itself a "small win" on the §5 cadence). What it removes is the
+away-lump that let one overnight absence leapfrog half the accommodation ladder
+(`docs/math-proof.md §11`) — and the concierge (E11)/staff (E19+) automation is the
+designed way to keep *spending* through the cap while away.
+
 ## 9. Balance status & the golden curve (fitted to ~20h)
 
 The economy is now **fitted to the ~20-hour target** and the shipped constants land it. The
@@ -168,8 +186,14 @@ Beat 14–15  ~3h18m      (vlogger / cars)
 Beat 16–18  4h05m–4h28m (boats / jets / 6★)
 Beat 19–21  4h55m–5h27m (butler / household / 7★)
 Beat 22–26  6h20m–6h54m (bungalow → villa → ascension unlock)
-ISLAND (tier 20)         8h 27m       peak log10(cash) = 11.3 (safe; double maxes ~308)
+ISLAND (tier 20)         8h 37m       peak log10(cash) = 11.3 (safe; double maxes ~308)
 ```
+
+> **Baseline re-pin (wallet cap):** the island moved 8h26m55s → **8h37m00s (31 020 s)**
+> when the bank-account wallet cap landed — a *deliberate* economy change (the ladder is
+> a genuine new sink and the greedy policy now climbs it; `docs/math-proof.md §11.5`).
+> The harness-invariance tests pin this new number; everything else in the snapshot
+> (monotone beats, 26 reached, peak magnitude) is unchanged.
 
 Because the harness plays *perfectly at infinite speed and never wastes a euro*, this is a **hard
 lower bound** on active time — a real player (10 tps, sub-optimal buys, and, crucially, *mostly
