@@ -66,7 +66,21 @@ export const STORY = [
         'Barths — the kind of place that does not appear on maps, only on invitations. You ' +
         'do not ask for the address. You suspect it will find you.' } } },
   { id: 15, title: 'Keys to the Coupe', requires: { accTier: 10 },
-    text: 'No more buses. Something low, fast, and entirely impractical is yours.' },
+    text: 'No more buses. Something low, fast, and entirely impractical is yours.',
+    // traveler variant (E15-S7-T3 "Keys to the Coupe" — the World Traveler's own read
+    // of the garage reveal). SAME beat-15 gate/requires as the default (E15-S7-T10: no
+    // build is ever stranded; the neutral text above still fires for every non-traveler
+    // branch, and the harness's 26-beat pin is untouched) — only the title/text swap
+    // when story.branch==='traveler', mirroring beat 14's crypto/connoisseur variants.
+    // Also plants the hybrid line (E15-S7-T6: traveler+crypto) and ends on a hook toward
+    // E16's boats/yachts.
+    variants: { traveler: { title: 'Keys to the Coupe', text:
+      'You hand over a fistful of guilders (converted, reluctantly) for a set of keys ' +
+      'that finally do not smell of a hostel locker. The bus timetable, memorized out of ' +
+      "necessity, becomes trivia. If you're also deep in StroopCoin, you financed the " +
+      'coupe with StroopCoin gains, obviously — the chart went up while you were parking ' +
+      'it badly outside a bakery. Somewhere south, a marina is already asking about your ' +
+      'draft.' } } },
   { id: 16, title: 'Sea Legs', requires: { comfort: 5e6 },
     text: 'A boat. With a smaller pool on it. Pools within pools. Fractal luxury.' },
   { id: 17, title: 'Wheels Up', requires: { comfort: 2e7 },

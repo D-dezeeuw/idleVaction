@@ -13,6 +13,7 @@ import { SPONSORS } from './sponsors.js';
 import { COINS, MARKET_EVENTS, HEDGES } from './crypto.js';
 import { BANK_ACCOUNTS } from './bank.js';
 import { ART, WINE } from './collections.js';
+import { CARS } from './vehicles.js';
 
 export const DATA = {
   generators: GENERATORS,
@@ -41,4 +42,9 @@ export const DATA = {
   // imported directly from there by the dev harness/selftest — same convention as
   // validateBank/validatePaths/validateDestinations, none of which are re-exported here.
   collections: { art: ART, wine: WINE },
+  // vehicles (E15 "Keys to the Coupe"): the garage car roster. validateVehicles lives in
+  // data/vehicles.js and is imported directly from there by the dev harness/selftest —
+  // same convention as validateCollections/validateBank/validateDestinations, none of
+  // which are re-exported here.
+  vehicles: CARS,
 };

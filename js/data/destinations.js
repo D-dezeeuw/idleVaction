@@ -5,7 +5,12 @@
 // config→util→math→data chain — see AGENTS.md §4).
 //
 // DESTINATIONS row shape: { id, name, region, costBase, mult, unlockAfter, unlockComfort,
-//   tag, pathAffinity, flavor }. `unlockAfter` chains reveal order (null = always visible
+//   tag, pathAffinity, travelTime, flavor }. `travelTime` (E15-S1-T7) is the felt "cycling
+//   time" in seconds a destination takes to complete a round trip before it can be re-bought
+//   at its next tier of income — a car's `speed` field (data/vehicles.js) shortens this,
+//   the same way transport's own `speed` shortens destCost. Small for near places, larger
+//   for far ones; this file never imports config/engine, so the actual cycling-time formula
+//   lives in math.js/engine.js — this is leaf data only. `unlockAfter` chains reveal order (null = always visible
 // once the map itself is revealed); costBase escalates ~×3 per row so early breadth is
 // cheap and felt (E04-S1-T2/S4-T2). `unlockComfort` is the OTHER unlock half (S2-T9:
 // "prior place owned OR Comfort threshold") — it keeps the FULL 8-place set completable
@@ -26,35 +31,35 @@
 export const DESTINATIONS = [
   { id: 'dest_ardennes_daytrip', name: 'Ardennes Day Trip', region: 'Benelux',
     costBase: 800, mult: 1.025, unlockAfter: null, unlockComfort: 0, tag: 'daytrip',
-    pathAffinity: { traveler: 1.0 },
+    pathAffinity: { traveler: 1.0 }, travelTime: 20,
     flavor: 'A day trip to the Ardennes. Hills! Actual hills! The Netherlands does not have these.' },
   { id: 'dest_paris_hostel', name: 'Paris (Hostel Bunk)', region: 'Western Europe',
     costBase: 2400, mult: 1.025, unlockAfter: 'dest_ardennes_daytrip', unlockComfort: 300, tag: 'capital',
-    pathAffinity: { traveler: 1.0 },
+    pathAffinity: { traveler: 1.0 }, travelTime: 25,
     flavor: 'A bunk under the Eiffel Tower\'s shadow, roughly. Wi-Fi password: "baguette123".' },
   { id: 'dest_berlin', name: 'Berlin', region: 'DACH',
     costBase: 7200, mult: 1.03, unlockAfter: 'dest_paris_hostel', unlockComfort: 1000, tag: 'capital',
-    pathAffinity: { traveler: 1.0 },
+    pathAffinity: { traveler: 1.0 }, travelTime: 35,
     flavor: 'Techno until sunrise, currywurst until regret. You fit right in.' },
   { id: 'dest_prague', name: 'Prague', region: 'Central Europe',
     costBase: 21600, mult: 1.03, unlockAfter: 'dest_berlin', unlockComfort: 3000, tag: 'capital',
-    pathAffinity: { traveler: 1.0 },
+    pathAffinity: { traveler: 1.0 }, travelTime: 40,
     flavor: 'Beer cheaper than water. You do the responsible thing and drink both, constantly.' },
   { id: 'dest_amsterdam_return', name: 'Amsterdam (Return Trip)', region: 'Benelux',
     costBase: 64800, mult: 1.035, unlockAfter: 'dest_prague', unlockComfort: 8000, tag: 'return',
-    pathAffinity: { traveler: 1.0 },
+    pathAffinity: { traveler: 1.0 }, travelTime: 15,
     flavor: 'You go home to Amsterdam — as a tourist, this time. The locals give you a knowing nod.' },
   { id: 'dest_brussels', name: 'Brussels', region: 'Benelux',
     costBase: 194400, mult: 1.035, unlockAfter: 'dest_amsterdam_return', unlockComfort: 5e4, tag: 'capital',
-    pathAffinity: { traveler: 1.0 },
+    pathAffinity: { traveler: 1.0 }, travelTime: 20,
     flavor: 'Waffles, fries, and a diplomatic quarter you accidentally wander into twice.' },
   { id: 'dest_cologne', name: 'Cologne', region: 'DACH',
     costBase: 583200, mult: 1.04, unlockAfter: 'dest_brussels', unlockComfort: 5e5, tag: 'city',
-    pathAffinity: { traveler: 1.0 },
+    pathAffinity: { traveler: 1.0 }, travelTime: 25,
     flavor: 'A cathedral so tall you get a neck cramp. Worth it. Probably.' },
   { id: 'dest_vienna', name: 'Vienna', region: 'Central Europe',
     costBase: 1749600, mult: 1.04, unlockAfter: 'dest_cologne', unlockComfort: 5e6, tag: 'capital',
-    pathAffinity: { traveler: 1.0 },
+    pathAffinity: { traveler: 1.0 }, travelTime: 60,
     flavor: 'Coffee house etiquette has seventeen unwritten rules. You break twelve by lunch.' },
 ];
 
@@ -79,13 +84,14 @@ export function validateDestinations() {
   for (const d of DESTINATIONS) {
     if (seen.has(d.id)) errors.push(`duplicate destination id: ${d.id}`);
     seen.add(d.id);
-    for (const k of ['id', 'name', 'region', 'costBase', 'mult', 'tag']) {
+    for (const k of ['id', 'name', 'region', 'costBase', 'mult', 'tag', 'travelTime']) {
       if (d[k] === undefined) errors.push(`${d.id}: missing required key "${k}"`);
     }
     if (!(d.costBase > prevCost)) errors.push(`${d.id}: costBase (${d.costBase}) not strictly increasing (prev ${prevCost})`);
     prevCost = d.costBase;
     if (!(d.mult >= 1)) errors.push(`${d.id}: mult must be >= 1 (got ${d.mult})`);
     if (!(d.unlockComfort >= 0)) errors.push(`${d.id}: unlockComfort must be >= 0 (got ${d.unlockComfort})`);
+    if (typeof d.travelTime !== 'number' || !(d.travelTime > 0)) errors.push(`${d.id}: travelTime must be a positive number (got ${d.travelTime})`);
   }
   if (errors.length) throw new Error('validateDestinations() failed:\n' + errors.join('\n'));
   return true;

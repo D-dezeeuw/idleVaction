@@ -267,4 +267,31 @@ export const AMENITIES = [
   { id: 'monogrammed_slippers',  name: 'Monogrammed Slippers',    tag: 'luxury', costBase: 6.4e11,  costGrowth: 1.5, comfort: 57000, xMult: 0.032, xScope: 'all', unlockComfort: 4.6e6, exclusivity: 7,  flavor: 'Your initials, on your feet, for no one to see.' },
   { id: 'antique_writing_desk',  name: 'Antique Writing Desk',    tag: 'luxury', costBase: 1.28e12, costGrowth: 1.5, comfort: 74000, xMult: 0.035, xScope: 'all', unlockComfort: 6.6e6, exclusivity: 9,  flavor: 'You write exactly one postcard on it, then never again. The desk does not mind.' },
   { id: 'butler_drawn_bath',     name: 'Butler-Drawn Bath',       tag: 'luxury', costBase: 2.56e12, costGrowth: 1.5, comfort: 96000, xMult: 0.04,  xScope: 'all', unlockComfort: 9.5e6, exclusivity: 12, flavor: 'Precisely 38 degrees. He does not ask how you know. He just knows.' },
+
+  // --- Fully Loaded cluster (E15-S5 "Fully Loaded" — the car-accessory small-wins
+  // cadence at the Garage/Private Logistics stage). tag:'destination' — NOT a new tag of
+  // its own: this lets the traveler L_path/logistics scope target them via the SAME
+  // scope every destination-income item uses (see data/vehicles.js's schema comment on
+  // logisticsMult/config.LOGISTICS). xMult stays DORMANT/schema-only here too, per the
+  // E02-E07 convention (never read by math.js/engine.js — see the service-chain comment
+  // above); the balance-tuner decides whether to ever wire it. Bought through the SAME
+  // generic engine.buyAmenity(id) as every other amenity (E15-S5-T2, no bespoke code).
+  // costBase ramps ~2x/step, sitting in the tier-11 logistics-stage band (matching the
+  // cars' own costBase range in data/vehicles.js, 5e5-5e8, and the destinations' own
+  // costBase top of ~1.75e6) rather than the much-higher Quiet Luxury wing's price band —
+  // this cluster is a car accessory, priced like one. unlockComfort staggers 1.5e6 → 9e6,
+  // the SAME band as the Quiet Luxury cluster's unlockComfort (both are tier-11-stage
+  // clusters bracketing accScore(11) ≈ 1.84e6 — see collections.js's matching note).
+  // comfort stays conservative with a DECLINING comfort/costBase ratio, the same
+  // convention every prior gap-fill cluster uses so the ROI-aware harness cannot have its
+  // fitted pacing curve stretched by this cluster. `dashcam_vlog_mount` ALSO carries a
+  // small `contentRate` (E15-S5-T5, vlogger crossover) — a tiny Clout nudge for hybrid
+  // traveler-vlogger builds, mirroring the E12 gear cluster's wired field; whether it
+  // feeds contentRateTotal is the balance-tuner's call, not this file's. ---
+  { id: 'heated_leather_seats',     name: 'Heated Leather Seats',        tag: 'destination', costBase: 1.5e6, costGrowth: 1.5, comfort: 320,  xMult: 0.02,  xScope: 'all', unlockComfort: 1.5e6, flavor: 'Warm enough to forgive the Dutch winters you fled.' },
+  { id: 'booming_sound_system',     name: 'Booming Sound System',        tag: 'destination', costBase: 3e6,   costGrowth: 1.5, comfort: 520,  xMult: 0.025, xScope: 'all', unlockComfort: 2.4e6, flavor: 'The bass rattles the dashboard ornament. The ornament survives. Barely.' },
+  { id: 'dashcam_vlog_mount',       name: 'Dashcam Vlog Mount',          tag: 'destination', costBase: 6e6,   costGrowth: 1.5, comfort: 780,  contentRate: 0.5, xMult: 0.03,  xScope: 'all', unlockComfort: 3.8e6, flavor: 'Films the whole drive, in case anyone doubts the potholes.' },
+  { id: 'pine_air_freshener_deluxe',name: 'Pine Air Freshener Deluxe',   tag: 'destination', costBase: 1.2e7, costGrowth: 1.5, comfort: 1100, xMult: 0.035, xScope: 'all', unlockComfort: 5.2e6, flavor: 'Makes the hatchback smell like a *nicer* forest.' },
+  { id: 'panoramic_sunroof',        name: 'Panoramic Sunroof',           tag: 'destination', costBase: 2.4e7, costGrowth: 1.5, comfort: 1500, xMult: 0.04,  xScope: 'all', unlockComfort: 7.0e6, flavor: 'You get rained on from directly above now. A premium experience.' },
+  { id: 'heads_up_display',         name: 'Heads-Up Display',            tag: 'destination', costBase: 4.8e7, costGrowth: 1.5, comfort: 2000, xMult: 0.045, xScope: 'all', unlockComfort: 9.0e6, flavor: 'Speed, fuel, and a faint sense of main-character energy, projected onto the windscreen.' },
 ];
