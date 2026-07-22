@@ -442,14 +442,38 @@ beat-15 fallback, reveal, migration+over-capacity clamp, offline determinism).
 | S9 Meter's Running (save/offline) | 2 / 7 / 1 | Schema (`vehicles` + `_logiCache`), offline upkeep + logistics × (via tick-replay), cap fairness, grace-on-return (deterministic repossession), export/import, migration test + over-capacity clamp done-now. Present T2/T9 (generic `backfill()` migrates the slice; rotating backup carries it). Superseded T7 (a dedicated logistics line in the away modal — deferred). |
 | S10 Kicking the Tires (QA/polish) | 1 / 8 / 1 | Slot-capacity, upkeep-floor, logistics-purity, repossession, discount-floor tests + unequip-frees-slots (no sellCar; unequip covers the "remove equipped car" edge) + debug hooks (grant car / +slot / force repossess) + formatting done-now. Present T9 (`window.IV.state.vehicles` snapshot). Superseded T7 (engine-rev toast / key-jingle juice — deferred to polish). |
 
-## Act II–VI — E16–E30
+### E16 — Sea Legs (Private Logistics II) · **100/100** (present 17, done-now 70, superseded 13)
+Extends the E15 garage from land to water: boats (dinghy→superyacht) fold their `mult` into the
+SAME `L_logistics` × and fleet-upkeep drain the cars use (a boat is OWNED, not equipped — owning
+grants mult + slotBonus + upkeep); a pre-staff crew seed adds a tiny × + upkeep capped by the
+fleet's `crewCap`; sea-only destinations gate on `boatTier`; an 8-item `tag:'yacht'` deck-toy
+cluster (incl. the floating pool) and beat-16 boat variants round it out. OPT-IN and gated exactly
+like E15 — the greedy-vlogger harness buys no boats/crew (boatTier 0 ⇒ sea destinations never
+unlock), so the fitted island is **unchanged at 29705s** (peak log10 11.3, 26 beats). Built inline
+(no sub-agents). selftest **[91]** (37 assertions: harness invariance, gate, boat mult/slots/
+upkeep, sea gating, crew cap, first-boat bonus, marina reveal, connoisseur yacht perk, migration,
+offline determinism).
+
+| Story | present/done/superseded | Notes |
+|---|---|---|
+| S1 Charting the Marina (data) | 0 / 9 / 1 | `data/logistics.js` (BOATS[5]+CREW[3]+validateLogistics), cost ramp, 3 sea destinations, crew roster, flavor, unlock gates, index register, data guard done-now. Superseded T4 (`scope:'all'` tag — the boat × is a bounded GLOBAL layer like L_dest, not a per-row scoped tag). |
+| S2 How Boats Pay (core) | 1 / 8 / 1 | logisticsMult fold, +slot, boat upkeep, sea gate on boatTier, crew contribution, events, pure math, engine tests done-now. Present T8 (reuses E15's applyFleetUpkeep clamp path). Superseded T7 (beat 16 gate on ownBoat — kept comfort:5e6 for the 26-beat pin; `checkFirstBoat` is the reward instead). |
+| S3 The Marina Tab (UI) | 1 / 8 / 1 | Marina panel, boat/crew buttons, upkeep line, buy intents, affordability, aria-live done-now. Present T5 (sea destinations surface in the existing destinations list). Superseded T10 (DOM-snapshot contract test — deferred, ui is DOM-only). |
+| S4 A Yacht, Obviously (headline) | 1 / 8 / 1 | Yacht rung (headline mult/crewCap jump), floating-pool amenity, deck-toy escalation (via unlockComfort), Comfort payoff, showpiece copy, first-boat/marina ceremony, cost, visual fleet, QA done-now. Present T3 (staggered unlockComfort serves as the chain). Superseded T4 (crew-operation gating of the top amenities — deferred; crew stays a × + upkeep placeholder). |
+| S5 Deck Toys (cluster) | 2 / 6 / 2 | 8 `tag:'yacht'` amenities, prestige slope 1.8, comfort, cadence, flavor, save/QA done-now. Present T7/T8 (reuse `buyAmenity` + standard buttons). Superseded T3 (`xMult` dormant — E02–E07 convention), + cadence tooling. |
+| S6 The Marina Suite (tier 11) | 5 / 3 / 2 | Tier-11 band / accScore / Comfort gate / migration-default already present. Done-now: the marina reveal (`marinaUnlocked`/`checkMarinaReveal`), reveal copy, QA. Superseded T6 (gate top toys on the suite), T9 ("Tier 11 · Marina Suite" label swap — the marina is its own panel). |
+| S7 Coastal branch flavor | 3 / 6 / 1 | Traveler sea-dest discount (via destDiscountMult), connoisseur yacht Comfort perk (luxuryAmenityComfort covers `yacht`), path-point sources (buyBoat nudges both lanes), hybrid beat variants, neutral floor, branch flavor copy done-now. Present T3/T7 (traveler +1 slot + PATH softcap already wired). Superseded T10 (live re-spec recompute — deferred). |
+| S8 Sea Trials (balance) | 1 / 9 / 0 | Boat/crew constants, sea-dest ×, harness (island 29705), upkeep tension, time-to-next, slot value, stack cross-check ([91]), golden ([91]), documented knobs (config comment) done-now. Present (PATH softcap already tames coastal points). |
+| S9 Man-Overboard-Proofing (save/offline) | 2 / 6 / 2 | Schema, migration (backfill + boatSlots recompute), offline sea income + upkeep (via tick-replay), export/import, migration test done-now. Present (OFFLINE_CAP + rotating backup already cover boats/crew). Superseded T3 (crewed-amenity flags), T6 (a dedicated marina line in the away modal — deferred). |
+| S10 Shipshape (QA/polish) | 1 / 7 / 2 | Formatting, upkeep-floor, crew-over-cap, unlock-order (sea gate), event-dedupe (first-boat/marina once), copy, regression ([91]) done-now. Present (`window.IV.state` snapshot). Superseded T6 (wake-ripple juice), T10 (manual playtest — deferred). |
+
+## Act II–VI — E17–E30
 
 _Pending — appended as each phase's build pass audits its 100 tasks. Each row will carry the
 same `present / done-now / superseded` disposition and a per-phase tally in the commit + report._
 
 | Epic | Status |
 |---|---|
-| E16 Sea Legs | pending |
 | E17 Wheels Up | pending |
 | E18 The Sail-Shaped Hotel | pending |
 | E19 At Your Service | pending |
@@ -468,8 +492,8 @@ same `present / done-now / superseded` disposition and a per-phase tally in the 
 ---
 
 ### Running total
-- **Audited:** 1,500 / 3,000 tasks (E01–E15) — present 522, done-now 698, superseded 280.
-- **Remaining:** 1,500 tasks (E16–E30).
+- **Audited:** 1,600 / 3,000 tasks (E01–E16) — present 539, done-now 768, superseded 293.
+- **Remaining:** 1,400 tasks (E17–E30).
 
 ### Deferred balance-tuner backlog (for a consolidated retune, latest at E30)
 - **`savvyPassive()` not ×`L_comfort`** (E06-S7-T4) — a flat sqrt-scaled additive term outside
