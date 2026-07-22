@@ -1340,9 +1340,12 @@ function handle(action, arg, btnEl) {
     case 'dbg-taste': S.skills.taste.xp += 5000; break;
     case 'dbg-gift-asset': {
       const c = S.collections['actual_bordeaux'];
-      if (c.count === 0) c.age = 0;
+      const gift = E.assetData('actual_bordeaux');
+      // same value-preserving age blend as engine.buyAsset/checkProvenance (anti-pump):
+      // even the QA gift enters at ×1 rather than inheriting an aged stack's appreciation.
+      c.age = M.appreciationBlendAge(c.boughtValue, c.age, gift.costBase, gift.appreciationRate);
       c.count++;
-      c.boughtValue += E.assetData('actual_bordeaux').costBase;
+      c.boughtValue += gift.costBase;
       break;
     }
     case 'export': hooks.exportSave(); break;

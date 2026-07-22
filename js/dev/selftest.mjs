@@ -3284,6 +3284,34 @@ console.log('\n[89] E14 connoisseur: exclusivity ×, luxury discount, appreciati
   ok(rc.age === 0, 'a fresh stack starts aging from purchase time (age 0), not epoch');
   ok(rt.skills.taste.xp >= E.assetData('grand_cru').tasteXp, 'buying grants the asset’s Taste XP');
   ok(rt.paths.connoisseur.points > 5, 'buying nudges the committed connoisseur path (one-off, like buyCoin)');
+  // ---- anti-pump (verifier fix): buying INTO an aged stack is exactly value-neutral.
+  // Without the age blend, a new copy inherited the stack's full age and its instant
+  // appreciation (up to valueCap·sellFrac ≈ ×7.6) was harvestable by an immediate sell —
+  // a measured zero-time buy/sell money pump (+1.3e10 cash / +1.55e10 lifetimeCash over
+  // 50 cycles on one aged lot), i.e. free cash and unbounded Legacy inflation by clicking.
+  {
+    const vn = ST.newGame();
+    vn.story.branch = 'connoisseur'; vn.paths.connoisseur.points = 5;
+    vn.bank.tier = C.BANK.tiers - 1; vn.resources.cash = 1e10;
+    ok(E.buyAsset(vn, 'grand_cru'), 'anti-pump probe: initial buy succeeds');
+    vn.collections.grand_cru.age = 15 * 3600;                    // an aged, appreciated stack
+    const nwHeld = M.collectionNetWorth(vn, DATA);
+    const nextCost = E.assetCost(vn, 'grand_cru');
+    ok(E.buyAsset(vn, 'grand_cru'), 'anti-pump probe: buy INTO the aged stack succeeds');
+    ok(approx(M.collectionNetWorth(vn, DATA), nwHeld + nextCost, 1e-9),
+      'buying into an aged stack raises the stack value by EXACTLY the cash paid — new money enters at ×1 (math.appreciationBlendAge), never at the stack’s accrued multiplier');
+    ok(vn.collections.grand_cru.age < 15 * 3600 && vn.collections.grand_cru.age > 0,
+      'the blended age lands strictly between fresh (0) and the old age — held copies keep their exact value, monotone (age can never be forged UP)');
+    const pump = ST.newGame();
+    pump.story.branch = 'connoisseur'; pump.paths.connoisseur.points = 5;
+    pump.bank.tier = C.BANK.tiers - 1; pump.resources.cash = 1e10;
+    E.buyAsset(pump, 'judgment_of_paris_lot');
+    pump.collections.judgment_of_paris_lot.age = 200 * 3600;     // deep-held: mult at the valueCap
+    const pumpCash0 = pump.resources.cash;
+    for (let i = 0; i < 50; i++) { E.buyAsset(pump, 'judgment_of_paris_lot'); E.sellAsset(pump, 'judgment_of_paris_lot', 1); }
+    ok(pump.resources.cash < pumpCash0,
+      'zero-time buy/sell cycling on a deeply-aged stack always LOSES cash (the sellFrac haircut) — no money pump, lifetimeCash/Legacy cannot be click-inflated');
+  }
   rc.age = 10 * 3600; // 10 game-hours held
   const a = E.assetData('grand_cru');
   const sellFrac = Math.min(C.TASTE.sellCap, C.TASTE.sellFrac + C.TASTE.sellTastePerLevel * rt.skills.taste.level);

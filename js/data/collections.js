@@ -31,7 +31,10 @@
 //     value = cost · (1 + appreciationRate)^ageYears
 //   where `cost` is the price actually paid for that copy, `ageYears` is GAME-TIME held
 //   (playtime, not wall-clock — fair under GAME_SPEED and offline replay), and the result is
-//   softcapped by config.APPRECIATION.valueCap so no single piece can run away. The engine
+//   softcapped by config.APPRECIATION.valueCap so no single piece can run away. A stack
+//   stores ONE (boughtValue, age) pair, so adding money to an aged stack blends the age
+//   value-preservingly (math.appreciationBlendAge): new money enters at ×1 — never at the
+//   stack's accrued multiplier, which an instant sell could otherwise harvest (anti-pump). The engine
 //   reads these arrays via DATA.collections.art / DATA.collections.wine (see data/index.js);
 //   this file never imports config or engine — data stays leaf-level, same as every other
 //   data file (see data/bank.js's validateBank comment for the same convention).

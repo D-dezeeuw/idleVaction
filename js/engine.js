@@ -1021,8 +1021,11 @@ export function assetCost(state, id) {
 // buy one copy: afford-gate, spend cash, count++, accumulate boughtValue, grant Taste XP, a
 // one-off connoisseur path nudge (mirrors buyCoin — credits ONLY a committed connoisseur
 // life), and recompute the exclusivity/comfort caches (holding raises both). A freshly
-// (re)started stack ages from NOW (age reset when count was 0), so appreciation starts from
-// purchase time (E14-S9-T10), never epoch.
+// (re)started stack ages from NOW (blend returns 0 when boughtValue is 0), so appreciation
+// starts from purchase time (E14-S9-T10), never epoch. Buying INTO an aged stack blends the
+// age so the stack value grows by EXACTLY the cash paid (math.appreciationBlendAge) — new
+// money enters at ×1, so an instant re-sell can never harvest the stack's appreciation (the
+// zero-time buy/sell money pump the verifier measured; see the blend's comment).
 export function buyAsset(state, id) {
   const a = assetData(id);
   if (!a) return false;
@@ -1030,7 +1033,7 @@ export function buyAsset(state, id) {
   if (state.resources.cash < cost) return false;
   state.resources.cash -= cost;
   const c = state.collections[id];
-  if (c.count === 0) c.age = 0;
+  c.age = M.appreciationBlendAge(c.boughtValue, c.age, cost, a.appreciationRate);
   c.count += 1;
   c.boughtValue += cost;
   state.skills.taste.xp += a.tasteXp;
@@ -1081,7 +1084,10 @@ export function checkProvenance(state) {
   const gift = assetData(PROVENANCE_GIFT_ID);
   const c = state.collections[PROVENANCE_GIFT_ID];
   if (gift && c) {
-    if (c.count === 0) c.age = 0;
+    // same value-preserving age blend as buyAsset: the gifted bottle enters at ×1 even if
+    // the player already holds aged Bordeaux (no instant-appreciation freebie on top of
+    // the grant itself); a fresh stack ages from now (blend returns 0).
+    c.age = M.appreciationBlendAge(c.boughtValue, c.age, gift.costBase, gift.appreciationRate);
     c.count += 1;
     c.boughtValue += gift.costBase;
   }

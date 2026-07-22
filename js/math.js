@@ -520,6 +520,31 @@ export function appreciationValue(boughtValue, ageSec, appreciationRate) {
   const grown = boughtValue * Math.pow(1 + appreciationRate * C.APPRECIATION.globalRate, years);
   return Math.min(grown, boughtValue * C.APPRECIATION.valueCap);
 }
+// Value-preserving age blend for adding money INTO an already-aged stack (anti-pump —
+// verifier fix). A stack stores ONE (boughtValue, age) pair, so a newly-bought copy would
+// otherwise inherit the stack's full age — and its instant appreciation (up to
+// valueCap·sellFrac ≈ ×7.6) was harvestable by an immediate sellAsset: a measured ZERO-TIME
+// buy/sell money pump paying ~cost·(valueCap·sellFrac − 1) per cycle, forever (the cycle
+// price is constant because count returns to 1, and age never reset because count never hit
+// 0) — free cash AND unbounded lifetimeCash/Legacy inflation from clicking. The fix picks
+// the new stack age so the stack's appreciated value is EXACTLY oldValue + addedValue (new
+// money enters at ×1; held copies keep their exact current, capped value):
+//   (B+P)·m(age') = B·min(m(age), cap) + P,   m(x) = (1 + rate·globalRate)^(x/yearSec)
+// ⇒ age' = yearSec · ln(target)/ln(1+rate·globalRate), target = (B·mEff + P)/(B+P) ∈ [1,cap].
+// EXACT value-neutrality (not a linear age dilution, which stays pump-able while the diluted
+// age remains above the cap knee): buys can never mint value, sells extract at most the
+// sellFrac haircut of value already earned by holding, so no buy/sell sequence profits.
+// Pure (same inputs ⇒ same age'), age' ∈ [0, age] (monotone — age can never be forged UP),
+// and the hard invariant value ≤ totalPaid·valueCap is untouched. Fresh stacks (B=0) and
+// rate-0 assets (age is value-irrelevant, and ln(1)=0 would 0/0) return 0 = "ages from now".
+export function appreciationBlendAge(boughtValue, ageSec, addedValue, appreciationRate) {
+  if (!(boughtValue > 0)) return 0;
+  const r = 1 + appreciationRate * C.APPRECIATION.globalRate;
+  if (!(r > 1)) return 0;
+  const mEff = appreciationValue(boughtValue, ageSec, appreciationRate) / boughtValue;
+  const target = (boughtValue * mEff + addedValue) / (boughtValue + addedValue);
+  return Math.log(target) / Math.log(r) * C.APPRECIATION.yearSec;
+}
 // display-only net worth of the whole collection (appreciated). Deliberately NOT fed into
 // stats.lifetimeCash/lifetimeCashThisTree (the wallet-cap §11 / Legacy §12 invariants depend
 // on those being banked-cash-only) — the mandated conservative choice, superseding S2-T7.
