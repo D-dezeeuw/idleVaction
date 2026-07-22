@@ -38,6 +38,7 @@ export function render(state) {
   renderCrypto(state);
   renderCollection(state);
   renderGarage(state);
+  renderMarina(state);
   renderSkills(state);
   renderPaths(state);
   renderAscension(state);
@@ -967,6 +968,54 @@ function renderGarage(s) {
   el('garage').innerHTML = html;
 }
 
+// ---------- The Marina (E16 "Sea Legs" — boats + a pre-staff crew) ----------
+// Reveals via engine.marinaUnlocked (beat 16, tier 11, or owning a boat). Boats are OWNED (not
+// equipped): owning grants the logistics × / slot bonus / upkeep. Crew is capped by the fleet's crewCap.
+function marinaRevealed(s) { return E.marinaUnlocked(s); }
+
+function boatRowHtml(s, b) {
+  const owned = s.vehicles.boats[b.id].count;
+  const cost = E.boatCost(s, b.id);
+  const boatX = (1 + C.LOGISTICS.boatRate * b.mult).toFixed(2);
+  return `<div class="iv-btn iv-content-item" title="${b.flavor}">
+    <b>${b.name}</b> <small>owned ${owned}</small>
+    <div class="iv-sub">×${boatX} logistics · +${b.slotBonus} slot${b.slotBonus > 1 ? 's' : ''} · crew cap ${b.crewCap} · upkeep <span class="iv-upkeep">${fmt(b.upkeep * C.LOGISTICS.upkeepScale)}/s</span></div>
+    <div class="iv-row-buy">${btn('buy-boat', b.id, `Buy<br><small>${fmt(cost)}</small>`, afford(cost))}</div>
+  </div>`;
+}
+function crewRowHtml(s, c) {
+  const owned = s.vehicles.crew[c.id].count;
+  const cost = E.crewCost(s, c.id);
+  const full = M.crewCount(s, DATA) >= M.crewCapTotal(s, DATA);
+  return `<div class="iv-btn iv-content-item" title="${c.flavor}">
+    <b>${c.name}</b> <small>${owned}</small>
+    <div class="iv-sub">×${(1 + C.LOGISTICS.crewRate * c.mult).toFixed(2)} · upkeep <span class="iv-upkeep">${fmt(c.upkeep * C.LOGISTICS.upkeepScale)}/s</span></div>
+    <div class="iv-row-buy">${btn('buy-crew', c.id, `Hire<br><small>${fmt(cost)}</small>`, !full && afford(cost))}</div>
+  </div>`;
+}
+
+function renderMarina(s) {
+  const card = el('marinaCard');
+  const reveal = marinaRevealed(s);
+  if (card) card.hidden = !reveal;
+  if (!reveal) { if (el('marina')) el('marina').innerHTML = ''; return; }
+
+  const tier = M.boatTier(s, DATA);
+  const crewN = M.crewCount(s, DATA), crewCap = M.crewCapTotal(s, DATA);
+  let html = `<div class="iv-sub">⛵ Boat tier <b>${tier}</b> · logistics bonus <b>×${M.logisticsMult(s, DATA).toFixed(2)}</b> · fleet upkeep <span class="iv-upkeep">${fmt(M.fleetUpkeep(s, DATA))}/s</span></div>`;
+  html += `<div class="iv-sub">🧭 A hull unlocks sea destinations you couldn't reach — check the map for coves gated on a bigger boat.</div>`;
+
+  html += '<div class="iv-tag">the fleet</div><div class="iv-amenities">';
+  for (const b of DATA.boats) html += boatRowHtml(s, b);
+  html += '</div>';
+
+  html += `<div class="iv-tag">crew <small>(${crewN}/${crewCap})</small></div><div class="iv-amenities">`;
+  for (const c of DATA.crew) html += crewRowHtml(s, c);
+  html += '</div>';
+
+  el('marina').innerHTML = html;
+}
+
 // live footer energy readout, "near the tap button" (E10-S4-T8): #energyMini is a
 // persistent node created once by renderControls's template (like the aria-live
 // regions above) and refreshed here on every render() cycle, since renderControls
@@ -1331,6 +1380,9 @@ function handle(action, arg, btnEl) {
     case 'buy-car': E.buyCar(S, arg); break;
     case 'equip-car': E.equipCar(S, arg); break;
     case 'unequip-car': E.unequipCar(S, arg); break;
+    // Marina (E16 "Sea Legs"): buy a boat / hire crew — generic afford/cap-gated flow.
+    case 'buy-boat': E.buyBoat(S, arg); break;
+    case 'buy-crew': E.buyCrew(S, arg); break;
     case 'buy-content': E.buyContent(S, arg); break;
     case 'buy-content-boost': E.buyContentBoost(S, arg); break;
     case 'accept-sponsor': {
@@ -1410,6 +1462,9 @@ function handle(action, arg, btnEl) {
     case 'dbg-car': S.vehicles.owned['german_sedan'].count++; break;
     case 'dbg-slots': S.vehicles.garageSlots = (S.vehicles.garageSlots || 0) + 1; break;
     case 'dbg-repossess': S.resources.cash = 0; S.vehicles.upkeepAccrued = C.LOGISTICS.repossessGraceSec; break;
+    // marina debug hooks (E16): grant a boat, hire crew.
+    case 'dbg-boat': S.vehicles.boats['dinghy'].count++; S.vehicles.boatSlots += E.boatData('dinghy').slotBonus; break;
+    case 'dbg-crew': if (M.crewCount(S, DATA) < M.crewCapTotal(S, DATA)) S.vehicles.crew['deckhand'].count++; break;
     case 'export': hooks.exportSave(); break;
     case 'import': hooks.importSave(); break;
     case 'reset': if (confirm('Hard reset? This wipes everything.')) hooks.hardReset(); break;
@@ -1505,5 +1560,7 @@ function renderDebug() {
     ${btn('dbg-gift-asset', '', 'gift Bordeaux')}
     ${btn('dbg-car', '', 'grant car')}
     ${btn('dbg-slots', '', '+1 garage slot')}
-    ${btn('dbg-repossess', '', 'force repossess')}`;
+    ${btn('dbg-repossess', '', 'force repossess')}
+    ${btn('dbg-boat', '', 'grant boat')}
+    ${btn('dbg-crew', '', 'hire crew')}`;
 }
