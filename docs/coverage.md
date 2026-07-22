@@ -379,14 +379,46 @@ What shipped:
   span all three tree branches (~20 Legacy minimum ⇒ ~ascension 3+); hybrids become
   its cosmetic payoff; harness pins unmoved (bots never buy tree nodes). Tests **[88]**.
 
-## Act II–VI — E14–E30
+## Act II
+
+### E14 — Acquired Taste (Connoisseur path) · **100/100** (present 15, done-now 72, superseded 13)
+Real new system — the Old-Money Aesthete lane: a bounded exclusivity `×`, appreciating art/wine
+collections, a Taste luxury-discount, and a +25% luxury-Comfort branch perk. OPT-IN and gated
+off exactly like crypto (`engine.connoisseurActive`: committed connoisseur points OR an owned
+collection asset), so the greedy-vlogger harness never engages it and the fitted island time is
+**unchanged at 29705s** (peak log10 11.3, 26 beats monotone). `L_exclusivity = 1 + 0.8·log10(1 +
+score/7)` folds into `tierMultiplier` as a new global layer — a bounded log (same safe family as
+`L_comfort`, never a power of cash, `docs/math-proof.md` §3/§4); the score is a softcapped sum
+`raw^0.7` × set/branch/Golden-Ratio factors. Appreciation is game-time, pure, and hard-capped at
+`boughtValue·valueCap` (offline replay identical, exactly like the crypto scheduler); its value
+is display-only (`collectionNetWorth`) and never feeds `lifetimeCash`/Legacy — the wallet-cap §11
+/ Legacy §12 invariants stay banked-cash-only. Adversarial verification (Fable 5) found and fixed
+a real **buy-into-aged-stack money pump** (`math.appreciationBlendAge` — new money always enters
+at ×1, so an instant re-sell can never harvest a held stack's appreciation) with 5 anti-pump
+regressions. selftest **[89]** (~55 assertions: harness invariance, exclusivity monotone+softcap,
+discount clamp, appreciation purity+cap, sell round-trip, set-bonus once, branch perk, migration,
+offline determinism, lifetimeCash isolation, anti-pump).
+
+| Story | present/done/superseded | Notes |
+|---|---|---|
+| S1 The Collector's Catalogue (data) | 0 / 9 / 1 | `data/collections.js` (ART[6]+WINE[6]+`validateCollections`), config TASTE/EXCLUSIVITY/APPRECIATION, provenance/flavor, schema doc. Superseded T7: retroactively tagging existing generators/amenities `luxury` — only NEW content is tagged, so the discount/perk can't touch what the harness buys (island-invariance). |
+| S2 Taste, Time & Appreciation (core) | 1 / 6 / 3 | Luxury discount, exclusivity accumulator+`×`, appreciation tick, game-time age, connoisseur Comfort perk done-now. Present T10: `L_path(connoisseur)` already feeds via the committed-path stage bonuses. Superseded T1 (separate Taste XP curve — kept the shared SKILL curve so the beat-25 `taste:25` gate/harness don't drift), T7 (net-worth→`lifetimeCash` — display-only instead, §11/§12), T9 (per-tier Taste unlock-gates — tiers stay Comfort-gated). |
+| S3 The Gallery & the Cellar (UI) | 0 / 10 / 0 | Gallery+cellar cards, exclusivity meter, appraisal display, buy/sell flow, Taste readout+XP bar, discount strike-through, reveal gate, provenance tooltips, `fmt` formatting — all done-now (mirrors the crypto card). |
+| S4 Provenance (appreciating collections) | 0 / 8 / 2 | Appreciation formula, per-asset rates, sell/liquidate, hold-vs-sell tradeoff, set bonus, Provenance beat tie-in, `valueCap` anti-runaway, balance note done-now. Superseded T6 (seeded appraisal event — skipped to keep the lane RNG-free ⇒ trivially offline-deterministic), T9 (value sparkline — the +Z% appraisal line ships; sparkline deferred to polish). |
+| S5 Quiet Luxury (amenity cluster) | 2 / 7 / 1 | 6 `tag:'luxury'` amenities + exclusivity weight, Comfort, flavor, cadence, save/migration, QA done-now. Present T2/T7 (reuse `buyAmenity` + the standard amenity buttons). Superseded T4 (targeted `xMult` — dormant schema-only across E02–E07, deferred to the consolidated `xMult` pass). |
+| S6 The Grand Luxury Wing (tier 11) | 7 / 1 / 2 | Tier-11 entry/accScore/`L_comfort`/cross-lane-reach/unlock/persistence/QA already present (the ladder shipped whole early). Done-now T5: the Gallery reveal at the wing. Superseded T2 (blocking Taste/exclusivity gate — kept the neutral Comfort gate so all branches reach the island; island-invariant), T3 (luxury discount on the wing's cash cost — accommodation isn't `luxury`-tagged). |
+| S7 Provenance (branch flavor) | 1 / 7 / 2 | +25% luxury Comfort perk, exclusivity `×` branch perk, beat-14 Provenance variant, choice→flag+gift, beat-25 setup, Golden Ratio node+synergy, neutral-fallback QA done-now. Present T4 (beat gate — fires on the shared beat-14 gate, Whale-Watching-style). Superseded T7 (connoisseur×traveler hybrid line — near-unreachable under committed paths), T9 (monocle badge — cosmetic, deferred). |
+| S8 The Price of Taste (balance) | 1 / 9 / 0 | Fitted EXCL_RATE/E0 (×1.89 mid-Act-II, ×2.31 maxed — in the 1.5–3× band, non-dominant), discount clamp 0.4 floor, appreciation rate, Comfort-perk cap check, set-bonus value, harness beat time, slowness feel, golden regression ([89]), cross-lane parity done-now. Present T6 (`PATH.softcapExp` 0.85 already tames connoisseur points). |
+| S9 Aging in the Cellar (save/offline) | 2 / 7 / 1 | Schema (`collections` flat-by-id + `_exclCache`), offline appreciation/exclusivity, cap fairness, away summary, export/import, migration test done-now. Present T2/T9 (generic `backfill()` migrates the new keys; the rotating backup carries them). Superseded T6 (appraisal-event determinism — no appraisal event exists). |
+| S10 White Gloves (QA/polish) | 1 / 8 / 1 | Taste clamp, exclusivity monotonic, appreciation purity, sell round-trip, set-bonus, cap-edge tests + debug hooks (grant Taste, gift asset) + formatting done-now. Present T9 (`window.IV.state` exposes collections). Superseded T7 (gallery shimmer/count-up juice — deferred to polish). |
+
+## Act II–VI — E15–E30
 
 _Pending — appended as each phase's build pass audits its 100 tasks. Each row will carry the
 same `present / done-now / superseded` disposition and a per-phase tally in the commit + report._
 
 | Epic | Status |
 |---|---|
-| E14 Acquired Taste | pending — the connoisseur's staged track (Comfort scalars, amenity discount) shipped early with the committed-path pass; the epic's Taste/exclusivity systems remain |
 | E15 Keys to the Coupe | pending |
 | E16 Sea Legs | pending |
 | E17 Wheels Up | pending |
@@ -407,8 +439,8 @@ same `present / done-now / superseded` disposition and a per-phase tally in the 
 ---
 
 ### Running total
-- **Audited:** 1,300 / 3,000 tasks (E01–E13) — present 493, done-now 551, superseded 256.
-- **Remaining:** 1,700 tasks (E14–E30).
+- **Audited:** 1,400 / 3,000 tasks (E01–E14) — present 508, done-now 623, superseded 269.
+- **Remaining:** 1,600 tasks (E15–E30).
 
 ### Deferred balance-tuner backlog (for a consolidated retune, latest at E30)
 - **`savvyPassive()` not ×`L_comfort`** (E06-S7-T4) — a flat sqrt-scaled additive term outside

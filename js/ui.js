@@ -36,6 +36,7 @@ export function render(state) {
   renderConcierge(state);
   renderCreator(state);
   renderCrypto(state);
+  renderCollection(state);
   renderSkills(state);
   renderPaths(state);
   renderAscension(state);
@@ -830,6 +831,89 @@ function renderCrypto(s) {
   el('crypto').innerHTML = html;
 }
 
+// ---------- The Gallery & Cellar (E14 "Acquired Taste" — the Connoisseur path) ----------
+// Reveals once the connoisseur economy is genuinely in play — mirrors engine.cryptoDeskUnlocked's
+// exact OR contract (see engine.collectionUnlocked): committed connoisseur path points, Beat 14
+// (Provenance), or the tier-11 band, whichever comes first — the SAME OR contract as
+// creatorRevealed/cryptoRevealed one section above.
+function collectionRevealed(s) { return E.collectionUnlocked(s); }
+
+// per-asset row: name, owned count, the "bought for X → now Y (+Z%)" appraisal (S3-T4),
+// and buy/sell buttons. Provenance lives ONLY in the row's title= tooltip (S3-T9) — never
+// inline — so a long fake-auction-house string can never widen or break the row (S3-T10).
+// Reuses the SAME .iv-btn/.iv-content-item block shape + buyAmenity-style buy/sell flow every
+// other card in this file already uses; no bespoke per-asset layout.
+function collectionRowHtml(s, a) {
+  const c = s.collections[a.id];
+  const owned = c.count > 0 && c.boughtValue > 0;
+  const appraisalLine = owned
+    ? (() => {
+        const appraised = M.appreciationValue(c.boughtValue, c.age, a.appreciationRate);
+        const pct = (appraised / c.boughtValue - 1) * 100;
+        return `<div class="iv-sub">bought for ${fmt(c.boughtValue)} → now ${fmt(appraised)} (${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%)</div>`;
+      })()
+    : '<div class="iv-sub">not yet acquired</div>';
+  const cost = E.assetCost(s, a.id);
+  const lux = M.luxuryCostMult(s);
+  // discount tag (S3-T7): the struck-through undiscounted price next to the discounted
+  // one, "old-money haggle" — undiscounted = the same cost with the luxury mult divided
+  // back out (lux never reaches 0, floor 0.4 — see math.luxuryCostMult — but guard anyway).
+  const undiscounted = lux > 0 ? cost / lux : cost;
+  const priceHtml = lux < 1 - 1e-9
+    ? `<span class="iv-strike">${fmt(undiscounted)}</span> ${fmt(cost)}`
+    : fmt(cost);
+  return `<div class="iv-btn iv-content-item" title="${a.provenance}">
+    <b>${a.name}</b> <small>owned ${c.count}</small>
+    ${appraisalLine}
+    <div class="iv-row-buy">
+      ${btn('buy-asset', a.id, `Buy<br><small>${priceHtml}</small>`, afford(cost))}
+      ${btn('sell-asset', a.id, 'Sell 1', c.count > 0)}
+    </div>
+  </div>`;
+}
+
+function renderCollection(s) {
+  const card = el('collectionCard');
+  const reveal = collectionRevealed(s);
+  if (card) card.hidden = !reveal;
+  if (!reveal) { if (el('collection')) el('collection').innerHTML = ''; return; }
+
+  // exclusivity meter (S3-T3): the raw score (cached per-tick, see engine.tick) and the
+  // resulting global × (math.exclusivityMult — exactly 1 when inactive/unowned).
+  const exclScore = s._exclCache ?? M.computeExclusivity(s, DATA);
+  const exclMult = M.exclusivityMult(s);
+  let html = `<div class="iv-sub">💎 Exclusivity score <b>${fmt(exclScore)}</b> — global bonus <b>×${exclMult.toFixed(2)}</b></div>`;
+
+  // Taste readout (S3-T6): level + XP bar, the SAME bar construction renderSkills uses,
+  // plus the current luxury discount % (math.luxuryCostMult, floored at −60%).
+  const taste = s.skills.taste;
+  const need = M.xpToNext(taste.level);
+  const intoLevel = Math.max(0, taste.xp - M.cumXpForLevel(taste.level));
+  const pct = clamp(100 * intoLevel / need, 0, 100);
+  const discountPct = (1 - M.luxuryCostMult(s)) * 100;
+  html += `<div class="iv-skill">
+    <b>Taste</b> <span class="label">Lv ${taste.level}</span>
+    <div class="iv-sub">Luxury discount on tag:luxury purchases: <b>−${discountPct.toFixed(0)}%</b></div>
+    <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct.toFixed(0)}"
+      aria-label="Taste progress: ${fmt(intoLevel)} of ${fmt(need)} XP to level ${taste.level + 1}">
+      <i style="width:${pct.toFixed(1)}%"></i>
+    </div>
+  </div>`;
+
+  // net worth (S2-T7 display, display-only — never fed into lifetimeCash, see math.js).
+  html += `<div class="iv-sub">🏛️ Collection net worth: <b>${fmt(M.collectionNetWorth(s, DATA))}</b></div>`;
+
+  html += '<div class="iv-tag">gallery</div><div class="iv-amenities">';
+  for (const a of DATA.collections.art) html += collectionRowHtml(s, a);
+  html += '</div>';
+
+  html += '<div class="iv-tag">cellar</div><div class="iv-amenities">';
+  for (const a of DATA.collections.wine) html += collectionRowHtml(s, a);
+  html += '</div>';
+
+  el('collection').innerHTML = html;
+}
+
 // live footer energy readout, "near the tap button" (E10-S4-T8): #energyMini is a
 // persistent node created once by renderControls's template (like the aria-live
 // regions above) and refreshed here on every render() cycle, since renderControls
@@ -1185,6 +1269,10 @@ function handle(action, arg, btnEl) {
     case 'buy-coin': E.buyCoin(S, arg, 1); break;
     case 'sell-coin': E.sellCoin(S, arg, 1); break;
     case 'buy-hedge': E.buyHedge(S, arg); break;
+    // Gallery & Cellar (E14 "Acquired Taste", S3-T5): the generic buy/sell flow, same
+    // afford-gate + cash-spend/gain shape as every other buy button — no bespoke per-asset code.
+    case 'buy-asset': E.buyAsset(S, arg); break;
+    case 'sell-asset': E.sellAsset(S, arg, 1); break;
     case 'buy-content': E.buyContent(S, arg); break;
     case 'buy-content-boost': E.buyContentBoost(S, arg); break;
     case 'accept-sponsor': {
@@ -1246,12 +1334,35 @@ function handle(action, arg, btnEl) {
       S.market.seed = Date.now() >>> 0; S.market.cursor = 0;
       S.market.phase = 'calm'; S.market.mult = 1; S.market.nextEventT = S.stats.runSec; break;
     case 'dbg-savvy': S.skills.savvy.xp += 5000; break;
+    // connoisseur debug hooks (E14-S10-T8): grant Taste XP + gift a signature asset —
+    // QA-only, bypassing the real buy/appraisal cadence, mirrors dbg-savvy/dbg-dest's
+    // convention exactly. Gifting also demonstrates the exclusivity meter moving.
+    case 'dbg-taste': S.skills.taste.xp += 5000; break;
+    case 'dbg-gift-asset': {
+      const c = S.collections['actual_bordeaux'];
+      const gift = E.assetData('actual_bordeaux');
+      // same value-preserving age blend as engine.buyAsset/checkProvenance (anti-pump):
+      // even the QA gift enters at ×1 rather than inheriting an aged stack's appreciation.
+      c.age = M.appreciationBlendAge(c.boughtValue, c.age, gift.costBase, gift.appreciationRate);
+      c.count++;
+      c.boughtValue += gift.costBase;
+      break;
+    }
     case 'export': hooks.exportSave(); break;
     case 'import': hooks.importSave(); break;
     case 'reset': if (confirm('Hard reset? This wipes everything.')) hooks.hardReset(); break;
     case 'save': hooks.save(); break;
     case 'dismiss-offline': hideOfflineSummary(); break;
   }
+}
+
+// connoisseur away-line (E14-S9-T7, display-only): "your cellar quietly appreciated to €X
+// while you were away" — reads M.collectionNetWorth directly (display-only, see math.js);
+// never touches engine.applyOffline's own math. Empty string when nothing is owned.
+function collectionNetWorthLine(state) {
+  const netWorth = M.collectionNetWorth(state, DATA);
+  if (netWorth <= 0) return '';
+  return `<div class="iv-offline-row">🖼️ Your collection quietly appreciated to <b>${fmt(netWorth)}</b> while you were away.</div>`;
 }
 
 // ---------- "While you were away" summary (E02-S9-T5) ----------
@@ -1270,6 +1381,7 @@ export function showOfflineSummary(state, rep) {
     ${rep.conciergeBought ? `<div class="iv-offline-row">🛎️ The concierge bought <b>${rep.conciergeBought}</b> item${rep.conciergeBought > 1 ? 's' : ''} for <b>${fmt(rep.conciergeSpent)}</b></div>` : ''}
     ${rep.sponsorsExpired ? `<div class="iv-offline-row">📴 <b>${rep.sponsorsExpired}</b> sponsor deal${rep.sponsorsExpired > 1 ? 's' : ''} wrapped up while you were away</div>` : ''}
     ${rep.cryptoYield ? `<div class="iv-offline-row">📈 <b>+${fmt(rep.cryptoYield)}</b> from your portfolio tanning without you${rep.marketEvents ? ` — ${rep.marketEvents} market event${rep.marketEvents > 1 ? 's' : ''} survived` : ''}</div>` : ''}
+    ${collectionNetWorthLine(state)}
     ${rep.overflowLost > 0 ? `<div class="iv-offline-row">💼 Your <b>${DATA.bank[state.bank.tier].name}</b> filled up — <b>${fmt(rep.overflowLost)}</b> overflowed. A bigger account would have caught it.</div>` : ''}
     <div class="iv-sub">😌 Comfort is now ${fmt(state.resources.comfort)} — a bonus of ×${fmt(lComfort)} on income while you were gone.</div>`;
   overlay.hidden = false;
@@ -1326,5 +1438,7 @@ function renderDebug() {
     ${btn('dbg-crypto-boom', '', 'force boom')}
     ${btn('dbg-crypto-crash', '', 'force crash')}
     ${btn('dbg-crypto-reseed', '', 'reseed market')}
-    ${btn('dbg-savvy', '', '+5000 savvy xp')}`;
+    ${btn('dbg-savvy', '', '+5000 savvy xp')}
+    ${btn('dbg-taste', '', '+5000 taste xp')}
+    ${btn('dbg-gift-asset', '', 'gift Bordeaux')}`;
 }

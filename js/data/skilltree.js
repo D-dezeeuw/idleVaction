@@ -54,4 +54,13 @@ export const TREE = [
   // computeComfort, so it cannot move the harness's max-speed island time.
   { id: 'unshakeable',   branch: 'meta', name: 'Unshakeable', maxRank: 3,
     effect: 'Crypto crash depth −50% per rank (stacks toward, never past, full immunity).', requires: [] },
+  // Golden Ratio (E14 "Acquired Taste" — Task S7-T8, the connoisseur-lane synergy node):
+  // math.computeExclusivity already reads state.ascension.tree.golden_ratio as a
+  // ×(1 + 0.1·rank) factor folded into the exclusivity SCORE (never the multiplier
+  // directly) — this just adds the buyable node math.js was already reading (it reads 0,
+  // a no-op ×1, until this node exists and is ranked). Purely a connoisseur-lane exclusivity
+  // effect — never read by tierProd/tierMultiplier/computeComfort, so an UNRANKED node (the
+  // harness never buys it) cannot move the harness's fitted island time.
+  { id: 'golden_ratio',  branch: 'character', name: 'Golden Ratio', maxRank: 5,
+    effect: 'Exclusivity score +10% per rank (connoisseur refinement compounds).', requires: [] },
 ];

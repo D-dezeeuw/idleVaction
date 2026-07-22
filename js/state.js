@@ -33,6 +33,18 @@ export function newGame() {
   DATA.crypto.coins.forEach(c => { cryptoHoldings[c.id] = 0; });
   const cryptoHedges = {};
   DATA.crypto.hedges.forEach(h => { cryptoHedges[h.id] = false; });
+  // collections (E14 "Acquired Taste"): flat-by-id (the doc-comment in data/collections.js
+  // mandates flat indexing — the epic's nested art/wine shape is SUPERSEDED by flat-by-id).
+  // Every art+wine asset starts unowned: count 0, boughtValue 0 (total cash paid, accumulated),
+  // age 0 (game-seconds held, advanced in engine.tick). buyAsset/sellAsset (engine.js) are the
+  // ONLY way in — a fresh game and the committed-vlogger harness never touch them, so
+  // connoisseurActive stays false and the fitted island time cannot move. RUN-SCOPED: the
+  // ascension hard reset (prestige.ascend's Object.assign(state, newGame())) wipes them with
+  // the rest of the run — the keep-list needs no change (they are not in it).
+  const collections = {};
+  for (const arr of [DATA.collections.art, DATA.collections.wine]) {
+    for (const a of arr) collections[a.id] = { count: 0, boughtValue: 0, age: 0 };
+  }
 
   return {
     version: C.SAVE_VERSION,
@@ -40,7 +52,7 @@ export function newGame() {
     // energy (E10 "Body & Soul"): starts at a full tank (base energyMax at Body level 0)
     // — an optional clicker-fuel resource, see config.ENERGY / math.energyMax.
     resources: { cash: 15, comfort: 0, clout: 0, legacy: 0, energy: C.ENERGY.base },
-    generators, amenities, skills, training, paths, npcsMet, destinations, content,
+    generators, amenities, skills, training, paths, npcsMet, destinations, content, collections,
     // crypto portfolio (E13): holdings/hedges own state; market is the seeded scheduler's
     // own state — phase starts 'calm', mult 1, cursor 0. engine.marketTick is a no-op
     // until crypto path points are spent or a coin is held (see config.MARKET's comment
@@ -94,8 +106,11 @@ export function newGame() {
     settings: { gameSpeed: C.DEFAULT_GAME_SPEED, offlineEnabled: true, debug: false },
     stats: { lifetimeCash: 0, lifetimeCashThisTree: 0, bestComfort: 0, totalClicks: 0, runSec: 0,
       tapWindowSec: 0, tapWindowCount: 0, overflowLost: 0 },
-    // transient caches (not strictly needed in save, recomputed each tick)
-    _comfortCache: 0, _destCache: 1, _combo: 1, _comboTimer: 0, _pathBonus: {},
+    // transient caches (not strictly needed in save, recomputed each tick). _exclCache is
+    // the connoisseur exclusivity score (E14) — a derived cache like _comfortCache, so no
+    // persisted state.exclusivity is needed (S9-T1 satisfied by the cache); backfill adds it
+    // to old saves at 0, and engine.tick recomputes it every tick (0 while inactive).
+    _comfortCache: 0, _destCache: 1, _combo: 1, _comboTimer: 0, _pathBonus: {}, _exclCache: 0,
   };
 }
 
