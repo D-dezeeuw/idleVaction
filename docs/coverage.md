@@ -678,13 +678,37 @@ sanitization, migration). Harness untouched (it never ascends): island **29705s*
 - S9 Not Losing the Trip (6/4/0): present ascension persist + migration + offline + export/import + backup + keep-list; done-now the lineage persist + album serialize + migration backfill + cap-on-load.
 - S10 Shedding Gracefully (7/3/0): present formatting + gameSpeed + console + event correctness + regression + a11y + two-run flow; done-now name sanitization (XSS/length) + album a11y + save-size guard.
 
-## Act II–VI — E26–E30
+### E26 — Who You Become (permanent skill tree) · **100/100** (present 78, done-now 13, superseded 9)
+The three-branch skill tree (`data/skilltree.js`, physique / character / meta) **shipped in the
+foundational build** — ranked nodes bought with Legacy, `requires:['node:rank']` gates, `maxRank`
+caps, effects routed to `L_tree` (Sun-Kissed 1.15^rank), `L_ascension` (Compounding Interest),
+`MILESTONE_STEP` (Faster Metabolism), `treeCost = nodeBase·nodeGrowth^rank`, `buyNode`/`respec`, and
+the `renderTree` constellation UI. So E26 is present-heavy. This phase added the one epic-specified
+gap — **`TREE.respecFee`** (E26-S4/S8: "0 before the Legend layer") + a **fee-aware `respec()`**
+(refund = `legacySpent − fee`, floored; 0 now, so shipped behaviour is unchanged, a lever E30 can
+raise) — plus a thorough **audit** (selftest [101], 22 assertions: branch structure, requires-gate
+ordering, cost curve, `buyNode`/`respec` round-trip, `maxRank` cap, effect routing to the right stack
+layers, and run-1 invariance). Also **cleaned a latent defect**: `prestige.js` had shipped with two
+literal control bytes in `sanitizeName`'s regex (E25-A), making git/grep treat it as binary — rewrote
+to `[\x00-\x1f]` text. Island **29705s** (run 1 has no tree).
+
+- S1 Blueprint / data model (9/1/0): present the `TREE` nodes + branches + `requires` + `maxRank` + effects + `costLegacy`; done-now the `respecFee` config knob.
+- S2 Wiring Growth (8/2/0): present `buyNode` + `treeCost` + `treeRequiresMet` + `canBuyNode` + effect application; done-now fee-aware `respec()` + `respecFee()`.
+- S3 Constellation Screen (9/1/0): present `renderTree` + per-branch grouping + gate/cost/rank display + respec button; done-now the fee-aware refund path.
+- S4 Becoming Permanently (6/4/0): present the persistent respec-able tree; done-now the **respec fee** headline lever + its config + audit + forward-compat for the Legend layer.
+- S5 Physique branch (9/0/1): present Sun-Kissed / Iron Constitution / Athlete's Frame / Ageless. Superseded: a bespoke extra physique node.
+- S6 Character branch (9/0/1): present Silver Tongue / Magnetic / Compounding Interest / Wanderer / Golden Ratio. Superseded: a bespoke extra character node.
+- S7 Meta branch & synergies (8/0/2): present Faster Metabolism / Legacy Investor / Head Start / Second Wind / Jack of All Trades / Unshakeable. Superseded: 2 additional cross-branch synergy nodes.
+- S8 Balancing (6/2/2): present `nodeBase`/`nodeGrowth` tuned + √-telescoped meter + gate ordering + golden [86]; done-now the `respecFee` lever + [101] audit. Superseded: a respec-fee sweep + a per-node ROI metric.
+- S9 Save/migration (9/0/1): present the tree persists in `state.ascension.tree` across resets + migration + offline. Superseded: a dedicated tree-version migration.
+- S10 QA/juice (5/3/2): present formatting + a11y + event correctness + regression; done-now the [101] audit + requires-gate QA + binary-file cleanup. Superseded: node-unlock juice + a constellation animation.
+
+## Act II–VI — E27–E30
 
 _Pending — appended as each phase's build pass audits its 100 tasks._
 
 | Epic | Status |
 |---|---|
-| E26 Who You Become | pending |
 | E27 The Island Listing | pending |
 | E28 Building Paradise | pending |
 | E29 Empire of Leisure | pending |
@@ -693,8 +717,8 @@ _Pending — appended as each phase's build pass audits its 100 tasks._
 ---
 
 ### Running total
-- **Audited:** 2,500 / 3,000 tasks (E01–E25) — present 806, done-now 1,229, superseded 465.
-- **Remaining:** 500 tasks (E26–E30).
+- **Audited:** 2,600 / 3,000 tasks (E01–E26) — present 884, done-now 1,242, superseded 474.
+- **Remaining:** 400 tasks (E27–E30).
 
 ### Deferred balance-tuner backlog (for a consolidated retune, latest at E30)
 - **`savvyPassive()` not ×`L_comfort`** (E06-S7-T4) — a flat sqrt-scaled additive term outside

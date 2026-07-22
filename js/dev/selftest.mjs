@@ -4295,5 +4295,70 @@ console.log('\n[100] E25-A The Family Album: lineage retirement, album keep-list
   ok(mig.lineage && mig.lineage.generation === 1 && Array.isArray(mig.lineage.album), 'a pre-lineage save backfills state.lineage (generation 1, empty album)');
 }
 
+console.log('\n[101] E26 Who You Become: skill-tree audit — branches, requires-gates, respec fee, effect routing, invariance');
+{
+  // ---- data model: three branches, unique ids, valid requires refs
+  const ids = new Set(DATA.tree.map(n => n.id));
+  ok(DATA.tree.length === ids.size, 'every tree node id is unique');
+  ok(DATA.tree.every(n => ['physique', 'character', 'meta'].includes(n.branch)), 'every node belongs to physique/character/meta');
+  ok(['physique', 'character', 'meta'].every(br => DATA.tree.some(n => n.branch === br)), 'all three branches are populated');
+  ok(DATA.tree.every(n => (n.requires || []).every(r => ids.has(r.split(':')[0]))), 'every requires-gate references a real node id');
+  ok(DATA.tree.every(n => Number.isInteger(n.maxRank) && n.maxRank > 0), 'every node has a positive integer maxRank');
+
+  // ---- requires-gate ordering: a gated node is unbuyable until its prereq rank is met
+  const gated = DATA.tree.find(n => (n.requires || []).length > 0);
+  const [reqId, reqRank] = gated.requires[0].split(':');
+  const gs = ST.newGame(); gs.resources.legacy = 1e9;
+  ok(P.treeRequiresMet(gs, gated.id) === false, `a gated node (${gated.id}) is locked before its prereq`);
+  ok(P.canBuyNode(gs, gated.id) === false, 'canBuyNode is false while the requires-gate is unmet');
+  gs.ascension.tree[reqId] = Number(reqRank);
+  ok(P.treeRequiresMet(gs, gated.id) === true, 'the gate opens once the prereq rank is reached');
+
+  // ---- cost curve: treeCost = floor(nodeBase·nodeGrowth^rank)
+  const cs = ST.newGame();
+  ok(P.treeCost(cs, 'sun_kissed') === Math.floor(C.TREE.nodeBase), 'rank-0 cost = nodeBase');
+  cs.ascension.tree.sun_kissed = 3;
+  ok(P.treeCost(cs, 'sun_kissed') === Math.floor(C.TREE.nodeBase * Math.pow(C.TREE.nodeGrowth, 3)), 'cost = nodeBase·nodeGrowth^rank');
+
+  // ---- buyNode: increments rank, spends Legacy, tracks legacySpent
+  const bs = ST.newGame(); bs.resources.legacy = 1000;
+  const c0 = P.treeCost(bs, 'sun_kissed');
+  ok(P.buyNode(bs, 'sun_kissed') === true, 'buyNode succeeds with enough Legacy');
+  ok(bs.ascension.tree.sun_kissed === 1 && bs.resources.legacy === 1000 - c0 && bs.ascension.legacySpent === c0, 'buyNode increments rank, deducts Legacy, tracks legacySpent');
+
+  // ---- maxRank cap
+  const ms = ST.newGame(); ms.resources.legacy = 1e12;
+  const node = DATA.tree.find(n => n.maxRank === 3 && (n.requires || []).length === 0) || DATA.tree.find(n => (n.requires || []).length === 0);
+  for (let i = 0; i < node.maxRank + 5; i++) P.buyNode(ms, node.id);
+  ok(P.treeRank(ms, node.id) === node.maxRank, `a node cannot be bought past its maxRank (${node.id})`);
+  ok(P.canBuyNode(ms, node.id) === false, 'canBuyNode is false at maxRank');
+
+  // ---- respec: refund = legacySpent − respecFee (fee 0 ⇒ full refund), tree cleared
+  const rs = ST.newGame(); rs.resources.legacy = 500;
+  P.buyNode(rs, 'sun_kissed'); P.buyNode(rs, 'silver_tongue');
+  const spent = rs.ascension.legacySpent, legacyNow = rs.resources.legacy;
+  ok(P.respecFee(rs) === C.TREE.respecFee, 'respecFee reads the config lever');
+  P.respec(rs);
+  ok(Object.keys(rs.ascension.tree).length === 0, 'respec clears the tree');
+  ok(rs.resources.legacy === legacyNow + Math.max(0, spent - C.TREE.respecFee) && rs.ascension.legacySpent === 0, 'respec refunds legacySpent minus the fee');
+
+  // ---- effect routing: nodes feed the RIGHT stack layers
+  const es = ST.newGame();
+  es.ascension.tree.sun_kissed = 4;
+  ok(approx(M.treeIncomeMult(es), Math.pow(1.15, 4)), 'sun_kissed feeds L_tree (treeIncomeMult = 1.15^rank)');
+  es.ascension.tree.compounding_interest = 3;
+  const stk = ST.newGame(); stk.generators[0].bought = 20; stk.generators[0].count = 20;
+  const base = M.tierMultiplier(stk, 0);
+  stk.ascension.tree.compounding_interest = 3;
+  ok(approx(M.tierMultiplier(stk, 0) / base, 1 + 0.10 * 3), 'compounding_interest feeds L_ascension (1 + 0.10·rank)');
+
+  // ---- harness invariance: an empty tree is exactly neutral (the fitted run has no tree)
+  const empty = ST.newGame();
+  ok(M.treeIncomeMult(empty) === 1, 'an empty tree gives treeIncomeMult 1 (L_tree neutral)');
+  const { s: hs, islandAt } = runCurve({ dt: 5, maxHours: 40 });
+  ok(Math.abs(islandAt - 29705) < 1, `harness island time is UNCHANGED by E26 (got ${fmtTime(islandAt)}, expected 29705s — run 1 has no tree)`);
+  ok(Object.keys(hs.ascension.tree).length === 0 && M.treeIncomeMult(hs) === 1, 'the harness (run 1) never buys a tree node');
+}
+
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);
 process.exit(fails === 0 ? 0 : 1);
