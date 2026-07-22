@@ -37,6 +37,7 @@ export function render(state) {
   renderCreator(state);
   renderCrypto(state);
   renderCollection(state);
+  renderGarage(state);
   renderSkills(state);
   renderPaths(state);
   renderAscension(state);
@@ -914,6 +915,58 @@ function renderCollection(s) {
   el('collection').innerHTML = html;
 }
 
+// ---------- The Garage (E15 "Keys to the Coupe" — private logistics) ----------
+// Reveals via engine.garageUnlocked (beat 15, tier 11, or owning a car) — the SAME OR-contract
+// reveal pattern as the crypto/collection cards above. Owned vs equipped is the headline
+// decision: only EQUIPPED cars grant the logistics × / draw upkeep / fill slots.
+function garageRevealed(s) { return E.garageUnlocked(s); }
+
+// per-car row: name, owned/equipped counts, per-car stats, and buy/equip/unequip buttons. Flavor
+// lives in the title tooltip only, so a long line can't break the row (mirrors the collection row).
+function carRowHtml(s, c) {
+  const owned = s.vehicles.owned[c.id].count;
+  const equippedOfId = s.vehicles.equipped.filter(x => x === c.id).length;
+  const cost = E.carCost(s, c.id);
+  const canEquip = equippedOfId < owned && M.equippedSlotCost(s, DATA) + c.slotCost <= M.availableSlots(s);
+  const carX = (1 + C.LOGISTICS.rate * c.logisticsMult).toFixed(2);
+  return `<div class="iv-btn iv-content-item" title="${c.flavor}">
+    <b>${c.name}</b> <small>owned ${owned} · equipped ${equippedOfId}</small>
+    <div class="iv-sub">×${carX} logistics · ${c.slotCost} slot${c.slotCost > 1 ? 's' : ''} · upkeep <span class="iv-upkeep">${fmt(c.upkeep * C.LOGISTICS.upkeepScale)}/s</span> · +${(c.speed * 100).toFixed(0)}% cycling</div>
+    <div class="iv-row-buy">
+      ${btn('buy-car', c.id, `Buy<br><small>${fmt(cost)}</small>`, afford(cost))}
+      ${btn('equip-car', c.id, 'Equip', canEquip)}
+      ${btn('unequip-car', c.id, 'Unequip', equippedOfId > 0)}
+    </div>
+  </div>`;
+}
+
+function renderGarage(s) {
+  const card = el('garageCard');
+  const reveal = garageRevealed(s);
+  if (card) card.hidden = !reveal;
+  if (!reveal) { if (el('garage')) el('garage').innerHTML = ''; return; }
+
+  // slot indicator (S3-T2): used/total, with filled pips. logistics × (S3-T4) + total upkeep
+  // in red (S3-T3) so the ×-vs-drain tradeoff is explicit.
+  const used = M.equippedSlotCost(s, DATA), total = M.availableSlots(s);
+  const pips = Array.from({ length: total }, (_, i) => i < used ? '●' : '○').join(' ');
+  const logiX = M.logisticsMult(s, DATA);
+  const upkeep = M.fleetUpkeep(s, DATA);
+  let html = `<div class="iv-sub">🅿️ Transport slots <b>${used}/${total}</b> <span class="iv-slots">${pips}</span></div>`;
+  html += `<div class="iv-sub">🚗 Logistics bonus <b>×${logiX.toFixed(2)}</b> on income · fleet upkeep <span class="iv-upkeep">${fmt(upkeep)}/s</span></div>`;
+  // repossession warning (S3-T9): the grace clock is running (upkeep unpaid) — the bailiff eyes the coupe.
+  if ((s.vehicles.upkeepAccrued || 0) > 0 && s.vehicles.equipped.length > 0) {
+    const left = Math.max(0, C.LOGISTICS.repossessGraceSec - s.vehicles.upkeepAccrued);
+    html += `<div class="iv-warn">⚠️ Upkeep unpaid — the bailiff eyes your costliest car (${fmtTime(left)} of grace left). Unequip something or raise income.</div>`;
+  }
+
+  html += '<div class="iv-tag">the garage</div><div class="iv-amenities">';
+  for (const c of DATA.vehicles) html += carRowHtml(s, c);
+  html += '</div>';
+
+  el('garage').innerHTML = html;
+}
+
 // live footer energy readout, "near the tap button" (E10-S4-T8): #energyMini is a
 // persistent node created once by renderControls's template (like the aria-live
 // regions above) and refreshed here on every render() cycle, since renderControls
@@ -1273,6 +1326,11 @@ function handle(action, arg, btnEl) {
     // afford-gate + cash-spend/gain shape as every other buy button — no bespoke per-asset code.
     case 'buy-asset': E.buyAsset(S, arg); break;
     case 'sell-asset': E.sellAsset(S, arg, 1); break;
+    // Garage (E15 "Keys to the Coupe", S3-T5/S3-T6): buy into the garage, equip/unequip into
+    // transport slots — the generic afford/slot-gated flow, no bespoke per-car code.
+    case 'buy-car': E.buyCar(S, arg); break;
+    case 'equip-car': E.equipCar(S, arg); break;
+    case 'unequip-car': E.unequipCar(S, arg); break;
     case 'buy-content': E.buyContent(S, arg); break;
     case 'buy-content-boost': E.buyContentBoost(S, arg); break;
     case 'accept-sponsor': {
@@ -1348,6 +1406,10 @@ function handle(action, arg, btnEl) {
       c.boughtValue += gift.costBase;
       break;
     }
+    // garage debug hooks (E15-S10-T8): grant a car, add a garage slot, force repossession.
+    case 'dbg-car': S.vehicles.owned['german_sedan'].count++; break;
+    case 'dbg-slots': S.vehicles.garageSlots = (S.vehicles.garageSlots || 0) + 1; break;
+    case 'dbg-repossess': S.resources.cash = 0; S.vehicles.upkeepAccrued = C.LOGISTICS.repossessGraceSec; break;
     case 'export': hooks.exportSave(); break;
     case 'import': hooks.importSave(); break;
     case 'reset': if (confirm('Hard reset? This wipes everything.')) hooks.hardReset(); break;
@@ -1440,5 +1502,8 @@ function renderDebug() {
     ${btn('dbg-crypto-reseed', '', 'reseed market')}
     ${btn('dbg-savvy', '', '+5000 savvy xp')}
     ${btn('dbg-taste', '', '+5000 taste xp')}
-    ${btn('dbg-gift-asset', '', 'gift Bordeaux')}`;
+    ${btn('dbg-gift-asset', '', 'gift Bordeaux')}
+    ${btn('dbg-car', '', 'grant car')}
+    ${btn('dbg-slots', '', '+1 garage slot')}
+    ${btn('dbg-repossess', '', 'force repossess')}`;
 }
