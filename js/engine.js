@@ -309,15 +309,23 @@ export function checkUnlocks(state) {
   }
 }
 
-// one-time "new little luxury" flash (E02-S3-T7/T8, E02-S5-T5): fires the moment an
-// amenity first crosses its unlockComfort threshold. Tracked in state.story.flags (a
-// generic already-fired bag) so it's testable, deterministic, and survives reload
-// without needing a bespoke state field / migration.
+// one-time "new little luxury" flash (E02-S3-T7/T8, E02-S5-T5): fires the moment an amenity first
+// becomes genuinely available. Uses the FULL amenityUnlocked gate — Comfort AND the E22/E24/E28
+// property/destination/island ownership gates — so future clusters (island buildings, premium
+// signatures…) never announce themselves early: no spoilers, the future stays hidden. Tracked in
+// state.story.flags (a generic already-fired bag) so it's testable, deterministic, survives reload.
+// tags owned by a DEDICATED card (Poolside/Beachfront/Wellness/Creator/Property-grounds): those
+// systems announce their OWN reveal, so the generic "little luxury" toast must NOT double-announce
+// their items (and must never fire for a not-yet-revealed card's gear — e.g. a Ring Light before the
+// Creator Dashboard exists). Mirrors renderAmenities' skip list, so the toast ↔ general panel agree.
+const DEDICATED_AMENITY_TAGS = new Set(['pool', 'beach', 'service', 'tan', 'gym', 'wellness', 'gear', 'grounds']);
 export function checkAmenityUnlocks(state) {
   for (const a of DATA.amenities) {
+    if (DEDICATED_AMENITY_TAGS.has(a.tag)) continue;
+    if (a.tag === 'cryptogear' && !cryptoActive(state)) continue; // no crypto-gear spoiler before you engage crypto
     const flagKey = 'amenityUnlocked_' + a.id;
     if (state.story.flags[flagKey]) continue;
-    if (state._comfortCache >= (a.unlockComfort || 0)) {
+    if (amenityUnlocked(state, a.id)) {
       state.story.flags[flagKey] = true;
       notify(state, 'unlock', `✨ New little luxury unlocked: ${a.name}`);
     }
@@ -972,7 +980,7 @@ export function cryptoSavvyPerk(state) {
 // playStep, which only ever invest in the vlogger path) never trip this, so
 // state.market.phase stays 'calm', mult 1, cursor 0 forever; the fitted ~8h26m island
 // time cannot move (see config.MARKET's comment / the harness-invariance test).
-function cryptoActive(state) {
+export function cryptoActive(state) {
   if (state.paths.crypto.points > 0) return true;
   for (const c of DATA.crypto.coins) if ((state.crypto.holdings[c.id] || 0) > 0) return true;
   return false;
