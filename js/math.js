@@ -68,10 +68,14 @@ export function tierMultiplier(state, k) {
   // L_staff (E20 household): a bounded flat × from hired income-× roles, morale-scaled. Exactly 1
   // when no such role is hired (the gate) — the harness never hires, so the island is unmoved.
   const L_staff = staffMultiplier(state);
+  // L_owner (E22 owner-pride): a small bounded flat × per owned property. Exactly 1 with no deed
+  // bought (the gate) — the harness never buys property, so the island is unmoved. Read directly
+  // off state.property (owned count ≤ 2), no per-tick cache needed (docs/math-proof §3 bounded-flat).
+  const L_owner = ownerPrideMult(state);
   const L_ascension = 1 + 0.10 * (state.ascension.tree.compounding_interest || 0);
   const L_tree = treeIncomeMult(state);
 
-  return mMilestone * L_upgrade * L_path * L_skill * L_comfort * L_dest * L_exclusivity * L_logistics * L_staff * L_ascension * L_tree;
+  return mMilestone * L_upgrade * L_path * L_skill * L_comfort * L_dest * L_exclusivity * L_logistics * L_staff * L_owner * L_ascension * L_tree;
 }
 
 // production per second of tier k (in units of tier k output)
@@ -200,9 +204,50 @@ export function computeComfort(state, DATA) {
   // left UNCHANGED so no summation re-association can perturb it.
   const fleetComfort = fleetComfortTotal(state, DATA);
   const amenTerm = amenityScoreTotal(state, DATA) + collComfort + luxBonus + fleetComfort;
+  // E22 owned property — the PERSISTENT term. propertyScore reads state.property ONLY (never
+  // accommodation.tier), so climbing the rented ladder never zeroes it. It is 0 with nothing
+  // owned, so `... + wProp·0` is bit-identical to the pre-E22 sum (x+0 exact in IEEE754) and the
+  // greedy harness (which never buys a deed) leaves the fitted 29705s island unmoved.
+  const propScore = propertyScore(state, DATA);
   return (C.COMFORT.wAcc * accScore(state.accommodation.tier) * (1 + pathBonus(state, 'accComfort'))
         + C.COMFORT.wAmen * amenTerm * (1 + pathBonus(state, 'amenityComfort'))
+        + C.COMFORT.wProp * propScore
         + C.COMFORT.wBody * state.skills.body.level) * (1 + pathBonus(state, 'comfortAll'));
+}
+// E22 owned-property Comfort (the persistence guarantee): Σ owned properties' baseComfort +
+// Σ their bought upgrades' comfort·rank. Reads state.property ONLY — never accommodation.tier — so
+// climbing the rented ladder can never zero it. 0 when no property is owned (the gate), so the
+// term vanishes for the harness and the pre-E22 economy is untouched. DATA passed explicitly
+// (house convention). A pure function of state ⇒ deterministic, offline-replayable.
+export function propertyScore(state, DATA) {
+  const P = state.property;
+  if (!P) return 0;
+  let s = 0;
+  for (const p of DATA.property) {
+    const slot = P[p.id];
+    if (!slot || !slot.owned) continue;
+    s += p.baseComfort;
+    for (const u of p.upgrades) s += (slot.upgrades?.[u.id] || 0) * u.comfort;
+  }
+  return s;
+}
+// Cost of the NEXT rank of a property upgrade: costBase · costGrowth^rank (geometric, growth 1.6).
+export function propertyUpgradeCost(u, rank) {
+  return u.costBase * Math.pow(u.costGrowth, rank);
+}
+// How many properties are owned (0, 1, or 2). Pure, tiny — read directly off state.property.
+export function ownedPropertyCount(state) {
+  const P = state.property;
+  if (!P) return 0;
+  let n = 0;
+  for (const id in P) if (P[id]?.owned) n++;
+  return n;
+}
+// Owner-pride global × (E22-S4-T5): a small BOUNDED flat × per owned property (docs/math-proof §3
+// class: bounded-flat, safe to fold into the stack — NOT a power of cash). Exactly 1 with nothing
+// owned (the gate), so the harness is unmoved; max ×(1 + ownerPride·2) with both deeds ⇒ ≤ +10%.
+export function ownerPrideMult(state) {
+  return 1 + C.PROPERTY.ownerPride * ownedPropertyCount(state);
 }
 // sum of owned collection assets' flat Comfort (count·comfort) — feeds ComfortRaw for every
 // branch (the connoisseur +25% perk in computeComfort adds on top). 0 with nothing owned.

@@ -128,11 +128,32 @@ export const CONFIG = {
     C0: 100,                // scale for the log multiplier
     MULT: 0.4,              // strength of L_comfort
     wAcc: 1.0, wAmen: 1.0, wBody: 8.0,
+    // E22 owned property (a NEW ComfortRaw term, w_prop·propertyScore). propertyScore is 0 with
+    // nothing owned, so `... + wProp·0` is bit-identical to the pre-E22 sum (x+0 exact in IEEE754)
+    // and the fitted 29705s island cannot drift — the greedy harness never buys a deed.
+    wProp: 1.0,
   },
   // one-shot "Comfort now multiplies income" flash (E06-S2-T6/S4-T1): fires once
   // L_comfort first crosses this threshold. Display-only — never touches income math,
   // so it lives outside the COMFORT block (whose mult/C0 stay the multiplier's sole levers).
   COMFORT_ONLINE_MULT: 1.5,
+
+  // ---- owned property (E22 "A Bungalow of One's Own") ----
+  // The rent→own flip: a one-time deed adds a PERSISTENT Comfort term (w_prop·propertyScore) that
+  // reads state.property only — never accommodation.tier — so climbing the rented ladder never
+  // zeroes it (the persistence guarantee, S2-T3). Every value here is opt-in: propertyScore is 0
+  // and ownerPrideMult is 1 until a deed is bought, and the accommodation ladder stays purely
+  // Comfort-gated (NOT property-gated), so the greedy harness reaches the island without ever
+  // buying property → island unchanged at 29705s. ownCost/baseComfort are indexed by property
+  // order [bungalow, overwater_villa]. Upgrade cost = base·growth^rank (growth 1.6). ownerPride is
+  // a small BOUNDED flat × per owned property (max 2 owned ⇒ ≤ ×1.10) folded into the stack.
+  PROPERTY: {
+    ownCost:     [5e9, 6e10],     // deed price — a few minutes of income at each property's unlock
+    baseComfort: [1.5e8, 4.5e8],  // persistent Comfort floor per property (~one rented tier's worth)
+    base: 4e8,                    // upgrade cost base
+    growth: 1.6,                  // upgrade cost growth per rank
+    ownerPride: 0.05,             // flat global × per owned property (bounded — max 2 ⇒ ≤ +10%)
+  },
 
   // ---- accommodation ladder ----
   ACC: {

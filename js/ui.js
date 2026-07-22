@@ -41,6 +41,7 @@ export function render(state) {
   renderMarina(state);
   renderHangar(state);
   renderStaff(state);
+  renderProperty(state);
   renderSkills(state);
   renderPaths(state);
   renderAscension(state);
@@ -1098,6 +1099,62 @@ function renderStaff(s) {
   el('staff').innerHTML = html;
 }
 
+// ---------- Property: the rent→own flip (E22 "A Bungalow of One's Own") ----------
+// The card reveals once the bungalow's Comfort gate is met (flags.propertyReveal). Each property
+// shows a deed CTA (or an Owned ✓ badge once bought) and its upgrade tree, indented by `parent`.
+function propertyRevealed(s) { return E.propertyUnlocked(s, 'bungalow') || M.ownedPropertyCount(s) > 0; }
+
+// A single upgrade node button: name, rank, cost, and the +Comfort it would add next.
+function propertyUpgradeHtml(s, u) {
+  const rank = E.propertyUpgradeRank(s, u.id);
+  const cost = E.propertyUpgradeCost(s, u.id);
+  const locked = !E.propertyUpgradeUnlocked(s, u.id);
+  const indent = u.parent ? ' style="margin-left:1.2rem"' : '';
+  const reason = locked ? (u.parent ? `needs ${propertyUpgradeName(u.parent)}` : 'locked') : '';
+  return `<div class="iv-btn iv-content-item"${indent} title="${u.flavor}">
+    <b>${u.name}</b> <small>${rank > 0 ? `rank ${rank}` : ''}</small>
+    <div class="iv-sub">+${fmt(u.comfort)}😌${u.xMult ? ` · +${(u.xMult * 100).toFixed(0)}%×` : ''}</div>
+    <div class="iv-row-buy">${btn('buy-property-upgrade', u.id, locked ? reason : `Build — ${fmt(cost)}`, !locked && afford(cost))}</div>
+  </div>`;
+}
+function propertyUpgradeName(id) { const u = E.propertyUpgradeDef(id); return u ? u.name : id; }
+
+function propertyBlockHtml(s, p) {
+  const owned = E.propertyOwned(s, p.id);
+  const unlocked = E.propertyUnlocked(s, p.id);
+  let html = `<div class="iv-tag">${p.name}</div>`;
+  if (!owned) {
+    // deed CTA — greyed with a reason when gated/unaffordable (S3-T2).
+    const reason = !unlocked
+      ? (p.requiresOwn && !E.propertyOwned(s, p.requiresOwn) ? `own the ${propertyDefName(p.requiresOwn)} first` : 'raise Comfort to unlock')
+      : (afford(p.ownCost) ? '' : 'not enough cash');
+    html += `<div class="iv-sub">${p.flavor}</div>`;
+    html += `<div class="iv-sub">🔑 A deed adds a <b>permanent</b> Comfort floor of +${fmt(p.baseComfort)}😌 that never leaves you, even when you move up the rented ladder.</div>`;
+    html += `<div class="iv-row-buy">${btn('buy-property', p.id, unlocked && afford(p.ownCost) ? `Buy the deed — ${fmt(p.ownCost)}` : `Buy the deed — ${fmt(p.ownCost)} <small>(${reason})</small>`, unlocked && afford(p.ownCost), 'btn-primary')}</div>`;
+    return html;
+  }
+  // owned: badge + the persistent-Comfort readout + the upgrade tree
+  html += `<div class="iv-sub">Owned ✓ deed · permanent Comfort floor <b>+${fmt(p.baseComfort)}😌</b> · owner-pride <b>×${M.ownerPrideMult(s).toFixed(2)}</b></div>`;
+  html += '<div class="iv-amenities">';
+  for (const u of p.upgrades) html += propertyUpgradeHtml(s, u);
+  html += '</div>';
+  return html;
+}
+function propertyDefName(id) { const p = E.propertyDef(id); return p ? p.name : id; }
+
+function renderProperty(s) {
+  const card = el('propertyCard');
+  const reveal = propertyRevealed(s);
+  if (card) card.hidden = !reveal;
+  if (!reveal) { if (el('property')) el('property').innerHTML = ''; return; }
+
+  const propScore = M.propertyScore(s, DATA);
+  let html = `<div class="iv-sub">🏡 You own <b>${M.ownedPropertyCount(s)}</b> ${M.ownedPropertyCount(s) === 1 ? 'place' : 'places'} · persistent Comfort <b>+${fmt(propScore)}😌</b> · owner-pride income <b>×${M.ownerPrideMult(s).toFixed(2)}</b></div>`;
+  html += `<div class="iv-sub">Owned Comfort is a <b>floor</b>: unlike a rented room, it never gets left behind when you climb the ladder.</div>`;
+  for (const p of DATA.property) html += propertyBlockHtml(s, p);
+  el('property').innerHTML = html;
+}
+
 // live footer energy readout, "near the tap button" (E10-S4-T8): #energyMini is a
 // persistent node created once by renderControls's template (like the aria-live
 // regions above) and refreshed here on every render() cycle, since renderControls
@@ -1470,6 +1527,9 @@ function handle(action, arg, btnEl) {
     case 'hire-staff': E.hireStaff(S, arg); break;
     case 'level-staff': E.levelStaff(S, arg); break;
     case 'staff-toggle': if (S.staff[arg]) S.staff[arg].policy.autoBuy = !S.staff[arg].policy.autoBuy; break;
+    // E22 Property (the rent→own flip): buy the deed / build an upgrade — generic afford-gated flow.
+    case 'buy-property': E.buyProperty(S, arg); break;
+    case 'buy-property-upgrade': E.buyPropertyUpgrade(S, arg); break;
     case 'buy-content': E.buyContent(S, arg); break;
     case 'buy-content-boost': E.buyContentBoost(S, arg); break;
     case 'accept-sponsor': {

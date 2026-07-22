@@ -575,13 +575,41 @@ fallback + patron foreshadow, harness invariance + zero luxury buys + exclusivit
 - S9 Provenance on File (6/2/2): present exclusivity persist (derived, recompute-on-load) + generic migration + recompute-on-load + offline exclusivity (recomputed per macro-step) + offline gate open + away summary; done-now cosmetic ownership persist (generic) + patron flags (`story.seen`). Superseded: a dedicated `MIGRATIONS[10]` version bump (generic backfill covers it) + a bespoke away-modal exclusivity line.
 - S10 The Invitation (3/3/4): present formatting + gameSpeed + console guards; done-now beat-22 content + the patron payoff + [96] regression golden. Superseded: a dedicated patron modal + a gate-cleared reveal animation + `aria-live` on patron events + bespoke invitation juice.
 
-## Act II–VI — E22–E30
+## Act III — The Summit
+
+### E22 — A Bungalow of One's Own (owned property) · **100/100** (present 20, done-now 62, superseded 18)
+The rent→own flip — a genuinely NEW system, so done-now-heavy. A one-time **deed** (`engine.buyProperty`)
+flips a place from rented to owned and adds a **persistent Comfort floor** via a new `ComfortRaw`
+term (`w_prop·propertyScore`, `data/property.js`) that reads `state.property` ONLY — never
+`accommodation.tier` — so climbing the rented ladder never zeroes it (the **persistence
+guarantee**). Each property carries an **upgrade tree** (`parent`-linked nodes, cost `base·1.6^rank`)
+and a small bounded **owner-pride ×** (`L_owner`, ≤ +10% at 2 deeds). New `js/data/property.js`
+(bungalow + overwater villa, 8 upgrade nodes each, `validateProperty`), a 10-item property-hosted
+amenity cluster (`tag:'property'` + `unlockProperty` gate), `state.property` slice + generic
+backfill, a Property UI card (deed CTA + indented upgrade tree + owned badge). **Invariance held the
+hard way**: `propertyScore` is 0 and `ownerPrideMult` is 1 until a deed is bought, the accommodation
+ladder stays purely **Comfort-gated** (NOT property-gated), and `buyProperty` is not in the harness
+play loop — so the greedy harness reaches the island owning nothing → **island unchanged at 29705s**.
+Built inline. selftest **[97]** (29 assertions: validate, deed flip + idempotence, the persistence
+invariant, `1.6^rank` no-skip + parent gating, migration, stack-order, ƒ0 block, harness invariance).
+
+- S1 Data model (0/10/0): `property.js` + bungalow + villa + tree-node shape + 8+8 upgrade nodes + `unlockProperty` capability + config-driven fields + flavor + `validateProperty` — all authored fresh.
+- S2 Core (1/8/1): present recompute-via-`computeComfort`; done-now `propertyScore` + `w_prop` `ComfortRaw` term + tier-decoupling + `buyProperty` + `buyPropertyUpgrade` + parent gating + recompute-on-change + purchase notify. **Superseded**: upgrade `xMult`→`L_upgrade` wiring (declared on nodes but dormant, per the standing amenity-`xMult` backlog — owner-pride carries the ownership ×).
+- S3 UI (2/8/0): present the `aria-live` region + shared affordability helper; done-now the Property card + deed CTA (greyed with a reason) + `parent`-indented tree + next-Comfort delta + owned badge + intent wiring + `util.fmt` big-numbers + native-button keyboard access.
+- S4 The Deed (1/9/0): present offline credit (the static term flows through the offline Comfort recompute); done-now the ownership flip + persistent floor + deed ceremony (notify) + beat-23 `checkOwner` + owner-pride nudge + rent-vs-own "floor" copy + reversion-prevention (run-scoped, hard-reset-only) + poncho-hook flavor + QA.
+- S5 Amenity cluster (0/8/2): done-now 10 `tag:'property'` amenities (5 deck + 5 overwater) + ramp + ownership gate + reuse of `buyAmenity` + `amenityScore` feed + flavor + cadence. **Superseded**: hard `amenitySlots` capacity enforcement (declared, not enforced — simpler) + per-item `xMult` (dormant).
+- S6 Tiers 16→17 (6/2/2): present tiers 16/17 already exist + `accScore` + reveal + big-step jump + canonical-ladder cross-check + migration default; done-now the deed's `requiresOwn` predecessor gate + villa flavor. **Superseded**: gating the *accommodation* tier 17 on property ownership (would strand the harness — the ladder stays Comfort-gated; property is a parallel track) + that ordering's QA.
+- S7 Path flavor (2/0/8): present `L_path` + `PATH.softcapExp` exist and are reusable. **Superseded**: per-branch property upgrades (connoisseur teak / vlogger content-deck / traveler map-room / crypto solar-rig) + branch deed-ceremony text + hybrid fusion upgrade + branch-switch QA — the epic header itself marks E22 "build-path emphasis: **neutral**", so the property system is deliberately branch-agnostic; branch decoration is deferred.
+- S8 Balance (2/8/0): present cross-layer sanity + time-band (harness-measured); done-now `PROPERTY.baseComfort`/`base`/`growth`/`ownCost`/`ownerPride` set + `w_prop` set + owner-pride sizing (bounded ≤ +10%) + documented constants + [97] golden.
+- S9 Save/offline (4/4/2): present offline Comfort credit (static term) + offline owner-× (applies in macro-steps) + export/import round-trip + backup rotation (all generic); done-now `state.property` schema + generic migration + compact sparse-rank serialize + migration test [97]. **Superseded**: a dedicated `MIGRATIONS[N]` version bump (generic backfill covers it) + a bespoke away-modal property line.
+- S10 QA/juice (2/5/3): present number formatting + `aria-live` region; done-now zero-cash block + rapid-buy `1.6^rank` no-skip + Comfort-recompute authority + persistence regression + one-shot event correctness (flags). **Superseded**: `amenitySlots` cap edge + deed jingle/confetti + reveal animation.
+
+## Act II–VI — E23–E30
 
 _Pending — appended as each phase's build pass audits its 100 tasks._
 
 | Epic | Status |
 |---|---|
-| E22 A Bungalow of One's Own | pending |
 | E23 Villa Vita | pending |
 | E24 Where the Rich Hide | pending |
 | E25 Letting Go | pending — mechanics largely shipped early (prestige.js + hard reset + gate scaling, math-proof §12); **amendment E25-A (retirement & lineage)** added to the epic file, unbuilt |
@@ -594,8 +622,8 @@ _Pending — appended as each phase's build pass audits its 100 tasks._
 ---
 
 ### Running total
-- **Audited:** 2,100 / 3,000 tasks (E01–E21) — present 675, done-now 1,036, superseded 389.
-- **Remaining:** 900 tasks (E22–E30).
+- **Audited:** 2,200 / 3,000 tasks (E01–E22) — present 695, done-now 1,098, superseded 407.
+- **Remaining:** 800 tasks (E23–E30).
 
 ### Deferred balance-tuner backlog (for a consolidated retune, latest at E30)
 - **`savvyPassive()` not ×`L_comfort`** (E06-S7-T4) — a flat sqrt-scaled additive term outside

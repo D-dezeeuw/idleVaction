@@ -15,6 +15,15 @@ function newStaffSlice() {
   return staff;
 }
 
+// property slice (E22 owned property): one entry per DATA.property, all UNOWNED so the harness
+// (which never buys a deed) sees propertyScore 0 and ownerPrideMult 1 — the fitted island cannot
+// move. `upgrades` is a sparse rank map (omit rank-0 to keep the save small, S9-T4).
+function newPropertySlice() {
+  const property = {};
+  DATA.property.forEach(def => { property[def.id] = { owned: false, upgrades: {} }; });
+  return property;
+}
+
 export function newGame() {
   const generators = {};
   DATA.generators.forEach((g, k) => { generators[k] = { count: 0, bought: 0, upgrades: 0, unlocked: k === 0 }; });
@@ -139,6 +148,9 @@ export function newGame() {
     // meta convenience like settings; but to stay safe with ascension it's rebuilt by newGame()
     // and NOT in the keep-list, so each life re-hires (consistent with the run-scoped concierge).
     staff: newStaffSlice(),
+    // owned property (E22): the rent→own flip. Run-scoped like staff — rebuilt by newGame(), NOT in
+    // the ascension keep-list, so each life re-buys deeds (a hard reset zeroes ownership, S4-T7).
+    property: newPropertySlice(),
     ascension: { count: 0, legacyBanked: 0, legacySpent: 0, tree: {} },
     story: { beat: 1, seen: [1], branch: 'neutral', flags: {} },
     // ui.bulkMode (E03-S1-T6): the ×1/×10/max buy-quantity toggle, persisted so the

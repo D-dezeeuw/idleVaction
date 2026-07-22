@@ -177,6 +177,8 @@ export function tick(state, dt) {
   checkCapstone(state);
   checkButlerReveal(state);
   checkHousehold(state);
+  checkPropertyReveal(state);
+  checkOwner(state);
   checkPathStages(state);
 
   // 7) concierge: bounded, off-by-default auto-purchase policy (E11 "Five-Star Frame of
@@ -737,7 +739,13 @@ export function amenityCost(state, id) {
   return a.costBase * Math.pow(g, lvl) * (1 - M.pathBonus(state, 'amenityDiscount')) * lux * M.commsCostMult(state);
 }
 export function amenityUnlocked(state, id) {
-  return state._comfortCache >= (amenityData(id).unlockComfort || 0) || state.amenities[id].level > 0;
+  const a = amenityData(id);
+  if (state.amenities[id].level > 0) return true;   // already owned ⇒ always visible
+  // E22 property-hosted amenities (tag:'property'): gated on OWNING the named property, on top of
+  // the Comfort gate. The harness never owns a deed, so unlockProperty items stay locked for it
+  // (unlockProperty is undefined for every pre-E22 amenity ⇒ bit-identical behaviour there).
+  if (a.unlockProperty && !state.property?.[a.unlockProperty]?.owned) return false;
+  return state._comfortCache >= (a.unlockComfort || 0);
 }
 export function buyAmenity(state, id) {
   if (!amenityUnlocked(state, id)) return false;
@@ -1522,6 +1530,89 @@ export function checkHousehold(state) {
   if (hiredStaffCount(state) < 5) return;
   state.story.flags.household = true;
   notify(state, 'celebrate', '🏛️ The Whole Household: five staff, one still-damp poncho. The help now outnumbers the luggage. You are, technically, an employer.');
+}
+
+// ---- owned property (E22 "A Bungalow of One's Own") ----
+// The rent→own flip: a one-time DEED adds a persistent Comfort floor (propertyScore, see math.js)
+// that reads state.property only — never accommodation.tier — so climbing the rented ladder never
+// zeroes it. All opt-in: the harness never buys a deed (buyProperty is not in its play loop and the
+// accommodation ladder stays Comfort-gated, never property-gated), so the island stays 29705s.
+export function propertyDef(id) { return DATA.property.find(p => p.id === id); }
+export function propertyUpgradeDef(id) { return DATA.propertyUpgrades.find(u => u.id === id); }
+
+// A property is offered once its Comfort unlock gate (its accommodation tier's gate) is met AND its
+// `requiresOwn` predecessor (if any) is owned — so owning gates the next ownable step (S6-T3)
+// WITHOUT gating the rented ladder (which stays purely Comfort-gated, keeping the harness unblocked).
+export function propertyUnlocked(state, id) {
+  const p = propertyDef(id);
+  if (!p) return false;
+  if (p.requiresOwn && !state.property?.[p.requiresOwn]?.owned) return false;
+  return (state._comfortCache ?? state.resources.comfort ?? 0) >= M.accUnlockComfort(p.tier);
+}
+export function propertyOwned(state, id) { return !!state.property?.[id]?.owned; }
+
+// Buy the deed: deduct ownCost, flip owned=true (idempotent — a second buy is a no-op). Owning any
+// property lights the owner-pride × (math.ownerPrideMult) and the persistent Comfort floor.
+export function buyProperty(state, id) {
+  const p = propertyDef(id);
+  if (!p) return false;
+  const slot = state.property[id];
+  if (slot.owned) return false;                 // idempotent: already owned
+  if (!propertyUnlocked(state, id)) return false;
+  if (state.resources.cash < p.ownCost) return false;
+  state.resources.cash -= p.ownCost;
+  slot.owned = true;
+  state._comfortCache = M.computeComfort(state, DATA);   // recompute on change (S2-T8)
+  notify(state, 'unlock', `🔑 The keys are yours: ${p.name}. Kevin from the front desk weeps.`);
+  checkOwner(state);
+  return true;
+}
+
+// An upgrade is buyable iff its property is owned and its parent (if any) has rank ≥ 1 (a real
+// tree, S2-T6). Cost = costBase·1.6^rank.
+export function propertyUpgradeUnlocked(state, id) {
+  const u = propertyUpgradeDef(id);
+  if (!u) return false;
+  if (!propertyOwned(state, u.property)) return false;
+  if (u.parent && (state.property[u.property].upgrades?.[u.parent] || 0) < 1) return false;
+  return true;
+}
+export function propertyUpgradeRank(state, id) {
+  const u = propertyUpgradeDef(id);
+  return u ? (state.property[u.property]?.upgrades?.[id] || 0) : 0;
+}
+export function propertyUpgradeCost(state, id) {
+  const u = propertyUpgradeDef(id);
+  return u ? M.propertyUpgradeCost(u, propertyUpgradeRank(state, id)) : Infinity;
+}
+export function buyPropertyUpgrade(state, id) {
+  const u = propertyUpgradeDef(id);
+  if (!u) return false;
+  if (!propertyUpgradeUnlocked(state, id)) return false;
+  const cost = propertyUpgradeCost(state, id);
+  if (state.resources.cash < cost) return false;
+  state.resources.cash -= cost;
+  const ups = (state.property[u.property].upgrades ||= {});
+  ups[id] = (ups[id] || 0) + 1;
+  state._comfortCache = M.computeComfort(state, DATA);   // recompute on change
+  return true;
+}
+
+// Reveal the Property card once the bungalow deed is unlockable (Comfort gate met) — a one-shot
+// flash, tracked in flags. No-op for the harness (its Comfort reaches the gate, but the flag only
+// gates a UI notify, never a purchase, so the island is unmoved).
+export function checkPropertyReveal(state) {
+  if (state.story.flags.propertyReveal) return;
+  if (!propertyUnlocked(state, 'bungalow')) return;
+  state.story.flags.propertyReveal = true;
+  notify(state, 'unlock', '🏝️ You can stop renting now. A place — an actual, ownable place — is within reach.');
+}
+// Beat-23 owner flag: fires once the first deed is owned. Sets flags.owner (the persistence hook).
+export function checkOwner(state) {
+  if (state.story.flags.owner) return;
+  if (M.ownedPropertyCount(state) < 1) return;
+  state.story.flags.owner = true;
+  notify(state, 'celebrate', '🏡 A Bungalow of One\'s Own: you stop renting rooms and own walls. Your poncho hangs on a hook that is, at last, legally yours.');
 }
 
 export function nextAccTier(state) { return state.accommodation.tier + 1; }
