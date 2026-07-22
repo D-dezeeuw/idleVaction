@@ -16,6 +16,7 @@ import { ART, WINE } from './collections.js';
 import { CARS } from './vehicles.js';
 import { BOATS, CREW, JETS } from './logistics.js';
 import { STAFF_DATA } from './staff.js';
+import { PROPERTIES, PROPERTY_UPGRADES } from './property.js';
 
 export const DATA = {
   generators: GENERATORS,
@@ -57,4 +58,9 @@ export const DATA = {
   // staff (E19 "At Your Service"): the butler + future roles. validateStaff lives in data/staff.js,
   // imported directly by the dev harness/selftest. The butler's auto-buy reuses the E11 concierge.
   staff: STAFF_DATA,
+  // owned property (E22 "A Bungalow of One's Own"): the rent→own flip. Persistent Comfort floor +
+  // per-property upgrade tree; validateProperty lives in data/property.js, imported directly by
+  // the dev harness/selftest. Opt-in — the harness never buys a deed, so the island is unmoved.
+  property: PROPERTIES,
+  propertyUpgrades: PROPERTY_UPGRADES,
 };

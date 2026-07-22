@@ -14,6 +14,7 @@ import * as P from '../prestige.js';
 import { validateDestinations } from '../data/destinations.js';
 import { validateBank } from '../data/bank.js';
 import { validatePaths } from '../data/paths.js';
+import { validateProperty } from '../data/property.js';
 import { fmt, fmtTime } from '../util.js';
 
 // ---- ROI-aware amenity buying (the max-speed player, not a completionist) ----
@@ -122,6 +123,7 @@ function report() {
   validateDestinations();   // dev schema guard (E04-S1-T10) — fail loudly on malformed data
   validateBank(C);          // dev schema guard: bank rows must match config.BANK.tiers
   validatePaths();          // dev schema guard: staged tracks (thresholds, bonus vocabulary)
+  validateProperty();       // dev schema guard (E22): property tree ids/parents/costGrowth
   const { beatTime, islandAt, peakLog, dblAtIsland } = runCurve({ dt: 5, maxHours: 40 });
   console.log('\n=== idleVaction balance-fit curve (greedy optimal, LOWER bound on real time) ===\n');
   const beats = Object.keys(beatTime).map(Number).sort((a, b) => a - b);

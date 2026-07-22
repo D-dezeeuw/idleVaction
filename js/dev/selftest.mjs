@@ -14,6 +14,7 @@ import { validateCollections } from '../data/collections.js';
 import { validateVehicles } from '../data/vehicles.js';
 import { validateLogistics } from '../data/logistics.js';
 import { validateStaff } from '../data/staff.js';
+import { validateProperty } from '../data/property.js';
 import { fmt, fmtTime, rng } from '../util.js';
 // E11 harness-invariance guard ([62] below): importing runCurve does NOT auto-run the
 // harness's own report() — that's guarded behind `process.argv[1].endsWith('harness.mjs')`,
@@ -4021,6 +4022,72 @@ console.log('\n[96] E21 Seven Stars: Seven-Star Touches cluster, gated exclusivi
   ok(Math.abs(islandAt - 29705) < 1, `harness island time is UNCHANGED by E21 (got ${fmtTime(islandAt)}, expected 29705s — luxury Touches fail the ROI payback test)`);
   ok(SEVEN.every(id => hs.amenities[id].level === 0), 'the harness never buys a Seven-Star Touch (dominated cosmetic, exclusivity gate shut)');
   ok((hs._exclCache ?? 0) === 0, 'the harness ends with exclusivity 0 (connoisseur lane never engaged)');
+}
+
+console.log('\n[97] E22 A Bungalow of One\'s Own: owned property, persistent Comfort floor, owner-pride ×, invariance');
+{
+  ok(validateProperty(), 'validateProperty() passes on the shipped PROPERTIES roster');
+  ok(DATA.property.length === 2 && DATA.property[0].id === 'bungalow' && DATA.property[1].id === 'overwater_villa',
+    'the roster is the bungalow (tier 16) + overwater villa (tier 17)');
+
+  // ---- fresh game / harness: nothing owned ⇒ propertyScore 0, owner-pride ×1 (bit-identical Comfort)
+  const fresh = ST.newGame();
+  ok(M.propertyScore(fresh, DATA) === 0, 'a fresh game has propertyScore 0 (no deed ⇒ the term vanishes)');
+  ok(M.ownerPrideMult(fresh) === 1, 'ownerPrideMult is exactly 1 with nothing owned (the gate)');
+  ok(M.ownedPropertyCount(fresh) === 0, 'ownedPropertyCount is 0 on a fresh game');
+
+  // ---- buy the deed: flips owned, adds the persistent floor, lights owner-pride, is idempotent
+  const g = ST.newGame(); g.accommodation.tier = 15; g.bank.tier = C.BANK.tiers - 1; g.resources.cash = 1e13;
+  g._comfortCache = M.computeComfort(g, DATA);
+  ok(E.propertyUnlocked(g, 'bungalow'), 'the bungalow unlocks once its Comfort gate is met');
+  ok(E.propertyUnlocked(g, 'overwater_villa') === false, 'the overwater villa is gated until the bungalow is owned (S6-T3)');
+  const comfBefore = M.computeComfort(g, DATA);
+  ok(E.buyProperty(g, 'bungalow') === true, 'buying the bungalow deed succeeds when unlocked + affordable');
+  ok(g.property.bungalow.owned === true && g.story.flags.owner === true, 'ownership flips and flags.owner (beat 23) fires');
+  ok(M.propertyScore(g, DATA) === DATA.property[0].baseComfort, 'propertyScore now equals the bungalow baseComfort');
+  ok(M.computeComfort(g, DATA) > comfBefore, 'owning the deed raises Comfort (the persistent floor is live)');
+  ok(approx(M.ownerPrideMult(g), 1 + C.PROPERTY.ownerPride), 'owner-pride × lights to 1 + ownerPride with one deed');
+  ok(E.buyProperty(g, 'bungalow') === false, 'a second deed purchase is a no-op (idempotent)');
+  ok(E.propertyUnlocked(g, 'overwater_villa'), 'owning the bungalow unlocks the overwater villa');
+
+  // ---- THE PERSISTENCE INVARIANT (S2-T10/S10-T4): own → climb the rented ladder → floor unchanged
+  const beforeScore = M.propertyScore(g, DATA);
+  const beforeComf = M.computeComfort(g, DATA);
+  g.accommodation.tier = 20;   // climb all the way to the island
+  ok(M.propertyScore(g, DATA) === beforeScore, 'propertyScore is UNCHANGED by climbing the rented ladder (reads state.property only)');
+  ok(M.computeComfort(g, DATA) >= beforeComf, 'Comfort does not fall when moving up — the owned floor persists');
+
+  // ---- upgrade tree: cost = base·1.6^rank, parent gating, no rank skips
+  ok(E.propertyUpgradeUnlocked(g, 'bung_deck'), 'a root upgrade (no parent) is buyable once the property is owned');
+  ok(E.propertyUpgradeUnlocked(g, 'bung_plunge') === false, 'a child upgrade is locked until its parent has rank ≥ 1');
+  const deckDef = E.propertyUpgradeDef('bung_deck');
+  ok(approx(E.propertyUpgradeCost(g, 'bung_deck'), deckDef.costBase), 'rank-0 upgrade cost equals costBase');
+  ok(E.buyPropertyUpgrade(g, 'bung_deck') === true, 'buying a root upgrade succeeds');
+  ok(approx(E.propertyUpgradeCost(g, 'bung_deck'), deckDef.costBase * C.PROPERTY.growth), 'next rank costs base·1.6^1 (no skips)');
+  ok(E.propertyUpgradeUnlocked(g, 'bung_plunge'), 'the child unlocks once the parent has rank ≥ 1');
+  ok(M.propertyScore(g, DATA) === beforeScore + deckDef.comfort, 'a bought upgrade adds exactly its comfort to propertyScore');
+
+  // ---- a zero-cash player is blocked from both deed and upgrade (no negative cash)
+  const broke = ST.newGame(); broke.accommodation.tier = 15; broke._comfortCache = M.computeComfort(broke, DATA); broke.resources.cash = 0;
+  ok(E.buyProperty(broke, 'bungalow') === false && broke.resources.cash === 0, 'a ƒ0 player cannot buy the deed (no negative cash)');
+
+  // ---- migration: a pre-E22 save with no property slice backfills to all-unowned
+  const old = ST.newGame(); delete old.property;
+  const mig = ST.migrate(JSON.parse(JSON.stringify(old)));
+  ok(mig.property && DATA.property.every(p => mig.property[p.id] && mig.property[p.id].owned === false),
+    'a pre-E22 save backfills state.property (all unowned — no phantom ownership)');
+
+  // ---- stack-order: L_owner folds into tierMultiplier as a clean bounded factor
+  const stk = ST.newGame(); stk.generators[0].bought = 20; stk.generators[0].count = 20;
+  const m0 = M.tierMultiplier(stk, 0);
+  stk.property.bungalow.owned = true;   // one deed ⇒ ×(1+ownerPride)
+  ok(approx(M.tierMultiplier(stk, 0) / m0, 1 + C.PROPERTY.ownerPride), 'tierMultiplier scales by exactly the owner-pride ratio (clean global factor)');
+
+  // ---- harness invariance: the greedy ROI player never buys a deed ⇒ island unchanged
+  const { s: hs, islandAt } = runCurve({ dt: 5, maxHours: 40 });
+  ok(Math.abs(islandAt - 29705) < 1, `harness island time is UNCHANGED by E22 (got ${fmtTime(islandAt)}, expected 29705s — the deed is opt-in, ladder stays Comfort-gated)`);
+  ok(M.ownedPropertyCount(hs) === 0 && M.propertyScore(hs, DATA) === 0, 'the harness ends owning no property (propertyScore 0 throughout)');
+  ok(M.ownerPrideMult(hs) === 1, 'the harness income is never touched by owner-pride (×1 throughout)');
 }
 
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);
