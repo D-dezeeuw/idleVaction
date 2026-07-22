@@ -84,8 +84,12 @@ export function tierMultiplier(state, k) {
   // zero state — the harness never Legends or NG+s, so the fitted island time is unmoved.
   const L_legend = legendMultiplier(state);
   const L_ngplus = ngPlusIncomeMult(state);
+  // L_achieve (E30 completionist ×, meta-gated) + L_seasonal (live-ops, island-gated). Both exactly
+  // 1 for the harness (unlocks only reward-0 trophies, never owns the island) — the island is unmoved.
+  const L_achieve = achieveMultiplier(state);
+  const L_seasonal = seasonalMultiplier(state);
 
-  return mMilestone * L_upgrade * L_path * L_skill * L_comfort * L_dest * L_exclusivity * L_logistics * L_staff * L_owner * L_estate * L_island * L_ascension * L_tree * L_legend * L_ngplus;
+  return mMilestone * L_upgrade * L_path * L_skill * L_comfort * L_dest * L_exclusivity * L_logistics * L_staff * L_owner * L_estate * L_island * L_ascension * L_tree * L_legend * L_ngplus * L_achieve * L_seasonal;
 }
 
 // production per second of tier k (in units of tier k output)
@@ -369,6 +373,32 @@ export function ngPlusGateMult(state) {
   const n = state.ngPlus || 0;
   return n <= 0 ? 1 : Math.pow(C.NGPLUS.gateScale, n);
 }
+
+// ---- achievements & live-ops (E30 "Legends of Leisure") ----
+// L_achieve = 1 + Σ (unlocked achievements' reward), curved by ACHIEVE.rewardCap. Only meta/collection
+// achievements carry reward > 0 (in-run trophies are reward 0), and the harness unlocks only reward-0
+// trophies, so this is EXACTLY 1 for the fitted run. DATA passed explicitly; engine.tick caches it as
+// state._achieveMult (achieveMultiplier reads it, like _legendMult).
+export function computeAchieveMult(state, DATA) {
+  const u = state.achievements?.unlocked;
+  if (!u) return 1;
+  let sum = 0;
+  for (const a of DATA.achievements) if (u[a.id]) sum += a.reward || 0;
+  return 1 + Math.min(C.ACHIEVE.rewardCap, sum);
+}
+export function achieveMultiplier(state) { return state._achieveMult ?? 1; }
+// Seasonal live-ops ×: the active rotating destination's bounded mult, GATED on owning the island
+// (a summit-era feature). 1 for the harness (never owns the island). cycleIndex drives rotation
+// (days of playtime), a pure function so it is reload-stable.
+export function seasonalMult(state, DATA) {
+  if (!state.island?.owned) return 1;
+  const days = Math.floor((state.meta?.playtimeMs || 0) / 86400000);
+  const list = DATA.seasonal;
+  if (!list || !list.length) return 1;
+  const s = list[((days % list.length) + list.length) % list.length];
+  return Math.min(C.ACHIEVE.seasonalMultCap, s.mult);
+}
+export function seasonalMultiplier(state) { return state._seasonalMult ?? 1; }
 
 // ---- estate: grounds Comfort + property×staff synergy (E23 "Villa Vita") ----
 // groundsScore: Σ bought tag:'grounds' amenities' comfort — a UI-facing selector (the nodes ALREADY

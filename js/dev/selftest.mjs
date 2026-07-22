@@ -17,6 +17,8 @@ import { validateStaff } from '../data/staff.js';
 import { validateProperty } from '../data/property.js';
 import { validateIsland } from '../data/island.js';
 import { validateLegend } from '../data/legend.js';
+import { validateAchievements } from '../data/achievements.js';
+import { validateSeasonal } from '../data/seasonal.js';
 import { fmt, fmtTime, rng } from '../util.js';
 // E11 harness-invariance guard ([62] below): importing runCurve does NOT auto-run the
 // harness's own report() — that's guarded behind `process.argv[1].endsWith('harness.mjs')`,
@@ -4553,6 +4555,64 @@ console.log('\n[104] E29 Empire of Leisure: Legend prestige-2, meta-meta shop, N
   const { s: hs, islandAt } = runCurve({ dt: 5, maxHours: 40 });
   ok(Math.abs(islandAt - 29705) < 1, `harness island time is UNCHANGED by E29 (got ${fmtTime(islandAt)}, expected 29705s — no Legend, no NG+)`);
   ok((hs.legend?.count || 0) === 0 && (hs.ngPlus || 0) === 0 && M.computeLegendMult(hs, DATA) === 1 && M.ngPlusIncomeMult(hs) === 1, 'the harness never Legends or NG+s (L_legend 1, NG+ mults 1)');
+}
+
+console.log('\n[105] E30 Legends of Leisure: achievements/collections, seasonal, the golden file, invariance');
+{
+  ok(validateAchievements(), 'validateAchievements() passes (incl. the reward-0-unless-meta invariant)');
+  ok(validateSeasonal(), 'validateSeasonal() passes on the SEASONAL roster');
+
+  // ---- THE CORE INVARIANT: every non-meta (in-run) achievement carries reward 0
+  ok(DATA.achievements.filter(a => !a.meta).every(a => a.reward === 0), 'every in-run milestone achievement has reward 0 (harness-safe)');
+  ok(DATA.achievements.some(a => a.meta && a.reward > 0), 'meta achievements DO carry a positive completionist reward');
+
+  // ---- stateMetric maps the right live values
+  const m = ST.newGame(); m.accommodation.tier = 12; m.stats.bestComfort = 5e6; m.ascension.count = 2; m.island.owned = true; m.ngPlus = 1;
+  ok(E.stateMetric(m, 'accTier') === 12 && E.stateMetric(m, 'bestComfort') === 5e6, 'stateMetric reads in-run metrics');
+  ok(E.stateMetric(m, 'ascensionCount') === 2 && E.stateMetric(m, 'islandOwned') === 1 && E.stateMetric(m, 'ngPlus') === 1, 'stateMetric reads meta metrics');
+
+  // ---- evaluateAchievements unlocks by condition; in-run trophies give NO income, meta ones do
+  const run = ST.newGame(); run.accommodation.tier = 20; run.stats.bestComfort = 1e9; run.stats.lifetimeCash = 1e6;
+  E.evaluateAchievements(run);
+  ok(E.achievementUnlocked(run, 'the_island') && E.achievementUnlocked(run, 'very_comfy'), 'in-run milestones unlock when reached');
+  ok(M.computeAchieveMult(run, DATA) === 1, 'unlocking ONLY in-run trophies leaves L_achieve at exactly 1 (the invariant)');
+  const meta = ST.newGame(); meta.ascension.count = 1; meta.island.owned = true;
+  E.evaluateAchievements(meta);
+  ok(E.achievementUnlocked(meta, 'first_ascend') && E.achievementUnlocked(meta, 'homeowner'), 'meta achievements unlock on their meta actions');
+  const firstA = DATA.achievements.find(a => a.id === 'first_ascend');
+  ok(M.computeAchieveMult(meta, DATA) > 1, 'a meta achievement raises L_achieve above 1');
+
+  // ---- L_achieve is capped and folds into the stack
+  const capped = ST.newGame();
+  for (const a of DATA.achievements) if (a.meta) capped.achievements.unlocked[a.id] = true;
+  ok(M.computeAchieveMult(capped, DATA) <= 1 + C.ACHIEVE.rewardCap + 1e-9, 'L_achieve is curved by ACHIEVE.rewardCap (100% never trivializes NG+)');
+  const stk = ST.newGame(); stk.generators[0].bought = 20; stk.generators[0].count = 20;
+  const m0 = M.tierMultiplier(stk, 0); stk._achieveMult = 1.1;
+  ok(approx(M.tierMultiplier(stk, 0) / m0, 1.1), 'tierMultiplier scales by exactly the L_achieve cache (clean global factor)');
+
+  // ---- seasonal: 1 unless the island is owned; bounded; deterministic rotation
+  ok(M.seasonalMult(ST.newGame(), DATA) === 1, 'the seasonal × is 1 without the island (harness-neutral)');
+  const isl = ST.newGame(); isl.island.owned = true; isl.meta.playtimeMs = 0;
+  ok(M.seasonalMult(isl, DATA) > 1 && M.seasonalMult(isl, DATA) <= C.ACHIEVE.seasonalMultCap, 'an island owner gets a bounded seasonal ×');
+  const { activeSeasonal } = await import('../data/seasonal.js');
+  ok(activeSeasonal(0).id === activeSeasonal(DATA.seasonal.length).id, 'seasonal rotation is deterministic and wraps by cycle');
+
+  // ---- achievements survive resets (a permanent record)
+  const rec = ST.newGame(); rec.achievements.unlocked.the_island = true;
+  rec.stats.lifetimeCashThisTree = 1e10; rec.stats.runSec = 300; rec.bank.tier = 3;
+  P.ascend(rec);
+  ok(rec.achievements.unlocked.the_island === true, 'the trophy record survives ascension (permanent)');
+
+  // ---- THE GOLDEN FILE: the fitted greedy-optimal curve is locked (E30-S8). island 29705s, 26
+  // beats monotone, peak log10 bounded, and every E30 layer neutral for the harness.
+  const { s: hs, beatTime, islandAt, peakLog } = runCurve({ dt: 5, maxHours: 40 });
+  ok(Math.abs(islandAt - 29705) < 1, `GOLDEN: island (tier 20) at 29705s (got ${fmtTime(islandAt)})`);
+  const beats = Object.keys(beatTime).map(Number).sort((a, b) => a - b);
+  ok(beats.length === 26 && beats[beats.length - 1] === 26, 'GOLDEN: the greedy harness reaches exactly 26 monotone beats');
+  ok(peakLog < 12 && peakLog < 290, `GOLDEN: peak log10(cash) ${peakLog.toFixed(1)} stays well under the 1e290 BigNumber threshold (doubles suffice)`);
+  // golden beat-time snapshot (a few anchors — the whole curve is pinned by the 29705 island above)
+  ok(Math.abs(beatTime[1] - 0) < 1 && beatTime[18] < beatTime[22] && beatTime[22] < beatTime[26], 'GOLDEN: beat ordering is monotone (1 → 18 → 22 → 26)');
+  ok(M.computeAchieveMult(hs, DATA) === 1 && M.seasonalMult(hs, DATA) === 1, 'GOLDEN: L_achieve + seasonal are 1 for the harness (E30 is fully opt-in)');
 }
 
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);

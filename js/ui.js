@@ -44,6 +44,7 @@ export function render(state) {
   renderProperty(state);
   renderIslandListing(state);
   renderLegend(state);
+  renderAchievements(state);
   renderSkills(state);
   renderPaths(state);
   renderAscension(state);
@@ -1550,6 +1551,28 @@ function renderIslandListing(s) {
   }
   html += `<div class="iv-row-buy">${btn('buy-island', '', can ? 'Make an Offer 🏝️' : 'Make an Offer 🏝️ (keep saving)', can, 'btn-primary')}</div>`;
   el('islandListing').innerHTML = html;
+}
+
+// The Trophy Cabinet + Statistics (E30): the completionist gallery (earned vs locked) and a live
+// stats readout. Always visible — it's the record of the whole journey.
+function renderAchievements(s) {
+  const total = DATA.achievements.length;
+  const earned = DATA.achievements.filter(a => E.achievementUnlocked(s, a.id)).length;
+  const lAchieve = M.computeAchieveMult(s, DATA);
+  let html = `<div class="iv-sub">🏆 <b>${earned}/${total}</b> trophies · completionist income <b>×${lAchieve.toFixed(2)}</b>${s.island?.owned ? ` · seasonal <b>×${M.seasonalMult(s, DATA).toFixed(2)}</b>` : ''}</div>`;
+  // statistics
+  html += `<div class="iv-sub">📊 Best Comfort ${fmt(s.stats.bestComfort || 0)} · lifetime €${fmt(s.stats.lifetimeCash || 0)} · ascensions ${s.ascension?.count || 0} · legends ${s.legend?.count || 0} · NG+ ${s.ngPlus || 0} · playtime ${fmtTime((s.meta?.playtimeMs || 0) / 1000)}</div>`;
+  // trophy gallery
+  html += '<div class="iv-amenities">';
+  for (const a of DATA.achievements) {
+    const got = E.achievementUnlocked(s, a.id);
+    html += `<div class="iv-btn iv-content-item ${got ? 'iv-dest-owned' : ''}" title="${a.desc}">
+      <b>${got ? '🏆' : '🔒'} ${a.name}</b>
+      <div class="iv-sub"><small>${got ? a.desc : '???'}${a.reward > 0 ? ` · +${(a.reward * 100).toFixed(0)}%×` : ''}</small></div>
+    </div>`;
+  }
+  html += '</div>';
+  el('achievements').innerHTML = html;
 }
 
 // The Hall of Fame (E29): the Legend prestige-2 screen + the meta-meta shop + the NG+ toggle.

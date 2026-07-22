@@ -183,6 +183,10 @@ export function newGame() {
     legend: { count: 0, points: 0, banked: 0, perks: {} },
     // ngPlus (E29): the New Game+ cycle counter. 0 ⇒ no gate hardening, no NG+ income × (neutral).
     ngPlus: 0,
+    // achievements (E30): { unlocked: { <id>: true } }. Meta trophies survive resets (a permanent
+    // record). L_achieve reads only meta/collection rewards, so the harness (reward-0 trophies) is
+    // unmoved. Seeded empty; the tick evaluator unlocks by condition.
+    achievements: { unlocked: {} },
     // lineage (E25-A): cosmetic retirement/album bookkeeping. Carried across ascension by
     // prestige.ascend (the keep-list) — never read by any income path.
     lineage: newLineage(),
@@ -204,7 +208,7 @@ export function newGame() {
     // so its NEUTRAL value is 1 — engine.tick recomputes it every tick via logisticsMult
     // (exactly 1 while nothing is equipped). Seeded to 1 (NOT 0) so any tierMultiplier read
     // before the first tick multiplies by the identity, never zeroes income.
-    _comfortCache: 0, _destCache: 1, _combo: 1, _comboTimer: 0, _pathBonus: {}, _exclCache: 0, _logiCache: 1, _staffMult: 1, _estateMult: 1, _legendMult: 1,
+    _comfortCache: 0, _destCache: 1, _combo: 1, _comboTimer: 0, _pathBonus: {}, _exclCache: 0, _logiCache: 1, _staffMult: 1, _estateMult: 1, _legendMult: 1, _achieveMult: 1, _seasonalMult: 1,
   };
 }
 
