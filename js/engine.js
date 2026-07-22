@@ -74,6 +74,12 @@ export function tick(state, dt) {
   advanceAppreciation(state, dt);
   state._exclCache = M.computeExclusivity(state, DATA);
 
+  // private logistics (E15 "Keys to the Coupe"): refresh the logistics × cache BEFORE the
+  // tier-production snapshot so the L_logistics layer sees it (mirrors _exclCache/_destCache).
+  // GATED behind an equipped car — a fresh newGame() and the committed-vlogger harness (no car
+  // ever equipped) leave _logiCache at exactly 1 (⇒ ×1), so the fitted 29705s island is unmoved.
+  state._logiCache = M.logisticsMult(state, DATA);
+
   const rt = runtimeMult(state);
 
   // 2) snapshot tier production, then apply (no intra-tick feedback)
@@ -133,6 +139,13 @@ export function tick(state, dt) {
   // collapsed from ~19h to ~6h in testing). See math.js's destMult comment.
   applyTransportUpkeep(state, dt);
 
+  // 5c) Fleet upkeep (E15-S2-T4/T9): equipped cars drain cash/s; clamped so cash never goes
+  // negative (offline included — applyOffline just calls tick()). If upkeep can't be met for
+  // repossessGraceSec of continuous game-time, the costliest car is auto-unequipped
+  // (repossession, deterministic in game-time ⇒ offline replay matches). No-op with an empty
+  // fleet (fleetUpkeep 0), so the harness pays nothing and repossesses nothing.
+  applyFleetUpkeep(state, dt);
+
   // 6) unlocks + story
   checkUnlocks(state);
   checkAmenityUnlocks(state);
@@ -153,6 +166,8 @@ export function tick(state, dt) {
   checkWhaleWatching(state);
   checkCollectionReveal(state);
   checkProvenance(state);
+  checkGarageReveal(state);
+  checkFirstCar(state);
   checkPathStages(state);
 
   // 7) concierge: bounded, off-by-default auto-purchase policy (E11 "Five-Star Frame of
@@ -165,6 +180,52 @@ function applyTransportUpkeep(state, dt) {
   const t = transportData(state.transport.activeSlot);
   if (!t) return;
   state.resources.cash = Math.max(0, state.resources.cash - t.upkeep * dt);
+}
+
+// Fleet upkeep drain + repossession guard (E15-S2-T4/T9). Deterministic in game-time (dt +
+// cash), so an offline macro-step replay matches online play exactly. Income for this tick was
+// already banked (step 3), so a profitable fleet — income ≥ upkeep — never enters the arrears
+// branch and is never repossessed; only a genuinely over-equipped fleet (upkeep > income, cash
+// exhausted) triggers the grace clock. Never lets cash go negative.
+function applyFleetUpkeep(state, dt) {
+  const v = state.vehicles;
+  if (!v) return;
+  const upkeep = M.fleetUpkeep(state, DATA);
+  if (upkeep <= 0) { v.upkeepAccrued = 0; return; }
+  const due = upkeep * dt;
+  if (state.resources.cash >= due) {
+    state.resources.cash -= due;
+    v.upkeepAccrued = 0;                    // paid in full → reset the grace clock
+  } else {
+    state.resources.cash = 0;              // pay every euro available, never go below zero
+    v.upkeepAccrued = (v.upkeepAccrued || 0) + dt;
+    // one repossession per full grace window elapsed (a single big offline step can shed
+    // several cars deterministically); stop once the rack is empty (upkeep → 0).
+    let guard = 0;
+    while (v.upkeepAccrued >= C.LOGISTICS.repossessGraceSec && v.equipped.length > 0 && guard++ < 100) {
+      v.upkeepAccrued -= C.LOGISTICS.repossessGraceSec;
+      repossessCostliest(state);
+    }
+    if (v.equipped.length === 0) v.upkeepAccrued = 0;
+  }
+}
+// auto-unequip the costliest (highest-upkeep) equipped car — ownership is untouched, so it can
+// be re-equipped once income recovers. Recomputes the logistics/comfort caches.
+function repossessCostliest(state) {
+  const v = state.vehicles;
+  if (!v.equipped.length) return;
+  let worstId = null, worstUp = -Infinity;
+  for (const id of v.equipped) {
+    const car = carData(id);
+    const up = car ? car.upkeep : 0;
+    if (up > worstUp) { worstUp = up; worstId = id; }
+  }
+  if (worstId == null) return;
+  v.equipped.splice(v.equipped.indexOf(worstId), 1);
+  state._logiCache = M.logisticsMult(state, DATA);
+  state._comfortCache = M.computeComfort(state, DATA);
+  const car = carData(worstId);
+  notify(state, 'warn', `🚗 The bailiff repossesses your ${car ? car.name : 'car'} — the upkeep went unpaid.`);
 }
 
 function decayCombo(state, dt) {
@@ -383,7 +444,10 @@ export function transportData(id) { return DATA.transport.find(t => t.id === id)
 // Royalty) speeds whatever ride is active — no ride, nothing to speed up.
 export function transportSpeed(state) {
   const t = transportData(state.transport.activeSlot);
-  return t ? t.speed + M.pathBonus(state, 'speed') : 0;
+  const rideSpeed = t ? t.speed + M.pathBonus(state, 'speed') : 0;
+  // equipped cars add their speed on top of any active public-transport ride (E15-S2-T5) —
+  // 0 with an empty fleet, so the greedy-vlogger harness's destCost is unchanged.
+  return rideSpeed + M.fleetSpeed(state, DATA);
 }
 
 // a destination reveals once BOTH its unlockAfter prerequisite (the prior place,
@@ -404,9 +468,12 @@ export function destCost(state, id) {
   const ownedCount = Object.values(state.destinations).filter(x => x.owned).length;
   const g = d.costGrowth || C.DEST.costGrowth;
   const raw = d.costBase * Math.pow(g, ownedCount) * M.commsCostMult(state);
-  // traveler stages 1+4 (Stamped Passport / The Atlas Personified): flat −25% total at
-  // full track, on top of the ride's speed shortening — bounded by data.
-  return raw * (1 - M.pathBonus(state, 'destDiscount')) / (1 + transportSpeed(state));
+  // destDiscountMult (math.js) stacks the committed traveler track's flat destDiscount stage
+  // bonus with the traveler BRANCH −15% perk and Wanderer's Instinct −20%/rank, floored so the
+  // stack can never drive a place implausibly cheap (E15-S2-T7/S7-T7/S8-T6). It is EXACTLY 1
+  // for a non-traveler with no wanderer rank (the greedy-vlogger harness), so destCost — and the
+  // fitted island — are unmoved. Divided by (1+transportSpeed) as before (now incl. fleet speed).
+  return raw * M.destDiscountMult(state) / (1 + transportSpeed(state));
 }
 // one-time unlock: permanent global × (L_dest), blocked on a repeat buy (E04-S2-T4/S4-T10).
 export function buyDestination(state, id) {
@@ -1095,6 +1162,93 @@ export function checkProvenance(state) {
   state._exclCache = M.computeExclusivity(state, DATA);
   state._comfortCache = M.computeComfort(state, DATA);
   notify(state, 'celebrate', '🍷 Provenance: an auction house calls YOU. A signature bottle is couriered over, already gaining value in your cellar. Taste sharpens; doors open.');
+}
+
+// ---------- private logistics: the garage (E15 "Keys to the Coupe") ----------
+// Owned vs equipped are distinct: buying a car only adds it to the garage; EQUIPPING it into a
+// transport slot is what turns on its logistics × / upkeep / Comfort (math.logisticsActive
+// gates on the equipped list). A fresh newGame() and the committed-vlogger harness never buy or
+// equip a car, so the whole lane is a no-op and the fitted 29705s island cannot move — exactly
+// the E14 connoisseur / E13 crypto opt-in pattern. carData/carCost/buyCar mirror
+// coinData/coinCost/buyCoin; equip/unequip enforce the Σ slotCost ≤ availableSlots constraint.
+export function carData(id) { return DATA.vehicles.find(c => c.id === id); }
+// re-export the pure gate (math owns it, no engine↔math cycle) for API symmetry with
+// engine.connoisseurActive / cryptoActive — true iff any car is equipped.
+export function logisticsActive(state) { return M.logisticsActive(state, DATA); }
+export function carCost(state, id) {
+  const c = carData(id);
+  return bulkCost(c.costBase, c.costGrowth, state.vehicles.owned[id].count, 1) * M.commsCostMult(state);
+}
+// buy one copy into the garage (does NOT auto-equip — slots are a deliberate choice, E15-S4-T1).
+// One-off traveler path nudge per purchase (mirrors buyCoin — credits ONLY a committed traveler
+// life via addPathPoints). Owning (not equipping) changes no multiplier cache.
+export function buyCar(state, id) {
+  const c = carData(id);
+  if (!c) return false;
+  const cost = carCost(state, id);
+  if (state.resources.cash < cost) return false;
+  state.resources.cash -= cost;
+  state.vehicles.owned[id].count += 1;
+  addPathPoints(state, 'traveler', C.LOGISTICS.buyPathNudge);
+  notify(state, 'unlock', `🔑 New wheels: ${c.name}`);
+  return true;
+}
+// equip one owned-but-unequipped copy, if it fits the free slots (E15-S2-T2/S10-T1). Rejected
+// (false — the UI shows the reason) when nothing free to equip or the rack is full; never
+// clamps silently. Recomputes the logistics/comfort caches (equipping raises both).
+export function equipCar(state, id) {
+  const c = carData(id);
+  if (!c) return false;
+  const owned = state.vehicles.owned[id]?.count || 0;
+  const equippedOfId = state.vehicles.equipped.filter(x => x === id).length;
+  if (equippedOfId >= owned) return false;                                   // no free copy to equip
+  if (M.equippedSlotCost(state, DATA) + c.slotCost > M.availableSlots(state)) return false;  // no room
+  state.vehicles.equipped.push(id);
+  state._logiCache = M.logisticsMult(state, DATA);
+  state._comfortCache = M.computeComfort(state, DATA);
+  return true;
+}
+// unequip one copy — frees its slots and recomputes the ×/Comfort (E15-S10-T6). Ownership is
+// untouched, so it can be re-equipped later.
+export function unequipCar(state, id) {
+  const i = state.vehicles.equipped.indexOf(id);
+  if (i < 0) return false;
+  state.vehicles.equipped.splice(i, 1);
+  state._logiCache = M.logisticsMult(state, DATA);
+  state._comfortCache = M.computeComfort(state, DATA);
+  return true;
+}
+// Reveal gate (E15-S3-T8/S6): mirrors collectionUnlocked/cryptoDeskUnlocked's OR contract —
+// beat 15 (Keys to the Coupe) has fired, OR the tier-11 band is reached, OR a car is owned,
+// whichever first. A one-shot flag for the UI garage card.
+export function garageUnlocked(state) {
+  return state.story.seen.includes(15) || state.accommodation.tier >= 11
+      || Object.values(state.vehicles.owned).some(o => o.count > 0);
+}
+export function checkGarageReveal(state) {
+  if (state.story.flags.garageRevealed) return;
+  if (!garageUnlocked(state)) return;
+  state.story.flags.garageRevealed = true;
+  notify(state, 'unlock', '🔑 The Garage opens: buy cars, equip them into your transport slots — mind the upkeep.');
+}
+// "Keys to the Coupe" one-time bonus (E15-S7-T5): mirrors checkProvenance/checkWhaleWatching (a
+// one-shot flag on a discrete milestone, never a second interactive beat) — fires once a
+// traveler-branch player owns their first car: traveler path points + a starter accessory
+// (a free level of heated leather seats). Beat 15 itself stays on its accTier:10 gate for every
+// branch (the 26-beat pin / neutral fallback, E15-S7-T10) — this is the traveler-lane reward.
+const FIRST_CAR_PATH_BONUS = 2;
+const FIRST_CAR_ACCESSORY_ID = 'heated_leather_seats';
+export function checkFirstCar(state) {
+  if (state.story.flags.firstCar) return;
+  if (state.story.branch !== 'traveler') return;
+  if (!Object.values(state.vehicles.owned).some(o => o.count > 0)) return;
+  state.story.flags.firstCar = true;
+  addPathPoints(state, 'traveler', FIRST_CAR_PATH_BONUS);
+  if (state.amenities[FIRST_CAR_ACCESSORY_ID]) {
+    state.amenities[FIRST_CAR_ACCESSORY_ID].level += 1;
+    state._comfortCache = M.computeComfort(state, DATA);
+  }
+  notify(state, 'celebrate', '🔑 Keys to the Coupe: your first private wheels. The bus timetable can wait forever now — and there is a little something for the glovebox.');
 }
 
 export function nextAccTier(state) { return state.accommodation.tier + 1; }

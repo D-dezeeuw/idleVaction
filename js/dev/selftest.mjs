@@ -11,6 +11,7 @@ import { validateDestinations } from '../data/destinations.js';
 import { validateBank } from '../data/bank.js';
 import { validatePaths } from '../data/paths.js';
 import { validateCollections } from '../data/collections.js';
+import { validateVehicles } from '../data/vehicles.js';
 import { fmt, fmtTime, rng } from '../util.js';
 // E11 harness-invariance guard ([62] below): importing runCurve does NOT auto-run the
 // harness's own report() — that's guarded behind `process.argv[1].endsWith('harness.mjs')`,
@@ -3429,6 +3430,174 @@ console.log('\n[89] E14 connoisseur: exclusivity ×, luxury discount, appreciati
   ok(M.collectionNetWorth(nw, DATA) > nwBefore, 'appreciation raises the display net worth as held assets age');
   ok(nw.stats.lifetimeCash === lifeBefore && nw.stats.lifetimeCashThisTree === treeBefore,
     'appreciated collection value NEVER feeds lifetimeCash/lifetimeCashThisTree (banked-cash-only — wallet-cap §11 + Legacy §12 unaffected; S2-T7 superseded)');
+}
+
+// ---------- 90. E15 "Keys to the Coupe": private logistics — cars, slots, upkeep, the
+// logistics ×, repossession, and the harness-invariance gate. ----------
+console.log('\n[90] E15 logistics: cars/slots/upkeep, logistics × gate invariance, repossession');
+{
+  ok(validateVehicles(), 'validateVehicles() passes on the shipped CARS roster');
+  ok(DATA.vehicles.length === 6, '6 cars in the roster');
+
+  // ---- harness invariance: the committed-vlogger harness never buys/equips a car, so the
+  // logistics ×, upkeep, fleet Comfort and traveler discount are all no-ops → island UNCHANGED.
+  const { s: hs, islandAt, peakLog } = runCurve({ dt: 5, maxHours: 40 });
+  ok(Math.abs(islandAt - 29705) < 1, `harness island time is UNCHANGED by E15 (got ${fmtTime(islandAt)}, expected ~8h15m05s / 29705s — the committed-path baseline)`);
+  ok(peakLog < 290, `peak log10(cash) (${peakLog.toFixed(1)}) stays far under the double-overflow ceiling`);
+  ok(hs.vehicles.equipped.length === 0 && DATA.vehicles.every(c => hs.vehicles.owned[c.id].count === 0),
+    'the harness never buys or equips a single car (not in its greedy policy)');
+  ok(hs._logiCache === 1 && M.logisticsActive(hs, DATA) === false,
+    'the harness run leaves the logistics system inactive (_logiCache 1) start to finish');
+
+  // ---- gate exactness: everything is a no-op when nothing is equipped
+  const inact = ST.newGame();
+  ok(M.logisticsActive(inact, DATA) === false, 'a fresh newGame() is logistics-INACTIVE (no car equipped)');
+  ok(M.logisticsMult(inact, DATA) === 1, 'logisticsMult is exactly 1 when nothing is equipped');
+  ok(M.fleetUpkeep(inact, DATA) === 0, 'fleetUpkeep is exactly 0 when nothing is equipped');
+  ok(M.fleetComfortTotal(inact, DATA) === 0, 'fleet Comfort is exactly 0 when nothing is equipped');
+  ok(M.destDiscountMult(inact) === 1, 'destDiscountMult is exactly 1 for a neutral player (no traveler perk / wanderer)');
+  ok(E.logisticsActive(inact) === false, 'engine.logisticsActive re-exports the same gate');
+  // owning-but-not-equipping is still inactive (the equip is what turns the lane on)
+  const ownOnly = ST.newGame(); ownOnly.vehicles.owned.german_sedan.count = 2;
+  ok(M.logisticsActive(ownOnly, DATA) === false && M.logisticsMult(ownOnly, DATA) === 1,
+    'owning a car without equipping it draws no × and no upkeep (equip is the gate)');
+
+  // ---- availableSlots: base + traveler +1 + wanderer/rank + garage
+  const sl = ST.newGame();
+  ok(M.availableSlots(sl) === C.LOGISTICS.baseSlots, 'availableSlots = baseSlots for a neutral player');
+  sl.story.branch = 'traveler';
+  ok(M.availableSlots(sl) === C.LOGISTICS.baseSlots + 1, 'the traveler branch grants +1 slot');
+  sl.ascension.tree.wanderer = 2; sl.vehicles.garageSlots = 1;
+  ok(M.availableSlots(sl) === C.LOGISTICS.baseSlots + 1 + 2 + 1, "Wanderer's Instinct (+1/rank) and the garage wing add slots");
+
+  // ---- buy → equip → logistics ×, slot-capacity enforcement (E15-S2-T2/S10-T1)
+  const g = ST.newGame(); g.story.branch = 'traveler'; g.bank.tier = C.BANK.tiers - 1; g.resources.cash = 1e12;
+  const slots = M.availableSlots(g);   // baseSlots(2)+1 = 3
+  ok(E.buyCar(g, 'german_sedan') && g.vehicles.owned.german_sedan.count === 1, 'buyCar adds a car to the garage');
+  ok(g.paths.traveler.points > 0, 'buying a car nudges the committed traveler path (one-off, like buyCoin)');
+  ok(M.logisticsActive(g, DATA) === false, 'still inactive after buying but not equipping');
+  ok(E.equipCar(g, 'german_sedan') && g.vehicles.equipped.length === 1, 'equipCar equips an owned car');
+  ok(approx(M.logisticsMult(g, DATA), 1 + C.LOGISTICS.rate * E.carData('german_sedan').logisticsMult),
+    'logisticsMult = 1 + rate·Σ(equipped logisticsMult)');
+  // fill to capacity then reject overflow
+  g.vehicles.owned.german_sedan.count = 5;
+  while (E.equipCar(g, 'german_sedan')) { /* equip until full */ }
+  ok(M.equippedSlotCost(g, DATA) === slots, `equipped fleet fills exactly the ${slots} available slots`);
+  ok(E.equipCar(g, 'german_sedan') === false, 'equipping beyond availableSlots is REJECTED (never clamped silently)');
+  ok(M.equippedSlotCost(g, DATA) <= M.availableSlots(g), 'Σ slotCost ≤ availableSlots always holds');
+  // a 2-slot car needs 2 free slots
+  const g2 = ST.newGame(); g2.story.branch = 'traveler'; g2.vehicles.owned.hand_built_grand_tourer.count = 2;
+  ok(E.equipCar(g2, 'hand_built_grand_tourer') === true, 'first 2-slot supercar fits (3 slots)');
+  ok(E.equipCar(g2, 'hand_built_grand_tourer') === false, 'a second 2-slot supercar (would be 4>3) is rejected');
+
+  // ---- logistics purity: same equipped set ⇒ same × (E15-S10-T3)
+  const p1 = ST.newGame(); p1.vehicles.owned.german_sedan.count = 2; p1.vehicles.equipped = ['german_sedan', 'german_sedan'];
+  const p2 = ST.newGame(); p2.vehicles.owned.german_sedan.count = 2; p2.vehicles.equipped = ['german_sedan', 'german_sedan'];
+  ok(M.logisticsMult(p1, DATA) === M.logisticsMult(p2, DATA), 'logisticsMult is pure over state (same equipped set ⇒ same ×)');
+
+  // ---- stack-order regression: L_logistics folds in as a clean multiplicative factor
+  const stk = ST.newGame(); stk.generators[0].bought = 20; stk.generators[0].count = 20;
+  const mBefore = M.tierMultiplier(stk, 0), lBefore = M.logisticsMultiplier(stk);
+  stk._logiCache = 1.5;
+  ok(approx(M.tierMultiplier(stk, 0) / mBefore, 1.5 / lBefore),
+    'tierMultiplier scales by EXACTLY the L_logistics ratio when only _logiCache changes — a clean global factor');
+
+  // ---- upkeep floor: cash never goes below zero, online (E15-S10-T2)
+  const u = ST.newGame(); u.story.branch = 'traveler'; u.vehicles.owned.hand_built_grand_tourer.count = 1; u.vehicles.equipped = ['hand_built_grand_tourer'];
+  u.resources.cash = 5; u._logiCache = M.logisticsMult(u, DATA);
+  for (let i = 0; i < 50; i++) E.tick(u, 1);
+  ok(u.resources.cash >= 0 && Number.isFinite(u.resources.cash), 'fleet upkeep never drives cash below zero online');
+
+  // ---- repossession: force upkeep>income, cash exhausted → costliest car auto-unequips after grace
+  const r = ST.newGame(); r.story.branch = 'traveler';
+  r.vehicles.owned.hand_built_grand_tourer.count = 1; r.vehicles.owned.german_sedan.count = 1;
+  E.equipCar(r, 'hand_built_grand_tourer'); E.equipCar(r, 'german_sedan');
+  const equippedBefore = r.vehicles.equipped.length;
+  r.resources.cash = 0;
+  // no income (no generators bought) → upkeep can't be met → grace clock runs
+  for (let i = 0; i < C.LOGISTICS.repossessGraceSec + 5; i++) E.tick(r, 1);
+  ok(r.vehicles.equipped.length < equippedBefore, 'an unpayable fleet auto-unequips after the grace window (repossession)');
+  ok(!r.vehicles.equipped.includes('hand_built_grand_tourer'), 'repossession sheds the COSTLIEST (highest-upkeep) car first');
+  ok(r.vehicles.owned.hand_built_grand_tourer.count === 1, 'repossession UNEQUIPS but never removes ownership (re-equip once income recovers)');
+  ok(r.resources.cash >= 0, 'cash stays ≥ 0 throughout repossession');
+
+  // ---- unequip frees slots + recomputes × (E15-S10-T6)
+  const un = ST.newGame(); un.story.branch = 'traveler'; un.vehicles.owned.german_sedan.count = 2;
+  E.equipCar(un, 'german_sedan'); E.equipCar(un, 'german_sedan');
+  const usedBefore = M.equippedSlotCost(un, DATA);
+  ok(E.unequipCar(un, 'german_sedan') && M.equippedSlotCost(un, DATA) === usedBefore - 1, 'unequip frees the car’s slots');
+  ok(approx(M.logisticsMult(un, DATA), 1 + C.LOGISTICS.rate * E.carData('german_sedan').logisticsMult), 'unequip recomputes the logistics × for the remaining fleet');
+
+  // ---- destination discount: traveler + wanderer stack, floored; branch-gated off for the harness
+  const dv = ST.newGame(); dv.story.branch = 'vlogger';
+  ok(M.destDiscountMult(dv) === 1, 'a vlogger (harness) gets NO destination discount ⇒ destCost unmoved');
+  const dt = ST.newGame(); dt.story.branch = 'traveler';
+  ok(approx(M.destDiscountMult(dt), 1 - C.LOGISTICS.destDiscountTraveler), 'the traveler branch discount is −15%');
+  dt.ascension.tree.wanderer = 3;
+  ok(approx(M.destDiscountMult(dt), Math.max(C.LOGISTICS.destDiscountFloor, (1 - C.LOGISTICS.destDiscountTraveler) * Math.pow(1 - C.LOGISTICS.wandererDestDiscount, 3))),
+    "traveler −15% stacks multiplicatively with Wanderer's Instinct −20%/rank, floored");
+  dt.ascension.tree.wanderer = 50;   // absurd — must clamp to the floor, never negative/zero
+  ok(M.destDiscountMult(dt) === C.LOGISTICS.destDiscountFloor, 'the stacked destination discount clamps at destDiscountFloor (never implausibly cheap)');
+
+  // ---- fleet Comfort: only equipped, and only lifts Comfort for a player who equips (harness-neutral)
+  const fcV = ST.newGame(); fcV.story.branch = 'vlogger';
+  const fcC = ST.newGame(); fcC.story.branch = 'vlogger'; fcC.vehicles.owned.german_sedan.count = 1; fcC.vehicles.equipped = ['german_sedan'];
+  ok(approx(M.computeComfort(fcC, DATA) - M.computeComfort(fcV, DATA), C.COMFORT.wAmen * E.carData('german_sedan').comfort),
+    'an equipped car adds exactly its comfort to ComfortRaw; an empty fleet adds 0 (harness bit-identical)');
+
+  // ---- first-car one-time bonus (mirrors Provenance/Whale Watching): traveler only, once
+  const fc = ST.newGame(); fc.story.branch = 'traveler'; fc.bank.tier = C.BANK.tiers - 1; fc.resources.cash = 1e9;
+  const tPts = fc.paths.traveler.points, seatsBefore = fc.amenities.heated_leather_seats.level;
+  E.buyCar(fc, 'rusty_hatchback'); E.tick(fc, 1);
+  ok(fc.story.flags.firstCar === true, 'flags.firstCar fires once a traveler owns their first car');
+  ok(fc.paths.traveler.points > tPts, 'the first-car bonus grants traveler path points');
+  ok(fc.amenities.heated_leather_seats.level > seatsBefore, 'the first-car bonus gifts a starter accessory');
+  const ptsAfter = fc.paths.traveler.points; E.checkFirstCar(fc);
+  ok(fc.paths.traveler.points === ptsAfter, 'the first-car bonus never re-fires (one-shot)');
+  // neutral fallback: a non-traveler owning a car gets NO bonus, and beat 15 still fires on accTier:10
+  const nfc = ST.newGame(); nfc.story.branch = 'vlogger'; nfc.bank.tier = C.BANK.tiers - 1; nfc.resources.cash = 1e9;
+  E.buyCar(nfc, 'rusty_hatchback'); E.tick(nfc, 1);
+  ok(!nfc.story.flags.firstCar, 'a non-traveler owning a car gets NO first-car bonus (no build stranded)');
+  const b15 = ST.newGame(); b15.accommodation.tier = 10; b15.accommodation.owned = Array.from({ length: 11 }, (_, i) => i);
+  b15.story.seen = Array.from({ length: 14 }, (_, i) => i + 1); b15.story.beat = 14;   // beats 1..14 fired (narrative monotonicity)
+  E.tick(b15, 1);
+  ok(b15.story.seen.includes(15), 'beat 15 (Keys to the Coupe) still fires on accTier:10 once beat 14 has (every branch — the 26-beat pin holds)');
+
+  // ---- garage reveal gate (mirrors cryptoDeskUnlocked/collectionUnlocked)
+  ok(!E.garageUnlocked(ST.newGame()), 'the garage is locked on a fresh game');
+  const gv = ST.newGame(); gv.accommodation.tier = 11;
+  ok(E.garageUnlocked(gv), 'the tier-11 band unlocks the garage reveal');
+
+  // ---- migration: a pre-E15 save (no vehicles / _logiCache) backfills clean; over-capacity equipped clamps
+  const pre15 = ST.newGame(); delete pre15.vehicles; delete pre15._logiCache;
+  const mig = ST.migrate(JSON.parse(JSON.stringify(pre15)));
+  ok(mig.vehicles && DATA.vehicles.every(c => mig.vehicles.owned[c.id] && mig.vehicles.owned[c.id].count === 0),
+    'migration backfills every car at count 0 (no NaN)');
+  ok(mig.vehicles.equipped.length === 0 && mig._logiCache === 1, 'migration backfills an empty fleet + _logiCache 1');
+  E.tick(mig, 1);
+  ok(Number.isFinite(mig.resources.cash) && Number.isFinite(mig._logiCache), 'ticking a migrated pre-E15 save is finite — no NaN');
+  // a hand-edited over-capacity equipped list is clamped to slot capacity on load (E15-S9-T10)
+  const over = ST.newGame(); over.vehicles.owned.german_sedan.count = 9;
+  over.vehicles.equipped = Array.from({ length: 9 }, () => 'german_sedan');   // 9 slots > capacity
+  const overMig = ST.migrate(JSON.parse(JSON.stringify(over)));
+  ok(overMig.vehicles.equipped.length <= M.availableSlots(overMig) && M.equippedSlotCost(overMig, DATA) <= M.availableSlots(overMig),
+    'migration clamps an over-capacity equipped fleet to availableSlots');
+
+  // ---- offline determinism: upkeep via applyOffline matches a manual tick loop
+  const seedFleet = () => {
+    const st = ST.newGame(); st.story.branch = 'traveler';
+    st.generators[0].bought = 15; st.generators[0].count = 15; st.resources.cash = 1e7; st.bank.tier = C.BANK.tiers - 1;
+    st.vehicles.owned.german_sedan.count = 2; st.vehicles.equipped = ['german_sedan', 'german_sedan'];
+    st.settings.offlineEnabled = true; st._logiCache = M.logisticsMult(st, DATA);
+    return st;
+  };
+  const manual = seedFleet(); const viaOffline = JSON.parse(JSON.stringify(seedFleet()));
+  const elapsedMs = 3 * 3600 * 1000;
+  const total = Math.min(elapsedMs, C.OFFLINE_CAP_H * 3600 * 1000) / 1000, step = total / C.OFFLINE_STEPS;
+  for (let i = 0; i < C.OFFLINE_STEPS; i++) E.tick(manual, step);
+  E.applyOffline(viaOffline, elapsedMs);
+  ok(approx(manual.resources.cash, viaOffline.resources.cash, 1e-3) && manual.vehicles.equipped.length === viaOffline.vehicles.equipped.length,
+    'offline fleet upkeep/logistics matches a manual macro-step tick loop (game-time, deterministic)');
 }
 
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);
