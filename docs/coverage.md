@@ -604,13 +604,37 @@ invariant, `1.6^rank` no-skip + parent gating, migration, stack-order, ƒ0 block
 - S9 Save/offline (4/4/2): present offline Comfort credit (static term) + offline owner-× (applies in macro-steps) + export/import round-trip + backup rotation (all generic); done-now `state.property` schema + generic migration + compact sparse-rank serialize + migration test [97]. **Superseded**: a dedicated `MIGRATIONS[N]` version bump (generic backfill covers it) + a bespoke away-modal property line.
 - S10 QA/juice (2/5/3): present number formatting + `aria-live` region; done-now zero-cash block + rapid-buy `1.6^rank` no-skip + Comfort-recompute authority + persistence regression + one-shot event correctness (flags). **Superseded**: `amenitySlots` cap edge + deed jingle/confetti + reveal animation.
 
-## Act II–VI — E23–E30
+### E23 — Villa Vita (grounds + estate staff + property×staff synergy) · **100/100** (present 21, done-now 55, superseded 24)
+Scale property and staff together — a new system, done-now-heavy. The villa (tier 18) and estate
+(tier 19) extend the E22 owned-property model; **grounds** mega-clusters (garden / pool complex /
+sport court — 15 `tag:'grounds'` amenities, `unlockProperty`-gated) are maintained by a new **estate
+staff wing** (gardener / pool-tech / groundskeeper / estate-manager, `estate:true` + `xMultBase 0`,
+so they stay OUT of `L_staff`), and staffing owned grounds lights the **property×staff synergy**:
+`L_estate = 1 + ESTATE.synergyRate·sqrt(assignedStaff·propertyLevel)` — sqrt-softened (docs/05 §4),
+with the estate manager on the `synergy` slot amplifying the rate. The estate wing has its **own cap**
+that only opens once a villa/estate deed is owned. **Invariance held**: `L_estate` is exactly 1 when
+no estate staff are assigned (`sqrt(0)=0`), the wing cap stays 6 with no property, and the harness
+owns nothing + hires no one → **island unchanged at 29705s**. Built inline. selftest **[98]** (31
+assertions: data, wing cap growth + hire gate, synergy formula + monotonicity + sqrt-softening +
+manager boost, `assignStaff` validation, estate-out-of-`L_staff`, beat-24 flag, harness invariance).
+
+- S1 Data model (0/9/1): grounds clusters + garden/pool/court nodes + 4 estate roles + role↔cluster map + estate-manager `synergy` slot + config-driven fields + flavor + `validateProperty`/`validateStaff` extensions. **Superseded**: the epic's full ~34-node count (shipped 15 — the mega-cluster feel without the bloat).
+- S2 Core (2/6/2): present payroll drain + morale softcap (the E19–20 machinery already covers estate wages/morale); done-now `groundsScore` + `assignStaff` + the synergy formula + `L_estate` in the stack + recompute-on-change cache + monotonicity test. **Superseded**: estate-staff auto-buy of grounds nodes (the `conciergeCandidates` whitelist doesn't cover `tag:'grounds'` — manual buy works, auto deferred) + bespoke synergy/payroll change events.
+- S3 UI (2/7/1): present the payroll meter + `aria-live` region; done-now the grounds panel (clustered) + estate-wing panel + assignment controls + the synergy readout tile + reused node buttons + intent wiring + keyboard-native buttons. Superseded: per-estate-staffer morale bar.
+- S4 Headline (2/7/1): present payroll tension (wages counted) + offline synergy (the `_estateMult` cache recomputes each macro-step); done-now the synergy centerpiece + estate-manager amplifier + beat-24 `checkEstate` + surfaced `sqrt` math (UI) + diminishing-but-worth-it (sqrt tested) + "runs itself" flavor + QA. **Superseded**: estate-staff auto-collect of idle grounds output.
+- S5 Amenity mega-clusters (0/8/2): done-now 15 `tag:'grounds'` nodes (6 garden / 5 pool / 4 court) + ramp + ownership gate + `buyAmenity` reuse + `amenityScore` feed + flavor + cadence + QA. **Superseded**: the full ~34-node count + hard `amenitySlots` capacity enforcement.
+- S6 Tiers 18→19 (5/3/2): present tiers 18/19 already exist + `accScore` + reveal + big-step + canonical-ladder cross-check; done-now the villa/estate deeds' `requiresOwn` chain + migration + story copy. **Superseded**: gating the *accommodation* tier on property ownership (the ladder stays Comfort-gated) + that ordering's QA.
+- S7 Path flavor (2/0/8): present `L_path` + `PATH.softcapExp` reusable. **Superseded**: per-branch grounds (connoisseur topiary vs vlogger content-garden), branch upgrade variants, hybrid fusion, branch-switch QA — the grounds system shipped branch-agnostic; the epic's connoisseur/vlogger decoration is deferred (an honest gap, flagged for a later flavor pass).
+- S8 Balance (2/6/2): present cross-layer sanity + cadence (harness-measured); done-now `ESTATE.synergyRate`/`managerBoost`/`staffSlots` set + sqrt anti-runaway + owner-pride interaction + documented constants + [98] golden. Superseded: a dedicated synergy sweep + a payroll-vs-synergy break-even metric.
+- S9 Save/offline (4/4/2): present offline synergy recompute + export/import + backup rotation + generic migration; done-now `assignedTo` persist + backfill + assignment serialize + migration test. Superseded: a dedicated version bump + an away-modal grounds line.
+- S10 QA/juice (2/5/3): present number formatting + `aria-live` region; done-now `assignStaff` validation + synergy QA + one-shot event correctness + zero-cash reuse + [98] regression. Superseded: assignment edge-juice + confetti + reveal animation.
+
+## Act II–VI — E24–E30
 
 _Pending — appended as each phase's build pass audits its 100 tasks._
 
 | Epic | Status |
 |---|---|
-| E23 Villa Vita | pending |
 | E24 Where the Rich Hide | pending |
 | E25 Letting Go | pending — mechanics largely shipped early (prestige.js + hard reset + gate scaling, math-proof §12); **amendment E25-A (retirement & lineage)** added to the epic file, unbuilt |
 | E26 Who You Become | pending |
@@ -622,8 +646,8 @@ _Pending — appended as each phase's build pass audits its 100 tasks._
 ---
 
 ### Running total
-- **Audited:** 2,200 / 3,000 tasks (E01–E22) — present 695, done-now 1,098, superseded 407.
-- **Remaining:** 800 tasks (E23–E30).
+- **Audited:** 2,300 / 3,000 tasks (E01–E23) — present 716, done-now 1,153, superseded 431.
+- **Remaining:** 700 tasks (E24–E30).
 
 ### Deferred balance-tuner backlog (for a consolidated retune, latest at E30)
 - **`savvyPassive()` not ×`L_comfort`** (E06-S7-T4) — a flat sqrt-scaled additive term outside

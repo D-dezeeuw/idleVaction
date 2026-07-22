@@ -16,7 +16,7 @@ import { ART, WINE } from './collections.js';
 import { CARS } from './vehicles.js';
 import { BOATS, CREW, JETS } from './logistics.js';
 import { STAFF_DATA } from './staff.js';
-import { PROPERTIES, PROPERTY_UPGRADES } from './property.js';
+import { PROPERTIES, PROPERTY_UPGRADES, GROUNDS } from './property.js';
 
 export const DATA = {
   generators: GENERATORS,
@@ -63,4 +63,7 @@ export const DATA = {
   // the dev harness/selftest. Opt-in — the harness never buys a deed, so the island is unmoved.
   property: PROPERTIES,
   propertyUpgrades: PROPERTY_UPGRADES,
+  // grounds (E23 "Villa Vita"): garden/pool/court mega-cluster metadata; the nodes themselves are
+  // tag:'grounds' amenities in data/amenities.js. Estate staff assign to a cluster kind.
+  grounds: GROUNDS,
 };

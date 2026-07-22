@@ -366,6 +366,7 @@ function renderAmenities(s) {
     // tan/gym/wellness tags ship straight into their own card instead, same as pool did.
     if (a.tag === 'tan' || a.tag === 'gym' || a.tag === 'wellness') continue;
     if (a.tag === 'gear') continue; // the dedicated Creator Dashboard (E12) owns this tag
+    if (a.tag === 'grounds') continue; // the dedicated Property card (E23) groups these by cluster
     if (!E.amenityUnlocked(s, a.id)) continue;
     (byTag[a.tag] ||= []).push(a);
   }
@@ -1094,9 +1095,43 @@ function renderStaff(s) {
   const lstaff = M.staffMult(s, DATA);
   let html = `<div class="iv-sub">🏛️ Household <b>${E.hiredStaffCount(s)}/${E.staffCap(s)}</b> · payroll <span class="iv-upkeep">${fmt(payroll)}/s</span> · staff income bonus <b>×${lstaff.toFixed(3)}</b>${s.story.flags.payrollUnpaid ? ' — ⚠️ <span class="iv-upkeep">payroll unpaid! automation paused</span>' : ''}</div>`;
   html += '<div class="iv-amenities">';
-  for (const def of DATA.staff) html += staffTileHtml(s, def);
+  for (const def of DATA.staff) { if (def.estate) continue; html += staffTileHtml(s, def); }
   html += '</div>';
+  // E23 estate wing: shown once a villa/estate deed is owned (the wing's own cap opens then).
+  if (E.estateActive(s)) {
+    html += `<div class="iv-tag">the estate wing <small>(maintains the grounds · lights the synergy ×)</small></div><div class="iv-amenities">`;
+    for (const def of DATA.staff) { if (def.estate) html += estateStaffTileHtml(s, def); }
+    html += '</div>';
+  }
   el('staff').innerHTML = html;
+}
+
+// An estate-staff tile: reuses the hire/level machinery, plus an assignment control (which cluster,
+// or 'synergy' for the manager). Assignment is what feeds the property×staff synergy (L_estate).
+function estateStaffTileHtml(s, def) {
+  const st = s.staff[def.id];
+  const icon = { garden: '🌷', pool: '🏊', court: '🎾', synergy: '🧮' }[def.automates] || '🌳';
+  if (!st.hired) {
+    const cost = M.staffHireCost(def);
+    const overCap = E.hiredStaffCount(s) >= E.staffCap(s);
+    return `<div class="iv-btn iv-content-item" title="${def.desc}">
+      <b>${icon} ${def.name}</b> <small>${def.automates === 'synergy' ? 'synergy' : def.automates}</small>
+      <div class="iv-sub">wage <span class="iv-upkeep">${fmt(M.staffWage(def, 0))}/s</span> · maintains the ${def.automates}</div>
+      <div class="iv-row-buy">${btn('hire-staff', def.id, overCap ? 'Wing full' : `Hire — ${fmt(cost)}`, !overCap && afford(cost), 'btn-primary')}</div>
+    </div>`;
+  }
+  // hired: level + an assignment toggle (cluster ↔ synergy). The manager is synergy-only.
+  const lvlCost = E.staffLevelCost(s, def.id);
+  const canSynergy = true;
+  const assignBtns = def.automates === 'synergy'
+    ? `<small>on synergy</small>`
+    : `${btn('assign-staff', `${def.id}:${def.automates}`, def.automates, st.assignedTo !== 'synergy', st.assignedTo !== 'synergy' ? 'btn-primary' : '')}
+       ${btn('assign-staff', `${def.id}:synergy`, 'synergy', canSynergy, st.assignedTo === 'synergy' ? 'btn-primary' : '')}`;
+  return `<div class="iv-btn iv-content-item" title="${def.desc}">
+    <b>${icon} ${def.name}</b> <small>lvl ${st.level} · → ${st.assignedTo}</small>
+    <div class="iv-sub">wage <span class="iv-upkeep">${fmt(M.staffWage(def, st.level))}/s</span></div>
+    <div class="iv-row-buy">${assignBtns} ${btn('level-staff', def.id, `Level — ${fmt(lvlCost)}`, afford(lvlCost))}</div>
+  </div>`;
 }
 
 // ---------- Property: the rent→own flip (E22 "A Bungalow of One's Own") ----------
@@ -1152,7 +1187,36 @@ function renderProperty(s) {
   let html = `<div class="iv-sub">🏡 You own <b>${M.ownedPropertyCount(s)}</b> ${M.ownedPropertyCount(s) === 1 ? 'place' : 'places'} · persistent Comfort <b>+${fmt(propScore)}😌</b> · owner-pride income <b>×${M.ownerPrideMult(s).toFixed(2)}</b></div>`;
   html += `<div class="iv-sub">Owned Comfort is a <b>floor</b>: unlike a rented room, it never gets left behind when you climb the ladder.</div>`;
   for (const p of DATA.property) html += propertyBlockHtml(s, p);
+  // E23 grounds + estate synergy: only shown once a grounds cluster is unlockable (villa owned).
+  html += groundsSectionHtml(s);
   el('property').innerHTML = html;
+}
+
+// The grounds mega-clusters (garden/pool/court) + the property×staff synergy readout (E23).
+function groundsSectionHtml(s) {
+  const clusters = DATA.grounds.filter(g => E.propertyOwned(s, g.unlockProperty));
+  if (!clusters.length) return '';
+  const synergy = M.estateSynergy(s, DATA);
+  const staffN = M.assignedEstateStaff(s, DATA);
+  const lvl = M.propertyLevel(s, DATA);
+  let html = `<div class="iv-tag">the grounds</div>`;
+  // the headline synergy tile: L_estate + what raises it (the sqrt(staff·property) interaction).
+  html += `<div class="${synergy > 1 ? 'iv-capstone-on' : 'iv-capstone-off'}">🌿 Estate synergy <b>×${synergy.toFixed(2)}</b> on all income — from <b>${staffN}</b> assigned estate staff × property level <b>${lvl}</b> <small>(√ of their product — balance both to grow it)</small></div>`;
+  for (const g of clusters) {
+    const nodes = DATA.amenities.filter(a => a.tag === 'grounds' && a.kind === g.kind);
+    const subtotal = nodes.reduce((t, a) => t + (s.amenities[a.id].level || 0) * a.comfort, 0);
+    html += `<div class="iv-tag">${g.name} <small>+${fmt(subtotal)}😌</small></div><div class="iv-amenities">`;
+    for (const a of nodes) {
+      if (!E.amenityUnlocked(s, a.id)) continue;
+      const cost = E.amenityCost(s, a.id);
+      const lv = s.amenities[a.id].level;
+      html += btn('buy-amenity', a.id,
+        `${a.name} <small>Lv${lv}</small><br><small>${fmt(cost)} · +${fmt(a.comfort)}😌</small>`,
+        afford(cost), '', a.flavor);
+    }
+    html += '</div>';
+  }
+  return html;
 }
 
 // live footer energy readout, "near the tap button" (E10-S4-T8): #energyMini is a
@@ -1530,6 +1594,8 @@ function handle(action, arg, btnEl) {
     // E22 Property (the rent→own flip): buy the deed / build an upgrade — generic afford-gated flow.
     case 'buy-property': E.buyProperty(S, arg); break;
     case 'buy-property-upgrade': E.buyPropertyUpgrade(S, arg); break;
+    // E23 Estate: assign an estate staffer to a grounds cluster or the synergy slot (arg "id:target").
+    case 'assign-staff': { const [sid, tgt] = arg.split(':'); E.assignStaff(S, sid, tgt); break; }
     case 'buy-content': E.buyContent(S, arg); break;
     case 'buy-content-boost': E.buyContentBoost(S, arg); break;
     case 'accept-sponsor': {

@@ -9,6 +9,9 @@ function newStaffSlice() {
   const staff = {};
   DATA.staff.forEach(def => {
     staff[def.id] = { hired: false, level: 0, morale: 100, tickAccum: 0, totalSpent: 0, totalWages: 0,
+      // E23: assignedTo binds an estate role to a grounds cluster kind (or 'synergy'); null for
+      // household roles and for any unhired estate role until hireStaff seeds it from def.automates.
+      assignedTo: null,
       lastActions: [], policy: { autoBuy: false, autoCollect: false, budgetFrac: 0.25, minRoi: 2,
         categories: def.categories.slice() } };
   });
