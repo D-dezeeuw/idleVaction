@@ -24,6 +24,15 @@ compress again because prestige multipliers accelerate re-runs.
 | 28 | ~15:00 | island | second-order multipliers |
 | 30 | ~20:00 | endgame | NG+ opens; curve resets upward |
 
+> **Ascension-loop amendment (supersedes the compress-on-reset reading of this table):**
+> each ascension is now a **full ≥8h run of its own** — a hard reset (only tree
+> abilities + Legacy cross) with phase gates scaled `×base^(√count·(tier/span)²)`, so
+> ascended runs land on a stable ~9–12h greedy-bot band (≈ run 1's own measuring
+> stick) with early tiers *faster* than run 1 and late tiers *slower*. The ~20h
+> figure is the FIRST summit; the ascension loop multiplies total game length per
+> reset rather than compressing into the same 20h. Fitted table + rationale:
+> `docs/math-proof.md §12`.
+
 Rule of thumb the harness enforces: **time-to-next-meaningful-purchase** should sit in the
 **30–120s band during active play** for the whole arc (idle-away collapses this). If it drops
 below ~15s, the game feels like a clicker (bad); above ~180s it feels like a wait (bad).
@@ -50,6 +59,12 @@ Ordered by how coarsely they move the curve:
     lump can chain-buy (`costFrac` sets the sink size + upgrade cadence, `growth` the
     chain-buy ceiling, `base` how soon a fresh save's first return is capped). See
     `docs/math-proof.md §11`.
+14. `ASCEND_GATE.base/exp/countExp` — **ascension re-pacing**: phase gates cost
+    `×base^(count^countExp·(tier/span)^exp)`, holding every ascended run over the ≥8h
+    floor with the early-fast/late-slow parabola (`base` sets the floor's strength,
+    `exp` how hard it leans on late tiers, `countExp` must track the Legacy √N arc —
+    see `docs/math-proof.md §12`). Pairs with `LEGACY_SCALE` (retuned 1e6 → 1e10),
+    which meters how much of the tree one ascension can buy.
 
 ## 3. The balance harness (ships in-repo, dev-only)
 

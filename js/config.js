@@ -255,10 +255,38 @@ export const CONFIG = {
   },
 
   // ---- ascension / legacy ----
+  // LEGACY_SCALE was retuned 1e6 → 1e10 with the ascension hard reset (math-proof §12,
+  // the §7/P3 item): at 1e6 a single fitted ~8.5h run paid ~1,183 Legacy — enough to
+  // buy 56 of the tree's 79 total ranks IN ONE GO, which (with the old power
+  // carry-overs) collapsed the next run to ~11 minutes. At 1e10 the first ascension
+  // pays ~11 (a couple of rank-1 abilities), and the geometric node costs
+  // (TREE.nodeBase·2^rank) meter the tree out across many ascensions — the √-telescoped
+  // payout plus the gate-inflated cash of later runs keeps each ascension affording a
+  // few more ranks, never the whole tree.
   LEGACY_K: 1.0,
-  LEGACY_SCALE: 1e6,
+  LEGACY_SCALE: 1e10,
   LEGACY_EXP: 0.5,
   ASCEND_MIN_RUN_SEC: 120,  // can't ascend in the first 2 min of a run
+  // Ascension gate scaling: accommodation tier t (the game's phase gates) costs
+  // ×base^(count^countExp · (t/span)^exp) — see math.ascGateMult / docs/math-proof.md
+  // §12. Two curves, both deliberate:
+  //   · PARABOLIC in tier (exp 2): early tiers barely scale — a fresh ascension FEELS
+  //     powerful, the tree rips through them faster than run 1 — while the island
+  //     itself carries the full ×base^(count^0.5), stretching every ascended run back
+  //     over the ≥8h design floor after the hard reset removed the old power leaks.
+  //   · √ in ascension count (countExp 0.5): tree power arrives on a √N Legacy arc
+  //     (LEGACY_EXP + the gate-deflated payout, math.ascCashNorm), so a LINEAR count
+  //     exponent outruns it forever (measured: +2h+ per ascension, unbounded) — the
+  //     √-count gate rises on the same curve the tree does and the two settle into a
+  //     stable band.
+  // Fitted with the ascension probe (greedy-bot lower bounds; run 1 untouched, count=0
+  // ⇒ ×1 everywhere): runs 1..6 = 8h37m, 9h13m, 10h08m, 10h37m, 11h18m, 11h30m —
+  // every ascension ≥ 8h, early tiers faster than run 1 (t5 ≈ 1h19 vs 1h26), late
+  // tiers slower, increments decaying toward a ~11-12h plateau. The bank ladder
+  // absorbs the scaling untouched — higher gates simply pull the wallet-cap tiers you
+  // must reach for each phase up with them (probe: peak bank tier 9 → 10 across six
+  // ascensions; BANK.growth 10 outruns ACC.growth 2.6 × the gate's local slope).
+  ASCEND_GATE: { base: 6, exp: 2, span: 20, countExp: 0.5 },
 
   // ---- permanent skill tree ----
   TREE: { nodeBase: 5, nodeGrowth: 2.0 },

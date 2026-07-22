@@ -46,8 +46,7 @@ function amenityWorthBuying(s, a, cashRate) {
   // 2) ROI test: the marginal €/s from this level's Comfort bump must repay its cost within the
   //    horizon. income ∝ L_comfort, so ΔincomePerSec = cashRate · ΔL_comfort / L_comfort.
   if (cashRate <= 0) return false;
-  const ascBonus = 1 + 0.25 * s.ascension.count;
-  const dComf = a.comfort * C.COMFORT.wAmen * ascBonus;   // this level's Comfort contribution
+  const dComf = a.comfort * C.COMFORT.wAmen;   // this level's Comfort contribution
   if (dComf <= 0) return false;
   const comf = s._comfortCache;
   const L = 1 + C.COMFORT.MULT * Math.log10(1 + comf / C.COMFORT.C0);

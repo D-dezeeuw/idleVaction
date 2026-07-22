@@ -311,6 +311,35 @@ What shipped (mirrors the house patterns exactly):
   economy change (the ladder is a real sink); peak `log10` 11.3 and beat monotonicity
   unchanged; harness-invariance tests updated to the new pin.
 
+## Cross-cutting pass — ascension hard reset + gate scaling (per-ascension pacing)
+
+Follow-up economy correction in the same series (design directive: *every ascension
+restarts at 0, only tree abilities cross, phase caps rise with an ascension formula,
+every ascension ≥ 8h on an early-fast/late-slow parabola*). Measured baseline: one
+ascension collapsed the next run to **11m30s** — the fitted economy paid ~1,183 Legacy
+(56/79 tree ranks at once) and Savvy/`checkUnlocks`/Comfort all carried power outside
+the tree. Full investigation, feedback-loop measurements, and the fitted table:
+**`docs/math-proof.md §12`** (P7, applied & verified; supersedes P3).
+
+What shipped:
+- `prestige.ascend` → **hard reset**: keep-list shrunk to `ascension` (tree + count +
+  banked accounting), unspent Legacy, settings/meta, and the deflated
+  `lifetimeCashThisTree` counter. Story, all run stats (incl. `lifetimeCash`), bank,
+  destinations, crypto, concierge — reset. Comfort's `×(1+0.25·count)` bonus removed
+  (harness/concierge ROI mirrors updated to match).
+- `config.ASCEND_GATE { base 6, exp 2, span 20, countExp 0.5 }` + `math.ascGateMult`:
+  accommodation tier `t` costs `×base^(count^0.5·(t/20)²)` — parabolic in tier, √ in
+  count, ×1 for the whole first run (golden pins unmoved).
+- `LEGACY_SCALE 1e6 → 1e10` + `math.ascCashNorm`: the Legacy metric is credited in
+  gate-deflated (run-1-equivalent) cash so gate inflation can't snowball the payout —
+  ascension 1 pays ~11 Legacy (2-3 rank-1 abilities), the tree unfolds across dozens
+  of ascensions on the designed √N arc.
+- Fitted result (probe, greedy-bot lower bounds): runs 1–6 = 8h37m, 9h13m, 10h08m,
+  10h37m, 11h18m, 11h30m — every ascension ≥ 8h, early tiers faster than run 1, late
+  tiers slower, increments decaying toward a ~11-12h plateau.
+- selftest **[86]**: gate/deflator formula properties, complete hard-reset keep-list
+  audit, and a full simulated ascended run held in the 8–14h band.
+
 ## Act II–VI — E14–E30
 
 _Pending — appended as each phase's build pass audits its 100 tasks. Each row will carry the

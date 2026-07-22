@@ -28,7 +28,9 @@ export function gainCash(state, amount) {
   const banked = Math.min(amount, M.walletRoom(state));
   state.resources.cash += banked;
   state.stats.lifetimeCash += banked;
-  state.stats.lifetimeCashThisTree += banked;
+  // the Legacy metric is credited in run-1-equivalent (gate-deflated) cash so the
+  // ascension gate can't inflate the prestige payout — see math.ascCashNorm.
+  state.stats.lifetimeCashThisTree += banked / M.ascCashNorm(state);
   state.stats.overflowLost += amount - banked;
   // one-shot "wallet full" nudge per account tier: fires the first time THIS tier's
   // wallet overflows, tracked in story.flags (the generic already-fired bag) so it
@@ -880,8 +882,10 @@ export function checkWhaleWatching(state) {
 export function nextAccTier(state) { return state.accommodation.tier + 1; }
 // cash cost for ANY tier (not just the next one) — used by the ladder panel to price a
 // lookahead window of upcoming tiers, not only the immediately-purchasable one.
+// ascGateMult raises the ladder's CASH gates each ascension (parabolic in tier — see
+// config.ASCEND_GATE / docs/math-proof.md §12); the Comfort unlock gate is untouched.
 export function accCostForTier(state, tier) {
-  return M.accScore(tier) * C.ACC.cashMult * M.commsCostMult(state);
+  return M.accScore(tier) * C.ACC.cashMult * M.ascGateMult(state, tier) * M.commsCostMult(state);
 }
 export function accCost(state) {
   return accCostForTier(state, nextAccTier(state));
@@ -1000,8 +1004,7 @@ export function buyBankUpgrade(state) {
 // exists to prevent.
 function conciergeAmenityGainPerSec(state, a, cashRate) {
   if (cashRate <= 0) return 0;
-  const ascBonus = 1 + 0.25 * state.ascension.count;
-  const dComf = a.comfort * C.COMFORT.wAmen * ascBonus;
+  const dComf = a.comfort * C.COMFORT.wAmen;
   if (dComf <= 0) return 0;
   const comf = state._comfortCache;
   const L = 1 + C.COMFORT.MULT * Math.log10(1 + comf / C.COMFORT.C0);
