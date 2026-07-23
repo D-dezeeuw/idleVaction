@@ -14,8 +14,14 @@ next to them (same basename). Idempotent — reprocessing overwrites the WebP fr
              on distance-from-white, so the white paper becomes transparent exactly like a real
              stamp only deposits ink (interior paper gaps stay transparent too), then trimmed to
              the ink bounding box + 8px pad and resized to max 256px.
+- polaroids: assets/img/polaroids/beat-*.png -> 640px square WebP q82 (diary page photos)
+- stickers:  assets/img/stickers/*.png -> die-cut transparent WebP: flood-fill from the edges
+             against the corner-sampled background color (NOT distance-from-white, so the
+             sticker's white border survives), trim + pad, max 320px.
+- extras:    story/property/island/era one-offs -> square WebP at per-dir sizes.
 """
 import sys, glob, os
+from collections import deque
 from PIL import Image
 
 PC = 'assets/img/postcards'
@@ -75,13 +81,63 @@ def stamps():
         save(rgba, f, exact=False)
 
 
+def polaroids():
+    for f in sorted(glob.glob('assets/img/polaroids/beat-*.png')):
+        save(Image.open(f).convert('RGB').resize((640, 640), Image.LANCZOS), f)
+
+
+def stickers():
+    # Die-cut stickers have WHITE borders, so keying on whiteness would eat them. Instead:
+    # sample the background color from the four corners, then flood-fill alpha inward from
+    # every edge pixel that matches it (tolerance TOL) — enclosed whites are never reached.
+    TOL = 34
+    for f in sorted(glob.glob('assets/img/stickers/*.png')):
+        im = Image.open(f).convert('RGB')
+        px = im.load()
+        w, h = im.size
+        corners = [px[0, 0], px[w - 1, 0], px[0, h - 1], px[w - 1, h - 1]]
+        bg = tuple(sorted(c[i] for c in corners)[1] for i in range(3))   # per-channel median-ish
+        near = lambda p: abs(p[0] - bg[0]) <= TOL and abs(p[1] - bg[1]) <= TOL and abs(p[2] - bg[2]) <= TOL
+        mask = bytearray(w * h)          # 1 = background (transparent)
+        q = deque()
+        for x in range(w):
+            for y in (0, h - 1):
+                if near(px[x, y]) and not mask[y * w + x]: mask[y * w + x] = 1; q.append((x, y))
+        for y in range(h):
+            for x in (0, w - 1):
+                if near(px[x, y]) and not mask[y * w + x]: mask[y * w + x] = 1; q.append((x, y))
+        while q:
+            x, y = q.popleft()
+            for nx, ny in ((x-1, y), (x+1, y), (x, y-1), (x, y+1)):
+                if 0 <= nx < w and 0 <= ny < h and not mask[ny * w + nx] and near(px[nx, ny]):
+                    mask[ny * w + nx] = 1
+                    q.append((nx, ny))
+        a = Image.frombytes('L', (w, h), bytes(255 - m * 255 for m in mask))
+        rgba = im.convert('RGBA')
+        rgba.putalpha(a)
+        box = a.getbbox()
+        if box:
+            pad = 8
+            box = (max(0, box[0] - pad), max(0, box[1] - pad), min(w, box[2] + pad), min(h, box[3] + pad))
+            rgba = rgba.crop(box)
+        rgba.thumbnail((320, 320), Image.LANCZOS)
+        save(rgba, f, exact=False)
+
+
+def extras():
+    sizes = {'assets/img/story': 640, 'assets/img/property': 640,
+             'assets/img/island': 512, 'assets/img/era': 760}
+    for d, n in sizes.items():
+        for f in sorted(glob.glob(f'{d}/*.png')):
+            save(Image.open(f).convert('RGB').resize((n, n), Image.LANCZOS), f)
+
+
 if __name__ == '__main__':
     mode = sys.argv[1] if len(sys.argv) > 1 else 'all'
-    if mode not in ('postcards', 'passport', 'stamps', 'all'):
-        sys.exit(f'unknown mode "{mode}" — use: postcards | passport | stamps | all')
-    if mode in ('postcards', 'all'):
-        postcards()
-    if mode in ('passport', 'all'):
-        passport()
-    if mode in ('stamps', 'all'):
-        stamps()
+    modes = ('postcards', 'passport', 'stamps', 'polaroids', 'stickers', 'extras', 'all')
+    if mode not in modes:
+        sys.exit(f'unknown mode "{mode}" — use: ' + ' | '.join(modes))
+    for name, fn in [('postcards', postcards), ('passport', passport), ('stamps', stamps),
+                     ('polaroids', polaroids), ('stickers', stickers), ('extras', extras)]:
+        if mode in (name, 'all'):
+            fn()

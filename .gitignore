@@ -146,3 +146,9 @@ vite.config.ts.timestamp-*
 assets/img/postcards/*.png
 assets/img/passport/*.png
 assets/img/passport/stamps/*.png
+assets/img/polaroids/*.png
+assets/img/stickers/*.png
+assets/img/story/*.png
+assets/img/property/*.png
+assets/img/island/*.png
+assets/img/era/*.png

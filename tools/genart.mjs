@@ -147,6 +147,114 @@ function stampPrompt(s, i) {
     `no letters, no numbers.`;
 }
 
+// ---- Wave 2-3 (ledger "images idea"): diary polaroids, seasonal stamps, trophy/legend
+// stickers, and the one-off extras (patron silhouette, property deeds, island buildings,
+// era-modal heroes). Stickers generate on a plain grey card so tools/artpost.py can
+// flood-fill the background away WITHOUT eating their white die-cut borders.
+const POLAROID_DIR = 'assets/img/polaroids';
+// One candid snapshot per story beat (js/data/story.js ids 1-30) — diary page photos.
+const POLAROIDS = {
+  1: 'a tourist in a yellow rain poncho waiting at a grey Dutch bus stop in sideways rain, one warm ray of sun breaking through',
+  2: 'two oversized friendly cartoon cockroaches waving cheerfully from a motel bed',
+  3: 'a tourist walking out of a run-down motel at sunrise, backpack on, not looking back',
+  4: 'a hostel bunk bed at night, a phone glowing on charge like a tiny shrine',
+  5: 'a hand pressing a big rubber stamp onto the first blank page of an open passport',
+  6: 'a tourist at a beach cafe table with a laptop, four dreamy thought bubbles above: a camera, a rising chart, a map, a cocktail',
+  7: 'a tourist gazing up at a small hotel with one enormous glowing golden star on its facade',
+  8: 'a sunny breakfast table with croissants, jam and orange juice on a checkered tablecloth',
+  9: 'a tourist mid-cannonball over a sparkling hotel pool, splash frozen, rubber duck watching',
+  10: 'a tourist lounging poolside in a sun hat, tiny sunglasses resting on a coconut drink beside them',
+  11: 'a fancy hotel lobby with two grand corridors forking left and right, a tourist standing at the split',
+  12: 'a tourist doing a sunrise stretch on a yoga mat on a hotel balcony over the sea',
+  13: 'a marble hotel entrance with five golden stars arched above the revolving door',
+  14: 'a phone on a tripod filming a beach sunset, hearts and confetti bursting from the screen',
+  15: 'a hot pink convertible with the top down parked by the coast, a key fob resting on the seat',
+  16: 'a tourist at the rail of a small white yacht, hair in the wind, gulls alongside',
+  17: 'a tourist climbing the fold-down steps of a small private jet at golden hour',
+  18: 'a sail-shaped glass hotel tower on the coast at sunset, gold light on the glass',
+  19: 'a butler in a crisp suit presenting a towel folded into a perfect swan on a silver tray',
+  20: 'a cheerful staff lineup — chef, gardener, housekeeper — in front of a villa at morning',
+  21: 'a grand hotel terrace at night with seven bright stars arranged in the sky above it',
+  22: 'a white-gloved hand holding out a sealed cream envelope, a faint island silhouette on the horizon behind',
+  23: 'a cosy beach bungalow with its own little gate and a hammock, warm evening light',
+  24: 'a villa garden at dusk with a stone fountain and string lights coming on',
+  25: 'a hidden harbour full of elegant yachts at golden hour, seen from a hillside terrace',
+  26: 'a tourist crouching at the shoreline releasing a little paper boat into a calm sunset sea',
+  27: 'a tourist seen from behind facing a full-length mirror, the reflection standing a little taller',
+  28: 'a brass spyglass on a tripod pointed at a small island across glittering water',
+  29: 'a tiny island busy with friendly cranes and scaffolding, a tourist in a hard hat pointing at plans',
+  30: 'a thriving island resort panorama at golden hour, flags up, boats arriving, tiny guests waving',
+};
+// Five seasonal stamps (js/data/seasonal.js) — same rubber-stamp class as destination stamps,
+// output into the same stamps dir so artpost's stamp alpha-keying picks them up.
+const SEASONAL_STAMPS = [
+  { id: 'season_carnival', ink: 'hot pink',    shape: 'round',       motif: 'a feathered carnival mask above a tiny drum' },
+  { id: 'season_aurora',   ink: 'sky blue',    shape: 'oval',        motif: 'wavy aurora ribbons above three pine trees' },
+  { id: 'season_regatta',  ink: 'apple green', shape: 'shield',      motif: 'three racing sailboats heeling in formation' },
+  { id: 'season_sakura',   ink: 'hot pink',    shape: 'round',       motif: 'a blossom branch over a little arched bridge' },
+  { id: 'season_harvest',  ink: 'warm orange', shape: 'hexagonal',   motif: 'a grape bunch above rolling vineyard hills' },
+];
+const STICKER_DIR = 'assets/img/stickers';
+// Trophy stickers (js/data/achievements.js) + 5 gold Legend-perk stickers (js/data/legend.js).
+const STICKERS = [
+  { id: 'first_star',    motif: 'one proud golden star with a small sunburst behind it' },
+  { id: 'poolside',      motif: 'a cheerful splash of water with a rubber duck riding it' },
+  { id: 'five_star',     motif: 'five golden stars in a rising arc' },
+  { id: 'sail_hotel',    motif: 'a sail-shaped glass tower catching the sun' },
+  { id: 'the_island',    motif: 'a tiny tropical island with a map pin planted in it' },
+  { id: 'comfy',         motif: 'a plump cosy armchair with a tasseled cushion' },
+  { id: 'very_comfy',    motif: 'a bed floating on a fluffy cloud' },
+  { id: 'first_million', motif: 'a fat stack of golden coins with wings' },
+  { id: 'first_ascend',  motif: 'a little paper boat riding a big friendly wave' },
+  { id: 'seasoned',      motif: 'a globe wrapped in a travel ribbon with tiny stamps on it' },
+  { id: 'homeowner',     motif: 'a sunny house with an oversized golden key leaning on it' },
+  { id: 'the_host',      motif: 'a raised serving tray with two tropical cocktails' },
+  { id: 'a_legend',      motif: 'a laurel wreath around a rising sun' },
+  { id: 'legendary',     motif: 'a double laurel wreath around a star, tiny rays everywhere' },
+  { id: 'new_game_plus', motif: 'a sun chasing its own rays around in a loop like an infinity sign' },
+  { id: 'collector',     motif: 'an open treasure chest overflowing with passport stamps' },
+  { id: 'legend_eternal_tan',   gold: true, motif: 'a serene sun with closed happy eyes' },
+  { id: 'legend_old_money',     gold: true, motif: 'a classical column made of stacked coins' },
+  { id: 'legend_quick_study',   gold: true, motif: 'an open book with a lightning bolt bookmark' },
+  { id: 'legend_muscle_memory', gold: true, motif: 'a flexing arm made of a palm tree trunk' },
+  { id: 'legend_the_chronicle', gold: true, motif: 'a quill writing a long scroll that trails into waves' },
+];
+function stickerPrompt(s) {
+  const finish = s.gold
+    ? 'rendered entirely in warm metallic gold tones like a premium foil sticker'
+    : 'in the warm flat holiday palette: sunshine yellow #FFC800, hot pink #FF2E88, sky blue #45C4FF, apple green #7ED957';
+  return `A single die-cut luggage sticker with a thick white border and a soft drop shadow, ` +
+    `${finish}: ${s.motif}. Flat playful illustration, thick soft outlines, bold simple shapes, ` +
+    `centered on a plain flat cool light grey background, nothing else in the image, no text, ` +
+    `no letters, no numbers.`;
+}
+// One-offs: patron silhouette (story), property deeds, island buildings, era-modal heroes.
+const EXTRAS = [
+  { png: 'assets/img/story/patron.png', prompt:
+    `${STYLE}A mysterious elegant patron seen only as a dark silhouette from behind, standing at ` +
+    `a grand hotel balcony rail at golden hour in a panama hat, one hand raising a glass, warm ` +
+    `gold sky, seven faint stars above. The figure stays a silhouette — no face, no identity.` },
+  { png: 'assets/img/property/deed_garden.png', prompt:
+    `${STYLE}An ornate property deed certificate as a framed illustration, no words: a decorative ` +
+    `scrolled border, a wax seal, and a central vignette of manicured gardens with a fountain.` },
+  { png: 'assets/img/property/deed_pool.png', prompt:
+    `${STYLE}An ornate property deed certificate as a framed illustration, no words: a decorative ` +
+    `scrolled border, a wax seal, and a central vignette of a turquoise pool complex with slides.` },
+  { png: 'assets/img/property/deed_court.png', prompt:
+    `${STYLE}An ornate property deed certificate as a framed illustration, no words: a decorative ` +
+    `scrolled border, a wax seal, and a central vignette of sunny tennis and padel courts.` },
+  { png: 'assets/img/island/guest_villa.png',   prompt: `${STYLE}A single charming guest villa with a red roof and a little terrace, on a small green rise, square vignette.` },
+  { png: 'assets/img/island/beach_cabanas.png', prompt: `${STYLE}A row of three striped beach cabanas with fluttering pennants on white sand, square vignette.` },
+  { png: 'assets/img/island/island_marina.png', prompt: `${STYLE}A small marina with white boats moored along a wooden pier, square vignette.` },
+  { png: 'assets/img/island/heliport.png',      prompt: `${STYLE}A circular helipad on a clifftop with a cheerful little helicopter resting on it, square vignette.` },
+  { png: 'assets/img/island/island_spa.png',    prompt: `${STYLE}A serene cliffside spa pavilion with steam curling from a warm pool, square vignette.` },
+  { png: 'assets/img/island/grand_resort.png',  prompt: `${STYLE}A grand resort wing with arches and palms, golden hour, square vignette.` },
+  { png: 'assets/img/era/sold.png',        prompt: `${STYLE}A tiny tropical island wrapped in a giant celebratory ribbon and bow, confetti falling, boats honking joyfully around it.` },
+  { png: 'assets/img/era/retirement.png',  prompt: `${STYLE}Two empty deck chairs side by side facing a huge calm sunset over the sea, a folded panama hat resting on one.` },
+  { png: 'assets/img/era/legend.png',      prompt: `${STYLE}A golden statue of a tourist with a backpack on a plinth in a palm courtyard, birds perched on it, warm light.` },
+  { png: 'assets/img/era/ngplus.png',      prompt: `${STYLE}An airport departure gate at dawn with a little plane waiting outside the window, one suitcase standing alone, adventure light.` },
+];
+
 // items: [{ png, prompt, ref }] — ref is a thunk so stamp-chaining sees files made this run.
 async function produce(items) {
   const done = [];
@@ -192,8 +300,45 @@ if (mode === 'test' || mode === 'postcards') {
     return null;
   };
   items = STAMPS.map((s, i) => ({ png: `${ST_DIR}/${s.id}.png`, prompt: stampPrompt(s, i), ref: stampRef }));
+} else if (mode === 'polaroids') {
+  mkdirSync(POLAROID_DIR, { recursive: true });
+  items = Object.entries(POLAROIDS).map(([id, scene]) => ({
+    png: `${POLAROID_DIR}/beat-${String(id).padStart(2, '0')}.png`,
+    prompt: `${STYLE}A candid holiday snapshot, square composition, no frame, no border: ${scene}.`,
+    ref: refPart,
+  }));
+} else if (mode === 'seasonal') {
+  mkdirSync(ST_DIR, { recursive: true });
+  const stampRef = () => existsSync(`${ST_DIR}/dest_ardennes_daytrip.webp`)
+    ? dataUrl(`${ST_DIR}/dest_ardennes_daytrip.webp`) : null;   // anchor to the shipped stamp family
+  items = SEASONAL_STAMPS.map(s => ({
+    png: `${ST_DIR}/${s.id}.png`,
+    prompt: `A single passport rubber stamp impression, ${s.shape} border, printed entirely in ` +
+      `${s.ink} ink — one single ink color only, slightly distressed and unevenly inked like a ` +
+      `real rubber stamp: ${s.motif}. Bold simplified flat shapes, thick lines, playful holiday ` +
+      `energy, centered on a plain pure white background, nothing else in the image, no text, ` +
+      `no letters, no numbers.`,
+    ref: stampRef,
+  }));
+} else if (mode === 'stickers') {
+  mkdirSync(STICKER_DIR, { recursive: true });
+  // consistency chain like stamps: first sticker on disk anchors the rest
+  const stickerRef = () => {
+    for (const s of STICKERS) {
+      for (const ext of ['webp', 'png']) {
+        const f = `${STICKER_DIR}/${s.id}.${ext}`;
+        if (existsSync(f)) return dataUrl(f);
+      }
+    }
+    return null;
+  };
+  items = STICKERS.map(s => ({ png: `${STICKER_DIR}/${s.id}.png`, prompt: stickerPrompt(s), ref: stickerRef }));
+} else if (mode === 'extras') {
+  for (const d of ['assets/img/story', 'assets/img/property', 'assets/img/island', 'assets/img/era'])
+    mkdirSync(d, { recursive: true });
+  items = EXTRAS.map(e => ({ png: e.png, prompt: e.prompt, ref: refPart }));
 } else {
-  console.error(`unknown mode "${mode}" — use: test | postcards | passport | stamps`);
+  console.error(`unknown mode "${mode}" — use: test | postcards | passport | stamps | polaroids | seasonal | stickers | extras`);
   process.exit(1);
 }
 
