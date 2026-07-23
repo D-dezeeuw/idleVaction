@@ -39,7 +39,7 @@ export const TREE = [
   // The primary crossroads choice stays single — Jack adds side-roads, never a second
   // "main" branch voice. Depth by construction: one prerequisite from EACH branch
   // (physique + character + meta = 15 Legacy) plus its own 5/10/20 rank costs, against
-  // the metered ~11.8·√N Legacy arc → rank 1 lands around ascension 3 for a dedicated
+  // the metered measured ~24 + 9·(N−1) Legacy arc (Phase-C refit) → rank 1 lands around ascension 3 for a dedicated
   // saver, 4-5 for a spread build — "a couple of ascensions", never run 1. This is
   // also what makes the dormant cross-path hybrid flags (engine.checkPathHybridFlags)
   // legitimately reachable within a single life again.

@@ -39,9 +39,10 @@ export const CONFIG = {
   // ---- income tier ladder D1..D8 (the multi-level backbone) ----
   // base cost, cost growth per unit, base output per unit
   GEN: {
-    // Fitted for a ~20h main run (greedy-optimal harness → island ≈ 18h, robust across
-    // buying cadence; casual/idle play lands ~20h+). See docs/math-proof.md §6 and the
-    // golden curve in docs/05. The economy grows POLYNOMIALLY with the number of *active*
+    // PHASE-C REFIT (2026-07-23): fitted so the CASUAL-TOURIST persona (20-min check-ins +
+    // a 10% flavor budget, js/dev/scenarios.mjs) lands the ~20h contract at 21h20m while the
+    // greedy-optimal harness lands the island at 10h56m45s (inside the 6-12h guard band) and
+    // D4-D5 come alive inside run 1. See docs/05 §9's refit entry and selftest [109]. The economy grows POLYNOMIALLY with the number of *active*
     // tiers ("degree"); to stretch the run we keep the degree low by (a) steep base spacing
     // so high tiers unlock late and (b) small perUnit on high tiers so they matter only in
     // the late game (they still feed the chain). Steep growth slopes stretch time-to-next
@@ -295,6 +296,7 @@ export const CONFIG = {
     eventEveryRange: [180, 360],
     crashFloor: 0.10,
     boomCap: 15,
+    yieldScale: 3.0,
     sellFrac: 0.6,
     buyPathNudge: 0.1,
     branchBoomBonus: 0.25,
@@ -350,7 +352,7 @@ export const CONFIG = {
   // whenever the connoisseur system is inactive, so the harness is unaffected.
   // Fitted (probe: a committed connoisseur mid-Act-II) to a ~1.5–3× global × — comparable to
   // the other lanes, never dominant (E14-S8-T1/S10-T10).
-  EXCLUSIVITY: { rate: 0.8, E0: 7, softExp: 0.7, setBonus: 0.25, branchBonus: 0.25 },
+  EXCLUSIVITY: { rate: 0.45, E0: 7, softExp: 0.7, setBonus: 0.25, branchBonus: 0.25 },
 
   // APPRECIATION: art/wine quietly grow in stored value while held. value =
   // boughtValue·(1 + appreciationRate·globalRate)^ageYears, ageYears = age(game-seconds)/
@@ -485,8 +487,13 @@ export const CONFIG = {
   ESTATE: { synergyRate: 0.6, managerBoost: 0.5, staffSlots: 4 },
 
   // ---- ascension / legacy ----
-  // LEGACY_SCALE was retuned 1e6 → 1e10 with the ascension hard reset (math-proof §12,
-  // the §7/P3 item): at 1e6 a single fitted ~8.5h run paid ~1,183 Legacy — enough to
+  // LEGACY_SCALE history: 1e6 → 1e10 with the ascension hard reset (math-proof §12), then
+  // 1e10 → 8e10 in the Phase-C refit (the fitted economy banks ~8× more lifetime cash, so the
+  // scale moves with it: the FIRST ascension pays ~24 Legacy — one build-defining spread of
+  // rank-1 nodes — and later ascensions meter ~9 each on the telescoped √ arc, which is also
+  // what makes the island deed (25 Legacy + tree change) land around ascension 2, as the
+  // ISLAND block promises). The original collapse story, kept for the record: at 1e6 a single
+  // fitted run paid ~1,183 Legacy — enough to
   // buy 56 of the tree's 79 total ranks IN ONE GO, which (with the old power
   // carry-overs) collapsed the next run to ~11 minutes. At 1e10 the first ascension
   // pays ~11 (a couple of rank-1 abilities), and the geometric node costs
@@ -494,7 +501,7 @@ export const CONFIG = {
   // payout plus the gate-inflated cash of later runs keeps each ascension affording a
   // few more ranks, never the whole tree.
   LEGACY_K: 1.0,
-  LEGACY_SCALE: 1e10,
+  LEGACY_SCALE: 8e10,
   LEGACY_EXP: 0.5,
   ASCEND_MIN_RUN_SEC: 120,  // can't ascend in the first 2 min of a run
   // Ascension gate scaling: accommodation tier t (the game's phase gates) costs
@@ -509,11 +516,9 @@ export const CONFIG = {
   //     exponent outruns it forever (measured: +2h+ per ascension, unbounded) — the
   //     √-count gate rises on the same curve the tree does and the two settle into a
   //     stable band.
-  // Fitted with the ascension probe (greedy-bot lower bounds; run 1 untouched, count=0
-  // ⇒ ×1 everywhere; re-measured after the committed-path stage tracks landed): runs
-  // 1..6 = 8h15m, 8h40m, 9h29m, 9h54m, 10h30m, 10h40m — every ascension ≥ 8h, early
-  // tiers faster than run 1 (t5 ≈ 1h19-1h23 vs 1h27), late tiers slower, increments
-  // decaying toward a ~10-11h plateau. The bank ladder absorbs the scaling untouched —
+  // PHASE-C REFIT: the loop's contract changed from "each run longer" (audit 2.6 measured it
+  // as a chore) to a FLAT PLATEAU — measured runs 1..3 = 10h56m, 10h13m, 9h34m (runs 2+ hold
+  // 0.85-1.10× run 1, asserted in selftest [86]): prestige reads as power, not a longer rerun. The bank ladder absorbs the scaling untouched —
   // higher gates simply pull the wallet-cap tiers you must reach for each phase up
   // with them (probe: peak bank tier 9 → 10 across six ascensions; BANK.growth 10
   // outruns ACC.growth 2.6 × the gate's local slope).
@@ -562,9 +567,9 @@ export const CONFIG = {
   // reshuffle by seed, offset by a persistent income ×incomeMult^ngPlus so cycles compress.
   // ALL of it is neutral at zero state: the greedy harness never ascends (0 Legacy ⇒ 0 Legend, 0
   // NG+), so L_legend = 1, ngPlusGateMult = 1, ngPlusIncomeMult = 1 — the fitted 29705s is unmoved.
-  LEGEND_K: 1, LEGEND_SCALE: 1e7, LEGEND_EXP: 0.5,
+  LEGEND_K: 1, LEGEND_SCALE: 60, LEGEND_EXP: 0.5,
   LEGEND: { minAscensions: 3 },
-  NGPLUS: { gateScale: 1.5, incomeMult: 3.0, destShuffleSeedBase: 40000 },
+  NGPLUS: { gateScale: 2.2, incomeMult: 2.0, destShuffleSeedBase: 40000 },
 
   // ---- achievements & live-ops (E30 "Legends of Leisure") ----
   // Achievement/collection rewards feed L_achieve = 1 + Σ rewards, curved by achieveRewardCap so

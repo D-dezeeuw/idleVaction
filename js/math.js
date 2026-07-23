@@ -754,7 +754,10 @@ export function cryptoYieldPerSec(state, DATA) {
   if (base <= 0) return 0;
   // crypto stages 1+4 (First Cold Wallet / The Whale Nods Back): flat +75% total at
   // full track — bounded by data, still exactly zero with no holdings.
-  return base * pathMult(state.paths.crypto.points) * (1 + pathBonus(state, 'yieldMult'))
+  // yieldScale (Phase-C refit): one config knob scaling the whole lane against the refitted
+  // economy — the branch-parity lever (crypto measured 58% slower than vlogger pre-refit).
+  // Still exactly 0 with no holdings, so the harness is untouched.
+  return base * (C.MARKET.yieldScale || 1) * pathMult(state.paths.crypto.points) * (1 + pathBonus(state, 'yieldMult'))
        * marketMult(state, DATA);
 }
 

@@ -42,7 +42,9 @@ import { fmt, fmtTime } from '../util.js';
 const AMENITY_PAYBACK_HORIZON_SEC = 1800;
 
 // worth buying this level of amenity `a`? cashRate = current €/s cash income.
-function amenityWorthBuying(s, a, cashRate) {
+// EXPORTED as the single source of truth — scenarios.mjs imports this (a drifted local copy
+// there once cost the branch bots the entire L_amenity ramp).
+export function amenityWorthBuying(s, a, cashRate) {
   // 1) progression override: if Comfort is short of the NEXT accommodation tier's unlock gate,
   //    Comfort itself is gating the run — buy regardless of ROI. In the shipped economy accScore
   //    over-satisfies every gate (ACC.unlockFrac 0.33 < 1/ACC.growth 0.385), so this is a dormant

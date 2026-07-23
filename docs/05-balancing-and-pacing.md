@@ -258,3 +258,35 @@ still warrants review when new destination epics land.
 - The meta-layer and precision items (P3/P5 in the math-proof) still apply for the ascension
   loop and the endgame/NG+ magnitude.
 - Final numbers want **human playtest** data, not just the greedy bot.
+
+### §9.1 — The Phase-C refit (2026-07-23): the golden curve re-pinned once
+
+The audit (`.claude/context/audit-fable.md`) measured the felt-pacing contracts this doc wrote
+and found them broken; the Phase-C refit (one coordinated retune, goldens re-pinned exactly
+once) closed them. What changed, mechanism by mechanism:
+
+- **L_amenity activated** (`AMENITY.xRate 0.6, xCap 5.0`): the dormant per-row `xMult`/`xScope`
+  fields are live — one-time ownership bonuses, additive in-layer, hard-capped. The 186-item
+  catalog stopped being a documented cash-leak trap; the greedy bot now buys 131 of them.
+- **Mini-milestones** (`MILESTONE_MINI` +5% per 5 buys, linear-in-bought ⇒ log-in-cash safe)
+  restore a milestone-family event every ~10–15 min mid-game.
+- **Story valve** (`STORY_VALVE_SEC 90`): at most one beat per 90 game-seconds — 26 beats now
+  land on 26 distinct timestamps (was 14, with triple-dumps at the emotional peaks).
+- **The ladder lives**: `GEN.base` re-spaced (D4 at 1e12, D5 4e13) — D4–D5 are bought inside
+  run 1; D6–D8 arrive across ascensions. Late-anchored spine pricing (`ACC.costExp 1.08`).
+- **The ~20h contract is measured, not extrapolated**: the `casual-tourist` persona
+  (20-min check-ins + a 10% flavor budget, `js/dev/scenarios.mjs`) lands **21h20m**; the
+  greedy bot lands **10h56m45s** (band 6–12h). Both asserted in selftest [109].
+- **Prestige plateau**: first ascension pays ~24 Legacy (`LEGACY_SCALE 8e10`); runs 1..3 =
+  10h56m → 10h13m → 9h34m (flat-plateau band 0.85–1.10× run 1, selftest [86]) — prestige is
+  power, not a longer rerun. The island deed lands ~ascension 2.
+- **The endgame exists**: `LEGEND_SCALE 60` — first Legend point organically at ascension ~5
+  (was ≈7×10¹¹ ascensions); NG+ `gateScale 2.2 > incomeMult 2.0` — the world genuinely hardens.
+- **Branch parity**: crypto's track gained bounded `global` stage bonuses (its yield is linear
+  while the economy is polynomial — measured fading to 0.02% of income); connoisseur's
+  exclusivity reined (`rate 0.45`); crypto `yieldScale 3` keeps the lane felt early. Measured:
+  vlogger 10h56m · traveler 10h34m (0.97×) · connoisseur 9h00m (0.82×) · crypto 12h17m (1.12×)
+  — spread ×1.37, was ×2.28.
+
+Full decision log: `.claude/context/refit-log.md`. The pre-refit curve (island 29705s) remains
+in git history; every number above is pinned in selftest [2b]/[86]/[105]/[109].

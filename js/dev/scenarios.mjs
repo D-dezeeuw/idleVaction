@@ -24,24 +24,13 @@ import { DATA } from '../data/index.js';
 import * as E from '../engine.js';
 import * as M from '../math.js';
 import * as P from '../prestige.js';
-import { play } from './harness.mjs';
+import { play, amenityWorthBuying } from './harness.mjs';
 
 // ---- ROI-aware amenity test — copied from harness.mjs (private there; harness must stay
 // untouched because selftest pins its exports). See the long rationale comment there.
-const AMENITY_PAYBACK_HORIZON_SEC = 1800;
-function amenityWorthBuying(s, a, cashRate) {
-  const nextTier = s.accommodation.tier + 1;
-  if (nextTier < DATA.accommodation.length && s._comfortCache < M.accUnlockComfort(nextTier)) return true;
-  if (cashRate <= 0) return false;
-  const dComf = a.comfort * C.COMFORT.wAmen;
-  if (dComf <= 0) return false;
-  const comf = s._comfortCache;
-  const L = 1 + C.COMFORT.MULT * Math.log10(1 + comf / C.COMFORT.C0);
-  const Lafter = 1 + C.COMFORT.MULT * Math.log10(1 + (comf + dComf) / C.COMFORT.C0);
-  const gainPerSec = cashRate * (Lafter - L) / L;
-  if (gainPerSec <= 0) return false;
-  return E.amenityCost(s, a.id) / gainPerSec <= AMENITY_PAYBACK_HORIZON_SEC;
-}
+// SINGLE-SOURCED from harness.mjs — this file used to carry a copy, and the copies drifted
+// the moment the L_amenity income term landed in one and not the other (branch bots silently
+// stopped buying amenities and ran a 2× slower economy). One policy, one definition.
 
 // ---- parameterized greedy core: the harness's play() ordering with budget-fraction
 // knobs, a configurable path-focus target, and optional branch lanes appended. The
