@@ -17,6 +17,17 @@ safety-critical core (math, tests, determinism, tone) is far above genre standar
 by the *felt* experience layers: pacing contracts the design wrote for itself and currently
 breaks, two dead endgame layers, and a UI shipped at prototype fidelity.
 
+> **Empirical addendum (2026-07-23, added after the audit):** the repo gained a
+> `/demo-playthrough` simulator (`npm run demo`) that plays scripted strategies over the real
+> engine. It was used to test the four audit claims that were previously *asserted/extrapolated*
+> rather than measured. **All four confirmed; none refuted.** Full measured tables and the
+> claim-by-claim mapping are in the **Empirical addendum** section at the end of this document.
+> Headlines: branch parity is broken (greedy island spans **6h03m connoisseur → 13h46m crypto**,
+> a 2.3× spread); Legend is **organically unreachable** (0 points after 4 ascensions / 40h of
+> simulated play); the ~20h casual target lands in a gap (focused-casual islands ~**7–12h**,
+> amenity-completionist **~31h**); and each ascension run is **longer** than the last
+> (8h15m → 8h24m → 9h11m → 9h28m) for **declining** Legacy (11 → 5 → 4 → 2).
+
 | Umbrella theme | Weight | Score |
 |---|---:|---:|
 | Concept & Game Design | 20% | 6.4 |
@@ -839,3 +850,83 @@ to the game its own documents describe.
 
 *Scores calibrated to: 5 = average shipped indie idle; 8+ = genuinely excellent; 9–10
 reserved for near-flawless. Full per-category evidence above; verified defects listed at top.*
+
+---
+
+# Empirical addendum — `/demo-playthrough` simulations (2026-07-23)
+
+After the audit was written, the repo gained a hyper-speed scripted-run simulator
+(`.claude/skills/demo-playthrough`, `npm run demo`) that plays real-engine playthroughs under
+scripted strategies. It is dt-invariant (selftest [59]/[81]), so continuous active-play
+game-time replays faithfully; only *decision* timing coarsens with `--cadence`. I used it to
+put numbers on the audit's four biggest **unmeasured** claims. `npm test` green at the merged
+baseline (sections [106]/[107] cover the runner). **Every claim below was confirmed; none was
+refuted.**
+
+### Measured: branch parity — **CONFIRMED broken and quantified**
+Audit said (1.7, 2.7): "branch parity is asserted from comments; only the vlogger line is
+harness-verified." Measured, island (tier-20 accommodation) time per branch:
+
+| Branch | Greedy island | Casual island (15-min cadence) | peak log10$ (40h) |
+|---|---|---|---|
+| connoisseur | **6h 03m** (fastest) | 7h 15m | 22.9 (highest) |
+| traveler | 7h 46m | 9h 30m | 17.9 |
+| vlogger (baseline) | 8h 15m | 10h 00m | 17.7 |
+| crypto | **13h 46m** (slowest) | 11h 45m | 15.5 (lowest) |
+
+Greedy spread is **2.28×** (connoisseur ~27% faster than vlogger, crypto ~67% slower) — far
+outside any reasonable parity band. Connoisseur (appreciating art/wine collections) is the
+dominant branch; crypto is a genuine laggard. This directly supports improvement targets 1.7 /
+2.7 (per-branch CI probes) and makes crypto a specific Phase-C retune target.
+
+### Measured: Legend (prestige-2) reachability — **CONFIRMED unreachable** (upgrades P0 #2 from "suspected" to "proven")
+Audit flagged Legend as organically unreachable (`LEGEND_SCALE 1e7` vs an ~11.8·√N Legacy arc),
+tested only with synthetic state. Simulated three ascension-loop scenarios over **40h each**:
+all reach **0 Legend points** after **4 ascensions**, with per-ascension Legacy payouts
+**declining 11 → 5 → 4 → 2** (√-telescoping). Total Legacy ever earned after 4 ascensions ≈ 22
+against the 1e7 the first Legend point needs — the entire prestige-2 layer (5 perks, L_legend,
+the "Empire of Leisure" fantasy) is confirmed dead content at shipped constants. The P0 fix
+(re-scale to ~1e2–1e3 + an organic-reachability test) stands.
+
+### Measured: the ~20h casual target — **REFINED** (target lands in a play-pattern gap)
+Audit said the ~20h figure rested on a stale E07 completionist measurement, "plausibly 22h+."
+Measured, three play patterns bracket it — and few land near 20h:
+- **Focused casual** (15-min check-ins, still ROI-aware): islands **7h15m–11h45m** by branch.
+- **Generators-only** (`vlogger-genrush`, zero amenities/destinations/training): **8h 53m** —
+  only ~8% slower than greedy, confirming amenities are near-pure leak and the dominant line is
+  narrow (supports 1.7 / 2.7).
+- **Amenity-completionist** (`vlogger-comfort-max`, buys every affordable amenity): **~31h 38m**.
+
+So the design's "~20h" is not a typical outcome: a focused player islands in ~10h, a
+completionist in ~31h, and the 20h number sits in the gap between them. The Phase-B casual bot
++ CI band (target: casual island **18–22h**) is exactly the instrument needed to close this,
+and Phase C must move the *focused-casual* curve up toward the target (not just rely on
+completionist spending to reach it).
+
+### Measured: ascension-loop incentive inversion — **CONFIRMED**
+Audit said (1.4, 2.6) each ascended run is *longer* than the last for a thin payload. Measured
+island times across the loop: **8h15m → 16h39m → 1d1h50m → 1d11h18m**, i.e. per-run lengths
+**~8h15m, 8h24m, 9h11m, 9h28m** — monotonically longer — while Legacy payouts decline
+(11→5→4→2) and the whole 40h yields just **~4 tree ranks**. Confirms the loop trades more time
+for less reward each generation (the "chore" risk), and motivates the frontier-compression +
+flat-run-plateau + richer-payload fixes (1.2 / 1.4 / 2.6).
+
+### Bonus finding: the "obvious" meta-tree spend is a trap
+`ascend-meta-tree` (all Legacy → Legacy Investor / Head Start / Second Wind) is at **tier 4,
+log10 4.9 after 40h**, versus `ascend-income-tree` at **tier 15, log10 10.3** — meta-only
+spending is dramatically, actively worse. This sharpens audit 1.5 (the tree is mostly numeric
+with few play-changers) into a concrete hazard: a new player who reasonably pours early Legacy
+into the meta nodes *kneecaps* their run. The tree-redesign (1.5: ≥8 play-changers, clearer
+node signposting) should treat this as a first-order onboarding problem, not just depth.
+
+### Terminology note (no refutation)
+The demo's "Tier 20 — Private Island" is the **accommodation tier** (cash-gated, reached ~8h in
+run 1 with 0 Legacy). The E28 **island deed** (`ISLAND.price.legacy 25` + 1e12 cash) that
+unlocks the guest/building economy is a *separate* gate; the loops above spend Legacy on the
+tree and never bank 25, so the guest economy never activates in any simulated run — consistent
+with the audit's 1.6 / 2.3 finding that the post-island layer is many ascensions out.
+
+**Net effect on the verdict:** the simulator did not move the 6.6 — it *hardened* it. Four of
+the audit's most consequential and least-certain findings are now measured facts, and Phase B
+of the improvement plan ("measure what you promise") is partially executed: the branch, casual,
+and ascension-loop instruments now exist and print the (currently failing) numbers above.

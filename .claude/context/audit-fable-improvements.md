@@ -584,6 +584,26 @@ suite · `js/dev/lint.mjs` in the test gate.
 **Gate:** the new instruments print today's (bad) numbers in CI *before* anything is retuned —
 the refit gets a fitted baseline, and regressions become visible forever after.
 
+> **Partially done (2026-07-23):** the `/demo-playthrough` simulator (`npm run demo`,
+> scenarios in `js/dev/scenarios.mjs`) now provides the branch, casual-cadence, and
+> ascension-loop policies this phase needs — the remaining work is folding their metrics into
+> **CI assertions**, not building the runner. It has already produced the fitted baseline the
+> Phase-C refit must beat (see the Empirical addendum in `audit-fable.md`):
+> - **Branch parity (measured, greedy island):** connoisseur 6h03m · traveler 7h46m · vlogger
+>   8h15m · crypto 13h46m — a 2.28× spread. **Phase-C target: all four within ±20%** (crypto
+>   is the primary laggard; connoisseur the dominant branch to rein in).
+> - **Casual (measured):** focused 15-min-cadence islands 7h15m–11h45m; completionist ~31h38m;
+>   genrush 8h53m. **Phase-C target: focused-casual island 18–22h** (today's ~10h is the number
+>   to move — don't rely on completionist spending to reach 20h).
+> - **Legend (measured):** 0 points after 4 ascensions / 40h. **Post-fix target: first Legend
+>   point organically by ascension ≤6**, asserted by the organic-arc simulation, not synthetic
+>   state.
+> - **Ascension loop (measured):** run lengths 8h15m→8h24m→9h11m→9h28m for Legacy 11→5→4→2.
+>   **Post-fix target: run length flat (≤ +10% across generations) with a first payload ~25.**
+> - **New hazard surfaced:** meta-only Legacy spend is tier 4 / log10 4.9 at 40h vs income-tree
+>   tier 15 / log10 10.3 — treat "obvious meta nodes kneecap the run" as a Phase-E onboarding
+>   fix (1.5), not just tree depth.
+
 ### Phase C — The coordinated balance refit `[~2–3 weeks, @balance-tuner owns]`
 One integrated retune against the Phase B instruments: amenity `xMult` activation (the
 keystone) · D2 early entry + D4–D8 alive · mini-milestones · beat re-gating on diverse signals
