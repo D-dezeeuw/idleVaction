@@ -7,6 +7,7 @@
   "scripts": {
     "test": "node js/dev/selftest.mjs",
     "harness": "node js/dev/harness.mjs",
+    "demo": "node js/dev/demo.mjs",
     "serve": "python3 -m http.server 8080"
   },
   "//": "type:module is ONLY for local tooling/tests (node --check, selftest). GitHub Pages ignores this file; the browser loads index.html + <script type=module> statically. There are ZERO runtime dependencies.",

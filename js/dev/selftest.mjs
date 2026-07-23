@@ -4615,5 +4615,39 @@ console.log('\n[105] E30 Legends of Leisure: achievements/collections, seasonal,
   ok(M.computeAchieveMult(hs, DATA) === 1 && M.seasonalMult(hs, DATA) === 1, 'GOLDEN: L_achieve + seasonal are 1 for the harness (E30 is fully opt-in)');
 }
 
+console.log('\n[106] demo playthrough runner (js/dev/demo.mjs): baseline identity, cadence, recorder');
+{
+  const { runScenario } = await import('./demo.mjs');
+  const { getScenario } = await import('./scenarios.mjs');
+
+  // ---- baseline identity: the greedy-vlogger scenario IS the harness bot — same loop
+  // order (tick → act), same policy — so 1h of runScenario must land bit-identically on
+  // a manual tick/play loop. This pins the demo tool to the fitted golden curve: any
+  // silent drift in the runner breaks here first.
+  const man = ST.newGame();
+  for (let t = 0; t <= 3600; t += 5) { E.tick(man, 5); play(man); }
+  const base = runScenario(getScenario('greedy-vlogger'), { dt: 5, maxHours: 1 });
+  ok(base.final.cash === man.resources.cash, `demo greedy-vlogger is bit-identical to the harness loop at 1h (cash ${fmt(base.final.cash)})`);
+  ok(base.final.accTier === man.accommodation.tier && base.final.beats === man.story.seen.length, 'tier/beat progress matches the harness loop too');
+
+  // ---- recorder sanity: snapshots on the requested grid, monotone progression
+  ok(base.series.length === 7 && base.series.every((r, i) => i === 0 || r.t > base.series[i - 1].t), '1h @600s grid → 7 snapshots with strictly increasing t');
+  ok(base.series.every((r, i) => i === 0 || (r.beats >= base.series[i - 1].beats && r.accTier >= base.series[i - 1].accTier)), 'beats/tier are non-decreasing across snapshots');
+  ok(base.series.every(r => r.lifetimeCash >= 0 && Number.isFinite(r.cash)), 'snapshots carry finite cash and lifetime totals');
+
+  // ---- cadence: a casual player acts less often and can never be further ahead
+  const casual = runScenario(getScenario('greedy-vlogger'), { dt: 5, maxHours: 1, cadenceSec: 900 });
+  ok(casual.acts < base.acts, `cadence gates acting (${casual.acts} casual passes vs ${base.acts} greedy)`);
+  ok(casual.final.accTier <= base.final.accTier && casual.final.lifetimeCash <= base.final.lifetimeCash, 'casual play never beats greedy play');
+
+  // ---- branch scenarios: the RUNNER commits the scenario branch at the beat-6 crossroads
+  const crypto = runScenario(getScenario('greedy-crypto'), { dt: 5, maxHours: 1 });
+  ok(crypto.events.some(e => e.type === 'branch' && e.detail.includes('crypto')), 'greedy-crypto commits the crypto branch at beat 6');
+  ok(crypto.events.some(e => e.type === 'beat' && e.beat === 6), 'the beat-6 crossroads itself is in the event log');
+
+  // ---- config singleton hygiene: MILESTONE_STEP is reset around every run
+  ok(C.MILESTONE_STEP === 10, 'C.MILESTONE_STEP is back at 10 after demo runs');
+}
+
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);
 process.exit(fails === 0 ? 0 : 1);
