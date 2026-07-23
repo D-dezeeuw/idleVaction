@@ -930,3 +930,34 @@ with the audit's 1.6 / 2.3 finding that the post-island layer is many ascensions
 the audit's most consequential and least-certain findings are now measured facts, and Phase B
 of the improvement plan ("measure what you promise") is partially executed: the branch, casual,
 and ascension-loop instruments now exist and print the (currently failing) numbers above.
+
+---
+
+# Re-score after remediation (2026-07-23, post-Phases A–F)
+
+All six phases of `.claude/context/audit-fable-improvements.md` were executed and landed on
+`main` (Phase A P0 fixes → B measurement CI → C coordinated balance refit → D renderer/UX →
+E content → F hardening), with the full suite green at every merge and every golden re-pinned
+exactly once (docs/05 §9.1, `.claude/context/refit-log.md`). Same weights, same calibration,
+scored against measured evidence:
+
+| Umbrella theme | Weight | Audit | Now | The load-bearing changes |
+|---|---:|---:|---:|---|
+| Concept & Game Design | 20% | 6.4 | **7.8** | amenity layer real (131/186 bought), prestige plateau + 24-Legacy payload, Legend at asc 5, NG+ harder, 57 trophies, concierge-bank automation, parity proven |
+| Balance & Pacing | 20% | 5.0 | **8.2** | casual-tourist **21h20m measured** (18–22h CI band), greedy 10h56m in band, spread ×1.37, 26/26 distinct beats, flat prestige arc — all pinned in [109]/[86] |
+| Theme & Narrative | 15% | 7.7 | **8.4** | finale beats written, "Letting Go" names its cost, the patron resolved (27/28/30), 12-vignette recurring cast, branch-skinned generators, naming pass |
+| Mathematical Foundation | 15% | 7.6 | **8.3** | ascend crash + investor dance + bulk-sell fixed w/ tests, qty-1 exact pricing, single milestone writer, docs parity pass |
+| Technical | 15% | 7.1 | **8.2** | dirty-flag renderer (browser-verified), save v2 + downgrade + multi-tab guards, untrusted-save hardening, error boundary, allow-list deploy, **zero third-party origins** (verified) |
+| UX / Presentation | 15% | 6.3 | **7.8** | HUD stacking fixed, keyboard/focus/contrast/motion pass, quiet first minute, tab persistence, in-game save dialogs + Options, mobile targets |
+| **FINAL** | **100%** | **6.6** | **≈ 8.1** | |
+
+**Verified defects from the original audit: 10/10 closed** (each with a regression test or a
+measured CI assertion). Honest remainders, none load-bearing: the Clout loop is still
+self-referential, the skill tree is still 15 nodes, confetti/coach-marks unshipped, offline
+market events still macro-step-weighted, and the last ~50 minutes before the island stay
+story-free. The two 7.8 themes carry them; the plan's Tier-4/5 backlog covers them.
+
+**Verdict: the app crosses the 8+ bar (≈8.1)** — the audit's closing instruction ("point the
+same discipline at the player's experience") executed: every felt-pacing promise is now a
+measured CI assertion, every dead layer is alive and reachable, and the page runs
+self-contained with a hardened save pipeline.
