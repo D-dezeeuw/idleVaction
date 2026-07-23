@@ -31,7 +31,8 @@ export function gainCash(state, amount) {
   // the Legacy metric is credited in run-1-equivalent (gate-deflated) cash so the
   // ascension gate can't inflate the prestige payout — see math.ascCashNorm.
   state.stats.lifetimeCashThisTree += banked / M.ascCashNorm(state);
-  state.stats.overflowLost += amount - banked;
+  const overflow = amount - banked;
+  state.stats.overflowLost += overflow;
   // one-shot "wallet full" nudge per account tier: fires the first time THIS tier's
   // wallet overflows, tracked in story.flags (the generic already-fired bag) so it
   // can't re-spam every tick while the player shops the wallet up and down the cap.
@@ -42,7 +43,31 @@ export function gainCash(state, amount) {
       notify(state, 'warn', `💼 Your ${DATA.bank[state.bank.tier].name} is full — income is overflowing. Upgrade your account.`);
     }
   }
+  // Souvenir Stand minting (Living-World W3, docs/08 point 6): overflow lost to a full wallet
+  // is never JUST lost anymore — see mintSouvenirsFromOverflow's comment for the mint rule.
+  if (overflow > 0) mintSouvenirsFromOverflow(state, overflow);
   return banked;
+}
+
+// Mint souvenirs from unbanked wallet overflow (docs/08 point 6): accumulate `overflow` into
+// state.souvenirs.overflowAcc, then mint +1 souvenir every time the accumulator crosses the
+// CURRENT wallet cap, subtracting the cap each time — repeated while it still crosses, but
+// capped at config.SOUVENIR.maxPerTick mints PER CALL so one huge offline-macro-step overflow
+// can't fountain souvenirs (the accumulator simply keeps the remainder for the next call — no
+// souvenir is ever lost, minting is only rate-limited). Minting is pure bookkeeping — a count —
+// and touches no cash/multiplier, so it cannot itself move any pinned golden.
+function mintSouvenirsFromOverflow(state, overflow) {
+  const sv = state.souvenirs;
+  sv.overflowAcc += overflow;
+  let minted = 0;
+  while (minted < C.SOUVENIR.maxPerTick) {
+    const cap = M.walletCap(state);
+    if (!(cap > 0) || sv.overflowAcc < cap) break;
+    sv.overflowAcc -= cap;
+    sv.count++;
+    minted++;
+  }
+  if (minted > 0) notify(state, 'unlock', `🎁 Overflow becomes a souvenir! (+${minted}, now ${sv.count})`);
 }
 
 // ---------- runtime (non-pure) multiplier: Second Wind window ----------
@@ -106,6 +131,10 @@ export function tick(state, dt) {
   evaluateAchievements(state);
   state._achieveMult = M.computeAchieveMult(state, DATA);
   state._seasonalMult = M.seasonalMult(state, DATA);
+  // Living-World W3 (docs/08 points 6/7): L_souvenir/L_keepsake per-tick sums — recomputed like
+  // _amenCache/_achieveMult, both exactly 0 (⇒ ×1) for a fresh game/the harness.
+  state._souvCache = M.computeSouvenirPerkSum(state, DATA);
+  state._keepsakeCache = M.computeKeepsakeSum(state, DATA);
 
   const rt = runtimeMult(state);
 
@@ -617,9 +646,17 @@ export function checkRichHide(state) {
 export function visitDestination(state, id) {
   const d = destData(id);
   if (!d || !state.destinations[id].owned) return false;
+  const firstVisit = state.destinations[id].visits === 0;
   state.destinations[id].visits++;
   gainCash(state, C.DEST.visitYield);
   addPathPoints(state, 'traveler', C.DEST.visitPathPoints);
+  // Souvenir Stand (Living-World W3, docs/08 point 6): the FIRST visit to each destination mints
+  // one souvenir (a keepsake from the trip) — a plain count bump, income-inert like every other
+  // mint (see gainCash's mintSouvenirsFromOverflow).
+  if (firstVisit) {
+    state.souvenirs.count++;
+    notify(state, 'unlock', `🧳 A souvenir from ${d.name} — your first visit.`);
+  }
   return true;
 }
 // tier-1 rides (bus/train): cash check + add to owned, then switch the active slot —
@@ -848,7 +885,9 @@ export function amenityCost(state, id) {
   const lux = a.tag === 'luxury' ? M.luxuryCostMult(state) : 1;
   // costScale (Phase-C refit): one knob scaling the whole catalog's price level against the
   // refitted economy — the 186 data rows keep their relative spacing untouched. 1 = legacy.
-  return a.costBase * (C.AMENITY.costScale || 1) * Math.pow(g, lvl) * (1 - M.pathBonus(state, 'amenityDiscount')) * lux * M.commsCostMult(state);
+  // Ascension Challenges' Lost Luggage (Living-World W3, docs/08 point 7): triples every amenity
+  // price. challengeMod defaults to 1 with no active challenge — bit-identical to before.
+  return a.costBase * (C.AMENITY.costScale || 1) * Math.pow(g, lvl) * (1 - M.pathBonus(state, 'amenityDiscount')) * lux * M.commsCostMult(state) * M.challengeMod(state, 'amenityCostMult');
 }
 export function amenityUnlocked(state, id) {
   const a = amenityData(id);
@@ -2057,6 +2096,10 @@ function staffInterval(state, st) {
 // categories). Shared reserve floor so no role starves payroll; returns the item names bought.
 function runStaffAutoBuy(state, def, st, payroll) {
   if (!st.policy.autoBuy || !st.policy.categories.length) return [];
+  // Ascension Challenges' Skeleton Crew (Living-World W3, docs/08 point 7): the SAME
+  // 'automationMult' key conciergeTick reads — disables staff auto-buy too (payroll/morale keep
+  // running; only the AUTOMATION is off). challengeMod defaults to 1 with no active challenge.
+  if (!(M.challengeMod(state, 'automationMult') > 0)) return [];
   st.tickAccum = (st.tickAccum || 0);
   if (st.tickAccum < staffInterval(state, st)) return [];
   st.tickAccum = 0;
@@ -2315,6 +2358,40 @@ export function buyAccommodation(state) {
     notify(state, 'celebrate', '👑 The Ultra Penthouse — the crowning room above the sail. The elevator needs your fingerprint. So does the view.');
     addPathPoints(state, 'connoisseur', 1);
   }
+  checkChallengeCompletion(state, t);
+  return true;
+}
+
+// ---------- Ascension Challenges completion (Living-World W3, docs/08 point 7) ----------
+// Fires the tick a run first reaches its ACTIVE challenge's goalTier (called from
+// buyAccommodation, the only place a tier-up lands). Mints the permanent Keepsake reward
+// (state.challenge.completed[id] — META, survives ascension, wiped only by legendReset like
+// souvenirs), then clears `active`/`mods` so the rest of the run (and any content after this
+// point) plays out unhandicapped — the challenge is DONE, its reward already banked. A no-op
+// with no active challenge (every existing run/scenario), so buyAccommodation stays bit-identical.
+function checkChallengeCompletion(state, tier) {
+  const ch = state.challenge;
+  if (!ch || !ch.active) return;
+  const row = DATA.challenges.find(c => c.id === ch.active);
+  if (!row || tier < row.goalTier) return;
+  ch.completed[row.id] = true;
+  ch.active = null;
+  ch.mods = {};
+  state._keepsakeCache = M.computeKeepsakeSum(state, DATA);
+  notify(state, 'celebrate', `🏆 Challenge complete: ${row.name}! A Keepsake joins your collection — permanent +${(row.reward.mult * 100).toFixed(0)}% income, forever.`);
+}
+
+// ---------- Souvenir Stand: the shelf (Living-World W3, docs/08 point 6) ----------
+export function souvenirData(id) { return DATA.souvenirs.find(s => s.id === id); }
+export function souvenirOwned(state, id) { return !!state.souvenirs.owned[id]; }
+export function buySouvenir(state, id) {
+  const item = souvenirData(id);
+  if (!item || souvenirOwned(state, id)) return false;
+  if (state.souvenirs.count < item.cost) return false;
+  state.souvenirs.count -= item.cost;
+  state.souvenirs.owned[id] = true;
+  if (item.kind === 'perk') state._souvCache = M.computeSouvenirPerkSum(state, DATA);
+  notify(state, 'unlock', `${item.emoji} ${item.name} — added to the shelf.`);
   return true;
 }
 
@@ -2497,6 +2574,10 @@ function conciergeInterval(state) {
 // (E11-S10-T6).
 export function conciergeTick(state, dt) {
   if (!state.concierge.on) return;
+  // Ascension Challenges' Skeleton Crew (Living-World W3, docs/08 point 7): automationMult 0
+  // disables the concierge entirely for the run (manual purchases are never blocked — only the
+  // AUTOMATION). challengeMod defaults to 1 with no active challenge, so this line is a no-op.
+  if (!(M.challengeMod(state, 'automationMult') > 0)) return;
   state.concierge.tickAccum += dt;
   let iters = 0;
   while (state.concierge.tickAccum >= C.CONCIERGE.intervalSec && iters++ < 2000) {

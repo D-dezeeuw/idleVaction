@@ -22,6 +22,8 @@ import { validateSeasonal } from '../data/seasonal.js';
 import { validateEvents } from '../data/events.js';
 import { validateBoosts } from '../data/boosts.js';
 import { validateSplurges } from '../data/splurges.js';
+import { validateSouvenirs } from '../data/souvenirs.js';
+import { validateChallenges } from '../data/challenges.js';
 import { fmt, fmtTime, rng } from '../util.js';
 // E11 harness-invariance guard ([62] below): importing runCurve does NOT auto-run the
 // harness's own report() — that's guarded behind `process.argv[1].endsWith('harness.mjs')`,
@@ -5090,6 +5092,225 @@ console.log('\n[112] Living-World W2: Sunscreen Boosts + Splurge Moments — pla
   // casual-ascetic (the keepsake-only control lane): sanity-check it runs and reaches the island.
   const casAsc = runScenario(getScenario('casual-ascetic'), { dt: 5, maxHours: 26 });
   ok(casAsc.islandAt !== null, `casual-ascetic reaches the island (${fmtTime(casAsc.islandAt)}, always takes the keepsake option)`);
+}
+
+console.log('\n[113] Living-World W3: Souvenir Stand + Ascension Challenges + Legacy Honeymoon — the meta loop, run 1 untouched');
+{
+  // ---- (i) dev schema guards wired next to validateEvents/validateBoosts/validateSplurges (this file + harness.mjs)
+  ok(validateSouvenirs(), 'validateSouvenirs() passes on the shipped SOUVENIRS roster');
+  ok(validateChallenges(), 'validateChallenges() passes on the shipped CHALLENGES roster');
+
+  // ---- (a) goldens untouched: reuse the existing pin helpers ([109]/[111]/[112]'s runCurve/runScenario pattern)
+  const { islandAt: greedyIsland113 } = runCurve({ dt: 5, maxHours: 40 });
+  ok(Math.abs(greedyIsland113 - 39440) < 1, `harness island time is UNCHANGED by Living-World W3 (got ${fmtTime(greedyIsland113)}, expected 39440s)`);
+  const { runScenario: runScenario113 } = await import('./demo.mjs');
+  const { getScenario: getScenario113, runAscensionChallenger } = await import('./scenarios.mjs');
+  const cas113 = runScenario113(getScenario113('casual-tourist'), { dt: 5, maxHours: 26 });
+  ok(Math.abs(cas113.islandAt - 76800) <= 1200, `casual-tourist pin UNMOVED by Living-World W3 (got ${fmtTime(cas113.islandAt)})`);
+
+  // ---- (b) no-challenge identity: EVERY consumer is bit-identical to a pre-W3 formula copy when
+  // state.challenge.active is null (a fresh newGame(), and every existing scenario/save).
+  const neu = ST.newGame();
+  ok(neu.challenge.active === null, 'fixture: a fresh game has no active challenge');
+  neu._comfortCache = 5e8;
+  const oldComfort = 1 + C.COMFORT.MULT * Math.log10(1 + neu._comfortCache / C.COMFORT.C0);
+  ok(M.comfortMultiplier(neu) === oldComfort, 'comfortMultiplier is bit-identical to the pre-W3 formula with no active challenge');
+
+  const oldWalletCap = M.bankCapAt(neu.bank.tier) * Math.pow(1.4, neu.ascension?.tree?.deep_pockets || 0);
+  ok(M.walletCap(neu) === oldWalletCap, 'walletCap is bit-identical to the pre-W3 formula with no active challenge');
+
+  const savvyState = ST.newGame(); savvyState.skills.savvy.level = 10; savvyState.stats.lifetimeCash = 1e10;
+  const oldSavvy = savvyState.skills.savvy.level * C.SAVVY_YIELD * Math.sqrt(Math.max(0, savvyState.stats.lifetimeCash));
+  ok(M.savvyPassive(savvyState) === oldSavvy, 'savvyPassive is bit-identical to the pre-W3 formula with no active challenge');
+
+  const cryState = ST.newGame(); cryState.crypto.holdings[DATA.crypto.coins[0].id] = 100; cryState.paths.crypto.points = 10;
+  let cryBase = 0; for (const c of DATA.crypto.coins) cryBase += (cryState.crypto.holdings[c.id] || 0) * c.yieldPerUnit;
+  const oldYield = cryBase * (C.MARKET.yieldScale || 1) * M.pathMult(cryState.paths.crypto.points) * (1 + M.pathBonus(cryState, 'yieldMult')) * M.marketMult(cryState, DATA);
+  ok(M.cryptoYieldPerSec(cryState, DATA) === oldYield, 'cryptoYieldPerSec is bit-identical to the pre-W3 formula with no active challenge');
+
+  const amenState = ST.newGame();
+  const amenRow = DATA.amenities[0];
+  const ag = amenRow.costGrowth || C.AMENITY.growthDefault;
+  const alvl = amenState.amenities[amenRow.id].level;
+  const alux = amenRow.tag === 'luxury' ? M.luxuryCostMult(amenState) : 1;
+  const oldAmenCost = amenRow.costBase * (C.AMENITY.costScale || 1) * Math.pow(ag, alvl) * (1 - M.pathBonus(amenState, 'amenityDiscount')) * alux * M.commsCostMult(amenState);
+  ok(E.amenityCost(amenState, amenRow.id) === oldAmenCost, 'engine.amenityCost is bit-identical to the pre-W3 formula with no active challenge');
+
+  // concierge/staff automation tick gates: a plain fixture (no challenge) DOES auto-buy — the
+  // Skeleton Crew no-op tested in (c) below is a genuine gate, not "nothing was affordable".
+  const autoControl = ST.newGame();
+  autoControl.concierge.on = true; autoControl.resources.cash = 1e9; autoControl.generators[0].count = 1000;
+  for (let i = 0; i < 5; i++) E.tick(autoControl, C.CONCIERGE.intervalSec + 1);
+  ok(autoControl.concierge.totalBought > 0, 'control: with no active challenge, the concierge auto-buys as before (identity path)');
+
+  // ---- (c) each challenge's mod applies at its one choke point
+  const withChallenge = id => {
+    const s = ST.newGame();
+    const row = DATA.challenges.find(c => c.id === id);
+    s.challenge = { active: row.id, mods: { ...row.mods }, completed: {} };
+    return { s, row };
+  };
+  {
+    const { s } = withChallenge('rainy_season');
+    s._comfortCache = 5e8;
+    const raw = C.COMFORT.MULT * Math.log10(1 + s._comfortCache / C.COMFORT.C0);
+    ok(approx(M.comfortMultiplier(s), 1 + 0.5 * raw), 'Rainy Season: L_comfort → 1 + 0.5·(L−1)');
+  }
+  {
+    const { s } = withChallenge('lost_luggage');
+    const plain = ST.newGame();
+    ok(approx(E.amenityCost(s, amenRow.id), E.amenityCost(plain, amenRow.id) * 3), 'Lost Luggage: amenity costs ×3');
+  }
+  {
+    const { s } = withChallenge('budget_airline');
+    const plain = ST.newGame();
+    ok(approx(M.walletCap(s), M.walletCap(plain) * 0.5), 'Budget Airline: wallet caps ×0.5');
+  }
+  {
+    const { s } = withChallenge('cash_only');
+    s.skills.savvy.level = 10; s.stats.lifetimeCash = 1e10;
+    ok(M.savvyPassive(s) === 0, 'Cash Only: savvyPassive is exactly 0');
+    s.crypto.holdings[DATA.crypto.coins[0].id] = 100;
+    ok(M.cryptoYieldPerSec(s, DATA) === 0, 'Cash Only: cryptoYieldPerSec is exactly 0 too (the SAME passiveMult key)');
+  }
+  {
+    const { s } = withChallenge('skeleton_crew');
+    s.concierge.on = true; s.resources.cash = 1e9; s.generators[0].count = 1000;
+    for (let i = 0; i < 5; i++) E.tick(s, C.CONCIERGE.intervalSec + 1);
+    ok(s.concierge.totalBought === 0, 'Skeleton Crew: the concierge never auto-buys despite being ON');
+    s.staff.butler.hired = true;
+    s.staff.butler.policy.autoBuy = true;
+    s.staff.butler.policy.categories = ['amenity'];
+    const amenBefore = Object.values(s.amenities).reduce((n, a) => n + a.level, 0);
+    for (let i = 0; i < 20; i++) E.tick(s, 5);
+    const amenAfter = Object.values(s.amenities).reduce((n, a) => n + a.level, 0);
+    ok(amenAfter === amenBefore, 'Skeleton Crew: hired-staff auto-buy never purchases either (payroll/morale still run)');
+  }
+
+  // ---- (d) souvenir minting: overflow accumulator mints exactly at cap crossings, maxPerTick
+  // honored, first-visit mints once.
+  {
+    const s = ST.newGame();
+    const cap = M.walletCap(s);
+    s.resources.cash = cap;
+    const before = s.souvenirs.count;
+    E.gainCash(s, cap * 1.5);
+    ok(s.souvenirs.count === before + 1, 'gainCash mints exactly 1 souvenir when overflow crosses the current wallet cap once');
+    ok(approx(s.souvenirs.overflowAcc, cap * 0.5), 'the remainder (below the next cap crossing) stays in overflowAcc');
+  }
+  {
+    const s = ST.newGame();
+    const cap = M.walletCap(s);
+    s.resources.cash = cap;
+    E.gainCash(s, cap * 10);
+    ok(s.souvenirs.count === C.SOUVENIR.maxPerTick, `minting is capped at SOUVENIR.maxPerTick (${C.SOUVENIR.maxPerTick}) per gainCash call`);
+    ok(s.souvenirs.overflowAcc > 0, 'excess overflow beyond maxPerTick is never lost — it just waits in the accumulator');
+  }
+  {
+    const s = ST.newGame();
+    const d = DATA.destinations[0];
+    s.destinations[d.id].owned = true;
+    const before = s.souvenirs.count;
+    ok(E.visitDestination(s, d.id), 'first visit succeeds');
+    ok(s.souvenirs.count === before + 1, 'the FIRST visitDestination mints exactly 1 souvenir');
+    const afterFirst = s.souvenirs.count;
+    ok(E.visitDestination(s, d.id), 'a second visit still succeeds (repeatable action)');
+    ok(s.souvenirs.count === afterFirst, 'a SECOND visit to the same destination mints nothing more');
+  }
+
+  // ---- (e) L_souvenir/L_keepsake caps bind
+  {
+    const s = ST.newGame();
+    for (const item of DATA.souvenirs) if (item.kind === 'perk') s.souvenirs.owned[item.id] = true;
+    s._souvCache = M.computeSouvenirPerkSum(s, DATA);
+    const rawSum = DATA.souvenirs.filter(i => i.kind === 'perk').reduce((n, i) => n + i.mult, 0);
+    ok(approx(s._souvCache, rawSum), 'computeSouvenirPerkSum sums every OWNED perk mult (pride items contribute nothing)');
+    ok(approx(M.souvenirMultiplier(s), 1 + Math.min(C.SOUVENIR.xCap - 1, rawSum)), 'L_souvenir binds at config.SOUVENIR.xCap');
+  }
+  {
+    const s = ST.newGame();
+    for (const c of DATA.challenges) s.challenge.completed[c.id] = true;
+    s._keepsakeCache = M.computeKeepsakeSum(s, DATA);
+    const rawSum = DATA.challenges.reduce((n, c) => n + c.reward.mult, 0);
+    ok(approx(s._keepsakeCache, rawSum), 'computeKeepsakeSum sums every COMPLETED reward');
+    ok(approx(M.keepsakeMultiplier(s), 1 + Math.min(C.KEEPSAKE.xCap - 1, rawSum)), 'L_keepsake binds at config.KEEPSAKE.xCap');
+  }
+  {
+    const s = ST.newGame();
+    E.tick(s, 1);
+    ok(M.souvenirMultiplier(s) === 1 && M.keepsakeMultiplier(s) === 1, 'a fresh game/tick reads BOTH new layers at exactly 1 (nothing owned/completed)');
+  }
+
+  // ---- (f) keep-list audit: souvenirs.count/owned + challenge.completed cross ascend;
+  // challenge.active does NOT persist a plain ascension's identity (it's re-set from the new
+  // selection); ALL of it is wiped by legendReset. Honeymoon is live right after ascend, expired
+  // after durationSec.
+  {
+    const s = ST.newGame();
+    s.stats.runSec = 200;
+    s.stats.lifetimeCashThisTree = 1e12;   // clears P.canAscend (mirrors [86]/[110]'s ascend fixtures)
+    s.souvenirs.count = 7;
+    s.souvenirs.owned.shot_glass = true;
+    s.challenge.completed.rainy_season = true;
+    ok(P.canAscend(s), 'fixture: eligible to ascend');
+    ok(P.ascend(s, undefined, { challengeId: 'lost_luggage' }), 'ascend succeeds with a challenge selected');
+    ok(s.souvenirs.count === 7 && s.souvenirs.owned.shot_glass === true, 'souvenirs.count/owned CROSS ascension — META (docs/08 point 6)');
+    ok(s.challenge.completed.rainy_season === true, 'challenge.completed CROSSES ascension — META (docs/08 point 7)');
+    ok(s.challenge.active === 'lost_luggage', 'challenge.active is RUN-scoped: re-set post-reset from the NEW selection');
+
+    const honeymoon = (s.effects || []).find(e => e.id === 'honeymoon');
+    ok(!!honeymoon && honeymoon.endsAt > s.stats.runSec, 'the honeymoon effect is present right after ascend');
+    ok(approx(M.effectsMult(s, 'income'), Math.min(C.EFFECTS.maxMult, C.HONEYMOON.mult)), 'the honeymoon income effect reads the configured mult, capped by the shared registry');
+    s.stats.runSec += C.HONEYMOON.durationSec + 1;
+    E.tick(s, 1);   // pruneEffects runs at the top of tick()
+    ok(M.effectsMult(s, 'income') === 1, 'the honeymoon effect has expired after durationSec');
+
+    // legendReset: the meta-meta layer stays clean — souvenirs + challenge.completed are wiped,
+    // mirroring the tree/Legacy wipe exactly (they are NOT in legendReset's keep-list).
+    s.ascension.count = 3;               // meets LEGEND.minAscensions
+    s.stats.totalLegacyEverEarned = 1e6; // clears legendGain >= 1
+    ok(P.canLegend(s), 'fixture: eligible to Legend');
+    ok(P.legendReset(s), 'legendReset succeeds');
+    ok(s.souvenirs.count === 0 && Object.keys(s.souvenirs.owned).length === 0, 'legendReset WIPES souvenirs — never crosses the meta-meta layer');
+    ok(s.challenge.active === null && Object.keys(s.challenge.completed).length === 0, 'legendReset WIPES challenge.completed too');
+  }
+
+  // ---- (g) [86]-style band re-check: honeymoon live, the SAME design contract ([86]'s ≥8h floor
+  // + 0.85-1.10× plateau band) — reusing play()/P.ascend() exactly like [86], not a new policy.
+  {
+    const hb = ST.newGame();
+    for (let t = 0; t <= 40 * 3600 && hb.accommodation.tier < 20; t += 5) { E.tick(hb, 5); play(hb); }
+    ok(hb.accommodation.tier >= 20, '[113g] fixture reaches the island');
+    const run1 = hb.stats.runSec;
+    ok(P.canAscend(hb) && P.ascend(hb), '[113g] ascend succeeds (a plain ascension — honeymoon still applies unconditionally)');
+    ok((hb.effects || []).some(e => e.id === 'honeymoon'), '[113g] the honeymoon effect is live for this ascended run');
+    for (;;) {
+      let best = null;
+      for (const n of DATA.tree) if (P.canBuyNode(hb, n.id)) { const c = P.treeCost(hb, n.id); if (!best || c < best.c) best = { id: n.id, c }; }
+      if (!best) break;
+      P.buyNode(hb, best.id);
+    }
+    for (let t = 0; t <= 40 * 3600 && hb.accommodation.tier < 20; t += 5) { E.tick(hb, 5); play(hb); }
+    ok(hb.accommodation.tier >= 20, '[113g] ascended run also reaches the island with honeymoon live');
+    const run2 = hb.stats.runSec;
+    console.log(`    → [113g] run1 ${fmtTime(run1)}, run2 (honeymoon live) ${fmtTime(run2)} — band [${fmtTime(run1 * 0.85)}, ${fmtTime(run1 * 1.10)}]`);
+    ok(run2 >= 8 * 3600, `[113g] [86]'s ≥8h floor holds with honeymoon live (got ${fmtTime(run2)})`);
+    ok(run2 >= run1 * 0.85 && run2 <= run1 * 1.10, `[113g] [86]'s 0.85-1.10× plateau band holds with honeymoon live (got ${fmtTime(run2)} vs band [${fmtTime(run1 * 0.85)}, ${fmtTime(run1 * 1.10)}])`);
+  }
+
+  // ---- (h) completability probe: ascension-challenger at coarse dt reaches its second island
+  // within 14h of game time per generation, for at least the first two CHALLENGED generations
+  // (generation 0 — run 1 — never has one active, per the "run 1 untouched" contract).
+  {
+    const sc = getScenario113('ascension-challenger');
+    const { genIslandSec } = runAscensionChallenger(sc, { dt: 10, maxHours: 100 });
+    console.log(`    → ascension-challenger generation islands (sec from each gen's own start): ${genIslandSec.map(fmtTime).join(', ')}`);
+    ok(genIslandSec.length >= 3, `ascension-challenger reaches at least 3 islands (gens 0/1/2) inside the 100h probe horizon (got ${genIslandSec.length})`);
+    if (genIslandSec.length >= 3) {
+      ok(genIslandSec[1] <= 14 * 3600, `the FIRST challenged generation (${DATA.challenges[0].name}) reaches its island within 14h (got ${fmtTime(genIslandSec[1])})`);
+      ok(genIslandSec[2] <= 14 * 3600, `the SECOND challenged generation (${DATA.challenges[1].name}) reaches its island within 14h (got ${fmtTime(genIslandSec[2])})`);
+    }
+  }
 }
 
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);

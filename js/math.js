@@ -99,8 +99,14 @@ export function tierMultiplier(state, k) {
   // 1 for the harness (unlocks only reward-0 trophies, never owns the island) — the island is unmoved.
   const L_achieve = achieveMultiplier(state);
   const L_seasonal = seasonalMultiplier(state);
+  // L_souvenir (Souvenir Stand) + L_keepsake (Ascension Challenges), Living-World W3, docs/08
+  // points 6/7: two bounded flat layers, same safe class as L_amenity/L_owner just above. Both
+  // exactly 1 for the harness/every existing scenario (nothing owned/completed), so neither can
+  // move a pinned golden.
+  const L_souvenir = souvenirMultiplier(state);
+  const L_keepsake = keepsakeMultiplier(state);
 
-  return mMilestone * L_upgrade * L_path * L_skill * L_amenity * L_comfort * L_dest * L_exclusivity * L_logistics * L_staff * L_owner * L_estate * L_island * L_ascension * L_tree * L_legend * L_ngplus * L_achieve * L_seasonal;
+  return mMilestone * L_upgrade * L_path * L_skill * L_amenity * L_comfort * L_dest * L_exclusivity * L_logistics * L_staff * L_owner * L_estate * L_island * L_ascension * L_tree * L_legend * L_ngplus * L_achieve * L_seasonal * L_souvenir * L_keepsake;
 }
 
 // ---- L_amenity: the activated amenity income layer (Phase-C refit) ----
@@ -220,7 +226,10 @@ export function walletCap(state) {
   // Deep Pockets (tree): a bigger wallet at every bank tier — ×1.4 per rank, bounded (max 3).
   // Rank 0 ⇒ ×1 exactly (the harness has no tree; the fitted curve is unmoved).
   const dp = Math.pow(1.4, state.ascension?.tree?.deep_pockets || 0);
-  return bankCapAt(state.bank?.tier || 0) * dp;
+  // Ascension Challenges' Budget Airline (Living-World W3, docs/08 point 7): halves every wallet
+  // cap for the run. challengeMod defaults to 1 with no active challenge, so this is bit-identical
+  // to the pre-W3 formula (×1 is an exact IEEE754 no-op) for every existing run/scenario.
+  return bankCapAt(state.bank?.tier || 0) * dp * challengeMod(state, 'walletCapMult');
 }
 // free room in the wallet right now — what engine.gainCash can actually bank.
 export function walletRoom(state) {
@@ -583,7 +592,12 @@ export function ascCashNorm(state) {
 }
 export function comfortMultiplier(state) {
   const comfort = state._comfortCache ?? 0;
-  return 1 + C.COMFORT.MULT * Math.log10(1 + comfort / C.COMFORT.C0);
+  const raw = C.COMFORT.MULT * Math.log10(1 + comfort / C.COMFORT.C0);
+  // Ascension Challenges' Rainy Season (Living-World W3, docs/08 point 7): halves the
+  // multiplier's EFFECT (the excess over 1), not the log term itself — L_comfort →
+  // 1 + 0.5·(L−1). challengeMod defaults to 1 with no active challenge (the identity fast
+  // path), so this is bit-identical to the pre-W3 formula for every existing run/scenario.
+  return 1 + challengeMod(state, 'comfortEffectMult') * raw;
 }
 
 // ---- skills ----
@@ -614,7 +628,11 @@ export function commsCostMult(state) {
 export function charismaMult(level) { return 1 + C.CHARISMA_RATE * level; }
 export function commsDiscountPct(level) { return clamp(C.COMMS_DISCOUNT * level, 0, C.COMMS_DISCOUNT_CAP); }
 export function savvyPassive(state) {
-  return state.skills.savvy.level * C.SAVVY_YIELD * Math.sqrt(Math.max(0, state.stats.lifetimeCash));
+  const raw = state.skills.savvy.level * C.SAVVY_YIELD * Math.sqrt(Math.max(0, state.stats.lifetimeCash));
+  // Ascension Challenges' Cash Only (Living-World W3, docs/08 point 7): zeroes the Savvy passive
+  // AND crypto yield (math.cryptoYieldPerSec below) through the SAME 'passiveMult' key. Identity 1
+  // with no active challenge, so this is bit-identical to the pre-W3 formula.
+  return raw * challengeMod(state, 'passiveMult');
 }
 
 // ---- energy: optional clicker fuel (E10 "Body & Soul") ----
@@ -656,6 +674,56 @@ export function effectsMult(state, kind) {
     m *= mult;
   }
   return Math.min(C.EFFECTS.maxMult, m);
+}
+
+// ---- Ascension Challenges: the mods choke point (Living-World W3, docs/08 point 7) ----
+// ONE pure helper every challenge-aware formula reads. `state.challenge.mods` is the ACTIVE
+// challenge's data-row `mods` object, resolved and cached at ascend-time by prestige.ascend
+// (mirrors the state._pathBonus cache convention — see math.pathBonus — so math.js never needs to
+// import data/challenges.js, keeping the config→util→math→data chain acyclic). Every key defaults
+// to the identity below when no challenge is active (state.challenge.mods is {}) or the key is
+// absent from the active row's mods — so a fresh newGame(), every existing scenario, and the
+// harness (none of which ever call prestige.ascend with a challengeId) read the IDENTITY at every
+// one of the five choke points (comfortMultiplier/amenityCost/walletCap/savvyPassive+
+// cryptoYieldPerSec/the concierge+staff tick gates), bit-identical to the pre-W3 formulas.
+const CHALLENGE_MOD_DEFAULTS = {
+  comfortEffectMult: 1, amenityCostMult: 1, walletCapMult: 1, passiveMult: 1, automationMult: 1,
+};
+export function challengeMod(state, key) {
+  const mods = state.challenge && state.challenge.mods;
+  const v = mods && mods[key];
+  return v !== undefined ? v : (CHALLENGE_MOD_DEFAULTS[key] ?? 1);
+}
+
+// ---- Souvenir Stand + the Keepsake reward layer (Living-World W3, docs/08 points 6/7) ----
+// Two bounded additive layers, same safe class as L_amenity/L_dest (docs/math-proof.md §3/§4):
+// L_souvenir sums owned 'perk' shelf items' mult (data/souvenirs.js), capped at config.SOUVENIR.
+// xCap; L_keepsake sums COMPLETED challenges' reward.mult (data/challenges.js), capped at
+// config.KEEPSAKE.xCap. Both read a per-tick cache (state._souvCache/_keepsakeCache, set by
+// engine.tick mirroring _amenCache exactly) rather than DATA directly, keeping math.js data-free.
+// Both are EXACTLY 1 for a fresh game (nothing owned/completed) — the harness/casual-tourist bots
+// never buy shelf items or embark a challenge, so neither layer can move a pinned golden.
+export function computeSouvenirPerkSum(state, DATA) {
+  let s = 0;
+  for (const item of DATA.souvenirs) {
+    if (item.kind === 'perk' && state.souvenirs.owned[item.id]) s += item.mult;
+  }
+  return s;
+}
+export function souvenirMultiplier(state) {
+  return 1 + Math.min(C.SOUVENIR.xCap - 1, state._souvCache ?? 0);
+}
+export function computeKeepsakeSum(state, DATA) {
+  let s = 0;
+  const completed = state.challenge && state.challenge.completed;
+  if (!completed) return 0;
+  for (const c of DATA.challenges) {
+    if (completed[c.id]) s += c.reward.mult;
+  }
+  return s;
+}
+export function keepsakeMultiplier(state) {
+  return 1 + Math.min(C.KEEPSAKE.xCap - 1, state._keepsakeCache ?? 0);
 }
 
 // ---- vlogger clout economy (E12 "Lights, Camera, Clout") ----
@@ -828,9 +896,11 @@ export function cryptoYieldPerSec(state, DATA) {
   // full track — bounded by data, still exactly zero with no holdings.
   // yieldScale (Phase-C refit): one config knob scaling the whole lane against the refitted
   // economy — the branch-parity lever (crypto measured 58% slower than vlogger pre-refit).
-  // Still exactly 0 with no holdings, so the harness is untouched.
+  // Still exactly 0 with no holdings, so the harness is untouched. challengeMod's 'passiveMult'
+  // (Cash Only, Living-World W3) is the SAME key savvyPassive reads above — identity 1 with no
+  // active challenge, so this line is bit-identical to the pre-W3 formula.
   return base * (C.MARKET.yieldScale || 1) * pathMult(state.paths.crypto.points) * (1 + pathBonus(state, 'yieldMult'))
-       * marketMult(state, DATA);
+       * marketMult(state, DATA) * challengeMod(state, 'passiveMult');
 }
 
 // ---- connoisseur economy (E14 "Acquired Taste") ----

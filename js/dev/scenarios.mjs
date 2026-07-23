@@ -21,6 +21,7 @@
 //   layer up: legendReset + exhaustive perk spending.
 import { CONFIG as C } from '../config.js';
 import { DATA } from '../data/index.js';
+import * as ST from '../state.js';
 import * as E from '../engine.js';
 import * as M from '../math.js';
 import * as P from '../prestige.js';
@@ -221,6 +222,27 @@ export const SCENARIOS = [
     legend: { when: () => true, perks: ['eternal_tan', 'old_money', 'quick_study'] },
   },
 
+  // ---- Ascension Challenges measurement (Living-World W3, docs/08 point 7) ----
+  {
+    id: 'ascension-challenger',
+    name: 'Ascension challenger (cycles all 5 handicaps)',
+    desc: 'The ascension-loop scenario, but each ascension embarks with the NEXT Ascension Challenge ' +
+      'in rotation (docs/08 point 7) — a completability sweep across every handicap. Run via ' +
+      'runAscensionChallenger below (demo.mjs\'s generic runner has no hook for a third ascend() ' +
+      'argument, so a plain `npm run demo -- ascension-challenger` behaves like ascension-loop —' +
+      ' the challenge rotation only engages through the dedicated runner).',
+    branch: 'vlogger', cadenceSec: 0,
+    act: makeGreedyAct({ branch: 'vlogger' }),
+    ascension: {
+      when: makeAscendWhen(),
+      spend: ['sun_kissed', 'silver_tongue', 'legacy_investor', 'compounding_interest', 'head_start', 'faster_metab', 'second_wind'],
+      // challengeId(ctx): cycles DATA.challenges by ascension generation (ctx.mem.gen, maintained
+      // by runAscensionChallenger below) — read ONLY by that dedicated runner.
+      challengeId: (ctx) => DATA.challenges[(ctx.mem.gen || 0) % DATA.challenges.length].id,
+    },
+    legend: { when: () => true, perks: ['eternal_tan', 'old_money', 'quick_study'] },
+  },
+
   // ---- tree A/B: all Legacy on income vs. all Legacy on meta ----
   {
     id: 'ascend-income-tree',
@@ -277,3 +299,43 @@ export const SCENARIOS = [
 ];
 
 export function getScenario(id) { return SCENARIOS.find(x => x.id === id); }
+
+// ---- Ascension Challenges: the dedicated multi-generation runner (Living-World W3, docs/08
+// point 7) ----
+// demo.mjs's runScenario is the shared demo/selftest runner (loop shape mirrors harness.runCurve
+// exactly, selftest [106]), but it calls P.ascend(s) with NO options, by design — it has no hook
+// for a per-generation { challengeId }, and forking/touching demo.mjs is off-limits per house
+// rule. So `ascension-challenger`'s actual challenge-cycling behavior needs its OWN tiny runner,
+// here — the SAME tick → act → prestige-decision loop shape, minus the reporting machinery
+// (series/checkpoints/stall-detection) neither this measurement nor selftest [113h] needs.
+// Returns per-generation elapsed time (seconds since THAT generation's run start) to first reach
+// tier 20 — the completability probe reads genIslandSec[1]/[2] (the first two CHALLENGED
+// generations; generation 0 — run 1 — never has one active, matching the "run 1 untouched" contract).
+export function runAscensionChallenger(sc, { dt = 10, maxHours = 100 } = {}) {
+  const s = ST.newGame();
+  const ctx = { t: 0, dt, mem: { gen: 0 } };
+  const genIslandSec = [];   // index = generation; value = seconds from THAT gen's start to tier 20
+  let genStartT = 0;
+  const horizon = maxHours * 3600;
+  for (let t = 0; t <= horizon; t += dt) {
+    ctx.t = t;
+    E.tick(s, dt);
+    sc.act(s, ctx);
+    if (sc.branch && s.story.seen.includes(6) && s.story.branch === 'neutral') E.applyStoryChoice(s, 6, sc.branch);
+    if (genIslandSec.length === ctx.mem.gen && s.accommodation.tier >= 20) genIslandSec.push(t - genStartT);
+    if (sc.ascension && P.canAscend(s) && sc.ascension.when(s, ctx)) {
+      const gained = P.legacyPreview(s);
+      const challengeId = sc.ascension.challengeId ? sc.ascension.challengeId(ctx) : undefined;
+      P.ascend(s, undefined, { challengeId });
+      ctx.mem.lastGain = gained;
+      ctx.mem.gen = (ctx.mem.gen || 0) + 1;
+      genStartT = t;
+      spendLegacy(s, sc.ascension.spend);
+    }
+    if (sc.legend && P.canLegend(s) && sc.legend.when(s, ctx)) {
+      P.legendReset(s);
+      spendLegendPoints(s, sc.legend.perks);
+    }
+  }
+  return { s, genIslandSec };
+}

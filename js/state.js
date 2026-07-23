@@ -168,6 +168,28 @@ export function newGame() {
     // harness never chooses, so every card it triggers resolves 'expired' — a pure no-op — and
     // the fitted goldens cannot move. RUN-SCOPED like boosts (same reset mechanism, no extra code).
     splurges: { pending: null, resolved: {} },
+    // souvenirs (Living-World W3 "Souvenir Stand", docs/08 point 6): the keepsake currency —
+    // count is BOTH the mint target (wallet overflow + first destination visits, engine.gainCash/
+    // visitDestination) AND the spend target (engine.buySouvenir), exactly like state.resources.
+    // legacy/the tree. overflowAcc is the running unbanked-overflow accumulator that mints +1
+    // souvenir every time it crosses the CURRENT wallet cap (config.SOUVENIR.maxPerTick per call).
+    // owned[id] = true once a shelf item (data/souvenirs.js) is bought — permanent, never re-buyable.
+    // META: this whole slice is in prestige.ascend's keep-list (survives ascension — "away time is
+    // never worthless again"); it is NOT kept by legendReset (wiped like the tree/Legacy, the
+    // meta-meta-layer-stays-clean rule). Minting is pure bookkeeping — a count, never cash — so it
+    // cannot itself move any income path; only owning a 'perk' shelf item can (math.souvenirMultiplier),
+    // and the harness/casual-tourist bots never buy shelf items, so the fitted goldens are unmoved.
+    souvenirs: { count: 0, overflowAcc: 0, owned: {} },
+    // challenge (Living-World W3 "Ascension Challenges", docs/08 point 7): `active` is the
+    // currently-embarked handicap's id (or null) — RUN-SCOPED, set post-reset by prestige.ascend's
+    // optional { challengeId } and cleared on completion; `mods` is the resolved data-row mods
+    // object CACHED at ascend-time (math.challengeMod reads it, so math.js never needs to import
+    // data/challenges.js — mirrors the state._pathBonus cache convention). `completed` is META
+    // (survives ascension, wiped by legendReset like souvenirs above) — once true for an id, that
+    // Keepsake reward is permanent (math.keepsakeMultiplier). Every key is neutral/empty for a
+    // fresh game and every existing scenario (nothing calls ascend with a challengeId), so the
+    // fitted goldens are unmoved.
+    challenge: { active: null, mods: {}, completed: {} },
     // homeBase (E27): 'mainland' until the private island is bought, then 'island' — a permanent
     // meta fact (carried across ascension by prestige.ascend) even as the run's tier resets.
     accommodation: { tier: 0, owned: [0], homeBase: 'mainland' },
@@ -270,6 +292,9 @@ export function newGame() {
     _comfortCache: 0, _destCache: 1, _combo: 1, _comboTimer: 0, _pathBonus: {}, _exclCache: 0, _logiCache: 1, _staffMult: 1, _estateMult: 1, _legendMult: 1, _achieveMult: 1, _seasonalMult: 1,
     // L_amenity per-scope sums (Phase-C refit) — neutral zeros ⇒ the layer reads exactly 1.
     _amenCache: { all: 0, social: 0 },
+    // L_souvenir / L_keepsake per-tick sums (Living-World W3, docs/08 points 6/7) — neutral zeros
+    // ⇒ both layers read exactly 1, mirroring _amenCache/_achieveMult's convention exactly.
+    _souvCache: 0, _keepsakeCache: 0,
   };
 }
 

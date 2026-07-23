@@ -3,6 +3,10 @@ import { CONFIG as C } from './config.js';
 import { DATA } from './data/index.js';
 import * as M from './math.js';
 import { newGame } from './state.js';
+// addEffect (Living-World W3's Legacy Honeymoon, docs/08 point 8): engine.js does not import
+// prestige.js, so this edge is one-directional — no cycle. Reused rather than forked, per house
+// style (the SAME shared timed-effects registry Trip Events/Sunscreen Boosts already ride).
+import { addEffect } from './engine.js';
 
 export function canAscend(state) {
   return state.stats.runSec >= C.ASCEND_MIN_RUN_SEC && M.legacyGain(state) >= 1;
@@ -99,7 +103,7 @@ export function syncMilestoneStep(state) { C.MILESTONE_STEP = milestoneStepFor(s
 // the bank ladder, destinations, crypto, concierge. "Later runs feel plusher" now
 // flows ONLY through tree abilities (Ageless/Magnetic/Head Start…), never through
 // the ascension count itself.
-export function ascend(state, heir) {
+export function ascend(state, heir, { challengeId } = {}) {
   if (!canAscend(state)) return false;
   // E25-A: retire the current character onto the family album BEFORE the reset (a pure snapshot).
   const retiree = makeRetiree(state);
@@ -119,6 +123,15 @@ export function ascend(state, heir) {
   fresh.legend = state.legend;      // E29: the Legend layer is meta — it survives ascension untouched
   fresh.ngPlus = state.ngPlus;      // E29: the NG+ cycle counter is meta
   fresh.achievements = state.achievements; // E30: the trophy record is permanent (survives every reset)
+  // Souvenir Stand (Living-World W3, docs/08 point 6): count/overflowAcc/owned are META — the
+  // keepsake currency (and shelf) survive ascension (away time is never worthless again). NOT in
+  // legendReset's keep-list (see below) — the meta-meta layer stays clean, mirroring the tree/Legacy.
+  fresh.souvenirs = state.souvenirs;
+  // Ascension Challenges (Living-World W3, docs/08 point 7): `completed` is META (the permanent
+  // Keepsake record — survives ascension like souvenirs above); `active`/`mods` are RUN-scoped —
+  // always cleared by this reset and re-set below from the NEW selection (or left null/{} for a
+  // plain ascension, every existing call site's unchanged default).
+  fresh.challenge = { active: null, mods: {}, completed: (state.challenge && state.challenge.completed) || {} };
   fresh.meta = state.meta;
   fresh.meta.runStartSec = 0;
   // E25-A lineage keep-list: carry the album forward (append the retiree, oldest compacted past the
@@ -158,6 +171,28 @@ export function ascend(state, heir) {
   state.ascension.investorAtRunStart = state.ascension.tree.legacy_investor || 0;
   applyAutoBanker(state);
   state._notifications = [{ type: 'ascend', text: `✨ Ascended! +${gained} Legacy (total ${state.resources.legacy}).` }];
+
+  // Ascension Challenges selection (Living-World W3, docs/08 point 7): the optional third
+  // argument's { challengeId } — validated against the roster (an unknown/omitted id ⇒ a plain
+  // ascension, unchanged from every existing call site). Resolved + CACHED onto state.challenge.
+  // mods (mirrors the state._pathBonus cache convention — see math.challengeMod's comment) so
+  // math.js never needs to import data/challenges.js.
+  if (challengeId) {
+    const row = DATA.challenges.find(c => c.id === challengeId);
+    if (row) {
+      state.challenge.active = row.id;
+      state.challenge.mods = { ...row.mods };
+      state._notifications.push({ type: 'ascend', text: `🎯 Challenge embarked: ${row.emoji} ${row.name} — ${row.desc}` });
+    }
+  }
+
+  // Legacy Honeymoon (Living-World W3, docs/08 point 8): a decaying income surge through the SAME
+  // shared timed-effects registry Trip Events/Sunscreen Boosts use (config.EFFECTS/math.effectsMult/
+  // engine.addEffect) — prestige *feels* explosive while the registry's own hard product cap
+  // (EFFECTS.maxMult) and Second Wind's separate ×5 window both stay untouched. Unconditional (every
+  // ascend, always) — the ascended-run band contract (selftest [86]) is the guard that keeps the
+  // provisional HONEYMOON values honest; W5 finalizes them.
+  addEffect(state, { id: 'honeymoon', kind: 'income', mult: C.HONEYMOON.mult, durationSec: C.HONEYMOON.durationSec });
   return true;
 }
 

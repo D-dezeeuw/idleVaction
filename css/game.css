@@ -510,6 +510,9 @@ div.iv-passport-stamp.iv-stamp-empty { padding: 5px 2px; border-radius: 8px; }
    CONFIG.EVENTS.enabled is false — this wave's shipped default) ---- */
 .iv-event-banner { border-radius: 12px; padding: 5px 8px; margin-bottom: 6px; font-size: .8rem;
   font-weight: bold; background: var(--iv-sun-tint); border: 1px solid var(--iv-sun); color: var(--iv-ink); }
+/* Legacy Honeymoon (Living-World W3, docs/08 point 8): a top-level banner (mirrors the
+   splurge card's own explicit [hidden] override, outside the tab system). */
+.iv-event-banner[hidden] { display: none; }
 
 .iv-goat-btn { position: fixed; bottom: 74px; right: 14px; z-index: 7; width: 52px; height: 52px;
   border-radius: 50%; border: 2px solid var(--iv-sun); background: var(--iv-card); font-size: 1.6rem;

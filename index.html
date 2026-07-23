@@ -48,6 +48,11 @@
     <div id="splurge"></div>
   </div>
 
+  <!-- Legacy Honeymoon (Living-World W3, docs/08 point 8): a decaying post-ascension income
+       surge through the shared effects registry — hidden unless it's live. Sits outside the tab
+       system, like the splurge card above, so it's never missed regardless of active tab. -->
+  <div id="honeymoonBanner" class="iv-event-banner" hidden></div>
+
   <!-- Tab bar (rendered by ui.renderTabs — only tabs with unlocked content appear: the future stays hidden). -->
   <nav id="tabbar" class="iv-tabbar" role="tablist" aria-label="Sections"></nav>
 
@@ -98,6 +103,13 @@
         <h3>🏝️ The Island Listing</h3>
         <div id="islandListingAnnounce" class="iv-sr-only" aria-live="polite"></div>
         <div id="islandListing"></div>
+      </section>
+      <!-- Souvenir Stand (Living-World W3, docs/08 point 6): the first souvenir IS the reveal —
+           hidden until state.souvenirs.count > 0. See ui.renderSouvenirs. -->
+      <section class="iv-card iv-wide" id="souvenirCard" hidden>
+        <h3>🎁 Souvenir Stand</h3>
+        <div id="souvenirAnnounce" class="iv-sr-only" aria-live="polite"></div>
+        <div id="souvenir"></div>
       </section>
     </div>
 

@@ -17,7 +17,7 @@ let hooks = {};               // { save, exportSave, importSave, hardReset }
 // future stays hidden). The player sees one focused screen at a time. activeTab/seenTabs are
 // transient (reset to Home on reload) — a deliberate light touch, no save-schema change.
 const TABS = [
-  { id: 'home',   label: 'Home',   icon: '🏨', cards: ['eventsCard', 'boostsCard', 'accCard', 'amenitiesCard', 'poolCard', 'beachCard', 'wellnessCard', 'conciergeCard', 'propertyCard', 'islandListingCard'] },
+  { id: 'home',   label: 'Home',   icon: '🏨', cards: ['eventsCard', 'boostsCard', 'accCard', 'amenitiesCard', 'poolCard', 'beachCard', 'wellnessCard', 'conciergeCard', 'propertyCard', 'islandListingCard', 'souvenirCard'] },
   { id: 'income', label: 'Income', icon: '💶', cards: ['generatorsCard', 'creatorCard', 'cryptoCard', 'collectionCard', 'staffCard'] },
   { id: 'travel', label: 'Travel', icon: '🌍', cards: ['destCard', 'transportCard', 'garageCard', 'marinaCard', 'hangarCard'] },
   { id: 'growth', label: 'Growth', icon: '💪', cards: ['skillsCard', 'pathsCard'] },
@@ -90,7 +90,7 @@ const CARD_RENDERERS = {
   hangarCard: renderHangar, staffCard: renderStaff, propertyCard: renderProperty,
   islandListingCard: renderIslandListing, legendCard: renderLegend, achievementsCard: renderAchievements,
   skillsCard: renderSkills, pathsCard: renderPaths, ascensionCard: renderAscension, treeCard: renderTree,
-  eventsCard: renderEvents, boostsCard: renderBoosts,
+  eventsCard: renderEvents, boostsCard: renderBoosts, souvenirCard: renderSouvenirs,
 };
 let lastFullSweep = 0;
 export function render(state) {
@@ -107,6 +107,9 @@ export function render(state) {
   // Splurge Moments (Living-World W2): outside the tab-card system (like renderStory above) so a
   // pending choice is never missed just because another tab is active.
   renderSplurge(state);
+  // Legacy Honeymoon (Living-World W3, docs/08 point 8): same "never missed regardless of tab"
+  // treatment as the splurge card above.
+  renderHoneymoon(state);
   checkArrivalModals(state);
   const now = performance.now();
   const full = now - lastFullSweep > 2000;
@@ -444,6 +447,11 @@ function announceSplurge(text) {
   const live = el('splurgeAnnounce');
   if (live) live.textContent = text;
 }
+// Souvenir Stand (Living-World W3, docs/08 point 6): mirrors announceBoosts/announceSplurge exactly.
+function announceSouvenirs(text) {
+  const live = el('souvenirAnnounce');
+  if (live) live.textContent = text;
+}
 // a brief pulse on the just-activated row (mirrors pulseEnergy/pulseConcierge's "pulse until a
 // timestamp" convention exactly), reduced-motion gated in CSS (.iv-boost-flash).
 let boostPulseId = null, boostPulseUntil = 0;
@@ -497,6 +505,45 @@ function renderSplurge(s) {
       ${btn('splurge-choose', 'b', esc(m.b.label))}
     </div>
     <div class="iv-sub">…or walk past — ${fmtTime(left)} left before the moment passes on its own.</div>`);
+}
+
+// ---------- Legacy Honeymoon (Living-World W3, docs/08 point 8) ----------
+// A plain countdown banner, outside the tab-card system (mirrors renderSplurge above) — the
+// registry entry IS the reveal (prestige.ascend always pushes it), so this just mirrors state.
+function renderHoneymoon(s) {
+  const b = el('honeymoonBanner');
+  if (!b) return;
+  const e = (s.effects || []).find(x => x.id === 'honeymoon' && x.endsAt > s.stats.runSec);
+  if (!e) { b.hidden = true; return; }
+  b.hidden = false;
+  b.textContent = `💞 Inheritance high ×${fmt(e.mult)} — ${fmtTime(Math.max(0, e.endsAt - s.stats.runSec))} left`;
+}
+
+// ---------- Souvenir Stand (Living-World W3, docs/08 point 6) ----------
+// The reveal doctrine: the FIRST souvenir IS the reveal (state.souvenirs.count > 0) — no separate
+// story-beat gate, mirroring renderSplurge/the boost card's "the mechanism firing is the unlock".
+function renderSouvenirs(s) {
+  const card = el('souvenirCard');
+  const sv = s.souvenirs;
+  const reveal = !!(sv && sv.count > 0);
+  if (card) card.hidden = !reveal;
+  if (!reveal) { if (el('souvenir')) el('souvenir').innerHTML = ''; return; }
+  const cap = M.walletCap(s);
+  const fillPct = cap > 0 ? Math.round(clamp(sv.overflowAcc / cap, 0, 1) * 100) : 0;
+  let html = `<div class="iv-sub">🧳 Souvenirs: <b>${fmt(sv.count)}</b> · shelf perk ×<b>${M.souvenirMultiplier(s).toFixed(3)}</b> on all income</div>`;
+  html += `<div class="iv-sub">Wallet overflow fills the next souvenir: ${fillPct}%</div>`;
+  html += `<div class="iv-amenities">`;
+  for (const item of DATA.souvenirs) {
+    const owned = E.souvenirOwned(s, item.id);
+    const canBuy = !owned && sv.count >= item.cost;
+    const sub = owned ? 'On the shelf' : item.kind === 'perk' ? `+${(item.mult * 100).toFixed(0)}% income perk` : 'Pure flavor — no mechanical effect';
+    html += `<div class="iv-btn iv-content-item" title="${esc(item.desc)}">
+      <b>${item.emoji} ${esc(item.name)}</b> <small>${sub}</small>
+      <div class="iv-row-buy">${btn('buy-souvenir', item.id, owned ? 'Owned' : `${item.cost} 🧳`, canBuy, 'btn-primary')}</div>
+    </div>`;
+  }
+  html += '</div>';
+  setHTML(el('souvenir'), html);
 }
 
 // The Golden Goat: a floating button, invisible unless engine.goatVisible says one is actually
@@ -2470,6 +2517,35 @@ function renderLegend(s) {
   setHTML(el('legend'), html);
 }
 
+// ---------- Ascension Challenges (Living-World W3, docs/08 point 7) ----------
+// The small "active challenge" banner shown at the top of the Ascension card while a run has one
+// embarked — '' the rest of the time (a plain ascension, every run before this wave).
+function challengeBannerHtml(s) {
+  const active = s.challenge && s.challenge.active;
+  if (!active) return '';
+  const row = DATA.challenges.find(c => c.id === active);
+  if (!row) return '';
+  return `<div class="iv-event-banner">${row.emoji} Active challenge: <b>${esc(row.name)}</b> — reach ` +
+    `${esc(DATA.accommodation[row.goalTier]?.name || `tier ${row.goalTier}`)} to complete it and mint a permanent Keepsake ` +
+    `(+${(row.reward.mult * 100).toFixed(0)}% income).</div>`;
+}
+// The picker shown inside the retirement (ascend) era-modal below — a list of the 5, each with
+// desc/reward and a ✓ badge once completed (a completed challenge stays selectable — replaying it
+// just re-lives the handicap, the reward was already banked permanently).
+function challengePickerHtml(s) {
+  let html = `<div class="iv-tag">optional: embark a challenge</div>`;
+  html += `<label class="iv-btn iv-content-item"><input type="radio" name="challengePick" value="" checked> No challenge — a plain ascension</label>`;
+  for (const c of DATA.challenges) {
+    const done = !!(s.challenge?.completed?.[c.id]);
+    html += `<label class="iv-btn iv-content-item">
+      <input type="radio" name="challengePick" value="${c.id}"> ${c.emoji} <b>${esc(c.name)}</b>${done ? ' <span aria-label="completed">✓</span>' : ''}
+      <div class="iv-sub">${esc(c.desc)}</div>
+      <div class="iv-sub"><small>Reward: permanent +${(c.reward.mult * 100).toFixed(0)}% income (a Keepsake) on reaching tier ${c.goalTier}</small></div>
+    </label>`;
+  }
+  return html;
+}
+
 function renderAscension(s) {
   const preview = P.legacyPreview(s);
   const can = P.canAscend(s);
@@ -2483,6 +2559,7 @@ function renderAscension(s) {
   const L = s.lineage || { name: '', generation: 1, album: [] };
   const who = L.name ? esc(L.name) : 'this tourist';
   el('ascension').innerHTML = `
+    ${challengeBannerHtml(s)}
     <div>🕯️ <b>${who}</b> can retire now — shed the old self, wipe the trip, and pass on the <b>inheritance</b>.</div>
     <div class="iv-sub">Generation ${L.generation} · run time ${fmtTime(s.stats.runSec)} · retirements so far: ${s.ascension.count} · ${btn('name-lineage', '', L.name ? 'Rename ✏️' : 'Name this tourist ✏️', true)}</div>
     <div>Retire &amp; inherit → <b>+${fmt(preview)} Legacy</b> ${btn('ascend', '', 'Retire 🕯️', can)}</div>
@@ -2654,6 +2731,13 @@ function handle(action, arg, btnEl) {
       }
       break;
     }
+    // Souvenir Stand (Living-World W3, docs/08 point 6): the shelf — generic afford-gated flow.
+    case 'buy-souvenir': {
+      const item = E.souvenirData(arg);
+      const ok = E.buySouvenir(S, arg);
+      if (ok && item) announceSouvenirs(`${item.emoji} ${item.name} — added to the shelf.`);
+      break;
+    }
     case 'buy-training': {
       // XP-gain feedback (E09-S10-T1 "training feel"): a floating "+Nxp" popup on a
       // successful buy, on top of the level-up flash/toast a crossed boundary already
@@ -2776,14 +2860,19 @@ function handle(action, arg, btnEl) {
         <div class="iv-beattext">The inheritance: <b>+${fmt(P.legacyPreview(S))} Legacy</b>. The trip resets. Who you've become does not.</div>
         <label class="iv-sub" for="heirName">Name the heir <small>(optional)</small></label>
         <input id="heirName" type="text" maxlength="24" placeholder="${esc(P.defaultName(nextGen))}" autocomplete="off">
+        ${challengePickerHtml(S)}
         <div class="iv-era-actions">${btn('ascend-go', '', 'Retire & inherit 🕯️', true, 'btn-primary')} ${btn('era-close', '', 'Not yet')}</div>`);
       break;
     }
     case 'ascend-go': {
       const input = el('heirName');
       const heir = { name: (input && input.value) || '' };
+      // Ascension Challenges (Living-World W3, docs/08 point 7): the picker's selection, or
+      // undefined for "No challenge" (a plain ascension — every existing flow's default).
+      const picked = document.querySelector('input[name="challengePick"]:checked');
+      const challengeId = picked && picked.value ? picked.value : undefined;
       closeEra();
-      if (P.ascend(S, heir)) setState(S);
+      if (P.ascend(S, heir, { challengeId })) setState(S);
       break;
     }
     // E29 Legend prestige-2 + meta-meta shop + New Game+

@@ -24,6 +24,8 @@ import { SEASONAL } from './seasonal.js';
 import { EVENTS, WEATHER_STATES } from './events.js';
 import { BOOSTS } from './boosts.js';
 import { SPLURGES } from './splurges.js';
+import { SOUVENIRS } from './souvenirs.js';
+import { CHALLENGES } from './challenges.js';
 
 export const DATA = {
   generators: GENERATORS,
@@ -97,4 +99,10 @@ export const DATA = {
   // dev harness/selftest (same convention as validateBank/validatePaths/validateEvents/…).
   boosts: BOOSTS,
   splurges: SPLURGES,
+  // Souvenir Stand + Ascension Challenges (Living-World W3, docs/08 points 6/7): the shelf roster
+  // spent with the souvenirs currency, and the 5-row handicap-run roster prestige.ascend validates
+  // against. validateSouvenirs/validateChallenges live in their own data files, imported directly
+  // by the dev harness/selftest (same convention as validateBoosts/validateSplurges/…).
+  souvenirs: SOUVENIRS,
+  challenges: CHALLENGES,
 };

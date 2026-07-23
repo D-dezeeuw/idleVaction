@@ -380,6 +380,44 @@ export const CONFIG = {
   //             sponsor-deal precedent: content-specific numbers live on the row, not here).
   BOOSTS: { minBeat: 5 },
 
+  // ---- Souvenir Stand (Living-World W3, docs/08-living-world.md point 6) ----
+  // Wallet overflow + first destination visits mint a keepsake currency (state.souvenirs) that
+  // SURVIVES ascension (docs/08 point 6: "away time is never worthless again" — the Egg-Inc
+  // generosity beat). Minting is PURE bookkeeping — a count, never cash — so it cannot itself
+  // move any income path; only spending souvenirs on a shelf item can (data/souvenirs.js), and the
+  // harness/casual-tourist bots never buy shelf items, so L_souvenir stays exactly 1 for every
+  // pinned golden. SAFETY CLASS: L_souvenir = 1 + min(xCap−1, Σ owned perk mults) over a FIXED,
+  // finite roster — the same bounded-additive-layer class as L_amenity/L_dest (docs/math-proof.md
+  // §3/§4), never a power of cash.
+  //   xCap        — hard ceiling on the souvenir-shop income layer (≤ ×1.25 total).
+  //   maxPerTick  — the overflow-accumulator mint cap PER engine.gainCash call: a coarse offline
+  //                 macro-step can dump enormous single-call overflow (§11's lump), so minting is
+  //                 capped at this many souvenirs per call regardless of how much overflow
+  //                 accumulated — the accumulator itself is never reset beyond what was minted, so
+  //                 the next call just continues where this one left off (no souvenirs lost, only
+  //                 rate-limited — "no fountain," never "no souvenir").
+  SOUVENIR: { xCap: 1.25, maxPerTick: 2 },
+
+  // ---- Ascension Challenges (Living-World W3, docs/08-living-world.md point 7) ----
+  // From ascension 1 on, the player may optionally embark a run with one handicap (data/
+  // challenges.js's CHALLENGES roster) via prestige.ascend's optional { challengeId } — run 1 can
+  // never have one active (only selectable AT an ascension), so the harness/goldens are untouched.
+  // Completing a challenge (reaching its goalTier) mints a permanent Keepsake perk: L_keepsake =
+  // 1 + min(xCap−1, Σ completed rewards) — the SAME bounded-additive-layer class as L_souvenir
+  // above, over the same fixed 5-row roster (max Σ = 5×0.06 = 0.30 = xCap−1 at full completion).
+  KEEPSAKE: { xCap: 1.3 },
+
+  // ---- Legacy Honeymoon (Living-World W3, docs/08-living-world.md point 8) ----
+  // Ascending grants a decaying income surge through the SAME shared timed-effects registry
+  // Trip Events/Sunscreen Boosts use (config.EFFECTS/math.effectsMult/engine.addEffect) — prestige
+  // *feels* explosive while the registry's own hard product cap (EFFECTS.maxMult 5) and Second
+  // Wind's separate ×5 window both stay completely untouched (this rides the SAME 'income' kind
+  // stream as Trip Events' Happy Hour, so the two would multiply together and hit the shared cap
+  // if they ever overlapped — by design, not a bug). Conservative first-pass values (W5 finalizes):
+  // measured to keep the ascended-run band contract (selftest [86]: every ascension ≥ 8h, the
+  // early-faster/late-slower parabola) green with margin — see selftest [113g]'s measured numbers.
+  HONEYMOON: { mult: 3, durationSec: 480 },
+
   // ---- connoisseur economy (E14 "Acquired Taste"): OPT-IN, gated-off-by-default ----
   // The whole Old-Money Aesthete lane (exclusivity ×, luxury discount, appreciation, the
   // +25% luxury-Comfort perk) stays a hard no-op until the connoisseur system is genuinely
