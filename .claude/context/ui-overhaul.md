@@ -16,7 +16,7 @@
 | U3 — reveal choreography | ✅ ~80% (engine-fired arrival modals remain) |
 | U4 — journey polish | 🟡 started (era skies only) |
 | U5 — QA sweep | 🟡 script exists in scratchpad, not committed |
-| Art pipeline (generated images) | 🟡 **test image done & wired** (tier 0, in-game); **favicon/app icon done & wired**; Wave 1 remaining 21 postcards not yet run |
+| Art pipeline (generated images) | 🟢 **Wave-1 postcards ALL 22 generated & committed** (839 KB WebP); favicon done & wired; `POSTCARD_ART` wiring for tiers 1–21 pending the U3 integration commit (ui.js in flight) |
 
 ## Done (with merge commits)
 
@@ -87,8 +87,15 @@ The era-modal system exists but only wraps player-initiated actions. Still toast
 
 ## The images idea (generated art via OpenRouter)
 
-**State: TEST IMAGE DONE (2026-07-23) — style approved-quality, wired in-game for tier 0.**
-Wave 1 = the remaining 21 tier postcards, one `node tools/genart.mjs postcards` run away.
+**State: WAVE-1 POSTCARDS COMPLETE (2026-07-23) — all 22 tiers generated, compressed, committed
+(839 KB total).** Generated with the tier-0 style-reference anchor (genart now sends the
+approved tier-0 image as a reference on every call — commit 27f3ffb); consistency across the
+set is visibly tight (same line weight, palette, flat shading, tourist-from-behind).
+Accepted deviations, reviewed on the full contact sheet: tiers 1/6 have clean, correctly
+spelled diegetic sign lettering ("MOTEL"/"HOTEL") — the no-text rule guarded against mushy
+AI lettering, which didn't materialize; regenerating would risk style drift. Tier 7's beach
+runs lighter/whiter than the set (white-sand scene) — fine in context. Remaining: wire
+tiers 1–21 into `POSTCARD_ART` (one line, held back only because ui.js is mid-edit for U3).
 
 - **Test verdict (tier 0, The Soggy Shed):** on-bible — palette-locked (yellow poncho, pink
   shoes, sky-blue umbrella/rain on warm sand), thick soft outlines, no text, tourist from
