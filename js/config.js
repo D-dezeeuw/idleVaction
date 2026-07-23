@@ -366,6 +366,20 @@ export const CONFIG = {
   // so the goat is harness-neutral even once Trip Events is enabled.
   GOAT: { visibleSec: 20, rewardSecs: 90 },
 
+  // ---- Sunscreen Boosts (Living-World W2, docs/08-living-world.md point 4) ----
+  // Player-FIRED timed multipliers on the SAME shared effects registry as Trip Events —
+  // engine.activateBoost is the ONLY way in. UNLIKE Trip Events (config.EVENTS.enabled), this
+  // needs no master kill-switch: every path into it is player-initiated, the cost is paid UP
+  // FRONT (a plain cash subtract, never gainCash), and the payoff is a bounded flat × through
+  // the SAME hard-capped registry (config.EFFECTS.maxMult) — never a power of cash. A fresh
+  // newGame() and the harness (which never calls activateBoost) are unaffected by construction,
+  // so the fitted island/casual goldens cannot move whether or not this block even exists.
+  //   minBeat — reveal gate only (mirrors EVENTS.minBeat): the Sunscreen Boosts card stays
+  //             hidden until the player has enough context to understand what it does. Per-boost
+  //             kind/mult/durationSec/cooldownSec/costWalletFrac live in data/boosts.js (the
+  //             sponsor-deal precedent: content-specific numbers live on the row, not here).
+  BOOSTS: { minBeat: 5 },
+
   // ---- connoisseur economy (E14 "Acquired Taste"): OPT-IN, gated-off-by-default ----
   // The whole Old-Money Aesthete lane (exclusivity ×, luxury discount, appreciation, the
   // +25% luxury-Comfort perk) stays a hard no-op until the connoisseur system is genuinely

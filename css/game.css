@@ -523,3 +523,17 @@ div.iv-passport-stamp.iv-stamp-empty { padding: 5px 2px; border-radius: 8px; }
   font-weight: bold; font-size: .9rem; pointer-events: none; z-index: 8; animation: tapfloat .7s ease-out forwards; }
 @media (prefers-reduced-motion: reduce) { .iv-goat-pop { animation: none; opacity: 0; } }
 :root[data-motion="reduced"] .iv-goat-pop { animation: none; opacity: 0; }
+
+/* ---- Living-World W2: Sunscreen Boosts + Splurge Moments (both hidden until their own
+   reveal condition, no master switch — see docs/08 points 4/5) ---- */
+.iv-boost-row { border: 1px solid var(--iv-line); border-radius: 12px; padding: 8px 10px; margin-bottom: 8px; }
+.iv-boost-head { font-size: .88rem; margin-bottom: 2px; }
+.iv-boost-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+.iv-boost-flash { animation: conciergepulse .7s ease 1; }
+@media (prefers-reduced-motion: reduce) { .iv-boost-flash { animation: none; } }
+:root[data-motion="reduced"] .iv-boost-flash { animation: none; }
+
+.iv-splurge-card { width: calc(100% - 24px); max-width: 1076px; margin: 0 auto 12px; }
+.iv-splurge-card[hidden] { display: none; }
+.iv-splurge-head { font-size: .95rem; margin-bottom: 2px; }
+.iv-splurge-choices { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }

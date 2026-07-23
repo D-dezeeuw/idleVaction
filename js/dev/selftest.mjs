@@ -20,6 +20,8 @@ import { validateLegend } from '../data/legend.js';
 import { validateAchievements } from '../data/achievements.js';
 import { validateSeasonal } from '../data/seasonal.js';
 import { validateEvents } from '../data/events.js';
+import { validateBoosts } from '../data/boosts.js';
+import { validateSplurges } from '../data/splurges.js';
 import { fmt, fmtTime, rng } from '../util.js';
 // E11 harness-invariance guard ([62] below): importing runCurve does NOT auto-run the
 // harness's own report() — that's guarded behind `process.argv[1].endsWith('harness.mjs')`,
@@ -4956,6 +4958,138 @@ console.log('\n[111] Living-World W1: shared effects registry + Trip Events + Va
   ok(approx(manual.resources.cash, viaOffline.resources.cash, 1e-6), 'manual macro-step loop and applyOffline produce IDENTICAL cash for identical elapsed time (the offline overlap-weighting is deterministic, not approximate)');
 
   C.EVENTS.enabled = false;   // restore the shipped default — nothing after this point should rely on it being on
+}
+
+console.log('\n[112] Living-World W2: Sunscreen Boosts + Splurge Moments — player-fired/choice-gated, neutral by construction (no kill-switch needed)');
+{
+  // ---- (g) dev schema guards wired next to validateEvents everywhere it runs (this file + harness.mjs)
+  ok(validateBoosts(), 'validateBoosts() passes on the shipped BOOSTS roster');
+  ok(validateSplurges(), 'validateSplurges() passes on the shipped SPLURGES roster + effect vocabulary');
+
+  // ---- (a) goldens untouched: reuse the existing pin helpers ([109]'s runCurve/runScenario pattern)
+  const { islandAt: greedyIsland } = runCurve({ dt: 5, maxHours: 40 });
+  ok(Math.abs(greedyIsland - 39440) < 1, `harness island time is UNCHANGED by Living-World W2 (got ${fmtTime(greedyIsland)}, expected 39440s)`);
+  const { runScenario } = await import('./demo.mjs');
+  const { getScenario } = await import('./scenarios.mjs');
+  const cas = runScenario(getScenario('casual-tourist'), { dt: 5, maxHours: 26 });
+  ok(Math.abs(cas.islandAt - 76800) <= 1200, `casual-tourist pin UNMOVED by Living-World W2 (got ${fmtTime(cas.islandAt)})`);
+
+  // ---- fixtures: a real D1 income stream so cash/xp/clout deltas are measurable (mirrors [111]'s
+  // goat fixture's "strong D1 income" comment).
+  const mkFixture = () => {
+    const s = ST.newGame();
+    s.generators[0].count = 1e6;
+    s.bank.tier = 8;
+    return s;
+  };
+
+  // ---- (b) activateBoost: reveal gate, debit, capped effect, cooldown, refuse-while-cooling
+  const bs = mkFixture();
+  ok(!E.activateBoost(bs, 'splash_out'), 'activateBoost refuses before BOOSTS.minBeat (a fresh game starts at beat 1)');
+  bs.story.beat = C.BOOSTS.minBeat;
+  bs.resources.cash = M.walletCap(bs);
+  const cashBefore = bs.resources.cash;
+  const cost = E.boostCost(bs, 'splash_out');
+  ok(E.activateBoost(bs, 'splash_out'), 'activateBoost succeeds once revealed + affordable');
+  ok(approx(bs.resources.cash, cashBefore - cost, 1e-9), `activateBoost debits EXACTLY costWalletFrac·walletCap (spent ${fmt(cost)})`);
+  ok(M.effectsMult(bs, 'income') > 1 && M.effectsMult(bs, 'income') <= C.EFFECTS.maxMult + 1e-9,
+    `the boost's effect is live and capped by the shared registry (×${M.effectsMult(bs, 'income').toFixed(2)})`);
+  bs.resources.cash = M.walletCap(bs);
+  ok(!E.activateBoost(bs, 'splash_out'), 'activateBoost refuses while cooling down (even fully affordable again)');
+  bs.stats.runSec += E.boostData('splash_out').cooldownSec + 1;
+  ok(E.activateBoost(bs, 'splash_out'), 'activateBoost is ready again once the cooldown elapses (game-time, deterministic)');
+
+  // ---- (c) skillxp/clout kinds multiply ONLY their own stream, never tierProd/runtimeMult
+  // directly (the "safe class" contract — see engine.trickleXp/buyTraining's comments). A SINGLE
+  // tick isolates this cleanly: cash for tick N is computed from skill LEVELS as they stood at
+  // the end of tick N-1 (refreshSkillLevels only runs after that tick's cash is already banked),
+  // so a lone tick from identical fresh states can never show a boosted-XP feedback into cash —
+  // that would take a second tick, and body/savvy XP DOES legitimately feed Comfort/income a tick
+  // later (the existing, intended skill↔economy coupling — not something this wave changes).
+  const skBase = mkFixture(), skBoost = mkFixture();
+  E.addEffect(skBoost, { id: 'boost_deep_focus', kind: 'skillxp', mult: 5, durationSec: 100 });
+  E.tick(skBase, 1); E.tick(skBoost, 1);
+  ok(approx(skBase.resources.cash, skBoost.resources.cash, 1e-9), 'a live skillxp-kind effect (Deep Focus) leaves THIS TICK\'s cash/income completely unchanged');
+  ok(approx(skBoost.skills.charisma.xp, skBase.skills.charisma.xp * 5, 1e-6), 'a skillxp-kind effect multiplies the XP trickle by EXACTLY its mult (×5)');
+
+  const clBase = mkFixture(), clBoost = mkFixture();
+  E.addEffect(clBoost, { id: 'boost_camera_day', kind: 'clout', mult: 3, durationSec: 100 });
+  for (let i = 0; i < 10; i++) { E.tick(clBase, 1); E.tick(clBoost, 1); }
+  ok(approx(clBase.resources.cash, clBoost.resources.cash, 1e-9), 'a live clout-kind effect (Camera Day) ALSO leaves cash/income completely unchanged');
+  ok(approx(clBoost.resources.clout, clBase.resources.clout * 3, 1e-6), 'a clout-kind effect multiplies Clout accrual by EXACTLY its mult (×3)');
+
+  // ---- training XP also sees the skillxp boost (engine.buyTraining, not just the idle trickle)
+  const trBoost = mkFixture(); trBoost.resources.cash = 1e6;
+  E.addEffect(trBoost, { id: 'boost_deep_focus', kind: 'skillxp', mult: 5, durationSec: 100 });
+  const xpBeforeTrain = trBoost.skills.charisma.xp;
+  ok(E.buyTraining(trBoost, 'train_charisma'), 'fixture: a training purchase succeeds while Deep Focus is live');
+  const trainRow = DATA.training.find(t => t.id === 'train_charisma');
+  ok(approx(trBoost.skills.charisma.xp - xpBeforeTrain, trainRow.xp * 5, 1e-6), 'buyTraining\'s XP grant ALSO scales by the live skillxp boost (×5)');
+
+  // ---- (d) splurge triggers fire once; an ignored (expired) card is a BIT-IDENTICAL no-op
+  // versus a control run where the same moment is pre-resolved (so it can never fire there).
+  const withSplurge = mkFixture(); withSplurge.accommodation.tier = 6;   // first_pool_day's trigger
+  const control = mkFixture(); control.accommodation.tier = 6;
+  control.splurges.resolved.first_pool_day = 'expired';   // pre-resolved: checkSplurges skips it forever
+  const firstPool = DATA.splurges.find(m => m.id === 'first_pool_day');
+  E.tick(withSplurge, 1); E.tick(control, 1);
+  ok(withSplurge.splurges.pending && withSplurge.splurges.pending.id === 'first_pool_day',
+    'the tier-6 trigger fires the first_pool_day splurge the moment it is eligible');
+  ok(control.splurges.pending === null, 'control fixture: pre-resolved, so it never becomes pending');
+  const totalSec = firstPool.expireSec + 5;
+  for (let t = 0; t < totalSec; t++) { E.tick(withSplurge, 1); E.tick(control, 1); }
+  ok(withSplurge.splurges.pending === null && withSplurge.splurges.resolved.first_pool_day === 'expired',
+    'left untouched, the card resolves "expired" on its own once its window elapses');
+  ok(approx(withSplurge.resources.cash, control.resources.cash, 1e-9), 'an ignored splurge is a BIT-IDENTICAL no-op — cash matches a control run where it never even triggers');
+  ok(approx(withSplurge.resources.comfort, control.resources.comfort, 1e-9), '...Comfort matches too');
+  ok(withSplurge.skills.body.xp === control.skills.body.xp, '...and skill XP matches too, down to the exact float');
+
+  // ---- (d cont'd) choosing an option applies its bounded effects (both the keepsake and the splurge)
+  const chB = mkFixture(); chB.accommodation.tier = 6;
+  E.tick(chB, 1);
+  ok(chB.splurges.pending && chB.splurges.pending.id === 'first_pool_day', 'fixture: first_pool_day is pending');
+  const bodyXpBefore = chB.skills.body.xp;
+  ok(!E.chooseSplurge(chB, 'x'), 'chooseSplurge rejects a side that is neither "a" nor "b"');
+  ok(E.chooseSplurge(chB, 'b'), 'chooseSplurge(b) — the keepsake — applies while pending');
+  ok(approx(chB.skills.body.xp, bodyXpBefore + firstPool.b.effects.xp.amount, 1e-9), 'option b grants EXACTLY its xp amount');
+  ok(chB.splurges.pending === null && chB.splurges.resolved.first_pool_day === 'b', 'choosing resolves the splurge and clears pending');
+  ok(!E.chooseSplurge(chB, 'a'), 'a resolved splurge cannot be re-chosen (nothing pending)');
+
+  const chA = mkFixture(); chA.accommodation.tier = 6;
+  E.tick(chA, 1);
+  const capBefore = M.walletCap(chA);
+  chA.resources.cash = capBefore;
+  ok(E.chooseSplurge(chA, 'a'), 'chooseSplurge(a) — the splurge — applies while pending');
+  const expectedDebit = firstPool.a.effects.costWalletFrac * capBefore;
+  ok(approx(chA.resources.cash, capBefore - expectedDebit, 1e-9), 'option a debits EXACTLY costWalletFrac·walletCap');
+  ok(M.effectsMult(chA, 'income') > 1 && M.effectsMult(chA, 'income') <= C.EFFECTS.maxMult + 1e-9,
+    'option a\'s timedMult is live on the shared, capped effects registry');
+
+  // ---- (e) boosts + splurges are RUN-SCOPED: an ascension resets both, same mechanism as
+  // state.events/state.effects (prestige.ascend's Object.assign(state, newGame())).
+  const az = mkFixture();
+  az.story.beat = C.BOOSTS.minBeat; az.resources.cash = M.walletCap(az);
+  ok(E.activateBoost(az, 'splash_out'), 'fixture: a boost is activated (sets a cooldown)');
+  az.accommodation.tier = 6;
+  E.tick(az, 1);
+  ok(Object.keys(az.boosts.cooldowns).length > 0, 'fixture: a boost cooldown is on record');
+  ok(az.splurges.pending !== null, 'fixture: a splurge is pending');
+  az.stats.runSec = 200; az.stats.lifetimeCashThisTree = 1e12;   // clears P.canAscend (mirrors [110]'s ascend fixture)
+  ok(P.ascend(az), 'fixture ascends');
+  ok(Object.keys(az.boosts.cooldowns).length === 0, 'ascension resets boost cooldowns');
+  ok(az.splurges.pending === null && Object.keys(az.splurges.resolved).length === 0, 'ascension resets pending + resolved splurges');
+
+  // ---- (f) casual-booster lands the island FASTER than plain casual-tourist, but by no more
+  // than ~20% (a provisional band — the balance wave fits the real one with multi-seed sweeps).
+  const casB = runScenario(getScenario('casual-booster'), { dt: 5, maxHours: 26 });
+  ok(casB.islandAt !== null, `casual-booster reaches the island (${fmtTime(casB.islandAt)})`);
+  console.log(`    → casual-booster island ${fmtTime(casB.islandAt)} vs casual-tourist ${fmtTime(cas.islandAt)}`);
+  ok(casB.islandAt <= cas.islandAt, `casual-booster is NO SLOWER than plain casual-tourist (${fmtTime(casB.islandAt)} <= ${fmtTime(cas.islandAt)})`);
+  ok(casB.islandAt >= cas.islandAt * 0.80, `casual-booster is faster by no more than ~20% (provisional band) (${fmtTime(casB.islandAt)} >= ${fmtTime(cas.islandAt * 0.80)})`);
+
+  // casual-ascetic (the keepsake-only control lane): sanity-check it runs and reaches the island.
+  const casAsc = runScenario(getScenario('casual-ascetic'), { dt: 5, maxHours: 26 });
+  ok(casAsc.islandAt !== null, `casual-ascetic reaches the island (${fmtTime(casAsc.islandAt)}, always takes the keepsake option)`);
 }
 
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);

@@ -198,6 +198,10 @@ export function tick(state, dt) {
   checkUnlocks(state);
   checkAmenityUnlocks(state);
   checkVignettes(state);
+  // Splurge Moments (Living-World W2, docs/08 point 5): time-boxed choice-card bookkeeping —
+  // resolves an expired pending card (a pure no-op) and/or opens the next eligible one. Placed
+  // alongside checkVignettes (the other "fires once per run at a threshold" family).
+  checkSplurges(state);
   checkNpcUnlocks(state);
   checkDestinationReveals(state);
   checkStory(state);
@@ -298,11 +302,15 @@ function decayCombo(state, dt) {
 
 function trickleXp(state, cashGain, dt) {
   const s = state.skills;
-  s.charisma.xp += cashGain * 0.02;
-  s.comms.xp    += cashGain * 0.015;
-  s.savvy.xp    += cashGain * 0.012;
-  s.taste.xp    += cashGain * 0.006;
-  s.body.xp     += state._comfortCache * dt * 0.02;
+  // Sunscreen Boosts' Deep Focus (Living-World W2, docs/08 point 4): a timed 'skillxp' entry on
+  // the shared effects registry folds in here ONLY (never tierProd/comfort) — exactly 1 with an
+  // empty registry (every fresh game, the harness), so the pre-W2 trickle is bit-identical.
+  const boost = M.effectsMult(state, 'skillxp');
+  s.charisma.xp += cashGain * 0.02 * boost;
+  s.comms.xp    += cashGain * 0.015 * boost;
+  s.savvy.xp    += cashGain * 0.012 * boost;
+  s.taste.xp    += cashGain * 0.006 * boost;
+  s.body.xp     += state._comfortCache * dt * 0.02 * boost;
 }
 
 function refreshSkillLevels(state) {
@@ -879,7 +887,9 @@ export function buyTraining(state, id) {
   if (state.resources.cash < cost) return false;
   state.resources.cash -= cost;
   state.training[id].bought++;
-  state.skills[t.skill].xp += t.xp;
+  // Deep Focus (Living-World W2): the SAME 'skillxp' effectsMult factor as trickleXp's idle
+  // trickle — exactly ×1 with an empty registry, so a training buy's XP is bit-identical pre-W2.
+  state.skills[t.skill].xp += t.xp * M.effectsMult(state, 'skillxp');
   refreshSkillLevels(state);
   return true;
 }
@@ -1384,6 +1394,103 @@ export function tapGoat(state) {
   state.goat.visibleUntil = 0;   // hide immediately — a tapped goat doesn't linger
   notify(state, 'celebrate', `🐐 The goat is delighted — +${fmt(banked)} in appreciation (and one good ear-scratch).`);
   return banked;
+}
+
+// ---------- Sunscreen Boosts (Living-World W2, docs/08 point 4) ----------
+// Player-FIRED timed multipliers on the SAME shared effects registry Trip Events uses (W1) — see
+// data/boosts.js for the roster. UNLIKE Trip Events, this needs no config.EVENTS-style master
+// kill-switch: activateBoost is the ONLY way in, the cost is paid UP FRONT (never an inflow — a
+// plain cash subtract, mirroring buyContentBoost's shape), and the payoff is a bounded flat ×
+// through the SAME capped registry. A fresh newGame() and the harness (which never calls
+// activateBoost) are unaffected by construction, so the fitted island/casual goldens cannot move.
+// Cooldowns are tracked in GAME-TIME (state.stats.runSec), so offline replay is deterministic —
+// no wall-clock is ever consulted.
+export function boostData(id) { return DATA.boosts.find(b => b.id === id); }
+export function boostsRevealed(state) { return state.story.beat >= C.BOOSTS.minBeat; }
+// the runSec at which this boost is next activatable (0/absent ⇒ ready right now).
+export function boostReadyAt(state, id) { return state.boosts.cooldowns[id] || 0; }
+export function boostCost(state, id) {
+  const b = boostData(id);
+  return b.costWalletFrac * M.walletCap(state);
+}
+export function activateBoost(state, id) {
+  const b = boostData(id);
+  if (!b || !boostsRevealed(state)) return false;
+  if (state.stats.runSec < boostReadyAt(state, id)) return false;
+  const cost = boostCost(state, id);
+  if (state.resources.cash < cost) return false;
+  state.resources.cash -= cost;   // up-front debit — never gainCash (that path is inflow-only)
+  addEffect(state, { id: `boost_${id}`, kind: b.kind, mult: b.mult, durationSec: b.durationSec });
+  state.boosts.cooldowns[id] = state.stats.runSec + b.cooldownSec;
+  notify(state, 'boost', `${b.emoji} ${b.name} — ×${b.mult} for ${b.durationSec}s!`);
+  return true;
+}
+
+// ---------- Splurge Moments (Living-World W2, docs/08 point 5) ----------
+// Two-option choice cards (data/splurges.js SPLURGES) scattered across the story/tier arc.
+// checkSplurges (called from tick, alongside checkVignettes) resolves an already-pending card's
+// expiry FIRST — a pure no-op, since ignoring a splurge is always the neutral baseline (docs/08's
+// "expiry = no-op" contract) — then, with nothing pending, fires the first not-yet-resolved
+// trigger that has come true (each moment fires AT MOST ONCE per run: `resolved` never clears).
+// chooseSplurge is the ONLY way an option's effects ever apply; the harness never calls it, so
+// every splurge it triggers simply expires, and the fitted island/casual goldens cannot move.
+export function checkSplurges(state) {
+  const sp = state.splurges;
+  if (sp.pending && state.stats.runSec >= sp.pending.expiresAt) {
+    sp.resolved[sp.pending.id] = 'expired';
+    sp.pending = null;
+  }
+  if (sp.pending) return;   // one card at a time
+  for (const m of DATA.splurges) {
+    if (sp.resolved[m.id]) continue;
+    if (!splurgeTriggerMet(state, m.trigger)) continue;
+    sp.pending = { id: m.id, expiresAt: state.stats.runSec + m.expireSec };
+    notify(state, 'splurge', `${m.emoji} ${m.title} — a moment to decide.`);
+    break;
+  }
+}
+function splurgeTriggerMet(state, trig) {
+  if (trig.beat !== undefined) return state.story.beat >= trig.beat;
+  if (trig.tier !== undefined) return state.accommodation.tier >= trig.tier;
+  return false;
+}
+export function splurgeData(id) { return DATA.splurges.find(m => m.id === id); }
+// Apply the chosen option's bounded effects (data/splurges.js's validateSplurges enforces the
+// vocabulary) — every branch below is an existing, already-audited primitive (addEffect/
+// addPathPoints/gainCash/refreshSkillLevels), nothing new is invented for this wave.
+export function chooseSplurge(state, side) {
+  const sp = state.splurges;
+  if (!sp.pending || (side !== 'a' && side !== 'b')) return false;
+  const m = splurgeData(sp.pending.id);
+  if (!m) { sp.pending = null; return false; }
+  const opt = m[side];
+  const eff = opt.effects || {};
+  if (eff.costWalletFrac) {
+    state.resources.cash = Math.max(0, state.resources.cash - eff.costWalletFrac * M.walletCap(state));
+  }
+  if (eff.timedMult) {
+    addEffect(state, { id: `splurge_${m.id}`, kind: eff.timedMult.kind, mult: eff.timedMult.mult, durationSec: eff.timedMult.durationSec });
+  }
+  if (eff.xp) {
+    state.skills[eff.xp.skill].xp += eff.xp.amount;
+    refreshSkillLevels(state);
+  }
+  // pathPoints has no target field (docs/08's bounded vocabulary) — it banks into whichever
+  // road the life has already committed to, via addPathPoints's own pathReceives gate; 'neutral'
+  // isn't a real path id, so pre-commitment this is explicitly skipped (a pure no-op).
+  if (eff.pathPoints && state.story.branch !== 'neutral') {
+    addPathPoints(state, state.story.branch, eff.pathPoints);
+  }
+  if (eff.cash) {
+    gainCash(state, eff.cash.walletFrac * M.walletRoom(state));
+  }
+  if (eff.energyFull) {
+    state.resources.energy = M.energyMax(state);
+  }
+  sp.resolved[m.id] = side;
+  sp.pending = null;
+  notify(state, 'splurge', `${m.emoji} ${opt.label}`);
+  return true;
 }
 
 // ---------- connoisseur collections: art/wine appreciating assets (E14 "Acquired Taste") ----------

@@ -154,6 +154,20 @@ export function newGame() {
     // placeholder convention (state.js coerceTypes' comment: null in the fresh shape ⇒ skip
     // type-checking this key, since its real shape varies by whether a goat is currently out).
     goat: null,
+    // boosts (Living-World W2 "Sunscreen Boosts", docs/08 point 4): player-fired timed
+    // multipliers on the shared effects registry. cooldowns[id] is the runSec each boost is next
+    // activatable — absent/0 ⇒ ready immediately. engine.activateBoost is the ONLY way in, so a
+    // fresh newGame() (and the harness, which never calls it) leave this empty — the fitted
+    // island/casual goldens cannot move. RUN-SCOPED like effects/events/goat: the ascension hard
+    // reset (prestige.ascend's Object.assign(state, newGame())) wipes it with the rest of the
+    // run, exactly the same mechanism (fresh isn't in the explicit keep-list) — no extra code.
+    boosts: { cooldowns: {} },
+    // splurges (Living-World W2 "Splurge Moments", docs/08 point 5): the current pending
+    // two-option card ({ id, expiresAt } or null) + which way each already-triggered moment
+    // resolved ('a'|'b'|'expired'). engine.checkSplurges/chooseSplurge are the only writers; the
+    // harness never chooses, so every card it triggers resolves 'expired' — a pure no-op — and
+    // the fitted goldens cannot move. RUN-SCOPED like boosts (same reset mechanism, no extra code).
+    splurges: { pending: null, resolved: {} },
     // homeBase (E27): 'mainland' until the private island is bought, then 'island' — a permanent
     // meta fact (carried across ascension by prestige.ascend) even as the run's tier resets.
     accommodation: { tier: 0, owned: [0], homeBase: 'mainland' },

@@ -22,6 +22,8 @@ import { LEGEND_PERKS } from './legend.js';
 import { ACHIEVEMENTS } from './achievements.js';
 import { SEASONAL } from './seasonal.js';
 import { EVENTS, WEATHER_STATES } from './events.js';
+import { BOOSTS } from './boosts.js';
+import { SPLURGES } from './splurges.js';
 
 export const DATA = {
   generators: GENERATORS,
@@ -89,4 +91,10 @@ export const DATA = {
   // config.EVENTS.enabled ships false this wave, so engine.eventsTick never draws either table.
   events: EVENTS,
   weatherStates: WEATHER_STATES,
+  // Sunscreen Boosts + Splurge Moments (Living-World W2, docs/08 points 4/5): player-fired timed
+  // multipliers + two-option choice cards, both on the SAME shared effects registry Trip Events
+  // uses. validateBoosts/validateSplurges live in their own data files, imported directly by the
+  // dev harness/selftest (same convention as validateBank/validatePaths/validateEvents/…).
+  boosts: BOOSTS,
+  splurges: SPLURGES,
 };

@@ -17,7 +17,7 @@ let hooks = {};               // { save, exportSave, importSave, hardReset }
 // future stays hidden). The player sees one focused screen at a time. activeTab/seenTabs are
 // transient (reset to Home on reload) — a deliberate light touch, no save-schema change.
 const TABS = [
-  { id: 'home',   label: 'Home',   icon: '🏨', cards: ['eventsCard', 'accCard', 'amenitiesCard', 'poolCard', 'beachCard', 'wellnessCard', 'conciergeCard', 'propertyCard', 'islandListingCard'] },
+  { id: 'home',   label: 'Home',   icon: '🏨', cards: ['eventsCard', 'boostsCard', 'accCard', 'amenitiesCard', 'poolCard', 'beachCard', 'wellnessCard', 'conciergeCard', 'propertyCard', 'islandListingCard'] },
   { id: 'income', label: 'Income', icon: '💶', cards: ['generatorsCard', 'creatorCard', 'cryptoCard', 'collectionCard', 'staffCard'] },
   { id: 'travel', label: 'Travel', icon: '🌍', cards: ['destCard', 'transportCard', 'garageCard', 'marinaCard', 'hangarCard'] },
   { id: 'growth', label: 'Growth', icon: '💪', cards: ['skillsCard', 'pathsCard'] },
@@ -90,7 +90,7 @@ const CARD_RENDERERS = {
   hangarCard: renderHangar, staffCard: renderStaff, propertyCard: renderProperty,
   islandListingCard: renderIslandListing, legendCard: renderLegend, achievementsCard: renderAchievements,
   skillsCard: renderSkills, pathsCard: renderPaths, ascensionCard: renderAscension, treeCard: renderTree,
-  eventsCard: renderEvents,
+  eventsCard: renderEvents, boostsCard: renderBoosts,
 };
 let lastFullSweep = 0;
 export function render(state) {
@@ -104,6 +104,9 @@ export function render(state) {
   renderOnboarding(state);
   renderNotifications(state);
   renderStory(state);
+  // Splurge Moments (Living-World W2): outside the tab-card system (like renderStory above) so a
+  // pending choice is never missed just because another tab is active.
+  renderSplurge(state);
   checkArrivalModals(state);
   const now = performance.now();
   const full = now - lastFullSweep > 2000;
@@ -428,6 +431,72 @@ function weatherChipHtml(s) {
   if (!eventsRevealed(s)) return '';
   const row = DATA.weatherStates.find(w => w.id === s.weather.id) || DATA.weatherStates[0];
   return `<span class="iv-res" aria-label="Weather: ${esc(row.name)}">${esc(row.name)}</span>`;
+}
+
+// ---------- Sunscreen Boosts (Living-World W2, docs/08 point 4) ----------
+// Reveal gate mirrors engine.boostsRevealed exactly (story.beat >= config.BOOSTS.minBeat) — no
+// separate master switch needed (unlike Trip Events): every path in is player-initiated.
+function announceBoosts(text) {
+  const live = el('boostsAnnounce');
+  if (live) live.textContent = text;
+}
+function announceSplurge(text) {
+  const live = el('splurgeAnnounce');
+  if (live) live.textContent = text;
+}
+// a brief pulse on the just-activated row (mirrors pulseEnergy/pulseConcierge's "pulse until a
+// timestamp" convention exactly), reduced-motion gated in CSS (.iv-boost-flash).
+let boostPulseId = null, boostPulseUntil = 0;
+function pulseBoost(id) { boostPulseId = id; boostPulseUntil = Date.now() + 700; }
+function boostKindLabel(kind) {
+  return kind === 'income' ? 'income' : kind === 'clout' ? 'Clout' : kind === 'skillxp' ? 'skill XP' : kind;
+}
+function renderBoosts(s) {
+  const card = el('boostsCard');
+  const reveal = E.boostsRevealed(s);
+  if (card) card.hidden = !reveal;
+  if (!reveal) { if (el('boosts')) el('boosts').innerHTML = ''; return; }
+  const pulsing = Date.now() < boostPulseUntil;
+  let html = '';
+  for (const b of DATA.boosts) {
+    const cost = E.boostCost(s, b.id);
+    const readyAt = E.boostReadyAt(s, b.id);
+    const cooling = s.stats.runSec < readyAt;
+    const live = (s.effects || []).find(e => e.id === `boost_${b.id}` && e.endsAt > s.stats.runSec);
+    let sub, label;
+    if (live) { sub = `Active — ${fmtTime(Math.max(0, live.endsAt - s.stats.runSec))} left`; label = 'Active'; }
+    else if (cooling) { sub = `Cooling down — ready in ${fmtTime(readyAt - s.stats.runSec)}`; label = 'Cooling down'; }
+    else { sub = `Costs ${fmt(cost)} (${Math.round(b.costWalletFrac * 100)}% of your wallet cap)`; label = `Activate (${fmt(cost)})`; }
+    const enabled = !cooling && !live && s.resources.cash >= cost;
+    const flash = pulsing && boostPulseId === b.id ? ' iv-boost-flash' : '';
+    html += `<div class="iv-boost-row${flash}">
+      <div class="iv-boost-head">${b.emoji} <b>${esc(b.name)}</b> — ×${b.mult} ${boostKindLabel(b.kind)} for ${b.durationSec}s</div>
+      <div class="iv-sub">${esc(b.desc)}</div>
+      <div class="iv-boost-actions">${btn('activate-boost', b.id, label, enabled)}<span class="iv-sub">${sub}</span></div>
+    </div>`;
+  }
+  setHTML(el('boosts'), html);
+}
+
+// ---------- Splurge Moments (Living-World W2, docs/08 point 5) ----------
+// No separate reveal gate — a pending card IS the reveal (engine.checkSplurges only ever sets
+// state.splurges.pending when a moment's trigger has come true), so this just mirrors that flag.
+function renderSplurge(s) {
+  const card = el('splurgeCard');
+  const pending = s.splurges && s.splurges.pending;
+  if (!pending) { if (card) card.hidden = true; if (el('splurge')) el('splurge').innerHTML = ''; return; }
+  const m = E.splurgeData(pending.id);
+  if (card) card.hidden = !m;
+  if (!m) { if (el('splurge')) el('splurge').innerHTML = ''; return; }
+  const left = Math.max(0, pending.expiresAt - s.stats.runSec);
+  setHTML(el('splurge'), `
+    <div class="iv-splurge-head">${m.emoji} <b>${esc(m.title)}</b></div>
+    <div class="iv-sub">${esc(m.desc)}</div>
+    <div class="iv-splurge-choices">
+      ${btn('splurge-choose', 'a', esc(m.a.label))}
+      ${btn('splurge-choose', 'b', esc(m.b.label))}
+    </div>
+    <div class="iv-sub">…or walk past — ${fmtTime(left)} left before the moment passes on its own.</div>`);
 }
 
 // The Golden Goat: a floating button, invisible unless engine.goatVisible says one is actually
@@ -2624,6 +2693,19 @@ function handle(action, arg, btnEl) {
     case 'accept-sponsor': {
       const ok = E.acceptSponsor(S, arg);
       if (ok) { const d = E.sponsorData(arg); announceCreator(`Sponsor deal accepted: ${d.name} — Clout ×${d.mult} for ${d.durationSec}s.`); }
+      break;
+    }
+    case 'activate-boost': {
+      const ok = E.activateBoost(S, arg);
+      if (ok) { const b = E.boostData(arg); pulseBoost(arg); announceBoosts(`${b.name} activated — ×${b.mult} for ${b.durationSec}s.`); }
+      break;
+    }
+    case 'splurge-choose': {
+      const pending = S.splurges && S.splurges.pending;
+      const m = pending && E.splurgeData(pending.id);
+      const opt = m && arg && m[arg];
+      const ok = E.chooseSplurge(S, arg);
+      if (ok && opt) announceSplurge(`${m.emoji} ${opt.label}`);
       break;
     }
     case 'concierge-toggle': S.concierge.on = !S.concierge.on; break;

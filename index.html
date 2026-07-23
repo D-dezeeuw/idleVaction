@@ -40,6 +40,14 @@
     <section class="iv-card iv-next-square" id="nextStepCard" aria-label="Your next step"><div id="nextStep"></div></section>
   </div>
 
+  <!-- Splurge Moments (Living-World W2): sits outside the tab system, like the story strip, so a
+       time-boxed choice card is never missed just because another tab is open. Hidden whenever
+       nothing is pending — see ui.renderSplurge (it IS the reveal, no separate gate). -->
+  <div id="splurgeCard" class="iv-card iv-splurge-card" hidden>
+    <div id="splurgeAnnounce" class="iv-sr-only" aria-live="polite"></div>
+    <div id="splurge"></div>
+  </div>
+
   <!-- Tab bar (rendered by ui.renderTabs — only tabs with unlocked content appear: the future stays hidden). -->
   <nav id="tabbar" class="iv-tabbar" role="tablist" aria-label="Sections"></nav>
 
@@ -51,6 +59,13 @@
         <h3>🍹 Trip Events</h3>
         <div id="eventsAnnounce" class="iv-sr-only" aria-live="polite"></div>
         <div id="events"></div>
+      </section>
+      <!-- Sunscreen Boosts (Living-World W2): hidden until story.beat >= BOOSTS.minBeat — see
+           ui.boostsRevealed. Player-fired timed multipliers on the shared effects registry. -->
+      <section class="iv-card iv-wide" id="boostsCard" hidden>
+        <h3>🧴 Sunscreen Boosts</h3>
+        <div id="boostsAnnounce" class="iv-sr-only" aria-live="polite"></div>
+        <div id="boosts"></div>
       </section>
       <section class="iv-card" id="accCard"><h3 id="accTitle">🏨 Accommodation</h3><div id="accommodation"></div></section>
       <section class="iv-card iv-wide" id="amenitiesCard"><h3>🛎️ Amenities <small>(small wins)</small></h3><div id="amenities"></div></section>

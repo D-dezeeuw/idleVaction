@@ -118,6 +118,20 @@ export function laneCollections(s) {
     if (E.assetCost(s, a.id) <= s.resources.cash * 0.1) E.buyAsset(s, a.id);
 }
 
+// ---- Living-World W2 measurement lanes (docs/08 points 4/5) ----
+// laneBoosts: fires Splash Out whenever it's ready and affordable — E.activateBoost already
+// gates on the reveal beat, the cooldown and affordability internally, so this is a plain
+// unconditional call, exactly as idempotent as the other lanes above.
+export function laneBoosts(s) {
+  E.activateBoost(s, 'splash_out');
+}
+// laneSplurges: a CHOOSER, not a lane itself — returns a lane function that resolves any
+// pending splurge with the same side every time ('a' the splurge, 'b' the keepsake), so a
+// scenario can pin one arm of the A/B choice for measurement.
+export function laneSplurges(pick) {
+  return (s) => { if (s.splurges.pending) E.chooseSplurge(s, pick); };
+}
+
 // ---- prestige spending: "ALL money on A instead of B" for the Legacy/Legend layers ----
 // Repeated priority-order passes until nothing on the list is affordable — earlier ids
 // soak ranks first (their cost grows ×TREE.nodeGrowth per rank, so later ids still get
@@ -239,6 +253,26 @@ export const SCENARIOS = [
     desc: 'Buys EVERY affordable amenity (ROI ignored) with a fat budget; generators get the rest.',
     branch: 'vlogger', cadenceSec: 0,
     act: makeGreedyAct({ branch: 'vlogger', amenityROI: false, amenFrac: 0.5, genFrac: 0.5, upFrac: 0.05 }),
+  },
+
+  // ---- Living-World W2 (docs/08 points 4/5): Sunscreen Boosts + Splurge Moments measurement
+  // lanes on top of the casual-tourist persona ([109]'s pinned 76800s baseline). ----
+  {
+    id: 'casual-booster',
+    name: 'Casual tourist + Sunscreen Boosts + Splurge A',
+    desc: 'The casual-tourist persona, plus firing Splash Out whenever ready/affordable and always ' +
+      'taking the splurge (option A) — measures how much a boost/splurge-engaged casual player ' +
+      'gains over plain casual-tourist (docs/08 W2: a provisional ≤+12%-ish band; W5 fits the real one).',
+    branch: 'vlogger', cadenceSec: 1200,
+    act: makeGreedyAct({ branch: 'vlogger', amenityROI: false, amenBudgetFrac: 0.10, lanes: [laneBoosts, laneSplurges('a')] }),
+  },
+  {
+    id: 'casual-ascetic',
+    name: 'Casual tourist + Splurge B (the keepsake path)',
+    desc: 'The casual-tourist persona, always taking the keepsake option (B) on every splurge — never ' +
+      'spends a wallet fraction on a timed edge. A control lane for the splurge A/B tradeoff.',
+    branch: 'vlogger', cadenceSec: 1200,
+    act: makeGreedyAct({ branch: 'vlogger', amenityROI: false, amenBudgetFrac: 0.10, lanes: [laneSplurges('b')] }),
   },
 ];
 

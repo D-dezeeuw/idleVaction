@@ -713,7 +713,11 @@ export function cloutRate(state, DATA) {
   const pathBoost = 1 + state.paths.vlogger.points * 0.05;
   const sponsor = sponsorMult(state);
   const stage = 1 + pathBonus(state, 'cloutMult');   // vlogger stage 2 (The Algorithm Stirs)
-  return base * charisma * combo * vloggerPerk * magnetic * pathBoost * sponsor * stage;
+  // Sunscreen Boosts' Camera Day (Living-World W2, docs/08 point 4): a timed 'clout' entry on
+  // the shared effects registry (config.EFFECTS) — exactly 1 with an empty registry (every fresh
+  // game, the harness), so cloutRate is bit-identical to before this wave.
+  const boost = effectsMult(state, 'clout');
+  return base * charisma * combo * vloggerPerk * magnetic * pathBoost * sponsor * stage * boost;
 }
 
 // ---- permanent skill tree effects ----
