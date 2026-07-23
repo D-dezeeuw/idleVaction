@@ -104,7 +104,7 @@ export function play(s) {
 export function runCurve({ dt = 5, maxHours = 30, ascend = false } = {}) {
   const s = ST.newGame();
   const beatTime = {};
-  let islandAt = null, peakLog = 0, lastDblCash = 15, lastDblT = 0, dblAtIsland = null;
+  let islandAt = null, peakLog = 0, lastDblLife = 15, lastDblT = 0, dblAtIsland = null;
   for (let t = 0; t <= maxHours * 3600; t += dt) {
     E.tick(s, dt); play(s);
     if (ascend && P.canAscend(s) && s.accommodation.tier >= 20) P.ascend(s);
@@ -113,10 +113,12 @@ export function runCurve({ dt = 5, maxHours = 30, ascend = false } = {}) {
     if (Number.isFinite(c) && c > 1) peakLog = Math.max(peakLog, Math.log10(c));
     if (islandAt === null && s.accommodation.tier >= 20) {
       islandAt = t;
-      // measure local doubling time near the island
-      if (c > lastDblCash && t > lastDblT) dblAtIsland = (t - lastDblT) * Math.log10(2) / (Math.log10(c) - Math.log10(lastDblCash));
+      // measure local doubling time near the island from LIFETIME cash (monotone — the raw
+      // wallet dips on the huge tier-20 purchase itself, which used to make this print n/a).
+      const life = Math.max(1, s.stats.lifetimeCash);
+      if (life > lastDblLife && t > lastDblT) dblAtIsland = (t - lastDblT) * Math.log10(2) / (Math.log10(life) - Math.log10(lastDblLife));
     }
-    if (t % 600 === 0) { lastDblCash = Math.max(1, c); lastDblT = t; }
+    if (t % 600 === 0) { lastDblLife = Math.max(1, s.stats.lifetimeCash); lastDblT = t; }
     if (islandAt !== null && t > islandAt + 60) break;   // a little past island then stop
   }
   return { s, beatTime, islandAt, peakLog, dblAtIsland };

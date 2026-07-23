@@ -4752,5 +4752,45 @@ console.log('\n[108] P0 correctness fixes: ascend-island keep-list, bulk-sell pa
   ok(legitMax.ui.bulkMode === 'max', "the union-typed bulkMode 'max' survives type coercion");
 }
 
+console.log('\n[109] Phase B instruments: branch parity, casual band, beat spacing, organic Legend — measured baselines the refit must move (docs: .claude/context/audit-fable-improvements.md Phase C gate)');
+{
+  const { runScenario } = await import('./demo.mjs');
+  const { getScenario } = await import('./scenarios.mjs');
+  const island = (id, opts) => runScenario(getScenario(id), opts);
+
+  // ---- branch parity (audit: 2.28× spread; Phase C target ±20%). Deterministic engine + fixed
+  // policy ⇒ these are exact regression pins at today's constants; the refit re-pins them.
+  const vg = island('greedy-vlogger', { dt: 5, maxHours: 9 });
+  const tr = island('greedy-traveler', { dt: 5, maxHours: 9 });
+  const cn = island('greedy-connoisseur', { dt: 5, maxHours: 7 });
+  const cr = island('greedy-crypto', { dt: 5, maxHours: 15 });
+  const times = { vlogger: vg.islandAt, traveler: tr.islandAt, connoisseur: cn.islandAt, crypto: cr.islandAt };
+  for (const [b, t] of Object.entries(times)) ok(t !== null, `${b} reaches the island (${t === null ? 'never' : fmtTime(t)})`);
+  const spread = Math.max(...Object.values(times)) / Math.min(...Object.values(times));
+  console.log(`    → parity spread ×${spread.toFixed(2)} (vlogger ${fmtTime(times.vlogger)} · traveler ${fmtTime(times.traveler)} · connoisseur ${fmtTime(times.connoisseur)} · crypto ${fmtTime(times.crypto)})`);
+  ok(Math.abs(times.vlogger - 29705) <= 120, `vlogger pin ≈ golden 29705s (got ${times.vlogger})`);
+  ok(Math.abs(times.traveler - 27995) <= 300, `traveler baseline pin ~7h46m (got ${fmtTime(times.traveler)})`);
+  ok(Math.abs(times.connoisseur - 21790) <= 300, `connoisseur baseline pin ~6h03m (got ${fmtTime(times.connoisseur)})`);
+  ok(Math.abs(times.crypto - 49600) <= 300, `crypto baseline pin ~13h47m (got ${fmtTime(times.crypto)})`);
+
+  // ---- casual band (audit: focused-casual ~10h vs the ~20h design target; Phase C: 18-22h)
+  const cas = runScenario({ ...getScenario('greedy-vlogger'), id: 'casual-vlogger', name: 'casual vlogger' },
+    { dt: 5, maxHours: 12, cadenceSec: 900 });
+  ok(cas.islandAt !== null, `casual (15-min cadence) reaches the island (${fmtTime(cas.islandAt)})`);
+  console.log(`    → casual island ${fmtTime(cas.islandAt)} (design target 18-22h — the refit must move THIS number, not the completionist's)`);
+  ok(Math.abs(cas.islandAt - 36000) <= 900, `casual baseline pin ~10h (got ${fmtTime(cas.islandAt)})`);
+
+  // ---- beat spacing (audit: 10 of 16 arrival timestamps shared; Phase C: ≥24 distinct, none <60s apart)
+  const beatTimes = vg.events.filter(e => e.type === 'beat').map(e => e.t);
+  const distinct = new Set(beatTimes).size;
+  console.log(`    → ${beatTimes.length} beats fire on ${distinct} distinct timestamps (refit target: ≥24 distinct)`);
+  ok(distinct >= 14, `beat-timestamp distinctness baseline (${distinct} — re-pin upward in the refit)`);
+
+  // ---- organic Legend (audit P0: unreachable at LEGEND_SCALE 1e7 — 0 points after 4 asc/40h).
+  // Printed, not asserted-good: the refit fixes the constant, then pins "first Legend by asc ≤6".
+  const arcN = Math.pow(C.LEGEND_SCALE / 11.8, 2);
+  console.log(`    → organic Legend at current constants: first point needs totalLegacy ≥ ${fmt(C.LEGEND_SCALE)} ≈ ${fmt(arcN)} ascensions on the ~11.8·√N arc`);
+}
+
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);
 process.exit(fails === 0 ? 0 : 1);
