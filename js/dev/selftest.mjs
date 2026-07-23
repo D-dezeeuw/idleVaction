@@ -3630,9 +3630,24 @@ console.log('\n[90] E15 logistics: cars/slots/upkeep, logistics × gate invarian
   const elapsedMs = 3 * 3600 * 1000;
   const total = Math.min(elapsedMs, C.OFFLINE_CAP_H * 3600 * 1000) / 1000, step = total / C.OFFLINE_STEPS;
   for (let i = 0; i < C.OFFLINE_STEPS; i++) E.tick(manual, step);
-  E.applyOffline(viaOffline, elapsedMs);
+  const repFleet = E.applyOffline(viaOffline, elapsedMs);
   ok(approx(manual.resources.cash, viaOffline.resources.cash, 1e-3) && manual.vehicles.equipped.length === viaOffline.vehicles.equipped.length,
     'offline fleet upkeep/logistics matches a manual macro-step tick loop (game-time, deterministic)');
+  // the away modal's dedicated fleet line (E15-S9-T7 / E16-S9-T6 / E17-S9-T6): the report's
+  // upkeepPaid diffs stats.upkeepPaid across the macro-loop. The under-water seed above pays
+  // what it can (the arrears clamp) — identically in both loops; a genuinely solvent fleet
+  // pays exactly rate × away-seconds; a fleetless state reports exactly 0 (harness-neutral).
+  ok(repFleet.upkeepPaid > 0 && approx(manual.stats.upkeepPaid, viaOffline.stats.upkeepPaid, 1e-6),
+    'stats.upkeepPaid accrues identically in the manual loop and applyOffline (deterministic)');
+  const solvent = seedFleet(); solvent.resources.cash = 1e9;
+  const solventRate = M.fleetUpkeep(solvent, DATA);
+  const solventRep = E.applyOffline(solvent, elapsedMs);
+  ok(solvent.vehicles.equipped.length === 2 && approx(solventRep.upkeepPaid, solventRate * total, 1e-6),
+    'away report upkeepPaid equals fleetUpkeep rate × away seconds for a solvent fleet (nothing repossessed)');
+  const noFleet = ST.newGame(); noFleet.generators[0].bought = 5; noFleet.generators[0].count = 5;
+  const noFleetRep = E.applyOffline(noFleet, 3600 * 1000);
+  ok(noFleetRep.upkeepPaid === 0 && noFleet.stats.upkeepPaid === 0,
+    'a fleetless state pays and reports upkeepPaid exactly 0 (fleet line stays hidden, harness-neutral)');
 }
 
 // ---------- 91. E16 "Sea Legs": boats + crew fold into L_logistics, sea destinations gate on

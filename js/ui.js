@@ -2793,6 +2793,7 @@ export function showOfflineSummary(state, rep) {
     ${rep.sponsorsExpired ? `<div class="iv-offline-row">📴 <b>${rep.sponsorsExpired}</b> sponsor deal${rep.sponsorsExpired > 1 ? 's' : ''} wrapped up while you were away</div>` : ''}
     ${rep.cryptoYield ? `<div class="iv-offline-row">📈 <b>+${fmt(rep.cryptoYield)}</b> from your portfolio tanning without you${rep.marketEvents ? ` — ${rep.marketEvents} market event${rep.marketEvents > 1 ? 's' : ''} survived` : ''}</div>` : ''}
     ${collectionNetWorthLine(state)}
+    ${rep.upkeepPaid > 0 ? `<div class="iv-offline-row">🔧 Fleet upkeep collected <b>${fmt(rep.upkeepPaid)}</b> — garages, marinas, and hangars do not take holidays.</div>` : ''}
     ${rep.overflowLost > 0 ? `<div class="iv-offline-row">💼 Your <b>${DATA.bank[state.bank.tier].name}</b> filled up — <b>${fmt(rep.overflowLost)}</b> overflowed. A bigger account would have caught it.</div>` : ''}
     <div class="iv-sub">😌 Comfort is now ${fmt(state.resources.comfort)} — a bonus of ×${fmt(lComfort)} on income while you were gone.</div>`;
   overlay.hidden = false;

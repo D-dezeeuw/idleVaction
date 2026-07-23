@@ -240,8 +240,10 @@ function applyFleetUpkeep(state, dt) {
   const due = upkeep * dt;
   if (state.resources.cash >= due) {
     state.resources.cash -= due;
+    state.stats.upkeepPaid = (state.stats.upkeepPaid || 0) + due;
     v.upkeepAccrued = 0;                    // paid in full → reset the grace clock
   } else {
+    state.stats.upkeepPaid = (state.stats.upkeepPaid || 0) + state.resources.cash;
     state.resources.cash = 0;              // pay every euro available, never go below zero
     v.upkeepAccrued = (v.upkeepAccrued || 0) + dt;
     // one repossession per full grace window elapsed (a single big offline step can shed
@@ -2281,7 +2283,7 @@ export function applyOffline(state, elapsedMs) {
     conciergeBought: state.concierge.totalBought, conciergeSpent: state.concierge.totalSpent,
     sponsorsExpired: state.sponsors.totalExpired,
     cryptoYield: state.crypto.lifetimeYield, marketEvents: state.market.totalEvents,
-    overflowLost: state.stats.overflowLost };
+    overflowLost: state.stats.overflowLost, upkeepPaid: state.stats.upkeepPaid || 0 };
   const total = cappedMs / 1000;
   const step = total / C.OFFLINE_STEPS;
   state._macroDt = step;
@@ -2308,5 +2310,9 @@ export function applyOffline(state, elapsedMs) {
     // "While you were away" summary surfaces this with an upgrade-your-account nudge —
     // the wallet, not OFFLINE_CAP_H, is what actually bounds the returning lump now.
     overflowLost: state.stats.overflowLost - before.overflowLost,
+    // fleet upkeep drained while away (E15-S9-T7 / E16-S9-T6 / E17-S9-T6): the macro-loop's
+    // applyFleetUpkeep pays the SAME clamped upkeep online play would — this just diffs the
+    // running total so the summary can show the fleet's bill. Exactly 0 with no fleet.
+    upkeepPaid: (state.stats.upkeepPaid || 0) - before.upkeepPaid,
   };
 }

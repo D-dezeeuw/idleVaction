@@ -412,7 +412,7 @@ offline determinism, lifetimeCash isolation, anti-pump).
 | S9 Aging in the Cellar (save/offline) | 2 / 7 / 1 | Schema (`collections` flat-by-id + `_exclCache`), offline appreciation/exclusivity, cap fairness, away summary, export/import, migration test done-now. Present T2/T9 (generic `backfill()` migrates the new keys; the rotating backup carries them). Superseded T6 (appraisal-event determinism — no appraisal event exists). |
 | S10 White Gloves (QA/polish) | 1 / 8 / 1 | Taste clamp, exclusivity monotonic, appreciation purity, sell round-trip, set-bonus, cap-edge tests + debug hooks (grant Taste, gift asset) + formatting done-now. Present T9 (`window.IV.state` exposes collections). Superseded T7 (gallery shimmer/count-up juice — deferred to polish). |
 
-### E15 — Keys to the Coupe (Private Logistics I) · **100/100** (present 14, done-now 75, superseded 11)
+### E15 — Keys to the Coupe (Private Logistics I) · **100/100** (present 14, done-now 76, superseded 10)
 Real new system — the garage: ownable/equippable cars, transport slots, a bounded logistics `×`
 on income, an upkeep drain, and repossession. OPT-IN and gated off exactly like crypto/connoisseur
 (`math.logisticsActive`: any car EQUIPPED). The greedy-vlogger harness never buys or equips a car,
@@ -439,10 +439,10 @@ beat-15 fallback, reveal, migration+over-capacity clamp, offline determinism).
 | S6 A Garage of One's Own (tier 11) | 6 / 3 / 1 | Tier-11 band / Comfort gate / accScore / cross-lane reach / unlock / persistence already present (the ladder shipped whole). Done-now: `garageSlots`→`availableSlots` synergy, the garage reveal, and the no-double-count QA ([90] fleet-Comfort test). Superseded: a standalone purchasable garage-wing feature (folded into the neutral tier-11 + the `garageSlots` field). |
 | S7 The Grand Tourist's Coupe (branch flavor) | 1 / 7 / 2 | +1 slot, −15% destinations, beat-15 traveler variant, first-car flag+points+starter accessory, traveler×crypto hybrid line, path-points source (car buys + destinations), neutral-fallback QA done-now. Present T7 (Wanderer's Instinct −20%/+slot already wired into destDiscountMult/availableSlots). Superseded T4 (beat gate on owning a car — stays accTier:10), T9 (steering-wheel badge — cosmetic, deferred). |
 | S8 Upkeep vs Upside (balance) | 1 / 9 / 0 | Fitted LOGISTICS.rate (mid-fleet ~1.3–2×), upkeep sizing, no-brainer check, slot economy, travel-time tuning, discount floor, harness beat time (island 29705), repossession grace, golden regression ([90]) done-now. Present T10 (`PATH.softcapExp` 0.85 already tames traveler point scaling). |
-| S9 Meter's Running (save/offline) | 2 / 7 / 1 | Schema (`vehicles` + `_logiCache`), offline upkeep + logistics × (via tick-replay), cap fairness, grace-on-return (deterministic repossession), export/import, migration test + over-capacity clamp done-now. Present T2/T9 (generic `backfill()` migrates the slice; rotating backup carries it). Superseded T7 (a dedicated logistics line in the away modal — deferred). |
+| S9 Meter's Running (save/offline) | 2 / 8 / 0 | Schema (`vehicles` + `_logiCache`), offline upkeep + logistics × (via tick-replay), cap fairness, grace-on-return (deterministic repossession), export/import, migration test + over-capacity clamp, **T7 the away modal's fleet-upkeep line** (`stats.upkeepPaid` counter diffed into `rep.upkeepPaid`, shared with E16/E17 — [90]) done-now. Present T2/T9 (generic `backfill()` migrates the slice; rotating backup carries it). |
 | S10 Kicking the Tires (QA/polish) | 1 / 8 / 1 | Slot-capacity, upkeep-floor, logistics-purity, repossession, discount-floor tests + unequip-frees-slots (no sellCar; unequip covers the "remove equipped car" edge) + debug hooks (grant car / +slot / force repossess) + formatting done-now. Present T9 (`window.IV.state.vehicles` snapshot). Superseded T7 (engine-rev toast / key-jingle juice — deferred to polish). |
 
-### E16 — Sea Legs (Private Logistics II) · **100/100** (present 17, done-now 70, superseded 13)
+### E16 — Sea Legs (Private Logistics II) · **100/100** (present 17, done-now 71, superseded 12)
 Extends the E15 garage from land to water: boats (dinghy→superyacht) fold their `mult` into the
 SAME `L_logistics` × and fleet-upkeep drain the cars use (a boat is OWNED, not equipped — owning
 grants mult + slotBonus + upkeep); a pre-staff crew seed adds a tiny × + upkeep capped by the
@@ -464,10 +464,10 @@ offline determinism).
 | S6 The Marina Suite (tier 11) | 5 / 3 / 2 | Tier-11 band / accScore / Comfort gate / migration-default already present. Done-now: the marina reveal (`marinaUnlocked`/`checkMarinaReveal`), reveal copy, QA. Superseded T6 (gate top toys on the suite), T9 ("Tier 11 · Marina Suite" label swap — the marina is its own panel). |
 | S7 Coastal branch flavor | 3 / 6 / 1 | Traveler sea-dest discount (via destDiscountMult), connoisseur yacht Comfort perk (luxuryAmenityComfort covers `yacht`), path-point sources (buyBoat nudges both lanes), hybrid beat variants, neutral floor, branch flavor copy done-now. Present T3/T7 (traveler +1 slot + PATH softcap already wired). Superseded T10 (live re-spec recompute — deferred). |
 | S8 Sea Trials (balance) | 1 / 9 / 0 | Boat/crew constants, sea-dest ×, harness (island 29705), upkeep tension, time-to-next, slot value, stack cross-check ([91]), golden ([91]), documented knobs (config comment) done-now. Present (PATH softcap already tames coastal points). |
-| S9 Man-Overboard-Proofing (save/offline) | 2 / 6 / 2 | Schema, migration (backfill + boatSlots recompute), offline sea income + upkeep (via tick-replay), export/import, migration test done-now. Present (OFFLINE_CAP + rotating backup already cover boats/crew). Superseded T3 (crewed-amenity flags), T6 (a dedicated marina line in the away modal — deferred). |
+| S9 Man-Overboard-Proofing (save/offline) | 2 / 7 / 1 | Schema, migration (backfill + boatSlots recompute), offline sea income + upkeep (via tick-replay), export/import, migration test, **T6 the away modal's fleet-upkeep line** (boat/crew upkeep folds into the shared `rep.upkeepPaid` fleet line) done-now. Present (OFFLINE_CAP + rotating backup already cover boats/crew). Superseded T3 (crewed-amenity flags). |
 | S10 Shipshape (QA/polish) | 1 / 7 / 2 | Formatting, upkeep-floor, crew-over-cap, unlock-order (sea gate), event-dedupe (first-boat/marina once), copy, regression ([91]) done-now. Present (`window.IV.state` snapshot). Superseded T6 (wake-ripple juice), T10 (manual playtest — deferred). |
 
-### E17 — Wheels Up (Private Logistics III) · **100/100** (present 17, done-now 69, superseded 14)
+### E17 — Wheels Up (Private Logistics III) · **100/100** (present 17, done-now 70, superseded 13)
 Caps the logistics arc with aviation. Jets (turboprop→airliner) fold into the SAME `L_logistics`
 × / fleet-upkeep as boats; owning car+boat+jet lights the `LOGISTICS.capstone` × (a distinct
 factor); air-only destinations gate on `jetTier`; owning any jet cuts destination cost
@@ -486,7 +486,7 @@ first-jet/capstone flags, hangar reveal, migration, offline determinism).
 | S6 The Airside Suite (tier 11) | 5 / 3 / 2 | Tier-11 band/accScore/Comfort gate/migration already present. Done-now: hangar reveal, copy, QA. Superseded T6 (gate top cabins on the suite), T9 (label swap — hangar is its own panel). |
 | S7 The Grand Tourist Goes Global | 3 / 5 / 2 | Traveler jet discount (stacks in destDiscountMult), slot synergy, wanderer stack, path points (buyJet nudge), neutral floor, branch copy done-now. Present T2/T5/T7 (traveler +slot, wanderer, PATH softcap already wired). Superseded T3 (traveler-specific capstone bump — deferred), T10 (live re-spec). |
 | S8 Flight Testing (balance) | 1 / 9 / 0 | Jet/discount/capstone constants, harness (island 29705), upkeep tension, time-to-next, earlier-logistics regression, stack sanity, golden ([92]), documented knobs done-now. Present (PATH softcap). |
-| S9 Preflight Checklist (save/offline) | 2 / 6 / 2 | Schema, migration (+jetSlots recompute), capstone derived-not-stored (never a ghost flag), offline income+upkeep, export/import, migration test done-now. Present (OFFLINE_CAP + backup). Superseded T3-partial (capstoneActive is computed live, not persisted — by design), T6 (away-modal line — deferred). |
+| S9 Preflight Checklist (save/offline) | 2 / 7 / 1 | Schema, migration (+jetSlots recompute), capstone derived-not-stored (never a ghost flag), offline income+upkeep, export/import, migration test, **T6 the away-modal line** (jet upkeep folds into the shared `rep.upkeepPaid` fleet line) done-now. Present (OFFLINE_CAP + backup). Superseded T3-partial (capstoneActive is computed live, not persisted — by design). |
 | S10 Cleared for Takeoff (QA) | 1 / 7 / 2 | Formatting, upkeep-floor, capstone flip-flop (no ghost ×), instant/air correctness, event-dedupe, copy, regression ([92]) done-now. Present (`window.IV.state`). Superseded T6 (takeoff juice), T10 (manual playtest). |
 
 ### E18 — The Sail-Shaped Hotel (6-star tiers 12/13) · **100/100** (present 33, done-now 47, superseded 20)
@@ -815,7 +815,9 @@ end to end (peak 11.3 ≪ the 1e290 BigNumber threshold). Every commit is signed
 ---
 
 ### Running total
-- **Audited:** 3,000 / 3,000 tasks (E01–E30) — present 936, done-now 1,490, superseded 574. ✅ **COMPLETE**
+- **Audited:** 3,000 / 3,000 tasks (E01–E30) — present 936, done-now 1,493, superseded 571. ✅ **COMPLETE**
+  (post-audit follow-up: the three deferred away-modal fleet lines — E15-S9-T7 / E16-S9-T6 /
+  E17-S9-T6 — landed as one shared `rep.upkeepPaid` line, moving 3 tasks superseded → done-now.)
 - **Remaining:** 0 tasks.
 
 ### Deferred balance-tuner backlog (for a consolidated retune, latest at E30)

@@ -208,6 +208,10 @@ export function newGame() {
       notation: 'suffix', motion: 'auto', toastDensity: 'all' },
     stats: { lifetimeCash: 0, lifetimeCashThisTree: 0, bestComfort: 0, totalClicks: 0, runSec: 0,
       tapWindowSec: 0, tapWindowCount: 0, overflowLost: 0,
+      // E15/E16/E17: cumulative fleet upkeep actually PAID (cars+crew+boats+jets, clamped —
+      // never more than the cash on hand). applyOffline diffs it for the away modal's fleet
+      // line; stays 0 forever for the fleetless harness, so the fitted curve can't move.
+      upkeepPaid: 0,
       // E29: cumulative Legacy ever earned across ALL ascensions — the √-base for legendGain.
       // Survives the Legend reset (it is the record the next layer telescopes on). 0 for the harness.
       totalLegacyEverEarned: 0 },
