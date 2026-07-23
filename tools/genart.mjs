@@ -16,7 +16,7 @@
 // Node ≥ 18 (global fetch). No dependencies — in keeping with the repo rules; this is a dev
 // tool like js/dev/harness.mjs, never loaded by the game.
 
-import { writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'node:fs';
 
 const KEY = process.env.OPENROUTER_API_KEY;
 if (!KEY) {
@@ -62,13 +62,24 @@ const POSTCARDS = [
   'a thriving private island resort at golden hour with villas along the shore, a marina of white boats, a helipad, and tiny guests arriving',
 ];
 
+// Style anchor: the approved tier-0 postcard rides along as a reference image on every call,
+// so the whole set matches ONE realized style, not 22 fresh interpretations of the bible.
+const REF_FILE = `${OUT}/tier-00.webp`;
+const REF = existsSync(REF_FILE)
+  ? { type: 'image_url', image_url: { url: `data:image/webp;base64,${readFileSync(REF_FILE).toString('base64')}` } }
+  : null;
+
 async function generate(prompt, outfile) {
+  const text = `${STYLE}A vintage travel postcard scene, landscape composition: ${prompt}.`;
+  const content = REF
+    ? [REF, { type: 'text', text: `Match the illustration style of the reference image exactly — same palette, same thick soft outlines, same flat shading, same level of detail. Draw a completely NEW scene (do not copy the reference composition): ${text}` }]
+    : text;
   const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${KEY}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: MODEL,
-      messages: [{ role: 'user', content: `${STYLE}A vintage travel postcard scene, landscape composition: ${prompt}.` }],
+      messages: [{ role: 'user', content }],
       modalities: ['image', 'text'],
     }),
   });
