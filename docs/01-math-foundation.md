@@ -73,6 +73,11 @@ We stagger them so **early tiers feel generous, later tiers gate progress**:
 `growth = [1.07, 1.09, 1.10, 1.11, 1.12, 1.13, 1.14, 1.15]` for `D1..D8`.
 `base = [15, 100, 1.1e3, 1.2e4, 1.3e5, 1.4e6, 1.5e7, 1.6e8]` (each ≈ ×10 the previous).
 
+> **Pedagogical values, superseded.** The shipped, harness-fitted constants live in
+> `js/config.js` (`GEN.*`) and differ by up to five orders of magnitude (much steeper
+> `growth`, far wider `base` spacing) — the fit that lands the golden curve. This section
+> teaches the *shape*; never copy its numbers into code. Same applies to §2's worked example.
+
 ### 1.3 Milestone doublings (free power, the "10s")
 Every time `bought_k` crosses a multiple of `MILESTONE_STEP` (default **10**), tier `k`
 permanently **×2**. So:
@@ -116,7 +121,13 @@ The geometric cost (`1.07^n`) eventually outruns linear `count`, creating the na
 
 ## 3. The multiplier stack (multi-layered upgrades)
 
-`M_k = milestoneMult_k · L_upgrade · L_path · L_skill · L_comfort · L_ascension · L_tree`
+`M_k = milestoneMult_k · L_upgrade · L_path · L_skill · L_comfort · L_ascension · L_tree · …`
+
+> **Canonical list:** the shipped stack composes **18 layers** (this section's seven plus
+> `L_dest · L_excl · L_logi · L_staff · L_owner · L_estate · L_island · L_legend · L_ngplus ·
+> L_achieve · L_seasonal`, each hard-gated to exactly 1 while its system is untouched).
+> `math.tierMultiplier` is the single composition point and the source of truth — this doc
+> teaches the pattern, the code enumerates the layers.
 
 **Master rule:** each `L_x` is `1 + Σ(bonuses in that layer)` (**additive inside**),
 and the layers **multiply together** (**multiplicative across**). This makes each system
@@ -174,7 +185,7 @@ XP is earned passively (a trickle proportional to relevant activity) and via spe
 **Effect formulas (examples):**
 - Charisma income mult: `1 + CHARISMA_RATE·level` (`CHARISMA_RATE=0.03`).
 - Communication discount: `costMult = clamp(1 − 0.005·level, 0.4, 1)`.
-- Body comfort cap: `comfortCap = COMFORT_CAP_BASE · (1 + 0.05·bodyLevel)`.
+- Body comfort term: Body levels feed the `w_body·bodyLevel` term of the Comfort sum (no cap — see §6).
 - Savvy passive: `dCash/dt += savvyLevel · SAVVY_YIELD · totalCash^0.5` (sqrt so it never dominates).
 
 ---
@@ -224,11 +235,13 @@ Comfort is the "how nice is your vacation" meter. It is a **weighted, softcapped
 of accommodation tier + amenities + body wellness:
 
 ```
-ComfortRaw = w_acc·accScore + w_amen·Σ amenityScore + w_body·bodyLevel
-Comfort    = comfortCap · ComfortRaw / (ComfortRaw + comfortCap)      // saturating (soft cap)
+Comfort = w_acc·accScore + w_amen·Σ amenityScore + w_body·bodyLevel      // unbounded weighted sum
 ```
-The saturating form means Comfort asymptotically approaches `comfortCap` (raised by Body,
-by ascension, by tier) — so amenities always help but never trivially max out. Comfort then:
+> **Shipped form (supersedes the saturating draft):** Comfort is **unbounded** — the original
+> `cap·x/(x+cap)` saturating curve was removed so Comfort can gate billion-scale late beats
+> (see `docs/math-proof.md` and `math.computeComfort`; selftest [44] asserts unboundedness).
+> Safety comes from the *consumer* side instead: the income effect is a log (below), so
+> unbounded Comfort never feeds back super-linearly. There is no `comfortCap` lever. Comfort then:
 
 1. **Gates story** (`beat` requires Comfort ≥ threshold, see `docs/02-storyline.md`).
 2. Feeds `L_comfort = 1 + COMFORT_MULT·log10(1 + Comfort/C0)` (global income `×`).
@@ -290,14 +303,16 @@ depth from a full wallet `W` against next-tier cost `c` is
 names (Soggy Money Belt → Platinum Plus Ultra → … → The Numberless Account) live in
 `js/data/bank.js`.
 
-## 8. BigNumber abstraction (future-proof)
+## 8. Number representation (honest contract)
 
-`math.js` never touches `+ - * /` on raw economy values directly; it calls
-`N.add/mul/pow/cmp`. In v1 these wrap native `number`. If endgame prestige pushes past
-`~1e300`, we drop in a `{m:mantissa, e:exponent}` implementation (normalized so
-`1 ≤ m < 10`), all in-repo, no dependency. Because only `math.js` and `util.format`
-consume `N`, the swap is ~1 file. Provided reference impl lives in
-`docs/05-balancing-and-pacing.md`.
+Shipped `math.js` uses **raw IEEE-754 doubles** — there is no `N.add/mul` abstraction layer
+(an earlier draft of this section described one that was never built). The precision strategy
+is **magnitude suppression** instead: the soft-capped milestone plus the no-cash-power rule for
+every multiplier layer keep the golden run's peak at `log10(cash) ≈ 11` vs overflow at ~308,
+asserted in CI (`peakLog < 290` in the invariance tests, `< 12` in the golden). If a future
+change pushes the measured ceiling toward 290, the swap is a rewrite of `math.js` arithmetic to
+the `{m, e}` reference implementation in `docs/05-balancing-and-pacing.md` — a real project,
+not a drop-in; the CI ceiling is the tripwire that buys the lead time.
 
 ## 9. Ascension & the permanent skill tree (prestige math)
 
@@ -315,7 +330,13 @@ ascension lands ≥ 8h on a stable band — full derivation and fitted table in
 
 **Legacy earned on ascension** (square-root prestige — the standard anti-runaway curve):
 ```
-legacyGain = floor( LEGACY_K · sqrt( stats.lifetimeCash / LEGACY_SCALE ) ) − legacyAlreadyBanked
+legacyGain = floor( LEGACY_K · sqrt( stats.lifetimeCashThisTree / LEGACY_SCALE ) ) − legacyAlreadyBanked
+```
+> The base is `lifetimeCashThisTree`, **not** `lifetimeCash` — the distinction is load-bearing:
+> `lifetimeCash` hard-resets every ascension (persisting it collapsed run 2 to ~11 minutes,
+> `docs/math-proof.md §12`), while `lifetimeCashThisTree` is the gate-deflated accounting
+> counter the √-payout telescopes on (credited via `gainCash`'s `banked/ascCashNorm`).
+```
 ```
 Square-root means to **double** your Legacy you need **4×** the run — so each ascension is
 worth it but never trivial. (Alt tunings: `^0.5` default; `^0.6` faster; log-based for very
