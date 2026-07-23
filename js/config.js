@@ -58,6 +58,16 @@ export const CONFIG = {
   // exponential (finite-time blow-up + double overflow). See docs/math-proof.md.
   MILESTONE_SOFT_KNEE: 4,
   MILESTONE_SOFT_LIN: 0.5,
+  // Mini-milestones (Phase-C refit): every `every` buys adds `bonus` ADDITIVELY inside the
+  // milestone layer (a second linear-in-bought factor — ∝ log cash, same safe class as the
+  // post-knee tail; see docs/math-proof.md §3/§4). bonus 0 ⇒ the factor is exactly 1 and the
+  // pre-refit curve is bit-identical. Purpose: a felt milestone-family event every ~10-15 min
+  // mid-game instead of one doubling per ~82 min (audit 2.2).
+  MILESTONE_MINI: { every: 5, bonus: 0 },
+  // Story spacing valve (Phase-C refit): when > 0, at most ONE story beat fires per this many
+  // game-seconds — a ready cluster queues in monotone order instead of dumping 3 beats in one
+  // tick (audit 2.5: 26 beats on 14 distinct timestamps). 0 ⇒ bit-identical legacy behavior.
+  STORY_VALVE_SEC: 0,
 
   // ---- per-tier "renovation" upgrades: the L_upgrade income layer ----
   // L_upgrade = 1 + L_UPGRADE_RATE · (upgrades bought for that generator tier), additive
@@ -70,7 +80,14 @@ export const CONFIG = {
   L_UPGRADE_RATE: 0.5,
 
   // ---- amenities (the small-wins engine) ----
-  AMENITY: { growthDefault: 1.5, comfortWeight: 1.0 },
+  // xRate/xCap (Phase-C refit): the L_amenity income layer. Every amenity row has carried
+  // dormant xMult/xScope fields since E02; this activates them as a ONE-TIME ownership bonus
+  // (level ≥ 1) joining ADDITIVELY inside the layer: L_amenity = 1 + min(xCap−1, xRate·Σ xMult
+  // of owned amenities in scope). Bounded flat × (roster-capped + hard xCap), never a power of
+  // cash — the same safe class as L_dest. xRate 0 ⇒ the layer is exactly 1 (1 + 0·Σ, IEEE-exact)
+  // and the pre-refit curve is bit-identical. Scope 'all' hits every tier; 'social' hits the
+  // social tiers (k=1,2), matching L_skill's charisma scope.
+  AMENITY: { growthDefault: 1.5, comfortWeight: 1.0, xRate: 0, xCap: 2.0 },
 
   // ---- concierge: the first automation seed (E11 "Five-Star Frame of Mind") ----
   // A bounded, OFF-BY-DEFAULT auto-purchaser (state.concierge.on, backfilled false for

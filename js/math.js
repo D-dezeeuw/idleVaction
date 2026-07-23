@@ -14,8 +14,12 @@ import { clamp, rng } from './util.js';
 export function milestoneMult(bought) {
   const m = Math.floor(bought / C.MILESTONE_STEP);
   const knee = C.MILESTONE_SOFT_KNEE;
-  if (m <= knee) return Math.pow(C.MILESTONE_MULT, m);
-  return Math.pow(C.MILESTONE_MULT, knee) * (1 + C.MILESTONE_SOFT_LIN * (m - knee));
+  // mini-milestones (config.MILESTONE_MINI): a second linear-in-bought factor inside this
+  // layer — every `every` buys adds `bonus`. Linear in bought ⇒ ∝ log(cash), the same safe
+  // sub-polynomial class as the post-knee tail below. Exactly 1 at bonus 0 (pre-refit).
+  const mini = 1 + C.MILESTONE_MINI.bonus * Math.floor(bought / C.MILESTONE_MINI.every);
+  if (m <= knee) return Math.pow(C.MILESTONE_MULT, m) * mini;
+  return Math.pow(C.MILESTONE_MULT, knee) * (1 + C.MILESTONE_SOFT_LIN * (m - knee)) * mini;
 }
 export function unitCost(k, bought) {
   return C.GEN.base[k] * Math.pow(C.GEN.growth[k], bought);
@@ -49,6 +53,13 @@ export function tierMultiplier(state, k) {
 
   // L_skill: charisma boosts social tiers
   const L_skill = 1 + (social ? C.CHARISMA_RATE * state.skills.charisma.level : 0);
+
+  // L_amenity (Phase-C refit): the activated amenity income layer — a one-time ownership
+  // bonus per amenity, additive within the layer, xCap-bounded. Reads the per-tick
+  // state._amenCache (engine.tick sets it via computeAmenityX, mirroring _comfortCache).
+  // Exactly 1 at AMENITY.xRate 0 or with nothing owned — harness-invariance preserved
+  // until the refit flips the knob.
+  const L_amenity = amenityIncomeMult(state, k);
 
   // global layers
   const L_comfort = comfortMultiplier(state);
@@ -89,7 +100,27 @@ export function tierMultiplier(state, k) {
   const L_achieve = achieveMultiplier(state);
   const L_seasonal = seasonalMultiplier(state);
 
-  return mMilestone * L_upgrade * L_path * L_skill * L_comfort * L_dest * L_exclusivity * L_logistics * L_staff * L_owner * L_estate * L_island * L_ascension * L_tree * L_legend * L_ngplus * L_achieve * L_seasonal;
+  return mMilestone * L_upgrade * L_path * L_skill * L_amenity * L_comfort * L_dest * L_exclusivity * L_logistics * L_staff * L_owner * L_estate * L_island * L_ascension * L_tree * L_legend * L_ngplus * L_achieve * L_seasonal;
+}
+
+// ---- L_amenity: the activated amenity income layer (Phase-C refit) ----
+// Sum each owned amenity's xMult ONCE (level ≥ 1 — ownership, not per level: per-level would
+// make repeat-buying the dominant line and unbound the sum; Comfort already scales per level).
+// Scopes: 'all' → every tier; 'social' → the social tiers (k=1,2), same set L_skill boosts.
+export function computeAmenityX(state, DATA) {
+  let all = 0, social = 0;
+  for (const a of DATA.amenities) {
+    if (!a.xMult || (state.amenities[a.id]?.level || 0) < 1) continue;
+    if (a.xScope === 'social') social += a.xMult; else all += a.xMult;
+  }
+  return { all, social };
+}
+export function amenityIncomeMult(state, k) {
+  const rate = C.AMENITY.xRate;
+  if (!(rate > 0)) return 1;                       // exact identity while the knob is off
+  const cache = state._amenCache || { all: 0, social: 0 };
+  const sum = cache.all + ((k === 1 || k === 2) ? cache.social : 0);
+  return 1 + Math.min(C.AMENITY.xCap - 1, rate * sum);
 }
 
 // production per second of tier k (in units of tier k output)
