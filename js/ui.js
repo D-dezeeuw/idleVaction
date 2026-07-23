@@ -1167,7 +1167,7 @@ function renderWellness(s) {
 // Suite to unlock").
 function conciergeRevealed(s) { return E.conciergeUnlocked(s); }
 
-const CONCIERGE_CATEGORY_LABEL = { amenity: 'Amenities', generator: 'Generators', upgrade: 'Upgrades' };
+const CONCIERGE_CATEGORY_LABEL = { amenity: 'Amenities', generator: 'Generators', upgrade: 'Upgrades', bank: 'Bank account' };
 const CONCIERGE_BUDGET_PRESETS = [0.05, 0.10, 0.25, 0.50];
 
 // subtle activity indicator (E11-S4-T8 "signature card", S10-T8 "juice"): a brief pulse

@@ -422,7 +422,10 @@ export function achieveMultiplier(state) { return state._achieveMult ?? 1; }
 // (a summit-era feature). 1 for the harness (never owns the island). cycleIndex drives rotation
 // (days of playtime), a pure function so it is reload-stable.
 export function seasonalMult(state, DATA) {
-  if (!state.island?.owned) return 1;
+  // Phase F (audit 1.9): gate moved from island-ownership (~2 ascensions in) to first-ascension —
+  // the light seasonal rotation now exists during the hours people actually play. Still exactly
+  // 1 for the harness (which never ascends), so the fitted island time is unmoved.
+  if (!state.island?.owned && !(state.ascension?.count > 0)) return 1;
   const days = Math.floor((state.meta?.playtimeMs || 0) / 86400000);
   const list = DATA.seasonal;
   if (!list || !list.length) return 1;

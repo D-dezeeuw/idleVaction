@@ -121,7 +121,7 @@ export const CONFIG = {
     tipFrac: 0.01,
     defaultOn: false,
     whitelist: ['amenity'],
-    categories: ['amenity', 'generator', 'upgrade'],
+    categories: ['amenity', 'generator', 'upgrade', 'bank'],
   },
 
   // ---- optional tap (E01-S5) ----

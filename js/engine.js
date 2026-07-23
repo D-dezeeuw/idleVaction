@@ -2083,17 +2083,30 @@ export function conciergeCandidates(state, whitelist) {
       out.push({ category: 'upgrade', k, cost, roi });
     }
   }
+  // Phase F (audit 1.1/1.8): the ONE purchase that matters while away — the wallet-cap tier —
+  // used to be the one purchase automation couldn't make, so a full wallet silently stalled
+  // every unattended session. Priority: when the wallet is ≥70% full, the next account
+  // outranks everything (Infinity ROI); harness-neutral (the concierge is off by default).
+  if (wl.includes('bank') && !bankMaxed(state)) {
+    const cost = bankUpgradeCost(state);
+    const cap = M.bankCapAt(state.bank.tier);
+    if (cost > 0 && Number.isFinite(cap) && state.resources.cash >= cap * 0.7) {
+      out.push({ category: 'bank', cost, roi: Infinity });
+    }
+  }
   return out.sort((x, y) => y.roi - x.roi);
 }
 
 function conciergeCandidateName(cand) {
   if (cand.category === 'amenity') return amenityData(cand.id).name;
   if (cand.category === 'generator') return DATA.generators[cand.k].name;
+  if (cand.category === 'bank') return 'a bigger bank account';
   return `${DATA.generators[cand.k].name} renovation`;
 }
 function applyConciergeCandidate(state, cand) {
   if (cand.category === 'amenity') return buyAmenity(state, cand.id);
   if (cand.category === 'generator') return buyGenerator(state, cand.k, 1);
+  if (cand.category === 'bank') return buyBankUpgrade(state);
   return buyGenUpgrade(state, cand.k);
 }
 
