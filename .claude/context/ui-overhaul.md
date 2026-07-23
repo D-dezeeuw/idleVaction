@@ -12,11 +12,12 @@
 | Pre-plan: tabs + progressive disclosure | ✅ done |
 | UX-plan.md (design bible) | ✅ done |
 | U1 — holiday theme + Travel Diary | ✅ done |
-| U2 — component kit | ✅ ~90% (icon sprite deferred) |
-| U3 — reveal choreography | ✅ ~80% (engine-fired arrival modals remain) |
-| U4 — journey polish | 🟡 started (era skies only) |
-| U5 — QA sweep | 🟡 script exists in scratchpad, not committed |
-| Art pipeline (generated images) | 🟡 pipeline on main, **zero images generated yet** |
+| U2 — component kit | ✅ done (staff/butler sliders landed 2026-07-23; icon sprite = hand-author-only, optional) |
+| U3 — reveal choreography | ✅ done (engine-fired arrival modals + Crossroads polaroid modal landed 2026-07-23; only the optional one-goal shelves rule remains) |
+| U4 — journey polish | ✅ done 2026-07-23 (passport spread, postcard flip, polaroid story/diary, patron silhouette, offline reskin, era skies; §5 stage screenshots via uxcheck) |
+| U5 — QA sweep | ✅ done 2026-07-23 (`tools/uxcheck.mjs` committed, `npm run uxcheck`, 52/52 in ~6s; found+fixed the .iv-tap-pop reduced-motion gap) |
+| Art pipeline (generated images) | ✅ **Waves 1–3 COMPLETE & WIRED** (~120 assets, ~3.2 MB: 22 postcards, icon set, passport+24 stamps, 30 polaroids, 21 stickers, patron, 3 deeds, 6 buildings, 4 era heroes) |
+| Copy voice pass (de-AI) | ✅ done 2026-07-23 (story.js all 30 beats + 23 flavor strings across 7 data files; ORIGIN page-zero added) |
 
 ## Done (with merge commits)
 
@@ -56,39 +57,85 @@
 ## Remaining
 
 ### U2 leftovers
-- [ ] Icon sprite: hand-authored original SVG sprite for chrome (gear/lock/close/diary) — was
-  deferred (network blocked fetching Phosphor); emoji currently serve. Optional.
-- [ ] Staff/butler budget dials → sliders (concierge pattern exists to copy).
+- [ ] Icon sprite: hand-authored original SVG sprite for chrome (gear/lock/close/diary) —
+  emoji currently serve. Optional. The 2026-07-23 icon size-check CONFIRMS generated art
+  can't serve these 16–24px glyphs (mush) — if ever done, it's hand-authored SVG.
+- [x] ~~Staff/butler budget dials → sliders~~ DONE 2026-07-23: `staffTileHtml` renders an
+  `.iv-slider` per hired auto-buy role (surfaces the previously UI-less `policy.budgetFrac`),
+  concierge freeze-guard copied into `renderStaff`, `staff-budget:<id>` input branch in
+  `wireEvents`.
 
 ### U3 leftovers — engine-FIRED arrival modals (T1 inventory, UX-plan §4)
-The era-modal system exists but only wraps player-initiated actions. Still toasts today:
-- [ ] The Crossroads (beat 6) — 4-polaroid branch-choice modal (currently inline card).
-- [ ] First pool (tier 6), Sail-Shaped Hotel (tier 12), Seven Stars + patron (beat 21),
-  The Invitation (beat 22), first resort building (beat 29).
-  Mechanism suggestion: a UI-side watcher diffing one-shot story flags per render, firing
-  `showEra` once per flag (never engine changes).
+- [x] ~~Arrival modals~~ DONE 2026-07-23: `checkArrivalModals` watcher in ui.js (called from
+  `render`) — baseline-at-load (first render marks already-true conditions as fired; only
+  live transitions celebrate), queue drains one modal per close via `modalIsOpen()` gate
+  (era/diary/offline). Covers: Crossroads (beat 6) as a 4-polaroid branch-choice modal
+  (`.iv-crossroads-grid`, same `E.applyStoryChoice` path, inline card kept as fallback,
+  dismissable, never re-pops), first pool (tier 6) + Sail-Shaped (tier 12) using
+  `postcardSceneHtml` (postcard art + emoji fallback), Seven Stars (21), The Invitation (22,
+  mystery scene per §5 stage 7), first resort building (29). Zero engine changes.
 - [ ] One-goal rule for the remaining shelves (pool/beach/wellness groups; destinations "one
   next stamp" if desired — currently all unlocked show).
 
-### U4 — journey polish
-- [ ] §5 stage-matrix audit pass: walk all 12 stages, verify each unlock's tier & metaphor.
-- [ ] Postcard-flip animation on tier-up (reduced-motion: crossfade).
-- [ ] Patron silhouette moments; premium-destination "gold passport page"; polaroid framing on
-  the Story card; "While you were away…" postcard reskin.
+### U4 — journey polish — ALL DONE 2026-07-23
+- [x] Passport spread view (`renderPassport` + `#passportModal`): inside.webp spread, earned
+  stamps at deterministic slots, dotted unlocked-unvisited, locked absent, gold premium page,
+  paginated. Postcard-flip on tier-up (crossfade under reduced-motion, baseline-at-load).
+  Polaroid framing on Story card + diary (POLAROID_ART all 30 beats). Patron silhouette
+  (PATRON_ART) in Seven Stars modal + diary. Offline "While you were away" leads with the
+  current-tier postcard. Era heroes (ERA_ART: sold/retirement/legend/ngplus), island building
+  thumbs (ISLAND_ART), property deed thumbs (DEED_ART) — every image behind a manifest +
+  onerror fallback. Diary opens with page zero = ORIGIN (js/data/story.js).
+- [ ] (optional, unclaimed) deeper §5 stage-matrix metaphor audit beyond the uxcheck
+  screenshots — nothing known broken.
 
-### U5 — QA
-- [ ] Commit the Playwright sweep (now only in scratchpad `pw/shot3.mjs`) as `tools/uxcheck.mjs`:
-  screenshots per stage + the automated spoiler check (fresh-start visible text vs
-  Monaco/Legend/Ascension/Butler/Marina/… list) + locked-stickers-are-??? + devtools-hidden.
-- [ ] A11y + reduced-motion audit pass.
+### U5 — QA — DONE 2026-07-23
+- [x] `tools/uxcheck.mjs` committed (`npm run uxcheck`): zero-dep CDP driver, 10 real-engine
+  stages, 52 assertions — spoiler sweep (20 terms, zero exclusions needed), locked-stickers-
+  are-???, debug-drawer-hidden, mystery-rungs, reduced-motion static check, per-stage
+  screenshots to tmp, console-error capture. ~6s, deterministic. CDN hosts blocked per-page
+  (sandbox proxy doesn't cover them); Chromium ≥130 needs PUT for /json/new.
+- [x] Reduced-motion: uxcheck's static check found `.iv-tap-pop` unguarded; fixed. A11y:
+  new components shipped with aria-labels/keyboard access; no dedicated audit beyond that.
 
 ## The images idea (generated art via OpenRouter)
 
-**State: pipeline ready, zero images generated.** `tools/genart.mjs` on main; the in-game hook
-falls back to emoji until `POSTCARD_ART` lists a tier.
+**State: WAVE-1 POSTCARDS COMPLETE (2026-07-23) — all 22 tiers generated, compressed, committed
+(839 KB total).** Generated with the tier-0 style-reference anchor (genart now sends the
+approved tier-0 image as a reference on every call — commit 27f3ffb); consistency across the
+set is visibly tight (same line weight, palette, flat shading, tourist-from-behind).
+Accepted deviations, reviewed on the full contact sheet: tiers 1/6 have clean, correctly
+spelled diegetic sign lettering ("MOTEL"/"HOTEL") — the no-text rule guarded against mushy
+AI lettering, which didn't materialize; regenerating would risk style drift. Tier 7's beach
+runs lighter/whiter than the set (white-sand scene) — fine in context. Remaining: wire
+tiers 1–21 into `POSTCARD_ART` (one line, held back only because ui.js is mid-edit for U3).
 
-- Run: `OPENROUTER_API_KEY=sk-or-... node tools/genart.mjs test` (tier-0 postcard) or
-  `... postcards` (all 22). Then add the tier numbers to `POSTCARD_ART` in `js/ui.js`.
+- **Test verdict (tier 0, The Soggy Shed):** on-bible — palette-locked (yellow poncho, pink
+  shoes, sky-blue umbrella/rain on warm sand), thick soft outlines, no text, tourist from
+  behind, the one hopeful sun ray present. One deviation: the model returns **square 1024²**
+  despite the "landscape composition" prompt wording; square looks fine in the card, so accept
+  square as the format (or tune wording later — don't block Wave 1 on it).
+- **Format decision:** commit **760px WebP q82** (display is max-width 380px, so 760 covers
+  2×). Sizes measured: raw PNG 965 KB → 760px WebP **26 KB**. Full 22-tier wave ≈ 600 KB,
+  comfortably inside the ~2 MB Wave-1 budget. Raw PNGs are now **gitignored**
+  (`assets/img/postcards/*.png`); genart's skip-if-exists also counts the `.webp` as done, and
+  the Pillow compress one-liner lives in the genart header comment (`pip install pillow`).
+- Run: `node tools/genart.mjs test` (tier-0 postcard) or `... postcards` (all 22) — the key
+  now comes from the environment (see below). Then compress to WebP and add the tier numbers
+  to `POSTCARD_ART` in `js/ui.js` (tier 0 already listed; hook src is `.webp` now).
+- **Icon size-check (2026-07-23) — favicon DONE, chrome-icon ban confirmed.** Generated a
+  palm-island-and-sun app icon (style bible + icon-mode prompt: "one bold centered motif,
+  minimal detail, readable when shrunk"). Findings: the model adds its own rounded-square
+  frame despite "no border, no frame" — the frame+margin eat ~23% of the canvas and turn
+  16px into mush. **Tight-cropping to the inner art** (autocrop on the sky-blue span; was
+  px 116–908 of 1024) fixes it: crisp at 64/48, clearly readable at 32, acceptable at 16.
+  Shipped: `assets/img/icon-512.webp` (25.6 KB master for future PWA sizes — regeneration is
+  non-deterministic, keep this), `icon-180.png` apple-touch (38 KB), `icon-32.png` (2.6 KB) +
+  `icon-16.png` (0.8 KB) favicons, wired in `index.html` (game previously had NO favicon).
+  Icons ship as PNG (safe favicon format, already tiny); postcards stay WebP. Verdict for
+  future icon-ish waves: stamps/stickers/polaroids render ≥48px in-game → viable; tiny chrome
+  glyphs stay hand-authored-or-emoji. Wave-1 "logo/favicon/og-image": favicon ✅, logo &
+  og-image (landscape banner, different composition) still to do.
 - Model: `google/gemini-2.5-flash-image` (override with `GENART_MODEL`).
 - Style bible lives in the script — flat holiday illustration, palette-locked (#FFC800/#FF2E88/
   #45C4FF/#7ED957 on sand), thick soft outlines, **no text in images**, tourist seen from behind.
@@ -96,25 +143,41 @@ falls back to emoji until `POSTCARD_ART` lists a tier.
   1. 22 tier postcards + 4 Crossroads branch polaroids + logo/favicon/og-image + the goat (~30).
   2. 30 story-beat polaroids (diary pages) + ~30 passport stamps (5 premium gold, 5 seasonal) +
      the patron silhouette.
+     **Passport slice PULLED FORWARD & DONE (2026-07-23):** `assets/img/passport/` — cover.webp
+     (14 KB), inside.webp (13 KB, blank spread for the stamp overlay), + `stamps/` 19 transparent
+     ink-only WebPs (15–33 KB each; one per destination id in js/data/destinations.js; premium =
+     gold ink; alpha-keyed by tools/artpost.py so paper shows through like real ink). Generated
+     via `node tools/genart.mjs passport` / `... stamps` (stamps style-chain off the first stamp).
+     Still to do from this line: 5 seasonal stamps, polaroids, patron silhouette. UI wiring for a
+     passport-spread view (overlay stamps on inside.webp) is OPEN — current passport UI is the
+     CSS-chip version; wire after the U3 ui.js work lands.
   3. 16 trophy stickers + 5 Legend-perk gold stickers + 4 property deeds + 6 island buildings +
      remaining era-modal heroes.
   4. Nice-to-have: vehicles (~18), grounds clusters (3), era sky strips (4).
   - NOT generating: tiny chrome icons (mushy at 16–24px) and 300+ amenity thumbnails.
 - Weight budget: WebP/compressed, ~2 MB Wave 1, ~6 MB total. Keep repo light.
-- **Network gotchas (learned the hard way):** the session sandbox blocks `openrouter.ai` unless
-  the environment's Network access allows it, and **policy applies only to sessions started
-  AFTER the change** — a running container keeps its birth policy. Also `node fetch` ignores
-  `HTTPS_PROXY` (curl honors it) — if node fails in-sandbox while curl works, do the API call
-  with curl and decode the base64 with node. A trigger-spawned unattended session was tried and
-  produced nothing (likely parked on a permission prompt) — prefer an ATTENDED fresh session or
-  a local run.
-- **Key hygiene:** the OpenRouter key is passed via env var only — never in any file or commit.
-  A key was shared in the chat transcript of the 2026-07-22 session and used in a trigger prompt;
-  **it should be revoked on OpenRouter once art generation is done** (and ideally replaced with
-  an environment-variable key, set in the environment settings dialog).
+- **Network status (RESOLVED 2026-07-23):** in the current environment the sandbox reaches
+  `openrouter.ai` and plain `node tools/genart.mjs test` works first try — no curl workaround
+  needed. (Historical gotchas, kept in case the environment changes: policy applies only to
+  sessions started AFTER a network-access change; `node fetch` ignored `HTTPS_PROXY` in the old
+  sandbox while curl honored it; a trigger-spawned unattended session produced nothing — prefer
+  an attended session.)
+- **Key hygiene:** `OPENROUTER_API_KEY` is now set as an environment variable in the
+  environment settings (confirmed working 2026-07-23) — never in any file or commit. The old
+  key shared in the 2026-07-22 chat transcript / trigger prompt **should still be revoked on
+  OpenRouter** if it wasn't already.
 
-## Suggested order of attack
-1. Generate Wave-1 test image → judge style → run full Wave 1 → wire `POSTCARD_ART`.
-2. U3 engine-fired arrival modals (Crossroads first — biggest narrative moment).
-3. U5 committed `tools/uxcheck.mjs` (locks the no-spoiler guarantee into a runnable check).
-4. U4 polish pass, then Waves 2–3 art.
+## Suggested order of attack — ALL COMPLETE 2026-07-23
+Everything on the original list landed: Wave 1–3 art generated/reviewed/wired, U3 arrival
+modals + Crossroads, U5 uxcheck committed and green (52/52), U4 polish incl. the passport
+spread, plus the copy voice pass + ORIGIN. Gates at every step: npm test ALL PASS, harness
+island exactly 8h 15m 5s, npm run uxcheck 52/52.
+
+### What's genuinely left (all optional / next-phase)
+- Hand-authored SVG chrome-icon sprite (gear/lock/close/diary) — emoji serve fine; generated
+  art confirmed unusable at 16–24px.
+- One-goal "next stamp" treatment for destinations (chips currently show all unlocked).
+- Seasonal-stamp UI moment (assets committed in stamps/, no dedicated UI yet) and a
+  Legend-perk sticker spot (renderLegend has no sticker-like slot; skipped deliberately).
+- Wave-4 nice-to-haves: vehicles (~18), grounds clusters, era sky strips, og-image/logo.
+- Deeper §5 metaphor audit; staff/butler dials for estate-wing roles (assignment-only today).

@@ -27,7 +27,7 @@ export const CONTENT = [
     flavor: 'Fifteen seconds, a trending song, and a boomerang of the poncho.' },
   { id: 'daily_vlog', name: 'Daily Vlog', costBase: 50000, costGrowth: 1.6, contentRate: 15,
     unlockClout: 250, boostCostBase: 500, boostCostGrowth: 2.1, boostRate: 0.5,
-    flavor: '"Hey guys, welcome back" — you have never once said this to your actual friends.' },
+    flavor: '"Hey guys, welcome back." You have never once said this to your actual friends.' },
   { id: 'travel_series', name: 'Travel Series', costBase: 900000, costGrowth: 1.65, contentRate: 90,
     unlockClout: 1800, boostCostBase: 3000, boostCostGrowth: 2.1, boostRate: 0.5,
     flavor: 'Six episodes, a drone intro, and a sponsor card nobody reads.' },

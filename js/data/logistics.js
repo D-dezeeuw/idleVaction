@@ -39,7 +39,7 @@ export const BOATS = [
     flavor: 'A bed, a fridge, and a horizon. You stop checking your email. Mostly.' },
   { id: 'yacht',         name: 'The Yacht',            class: 'boat', tier: 4,
     costBase: 6e11,  costGrowth: 1.9, upkeep: 30000,  mult: 2.50, slotBonus: 2, crewCap: 6,
-    flavor: 'A pool. On a boat. On the sea. Somewhere a hostel receptionist feels a chill.' },
+    flavor: 'A pool, on a boat, on the sea. The hostel receptionist would not believe this.' },
   { id: 'superyacht',    name: 'Superyacht',           class: 'boat', tier: 5,
     costBase: 3e12,  costGrowth: 1.9, upkeep: 150000, mult: 4.50, slotBonus: 2, crewCap: 10,
     flavor: 'It has a smaller boat inside it, for reaching the shore you will never visit.' },

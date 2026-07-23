@@ -9,13 +9,13 @@ export const STORY = [
   { id: 2,  title: 'Guests With Six Legs', requires: { comfort: 20 },
     text: 'The motel roaches have a rota. You are not on it. Time to change that.' },
   { id: 3,  title: 'Checkout Time', requires: { accTier: 1 },
-    text: 'You leave the shed. It does not wave goodbye. The road is open.' },
+    text: 'You leave the shed. It does not wave goodbye. Sheds never do.' },
   { id: 4,  title: 'The Hostel Bunk', requires: { comfort: 200 },
-    text: 'Eleven strangers, one dream, zero privacy. But the stories! The followers!' },
+    text: 'Eleven strangers snore in shifts and one of them sleep-talks in German. You would pay double for a door. One day you will.' },
   { id: 5,  title: 'First Passport Stamp', requires: { accTier: 3 },
-    text: 'A border. A stamp. A tiny ink-shaped promise that the world is bigger than drizzle.' },
+    text: 'The border guard stamps your passport without looking up. You admire the ink for the whole train ride.' },
   { id: 6,  title: 'Wi-Fi & Ambition', requires: { comfort: 500 }, choice: true,
-    text: 'The lobby Wi-Fi is fast enough to become someone. Point the camera? Open the app? Book the world? Ask about the wine?',
+    text: 'The lobby Wi-Fi is suspiciously excellent, and you have plans. The question is which one.',
     choices: [
       { label: 'Point the camera (Vlogger)', set: 'vlogger' },
       { label: 'Open the trading app (Crypto)', set: 'crypto' },
@@ -31,13 +31,13 @@ export const STORY = [
   { id: 10, title: 'Poolside Persona', requires: { charisma: 5 },
     text: 'You have a poolside laugh now. It tests well.' },
   { id: 11, title: 'Fork in the Lobby', requires: { comfort: 2.2e5 },
-    text: 'The concierge slides four brochures across the marble. Lean into your path.' },
+    text: 'The concierge slides four brochures across the marble and waits. Apparently you look like someone with a direction now.' },
   { id: 12, title: 'The Body You Travel In', requires: { body: 8 },
     text: 'Tan, gym, spa. Strangers assume you were always like this.' },
   { id: 13, title: 'Five-Star Frame of Mind', requires: { accTier: 9 },
-    text: 'The concierge anticipates your needs. It is unsettling and wonderful.' },
+    text: 'Your towel arrives before you think to ask for it. You could get used to this, and that worries you for about a second.' },
   { id: 14, title: 'Going Viral', requires: { comfort: 1.3e6 },
-    text: 'A clip explodes. Somewhere, an algorithm decides you are worth money.',
+    text: 'One of your holiday clips takes off overnight. The internet has decided you are worth money. You do not argue.',
     // Branch-flavored variant (E13 "Money Works While You Tan" — Task D): the beat's
     // GATE/requires stay exactly as shipped (E12) so every branch — crypto included —
     // still fires beat 14 on the same Comfort threshold (E13-S7-T10: no build is ever
@@ -49,10 +49,10 @@ export const STORY = [
     // SAME beat 14 gate — a lighter, house-convention adaptation (see engine.js's
     // checkWhaleWatching for the points-gated one-time bonus that layers on top).
     variants: { crypto: { title: 'Whale Watching', text:
-      'Poolside, laptop humming, you watch one wallet move an amount with its own zip ' +
-      'code. The chart does something dramatic. You do not sell. You do not buy. You ' +
-      'just watch, tanning, mildly transfixed — wisdom or paralysis, hard to say. Either ' +
-      'way, the concierge has already booked the next flight. Someone should pack.' },
+      'From a lounger you watch one wallet move an amount with its own zip code. The ' +
+      'chart does something dramatic. You sip your drink and do nothing, which turns ' +
+      'out to be a strategy. By the time the chart calms down, the concierge has ' +
+      'already booked your next flight.' },
       // connoisseur variant (E14-S7-T3 "Provenance") — SAME beat-14 gate/requires as the
       // default (E14-S7-T10: no build is ever stranded; only the title/text swap when
       // story.branch==='connoisseur', mirroring the crypto variant just above). Also
@@ -60,11 +60,11 @@ export const STORY = [
       // destinations — Monaco, St. Barths, an unlisted address) so beat 25's own reveal
       // and E24's set-collection payoff both land with the seed already sown.
       connoisseur: { title: 'Provenance', text:
-        'An auction house calls, not the other way around — someone noticed the Bordeaux. ' +
-        'You decline, mostly to hear how they take it. A courier mentions, off-hand, an ' +
-        "address in Monaco with no listing, and a friend who \"summers unlisted\" near St. " +
-        'Barths — the kind of place that does not appear on maps, only on invitations. You ' +
-        'do not ask for the address. You suspect it will find you.' } } },
+        'An auction house calls about your Bordeaux, not the other way around. You ' +
+        'decline, mostly to hear how they take it. Before hanging up, the man mentions ' +
+        'an unlisted address in Monaco and a friend who summers near St. Barths, in the ' +
+        'sort of place you only find by being invited. You do not ask for the address. ' +
+        'You suspect it will find you.' } } },
   { id: 15, title: 'Keys to the Coupe', requires: { accTier: 10 },
     text: 'No more buses. Something low, fast, and entirely impractical is yours.',
     // traveler variant (E15-S7-T3 "Keys to the Coupe" — the World Traveler's own read
@@ -76,42 +76,41 @@ export const STORY = [
     // E16's boats/yachts.
     variants: { traveler: { title: 'Keys to the Coupe', text:
       'You hand over a fistful of guilders (converted, reluctantly) for a set of keys ' +
-      'that finally do not smell of a hostel locker. The bus timetable, memorized out of ' +
-      "necessity, becomes trivia. If you're also deep in StroopCoin, you financed the " +
-      'coupe with StroopCoin gains, obviously — the chart went up while you were parking ' +
-      'it badly outside a bakery. Somewhere south, a marina is already asking about your ' +
-      'draft.' } } },
+      'that finally do not smell of a hostel locker. The bus timetable you memorized ' +
+      "out of necessity becomes trivia. If you're also deep in StroopCoin, the chart " +
+      'paid for the coupe while you were parking it badly outside a bakery. There was ' +
+      'a marina brochure in the glovebox. It stays there. For now.' } } },
   { id: 16, title: 'Sea Legs', requires: { comfort: 5e6 },
-    text: 'A boat. With a smaller pool on it. Pools within pools. Fractal luxury.',
+    text: 'The boat has a small pool on the deck. You swim in the pool, on the sea. Nobody on board finds this as funny as you do.',
     // Branch-flavored variants (E16 "Sea Legs" — S1/S7-T8). The gate/requires stay comfort:5e6
     // for EVERY branch (incl. the harness — the 26-beat pin); this only swaps the shown text
     // for a traveler/connoisseur, mirroring beats 14/15. engine.checkFirstBoat layers the
     // one-time boat bonus on top, gated on actually owning a hull.
     variants: {
       traveler: { title: 'Sea Legs', text:
-        'You buy a boat. Then a bigger boat. The sea, it turns out, is just more places — a whole ' +
-        'blue continent of them, and now you can reach the coves the guidebooks left out. Somewhere ' +
-        'a superyacht is being built with your name misspelled on the order form. The sky is next.' },
+        'You buy a boat, then a bigger boat. The sea turns out to be a road with no lanes, and the ' +
+        'coves the guidebooks skip are suddenly reachable. The yard building your next hull has ' +
+        'misspelled your name on the order form. You let it stand. The sky is next.' },
       connoisseur: { title: 'Sea Legs', text:
-        'One does not own a yacht; one is, briefly, permitted to steward it. The teak is correct, the ' +
-        'wine cellar is climate-stable, the horizon is tastefully unbranded. A pool, on a boat, on the ' +
-        'sea — vulgar in theory, sublime in person. You already wonder how it looks from the air.' },
+        'One does not own a yacht. One is briefly permitted to steward it. The teak is correct, the ' +
+        'cellar holds its temperature, and there is a pool on the sea, which should be ridiculous ' +
+        'and somehow is not. You catch yourself wondering how it all looks from the air.' },
     } },
   { id: 17, title: 'Wheels Up', requires: { comfort: 2e7 },
     variants: {
       traveler: { title: 'Wheels Up', text:
-        'Car, boat — and now the sky. You buy a jet and the map simply collapses: every city is a ' +
-        'nap away, the coves and the capitals and the far side of the planet all one tap distant. ' +
-        'From a rainy bus stop to your own runway. The stroopwafel, improbably, made it too.' },
+        'Car, boat, and now the sky. You buy a jet and every city becomes a nap away. Ten years ' +
+        'of bus timetables end at your own runway. The stroopwafels fly with you now, in a tin, ' +
+        'up front where you can see them.' },
     },
     text: 'No terminals, no queues. The sky is a private hallway now.' },
   { id: 18, title: 'The Sail-Shaped Hotel', requires: { accTier: 12 },
     text: 'Six stars. It is shaped like a sail. Everything is gold. You feel fine about it.',
     variants: {
       connoisseur: { title: 'The Sail-Shaped Hotel', text:
-        'A hotel shaped like a sail, for a man who once arrived by poncho. The velvet rope parts ' +
-        'before you touch it — the doorman has read your taste like a wine list. Gold on the taps, ' +
-        'the sea below, the shed a rumour someone else remembers. You made it. Quietly, correctly, you made it.' },
+        'A hotel shaped like a sail, for someone who once arrived by poncho. The doorman reads ' +
+        'your taste like a wine list and unhooks the rope before you reach it. Gold on the taps, ' +
+        'sea under the glass, and the shed is a story you tell at dinner now. You made it.' },
     } },
   { id: 19, title: 'At Your Service', requires: { comfort: 4e7 },
     text: 'A butler. You ring a small bell and reality rearranges itself.' },
@@ -125,51 +124,53 @@ export const STORY = [
   // island explicitly enough to intrigue, vaguely enough to withhold.
   { id: 21, title: 'Seven Stars', requires: { accTier: 14 },
     text: 'A rating that officially does not exist. They invented it for you. Across the lobby, ' +
-      'a figure entirely at ease — the patron — mentions, to no one, "a place with no front desk at all."',
+      'a figure entirely at ease, the one the staff call the patron, mentions to nobody in ' +
+      'particular: "a place with no front desk at all."',
     variants: {
       connoisseur: { title: 'Seven Stars', text:
-        'Seven stars, for a rating that officially does not exist — they invented it, quietly, for ' +
-        'you. The patron finds you at the cellar door, names your wine before you pour it, and says ' +
-        'old money nods to older money. "There is a place," he adds, "with no front desk at all."' },
+        'Seven stars, a rating that officially does not exist. They invented it quietly, for you. ' +
+        'The patron finds you at the cellar door and names your wine before you pour it. Old ' +
+        'money nods to older money. "There is a place," he adds, "with no front desk at all."' },
       traveler: { title: 'Seven Stars', text:
-        'Seven stars — a rating no guidebook lists, because no guidebook has been. The patron, who ' +
-        'has been everywhere and mentions none of it, watches you count your passport stamps and ' +
-        'smiles: "There is one more place. It has no border, no terminal, no front desk at all."' },
+        'Seven stars. No guidebook lists the rating, because no guidebook has been here. The ' +
+        'patron, who has been everywhere and mentions none of it, watches you count your passport ' +
+        'stamps and smiles. "There is one more place. It has no border, no terminal, no front ' +
+        'desk at all."' },
       vlogger: { title: 'Seven Stars', text:
-        'Seven stars, and the clip of you arriving does numbers. The patron does not appear on ' +
-        'camera — asks you, just once and very gently, to put it down. "The next place," he says, ' +
-        '"has no front desk, and no signal. You will like it more than you expect."' },
+        'Seven stars, and the clip of you arriving does numbers. The patron stays off camera and ' +
+        'asks you, just once and very gently, to put it down. "The next place," he says, "has no ' +
+        'front desk, and no signal. You will like it more than you expect."' },
       crypto: { title: 'Seven Stars', text:
         'Seven stars, settled instantly, no questions about the wallet. The patron reads your net ' +
-        'worth like weather and is unimpressed and impressed at once. "Numbers get you the suite," ' +
-        'he says. "There is a place numbers cannot get you into. It has no front desk at all."' },
+        'worth like a weather report: mildly interesting, changes nothing. "Numbers get you the ' +
+        'suite," he says. "There is a place numbers cannot get you into. It has no front desk at all."' },
     } },
   { id: 22, title: 'The Invitation', requires: { comfort: 3e8 },
-    text: 'A card, no return address: "The island is ready when you are." The patron\'s hand. ' +
-      'Who ARE you now?',
+    text: 'A card with no return address: "The island is ready when you are." You recognise the ' +
+      'handwriting. You read it twice and pack nothing. Yet.',
     variants: {
       connoisseur: { title: 'The Invitation', text:
-        'No card, no address — the patron simply recognises your wine before you do, and leaves a ' +
+        'No card, no address. The patron simply recognises your wine before you do, and leaves a ' +
         'key that fits a door you have never seen. "The island is ready when you are." You are.' },
       traveler: { title: 'The Invitation', text:
         'The invitation arrives as a stamp in a passport you never handed over. No country claims ' +
         'the ink. "The island is ready when you are," the patron writes. It is the one place left.' },
       vlogger: { title: 'The Invitation', text:
         'The patron does not appear on camera. The invitation does: a single card, no return ' +
-        'address, "The island is ready when you are." You film it, then — for once — put the ' +
-        'camera down.' },
+        'address, "The island is ready when you are." You film it, then put the camera down. ' +
+        'For once.' },
       crypto: { title: 'The Invitation', text:
         'An unsolicited transfer lands, memo field just one word: "come." Attached, a deed with no ' +
         'coordinates. "The island is ready when you are," signs the patron. You already know it is.' },
     } },
   { id: 23, title: "A Bungalow of One's Own", requires: { accTier: 16 },
-    text: 'You stop renting rooms. You own walls. The walls are yours. Say it aloud.' },
+    text: 'You stop renting rooms. The walls are yours, and so is the hammock, and so is the little gate. You say it out loud to nobody: my gate.' },
   { id: 24, title: 'Villa Vita', requires: { accTier: 18 },
-    text: 'Grounds. Gardens. A pool complex. You get lost on the way to your own kitchen.' },
+    text: 'The villa has grounds and the grounds have staff. On day three you get lost on the way to your own kitchen, and decide this is wonderful.' },
   { id: 25, title: 'Where the Rich Hide', requires: { taste: 25 },
     text: 'Monaco. Dubai. The Maldives. Aspen. St. Barths. You collect them like stamps.' },
   { id: 26, title: 'Letting Go', requires: { comfort: 1e9 },
-    text: 'To go further, you start over — wiser, more transformed. You can ASCEND now.' },
+    text: 'The only way to go further is to go home and start again, keeping what the trip made of you. You can ASCEND now.' },
   { id: 27, title: 'Who You Become', requires: { ascensions: 1 },
     text: 'Some changes stick: the tan, the poise, the taste. Spend Legacy on who you are.' },
   { id: 28, title: 'The Island Listing', requires: { legacy: 20 },
@@ -177,8 +178,20 @@ export const STORY = [
   { id: 29, title: 'Building Paradise', requires: { accTier: 20 },
     text: 'You stop buying luxury. You start making it. Guests arrive. You host now.' },
   { id: 30, title: 'Empire of Leisure', requires: { comfort: 3e9 },
-    text: 'An empire of loungers, all yours. New horizons shimmer. New Game+ awaits.' },
+    text: 'An empire of loungers, all yours, and still the sea keeps going. You could do the whole trip again, bigger. New Game+ awaits.' },
 ];
+
+// The origin story (diary page zero): who this tourist was before Entry 1. Display-only —
+// the diary modal shows it as the opening page, before the first dated entry. Never a gate.
+export const ORIGIN = {
+  title: 'Before Page One',
+  text: 'Four years at VanderVeen Logistics, third desk from the window, filing invoices for ' +
+    'crates that got to travel more than you did. Every spring you said next year. Every ' +
+    'autumn the rain came back like it had a season ticket. This year you handed in a ' +
+    'sabbatical request instead of a holiday form, emptied a savings account that held €15 ' +
+    'and change after the ferry ticket, and left a note taped to your monitor: gone to see ' +
+    'the world. Back when it stops raining.',
+};
 
 // data/story.js — NPC vignette seeds (E02-S7): pure flavor toasts, never a progression
 // gate. Each fires once at `minComfort`, between beats 2 (Comfort 20) and 3 (accTier 1),

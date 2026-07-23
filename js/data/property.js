@@ -29,7 +29,7 @@ export const PROPERTIES = [
       { id: 'bung_plunge',      name: 'Plunge Pool',          parent: 'bung_deck',   costBase: B * 1.8, costGrowth: C.PROPERTY.growth, comfort: 4.2e7, tag: 'property', flavor: 'Small, cold, entirely yours. You get in twice a year and love it each time.' },
       { id: 'bung_glassfloor',  name: 'Glass Floor Section',  parent: 'bung_deck',   costBase: B * 2.6, costGrowth: C.PROPERTY.growth, comfort: 5.5e7, tag: 'property', flavor: 'You watch fish through the floor. The fish, unbothered, watch you back.' },
       { id: 'bung_sunshade',    name: 'Motorised Sun-Shade',  parent: 'bung_plunge', costBase: B * 3.6, costGrowth: C.PROPERTY.growth, comfort: 7.0e7, xMult: 0.03, tag: 'property', flavor: 'Shade at the press of a button, against a sun you crossed a continent to find.' },
-      { id: 'bung_kitchen',     name: 'Outdoor Kitchen',      parent: 'bung_glassfloor', costBase: B * 4.8, costGrowth: C.PROPERTY.growth, comfort: 8.8e7, tag: 'property', flavor: 'You grill outdoors now, in weather that permits it, which — miraculously — it does.' },
+      { id: 'bung_kitchen',     name: 'Outdoor Kitchen',      parent: 'bung_glassfloor', costBase: B * 4.8, costGrowth: C.PROPERTY.growth, comfort: 8.8e7, tag: 'property', flavor: 'You grill outdoors now, in weather that permits it, which, miraculously, it does.' },
       { id: 'bung_firepit',     name: 'Sunken Fire Pit',      parent: 'bung_kitchen', costBase: B * 6.4, costGrowth: C.PROPERTY.growth, comfort: 1.1e8, tag: 'property', flavor: 'A fire, sunk into your own ground. Thirty years of bus stops, and now this.' },
       { id: 'bung_hottub',      name: 'Cedar Hot Tub',        parent: 'bung_sunshade', costBase: B * 8.5, costGrowth: C.PROPERTY.growth, comfort: 1.4e8, xMult: 0.035, tag: 'property', flavor: 'Cedar, steam, stars. You bought a hole full of hot water and it was the right call.' },
       { id: 'bung_wing',        name: 'Guest Wing',           parent: 'bung_firepit', costBase: B * 11.0, costGrowth: C.PROPERTY.growth, comfort: 1.8e8, xMult: 0.04, tag: 'property', flavor: 'A whole wing for guests who visit once. It waits, immaculate, for almost no one.' },
@@ -47,7 +47,7 @@ export const PROPERTIES = [
       { id: 'ow_starlights',    name: 'Sea-Star Deck Lights',  parent: 'ow_glasslounge', costBase: B * 35.0, costGrowth: C.PROPERTY.growth, comfort: 4.6e8, tag: 'property', flavor: 'Lights in the deck like stars fallen the short way. You did not need them. You have them.' },
       { id: 'ow_infinitypool',  name: 'Infinity Edge Pool',   parent: 'ow_jetty',    costBase: B * 45.0, costGrowth: C.PROPERTY.growth, comfort: 5.6e8, xMult: 0.045, tag: 'property', flavor: 'A pool that appears to spill into the sea. It does not. The illusion cost extra. Worth it.' },
       { id: 'ow_underwater',    name: 'Underwater Bedroom',   parent: 'ow_starlights', costBase: B * 58.0, costGrowth: C.PROPERTY.growth, comfort: 7.0e8, xMult: 0.05, tag: 'property', flavor: 'You sleep below the waterline, watching rays glide past. You tell no one back home. They would not believe it.' },
-      { id: 'ow_reefdeck',      name: 'Private Reef Deck',    parent: 'ow_infinitypool', costBase: B * 74.0, costGrowth: C.PROPERTY.growth, comfort: 8.8e8, xMult: 0.055, tag: 'property', flavor: 'A stretch of reef, roped and lit, effectively yours. A marine biologist weeps somewhere.' },
+      { id: 'ow_reefdeck',      name: 'Private Reef Deck',    parent: 'ow_infinitypool', costBase: B * 74.0, costGrowth: C.PROPERTY.growth, comfort: 8.8e8, xMult: 0.055, tag: 'property', flavor: 'A stretch of reef, roped and lit, effectively yours. No marine biologist will ever get a permit here.' },
       { id: 'ow_skybridge',     name: 'Villa Sky-Bridge',     parent: 'ow_underwater', costBase: B * 95.0, costGrowth: C.PROPERTY.growth, comfort: 1.1e9, xMult: 0.06, tag: 'property', flavor: 'A bridge between wings, over open water. You cross it for no reason, often, just because you can.' },
     ],
   },
@@ -92,7 +92,7 @@ export const PROPERTIES = [
 export const GROUNDS = [
   { id: 'garden', name: 'The Gardens',       kind: 'garden', unlockProperty: 'villa',  flavor: 'Topiary, roses, a koi pond that judges you.' },
   { id: 'pool',   name: 'The Pool Complex',  kind: 'pool',   unlockProperty: 'villa',  flavor: 'Not a pool. A complex. There is a difference and it is roughly a decade of your old salary.' },
-  { id: 'court',  name: 'The Sport Courts',  kind: 'court',  unlockProperty: 'estate', flavor: 'Tennis, padel, and — for the soul — a boules pit.' },
+  { id: 'court',  name: 'The Sport Courts',  kind: 'court',  unlockProperty: 'estate', flavor: 'Tennis, padel, and, for the soul, a boules pit.' },
 ];
 
 // Flatten every upgrade with its property id, for generic engine/UI iteration.
