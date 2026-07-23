@@ -256,7 +256,10 @@ dt = elapsed / OFFLINE_STEPS
 for i in 1..OFFLINE_STEPS: engine.tick(dt)     // identical math online==offline
 ```
 Coarse-stepping keeps the polynomial coupling (higher tiers filling lower) accurate to a
-few % — acceptable and always in the player's favor if we round steps generously.
+few % — acceptable. Measured direction: forward-Euler at coarse macro-steps *under*-produces
+the generator chain by ~3% over a 12h absence (coarse/fine ≈ 0.971) — the error runs *against*
+the player, not in their favor as this note originally claimed. Bounded and small; the wallet
+cap (not integration accuracy) is what actually bounds offline magnitude.
 A closed-form fast-path exists for the common "no purchases while away" case:
 integrate the tier polynomial (§1.1) directly. Show a summary modal:
 `+cash, +clout, +XP, "you leveled up X"`.

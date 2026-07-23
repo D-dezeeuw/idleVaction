@@ -70,9 +70,22 @@ export function makeRetiree(state) {
 }
 
 export function legacyPreview(state) {
-  const investorMult = Math.pow(1.15, state.ascension.tree.legacy_investor || 0);
+  // Investor pays only at the rank HELD SINCE RUN START (snapshotted at every run boundary) —
+  // respec-in right before ascending credits nothing, so the free-respec "investor dance"
+  // (respec in → ascend ×3.06 → respec out) is structurally dead. min() also drops the bonus
+  // if the rank was respecced away mid-run: you earn it by holding it, not by visiting it.
+  const held = state.ascension.tree.legacy_investor || 0;
+  const atStart = state.ascension.investorAtRunStart ?? held;
+  const investorMult = Math.pow(1.15, Math.min(held, atStart));
   return Math.floor(M.legacyGain(state) * investorMult);
 }
+
+// MILESTONE_STEP is a live config knob derived from the tree (Faster Metabolism). Every state
+// swap (boot, ascend, legend, NG+, respec, node buy, import, hard reset) MUST re-derive it via
+// this one function — scattered `C.MILESTONE_STEP = …` writes are what left it stale after
+// import/reset. One derivation, one writer.
+export function milestoneStepFor(state) { return 10 - (state.ascension?.tree?.faster_metab || 0); }
+export function syncMilestoneStep(state) { C.MILESTONE_STEP = milestoneStepFor(state); }
 
 // HARD reset: the ONLY things that cross an ascension are the abilities bought with
 // ascension points — state.ascension (the tree + count + banked-Legacy accounting) and
@@ -126,7 +139,9 @@ export function ascend(state, heir) {
   // 'island' home base survive ascension (the run's accommodation.tier still resets to the shed).
   // So the L_island relocation reward persists across runs; the harness never owns it (0 legacy).
   if (state.island && state.island.owned) {
-    fresh.island = { owned: true, purchasedAt: state.island.purchasedAt, relocated: state.island.relocated };
+    // buildings ride on the fresh slice like legendReset/startNgPlus — dropping the key here
+    // left every post-ascension island owner with a crashing Build panel until reload.
+    fresh.island = { owned: true, purchasedAt: state.island.purchasedAt, relocated: state.island.relocated, buildings: fresh.island.buildings };
     fresh.accommodation.homeBase = 'island';
   }
 
@@ -137,10 +152,10 @@ export function ascend(state, heir) {
     fresh.accommodation.owned = Array.from({ length: fresh.accommodation.tier + 1 }, (_, i) => i);
   }
 
-  // milestone step from Faster Metabolism (mutates the live config knob)
-  C.MILESTONE_STEP = 10 - (state.ascension.tree.faster_metab || 0);
-
   Object.assign(state, fresh);
+  syncMilestoneStep(state);
+  // new run boundary: snapshot the investor rank the heir STARTS with (see legacyPreview).
+  state.ascension.investorAtRunStart = state.ascension.tree.legacy_investor || 0;
   state._notifications = [{ type: 'ascend', text: `✨ Ascended! +${gained} Legacy (total ${state.resources.legacy}).` }];
   return true;
 }
@@ -174,7 +189,7 @@ export function buyNode(state, id) {
   state.ascension.legacySpent += cost;
   state.ascension.tree[id] = treeRank(state, id) + 1;
   // some nodes take effect immediately this run
-  if (id === 'faster_metab') C.MILESTONE_STEP = 10 - state.ascension.tree.faster_metab;
+  if (id === 'faster_metab') syncMilestoneStep(state);
   return true;
 }
 
@@ -187,7 +202,7 @@ export function respec(state) {
   state.resources.legacy += refund;
   state.ascension.legacySpent = 0;
   state.ascension.tree = {};
-  C.MILESTONE_STEP = 10;
+  syncMilestoneStep(state);
   return true;
 }
 
@@ -225,8 +240,8 @@ export function legendReset(state) {
     fresh.island = { owned: true, purchasedAt: state.island.purchasedAt, relocated: state.island.relocated, buildings: fresh.island.buildings };
     fresh.accommodation.homeBase = 'island';
   }
-  C.MILESTONE_STEP = 10;   // Legacy tree wiped ⇒ Faster Metabolism gone
   Object.assign(state, fresh);
+  syncMilestoneStep(state);   // Legacy tree wiped ⇒ Faster Metabolism gone
   state._notifications = [{ type: 'ascend', text: `👑 You are a LEGEND. +${gained} Legend points — Legacy and the tree begin again, stronger.` }];
   return true;
 }
@@ -279,6 +294,9 @@ export function startNgPlus(state) {
     fresh.accommodation.homeBase = 'island';
   }
   Object.assign(state, fresh);
+  syncMilestoneStep(state);
+  // NG+ keeps the tree, but it IS a run boundary — re-snapshot the investor rank.
+  state.ascension.investorAtRunStart = state.ascension.tree.legacy_investor || 0;
   state._notifications = [{ type: 'ascend', text: `🔄 New Game+${state.ngPlus}. The world is harder, the rewards richer. Again — but more.` }];
   return true;
 }

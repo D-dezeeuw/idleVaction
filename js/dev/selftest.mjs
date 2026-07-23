@@ -4686,5 +4686,71 @@ console.log('\n[107] demo runner prestige layer: Legacy/Legend spending, ascensi
   ok(idle.events.some(e => e.type === 'stall') && idle.final.t < 2 * 3600, 'the stall event is logged and the run aborts early');
 }
 
+console.log('\n[108] P0 correctness fixes: ascend-island keep-list, bulk-sell parity, investor snapshot, milestone sync, untrusted-save hardening');
+{
+  // ---- ascend with an owned island must carry a usable buildings slice (the [102]/[103] seam:
+  // the old keep-list dropped `buildings`, so the first post-ascension Build click threw).
+  const s = ST.newGame();
+  s.island.owned = true; s.island.purchasedAt = 1000;
+  s.stats.runSec = 200; s.stats.lifetimeCashThisTree = 1e12;
+  ok(P.canAscend(s), 'fixture: island owner is ascendable');
+  ok(P.ascend(s), 'fixture: ascend succeeds');
+  ok(s.island.owned && !!s.island.buildings && !!s.island.buildings.guest_villa, 'post-ascension island keeps a seeded buildings slice');
+  s.resources.cash = 1e14; s.bank.tier = C.BANK.tiers - 1;
+  ok(E.buyBuilding(s, 'guest_villa') === true && s.island.buildings.guest_villa.count === 1, 'buyBuilding works immediately after ascension (no reload needed)');
+  P.syncMilestoneStep(ST.newGame());   // restore the knob for later sections
+
+  // ---- bulk-sell parity: selling N coins at once must pay exactly what N sequential sells pay
+  // (the old flat lowest-rung pricing paid ~57% at qty 10).
+  const mkSeller = () => { const t = ST.newGame(); t.bank.tier = C.BANK.tiers - 1;
+    t.crypto.holdings[DATA.crypto.coins[0].id] = 10; return t; };
+  const bulk = mkSeller(), seq = mkSeller();
+  const coinId = DATA.crypto.coins[0].id;
+  E.sellCoin(bulk, coinId, 10);
+  for (let i = 0; i < 10; i++) E.sellCoin(seq, coinId, 1);
+  ok(Math.abs(bulk.resources.cash - seq.resources.cash) < 1e-6 * seq.resources.cash,
+    `bulk sell pays the geometric sum (bulk ${fmt(bulk.resources.cash)} vs sequential ${fmt(seq.resources.cash)})`);
+
+  // ---- the investor dance is dead: buying legacy_investor MID-RUN changes nothing this run…
+  const dance = ST.newGame();
+  dance.stats.runSec = 200; dance.stats.lifetimeCashThisTree = 4e12;
+  const before = P.legacyPreview(dance);
+  dance.resources.legacy = 50;
+  ok(P.buyNode(dance, 'legacy_investor'), 'fixture: investor node bought mid-run');
+  ok(P.legacyPreview(dance) === before, `mid-run investor rank pays nothing this run (preview stays ${before})`);
+  // …and the rank held at the NEXT run's start is what pays from then on.
+  ok(P.ascend(dance), 'fixture: dance state ascends');
+  ok(dance.ascension.investorAtRunStart === 1, 'run boundary snapshots the investor rank for the next run');
+  P.syncMilestoneStep(ST.newGame());
+
+  // ---- milestone knob: one derivation, synced at every state swap (import/hard-reset were stale)
+  const mb = ST.newGame(); mb.ascension.tree.faster_metab = 3;
+  P.syncMilestoneStep(mb);
+  ok(C.MILESTONE_STEP === 7, 'syncMilestoneStep derives the knob from the tree (10-3=7)');
+  P.syncMilestoneStep(ST.newGame());
+  ok(C.MILESTONE_STEP === 10, 'syncMilestoneStep restores 10 for a fresh state (import/hard-reset path)');
+
+  // ---- untrusted-save hardening: type coercion, magnitude clamp, markup strip, enum pinning
+  const evil = { version: 1,
+    resources: { cash: '1e20', comfort: NaN, legacy: 1e305 },
+    story: { beat: 1, seen: [1], seenAt: {}, branch: '<img onerror=alert(1)>', flags: {} },
+    lineage: { name: '<b>Hack</b>', pronoun: 'they', generation: 1, album: [] },
+    staff: { [DATA.staff[0].id]: { assignedTo: '"><script>alert(1)</script>' } },
+    market: { phase: 'to-the-moon' } };
+  const m = ST.migrate(evil);
+  ok(typeof m.resources.cash === 'number' && m.resources.cash === 1e20, 'string-typed cash is coerced to a finite number');
+  ok(m.resources.comfort === 0, 'NaN numbers fall back to the fresh default');
+  ok(m.resources.legacy === 0, 'magnitudes ≥1e300 are rejected (no Infinity propagation)');
+  ok(m.story.branch === 'neutral', 'unknown branch is pinned to the vocabulary');
+  ok(m.market.phase === 'calm', 'unknown market phase is pinned to the vocabulary');
+  ok(!m.lineage.name.includes('<') && !JSON.stringify(m.staff).includes('<'),
+    'markup is stripped from every string in an imported save (no innerHTML vector)');
+  ok(m.ascension.investorAtRunStart === 0, 'pre-snapshot saves get a grandfathered investor snapshot');
+  const grand = { version: 1, ascension: { count: 2, legacyBanked: 0, legacySpent: 0, tree: { legacy_investor: 2 } } };
+  ok(ST.migrate(grand).ascension.investorAtRunStart === 2, 'a held investor rank is grandfathered, not zeroed');
+  const legitMax = ST.migrate({ version: 1, ui: { bulkMode: 'max' } });
+  ok(legitMax.ui.bulkMode === 'max', "the union-typed bulkMode 'max' survives type coercion");
+}
+
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);
 process.exit(fails === 0 ? 0 : 1);

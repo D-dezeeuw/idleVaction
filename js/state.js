@@ -176,7 +176,9 @@ export function newGame() {
     // owned property (E22): the rent→own flip. Run-scoped like staff — rebuilt by newGame(), NOT in
     // the ascension keep-list, so each life re-buys deeds (a hard reset zeroes ownership, S4-T7).
     property: newPropertySlice(),
-    ascension: { count: 0, legacyBanked: 0, legacySpent: 0, tree: {} },
+    // investorAtRunStart: legacy_investor rank held when this run began — legacyPreview pays
+    // min(current, atStart), closing the free-respec "investor dance" (prestige.legacyPreview).
+    ascension: { count: 0, legacyBanked: 0, legacySpent: 0, tree: {}, investorAtRunStart: 0 },
     // legend (E29): the SECOND prestige layer. points spent in the meta-meta shop (perks map);
     // count/banked mirror ascension's accounting. Survives the Legend reset itself (only Legacy +
     // the tree + ascension.count wipe). 0/{} ⇒ L_legend 1, so the harness (never Legends) is unmoved.
@@ -228,12 +230,28 @@ export function migrate(s) {
   // a save that predates the crypto market entirely (no `market` key at all) — captured
   // BEFORE backfill() below fills it in with the shared default seed (E13-S9-T2).
   const hadMarket = s.market !== undefined;
+  // captured BEFORE backfill: a pre-snapshot save's investor rank was legitimately held, so
+  // grandfather it as the run-start rank rather than zeroing an honest player's bonus.
+  const hadInvestorSnap = s.ascension && s.ascension.investorAtRunStart !== undefined;
   // fill any missing keys from a fresh game (forward-compat safety net) — this alone
   // already backfills pre-E12 saves' missing `content`/`sponsors` sections wholesale
   // (E12-S9-T5), the same generic mechanism every prior epic's new fields relied on —
   // and now backfills `crypto`/`market` (E13-S9-T1/T10) the same way, at level
   // 0/unbought/calm, no NaN possible.
   s = backfill(s, newGame());
+  // ---- untrusted-save hardening (imports are attacker-controlled JSON) ----
+  // 1) coerce every field to the TYPE the fresh-game shape declares (a string "1e50" cash or a
+  //    NaN silently poisons the economy / crashes render otherwise); 2) strip markup from every
+  //    string anywhere in the save (several are interpolated into innerHTML — "try my save"
+  //    strings must never be a scripting vector); 3) pin enum-like fields to known vocabularies.
+  const bulkWasMax = s.ui && s.ui.bulkMode === 'max';   // the one union-typed field (1|10|'max')
+  coerceTypes(s, newGame());
+  stripStrings(s);
+  if (bulkWasMax) s.ui.bulkMode = 'max';
+  const BRANCHES = ['neutral', 'traveler', 'vlogger', 'crypto', 'connoisseur'];
+  if (!BRANCHES.includes(s.story.branch)) s.story.branch = 'neutral';
+  if (s.market.phase !== 'calm' && s.market.phase !== 'event') s.market.phase = 'calm';
+  if (!hadInvestorSnap) s.ascension.investorAtRunStart = s.ascension.tree.legacy_investor || 0;
   // combo floors to the idle baseline on every load (E12-S9-T2/T6): there are no
   // active taps while away, so a mid-combo snapshot from the moment of the last save
   // would otherwise hand back an unearned temporary boost.
@@ -303,6 +321,44 @@ function backfill(save, fresh) {
     }
   }
   return save;
+}
+
+// Schema-by-example type coercion: walk the fresh-game shape and force every save field to the
+// type the shape declares. Numbers must be finite (strings like "1e50" are coerced, garbage falls
+// back to the fresh default; magnitudes ≥1e300 are rejected so a hand-edited save can't propagate
+// Infinity through the multiplier stack). null in the fresh shape (island.purchasedAt,
+// market.eventId, staff.assignedTo…) means "any scalar allowed" — skipped. Arrays keep only their
+// array-ness here (element-level checks stay with their owners, e.g. clampEquippedVehicles).
+function coerceTypes(save, fresh) {
+  for (const k of Object.keys(fresh)) {
+    const f = fresh[k], v = save[k];
+    if (f === null) continue;
+    const ft = typeof f;
+    if (ft === 'number') {
+      if (typeof v !== 'number') { const n = Number(v); save[k] = Number.isFinite(n) && Math.abs(n) < 1e300 ? n : f; }
+      else if (!Number.isFinite(v) || Math.abs(v) >= 1e300) save[k] = f;
+    } else if (ft === 'boolean') { if (typeof v !== 'boolean') save[k] = !!v; }
+    else if (ft === 'string') { if (typeof v !== 'string') save[k] = f; }
+    else if (Array.isArray(f)) { if (!Array.isArray(v)) save[k] = f.slice(); }
+    else if (ft === 'object') {
+      if (!v || typeof v !== 'object' || Array.isArray(v)) save[k] = f;
+      else coerceTypes(v, f);
+    }
+  }
+  return save;
+}
+
+// Strip markup from EVERY string value anywhere in the save (imports are untrusted): '<' '>' '"'
+// and control chars can never reach an innerHTML sink or break out of a quoted attribute. Legit
+// save strings are ids, sanitized names, and data-copied labels — none need those characters.
+function stripStrings(obj, depth = 0) {
+  if (depth > 12 || !obj || typeof obj !== 'object') return obj;
+  for (const k of Object.keys(obj)) {
+    const v = obj[k];
+    if (typeof v === 'string') obj[k] = v.replace(/[<>"]/g, '').replace(/[\x00-\x1f]/g, '').slice(0, 500);
+    else if (v && typeof v === 'object') stripStrings(v, depth + 1);
+  }
+  return obj;
 }
 
 export function save(state) {
