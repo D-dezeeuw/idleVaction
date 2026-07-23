@@ -316,6 +316,23 @@ h1, h2, h3, .iv-beattitle { font-family: 'Fredoka', 'Nunito', system-ui, sans-se
 .iv-era-actions { margin-top: 10px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
 .iv-era-epitaph { font-style: italic; margin: 6px 0; }
 
+/* The Crossroads (beat 6, T1): four polaroid branch choices, 2×2 on desktop, stacked narrow. */
+.iv-crossroads-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 10px; }
+@media (max-width: 480px) { .iv-crossroads-grid { grid-template-columns: 1fr; } }
+.iv-polaroid-choice { background: var(--iv-card); border: 1px solid var(--iv-line); border-radius: 4px 4px 12px 12px;
+  padding: 10px 6px 12px; cursor: pointer; text-align: center; box-shadow: var(--iv-shadow);
+  font-family: 'Nunito', sans-serif; transform: rotate(-2deg); transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
+.iv-polaroid-choice:nth-child(2n) { transform: rotate(1.5deg); }
+.iv-polaroid-choice:hover, .iv-polaroid-choice:focus-visible { transform: rotate(0deg) scale(1.03);
+  box-shadow: 0 8px 20px rgba(43, 30, 22, .18); border-color: var(--iv-pink); }
+.iv-polaroid-scene { font-size: 1.7rem; margin-bottom: 4px; }
+.iv-polaroid-name { font-family: 'Fredoka', sans-serif; font-weight: 600; font-size: .82rem; color: var(--iv-pink-text); }
+.iv-polaroid-flavor { font-size: .72rem; color: var(--iv-sub); margin-top: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .iv-polaroid-choice, .iv-polaroid-choice:nth-child(2n) { transform: none; }
+  .iv-polaroid-choice:hover, .iv-polaroid-choice:focus-visible { transform: none; }
+}
+
 /* ---- U4: era skies — the light warms as the trip climbs (body[data-era] set in ui.render) ---- */
 body[data-era="drizzle"] #topbar { background: linear-gradient(180deg, #E8EEF2, var(--iv-bg)); }
 body[data-era="bright"] #topbar { background: linear-gradient(180deg, var(--iv-sky-tint), var(--iv-bg)); }

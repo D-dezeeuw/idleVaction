@@ -12,11 +12,11 @@
 | Pre-plan: tabs + progressive disclosure | ✅ done |
 | UX-plan.md (design bible) | ✅ done |
 | U1 — holiday theme + Travel Diary | ✅ done |
-| U2 — component kit | ✅ ~90% (icon sprite deferred) |
-| U3 — reveal choreography | ✅ ~80% (engine-fired arrival modals remain) |
+| U2 — component kit | ✅ done (staff/butler sliders landed 2026-07-23; icon sprite = hand-author-only, optional) |
+| U3 — reveal choreography | ✅ done (engine-fired arrival modals + Crossroads polaroid modal landed 2026-07-23; only the optional one-goal shelves rule remains) |
 | U4 — journey polish | 🟡 started (era skies only) |
 | U5 — QA sweep | 🟡 script exists in scratchpad, not committed |
-| Art pipeline (generated images) | 🟢 **Wave-1 postcards ALL 22 generated & committed** (839 KB WebP); favicon done & wired; `POSTCARD_ART` wiring for tiers 1–21 pending the U3 integration commit (ui.js in flight) |
+| Art pipeline (generated images) | 🟢 **Wave-1 postcards ALL 22 generated, committed & WIRED in-game**; favicon done & wired; passport set (cover/inside/19 stamps) generated & committed, spread-view UI still open |
 
 ## Done (with merge commits)
 
@@ -56,20 +56,23 @@
 ## Remaining
 
 ### U2 leftovers
-- [ ] Icon sprite: hand-authored original SVG sprite for chrome (gear/lock/close/diary) — was
-  deferred (network blocked fetching Phosphor); emoji currently serve. Optional. The 2026-07-23
-  icon size-check CONFIRMS generated art can't serve these 16–24px glyphs (mush) — if ever
-  done, it's hand-authored SVG. The favicon/app icon, however, is now generated & shipped
-  (see images section).
-- [ ] Staff/butler budget dials → sliders (concierge pattern exists to copy).
+- [ ] Icon sprite: hand-authored original SVG sprite for chrome (gear/lock/close/diary) —
+  emoji currently serve. Optional. The 2026-07-23 icon size-check CONFIRMS generated art
+  can't serve these 16–24px glyphs (mush) — if ever done, it's hand-authored SVG.
+- [x] ~~Staff/butler budget dials → sliders~~ DONE 2026-07-23: `staffTileHtml` renders an
+  `.iv-slider` per hired auto-buy role (surfaces the previously UI-less `policy.budgetFrac`),
+  concierge freeze-guard copied into `renderStaff`, `staff-budget:<id>` input branch in
+  `wireEvents`.
 
 ### U3 leftovers — engine-FIRED arrival modals (T1 inventory, UX-plan §4)
-The era-modal system exists but only wraps player-initiated actions. Still toasts today:
-- [ ] The Crossroads (beat 6) — 4-polaroid branch-choice modal (currently inline card).
-- [ ] First pool (tier 6), Sail-Shaped Hotel (tier 12), Seven Stars + patron (beat 21),
-  The Invitation (beat 22), first resort building (beat 29).
-  Mechanism suggestion: a UI-side watcher diffing one-shot story flags per render, firing
-  `showEra` once per flag (never engine changes).
+- [x] ~~Arrival modals~~ DONE 2026-07-23: `checkArrivalModals` watcher in ui.js (called from
+  `render`) — baseline-at-load (first render marks already-true conditions as fired; only
+  live transitions celebrate), queue drains one modal per close via `modalIsOpen()` gate
+  (era/diary/offline). Covers: Crossroads (beat 6) as a 4-polaroid branch-choice modal
+  (`.iv-crossroads-grid`, same `E.applyStoryChoice` path, inline card kept as fallback,
+  dismissable, never re-pops), first pool (tier 6) + Sail-Shaped (tier 12) using
+  `postcardSceneHtml` (postcard art + emoji fallback), Seven Stars (21), The Invitation (22,
+  mystery scene per §5 stage 7), first resort building (29). Zero engine changes.
 - [ ] One-goal rule for the remaining shelves (pool/beach/wellness groups; destinations "one
   next stamp" if desired — currently all unlocked show).
 

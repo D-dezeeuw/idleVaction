@@ -42,6 +42,7 @@ export function render(state) {
   renderOnboarding(state);
   renderNotifications(state);
   renderStory(state);
+  checkArrivalModals(state);
   renderAccommodation(state);
   renderBank(state);
   renderDestinations(state);
@@ -270,6 +271,100 @@ function showEra(html) {
   if (m) m.hidden = false;
 }
 function closeEra() { const m = el('eraModal'); if (m) m.hidden = true; }
+
+// ---------- engine-fired arrival modals (UX-plan §4, T1 inventory) ----------
+// Every era modal above is hung off a button click. These six moments arrive on their OWN —
+// a story beat lands, or an accommodation tier is reached — mid-tick, with no click to hang a
+// showEra() call off. So this is a pure UI-side WATCHER: diff a small set of one-shot
+// conditions every render, queue a modal the instant one flips true, and drain the queue one
+// at a time so a burst of unlocks (e.g. a fast-forwarded catch-up) can never clobber itself.
+// The engine is never touched — every condition here only READS state that already exists.
+const CROSSROADS_BRANCHES = [
+  { set: 'vlogger', emoji: '📸' }, { set: 'crypto', emoji: '📈' },
+  { set: 'traveler', emoji: '🗺️' }, { set: 'connoisseur', emoji: '🍸' },
+];
+// The Crossroads (beat 6, UX-plan §4 item 1): the four polaroid choices. Clicking one runs the
+// SAME E.applyStoryChoice the inline fallback card (renderStory) uses — see the
+// 'crossroads-choose' handler below — this modal is just a prettier door to it.
+function crossroadsModalHtml(beat) {
+  const cards = CROSSROADS_BRANCHES.map(b => {
+    const path = DATA.paths.find(p => p.id === b.set);
+    const choice = beat.choices.find(c => c.set === b.set);
+    const action = choice.label.replace(/\s*\(.*\)$/, '');   // "Point the camera (Vlogger)" → "Point the camera"
+    return `<button class="iv-polaroid-choice" data-action="crossroads-choose" data-arg="${beat.id}|${b.set}">
+      <div class="iv-polaroid-scene" aria-hidden="true">${b.emoji}</div>
+      <div class="iv-polaroid-name">${path.name}</div>
+      <div class="iv-polaroid-flavor">${action}</div>
+    </button>`;
+  }).join('');
+  return `
+    <div class="iv-postcard-scene" aria-hidden="true">🧭📶🌅</div>
+    <h3>${beat.title}</h3>
+    <div class="iv-beattext">${beat.text}</div>
+    <div class="iv-crossroads-grid">${cards}</div>
+    <div class="iv-era-actions">${btn('era-close', '', 'Not yet — let me think')}</div>`;
+}
+// The shared shell the five tier/beat arrivals below use — same anatomy as every other era
+// modal (scene, Fredoka headline, one paragraph, one CTA that just closes the takeover).
+function arrivalModalHtml(scene, title, text, cta) {
+  return `
+    ${scene}
+    <h3>${title}</h3>
+    <div class="iv-beattext">${text}</div>
+    <div class="iv-era-actions">${btn('era-close', '', cta, true, 'btn-primary')}</div>`;
+}
+function emojiScene(e) { return `<div class="iv-postcard-scene" aria-hidden="true">${e}</div>`; }
+
+// key: fires once ever (per session); test: reads state only; build: returns the modal's
+// inner HTML. TIER arrivals (6/12) use the SAME postcard art + emoji-fallback ui.js already
+// uses for the ladder (postcardSceneHtml) — progressive enhancement, never a broken modal.
+const ARRIVAL_MODALS = [
+  { key: 'crossroads', test: s => s.story.seen.includes(6),
+    build: () => crossroadsModalHtml(DATA.story.find(b => b.id === 6)) },
+  { key: 'firstPool', test: s => s.accommodation.tier >= 6,
+    build: () => arrivalModalHtml(postcardSceneHtml(6), 'There is a POOL. 🏊',
+      'You have arrived. Floaties are already being inflated, somewhere. The soggy Netherlands feels very far away.',
+      'Cannonball in 🏊') },
+  { key: 'sailShaped', test: s => s.accommodation.tier >= 12,
+    build: () => arrivalModalHtml(postcardSceneHtml(12), 'The Sail-Shaped Hotel ⛵',
+      'Six stars. Gold on the taps. The velvet rope parts before you even reach for it.',
+      'Step past the rope') },
+  { key: 'sevenStars', test: s => s.story.seen.includes(21),
+    build: s => { const c = E.beatCopy(s, DATA.story.find(b => b.id === 21));
+      return arrivalModalHtml(emojiScene('⭐⭐⭐⭐⭐⭐⭐'), c.title, c.text, 'Nod back, coolly'); } },
+  { key: 'invitation', test: s => s.story.seen.includes(22),
+    build: s => { const c = E.beatCopy(s, DATA.story.find(b => b.id === 22));
+      // scene stays a MYSTERY silhouette (❓🏝️), never the listing itself (UX-plan §5 stage 7).
+      return arrivalModalHtml(emojiScene('✉️❓🏝️'), c.title, c.text, 'Keep the card close'); } },
+  { key: 'firstResortBuilding', test: s => s.story.seen.includes(29),
+    build: s => { const c = E.beatCopy(s, DATA.story.find(b => b.id === 29));
+      return arrivalModalHtml(emojiScene('🏗️🏝️👷'), c.title, c.text, 'Break ground 🏗️'); } },
+];
+let arrivalWatcherInit = false;
+const arrivalFired = new Set();
+const arrivalQueue = [];
+function checkArrivalModals(s) {
+  if (!arrivalWatcherInit) {
+    // Baseline-at-load: whatever's already true on the very FIRST render (a reload, or the
+    // offline catch-up main.js already ran before this) must never re-celebrate — only LIVE
+    // transitions observed during THIS session pop a modal. Offline-earned arrivals are
+    // covered by the "While You Were Away" summary instead (main.js's showOfflineSummary).
+    for (const m of ARRIVAL_MODALS) if (m.test(s)) arrivalFired.add(m.key);
+    arrivalWatcherInit = true;
+    return;
+  }
+  for (const m of ARRIVAL_MODALS) {
+    if (arrivalFired.has(m.key) || !m.test(s)) continue;
+    arrivalFired.add(m.key);
+    arrivalQueue.push(m.build(s));
+  }
+  // Queue, don't clobber: never interrupt a modal that's already open (era, diary, or the
+  // offline summary) — drain one arrival at a time, popping the next only once the last closes.
+  if (arrivalQueue.length && !modalIsOpen()) showEra(arrivalQueue.shift());
+}
+function modalIsOpen() {
+  return ['eraModal', 'diaryModal', 'offlineModal'].some(id => { const m = el(id); return m && !m.hidden; });
+}
 
 // The shed→island ladder panel (E05-S3-T1..T4): rather than dumping all 21 rows, this
 // shows the owned climb collapsed to a count, the CURRENT tier, and a small lookahead
@@ -511,16 +606,21 @@ const TIER_SCENES = [
 // Which tiers have GENERATED postcard art in assets/img/postcards/ (tools/genart.mjs).
 // Progressive enhancement: a tier not in this set keeps its emoji scene — a missing image can
 // never break the card, and art for unreached tiers is never even requested (reveal-safe).
-const POSTCARD_ART = new Set([0]);
-function tierPostcardHtml(s) {
-  const t = s.accommodation.tier;
-  const acc = DATA.accommodation[t];
-  const scene = POSTCARD_ART.has(t)
+const POSTCARD_ART = new Set(Array.from({ length: 22 }, (_, i) => i));   // Wave 1: all 22 tiers
+// Factored out of tierPostcardHtml so the engine-fired arrival modals (checkArrivalModals)
+// can show the SAME postcard-or-emoji scene for a given tier — progressive enhancement, a
+// missing image can never break either the ladder card or a modal (onerror swaps to emoji).
+function postcardSceneHtml(t) {
+  return POSTCARD_ART.has(t)
     ? `<img class="iv-postcard-img" src="assets/img/postcards/tier-${String(t).padStart(2, '0')}.webp"
          alt="" onerror="this.outerHTML='<div class=iv-postcard-scene>${TIER_SCENES[t] || '🏝️'}</div>'">`
     : `<div class="iv-postcard-scene" aria-hidden="true">${TIER_SCENES[t] || '🏝️'}</div>`;
+}
+function tierPostcardHtml(s) {
+  const t = s.accommodation.tier;
+  const acc = DATA.accommodation[t];
   return `<div class="iv-postcard">
-    ${scene}
+    ${postcardSceneHtml(t)}
     <div class="iv-postcard-name">${acc.name}</div>
     <div class="iv-postcard-caption">— ${acc.flavor}</div>
   </div>`;
@@ -1263,12 +1363,19 @@ function staffTileHtml(s, def) {
   }
   const lvlCost = E.staffLevelCost(s, def.id);
   const moralePct = clamp(st.morale, 0, 120) / 120 * 100;
+  // budget dial = a SLIDER with a beach-ball thumb (UX-plan §3), same pattern as the
+  // concierge's — one role can auto-buy, so the dial only shows once that's possible.
+  const budgetHtml = st.policy.categories.length ? `<div class="iv-sub">Budget: up to <b>${fmt(s.resources.cash * st.policy.budgetFrac)}</b>
+      (<span id="staffBudgetVal_${def.id}">${Math.round(st.policy.budgetFrac * 100)}%</span> of cash)
+      <input type="range" class="iv-slider" min="1" max="50" step="1" value="${Math.round(st.policy.budgetFrac * 100)}"
+        data-slider="staff-budget:${def.id}" aria-label="${def.name} budget, percent of cash"></div>` : '';
   return `<div class="iv-btn iv-content-item" title="${def.desc}">
     <b>${icon} ${def.name}</b> <small>lvl ${st.level} · ${def.subsystem}</small>
     <div class="iv-comfort-meter" role="progressbar" aria-valuemin="0" aria-valuemax="120" aria-valuenow="${Math.round(st.morale)}" aria-label="${def.name} morale"><i style="width:${moralePct.toFixed(0)}%"></i></div>
     <div class="iv-sub">morale ${Math.round(st.morale)} · wage <span class="iv-upkeep">${fmt(wage)}/s</span>${def.xMultBase > 0 ? ` · now ×${(1 + def.xMultBase * st.level * M.moraleMult(st.morale)).toFixed(3)}` : ''}</div>
+    ${budgetHtml}
     <div class="iv-row-buy">
-      ${def.policy && def.categories.length ? '' : ''}${st.policy.categories.length ? btn('staff-toggle', def.id, `Auto: ${st.policy.autoBuy ? 'ON' : 'off'}`, true, st.policy.autoBuy ? 'btn-primary' : '') : ''}
+      ${st.policy.categories.length ? btn('staff-toggle', def.id, `Auto: ${st.policy.autoBuy ? 'ON' : 'off'}`, true, st.policy.autoBuy ? 'btn-primary' : '') : ''}
       ${btn('level-staff', def.id, `Level — ${fmt(lvlCost)}`, afford(lvlCost))}
     </div>
   </div>`;
@@ -1279,6 +1386,9 @@ function renderStaff(s) {
   const reveal = staffRevealed(s);
   if (card) card.hidden = !reveal;
   if (!reveal) { if (el('staff')) el('staff').innerHTML = ''; return; }
+  // slider guard (mirrors renderConcierge exactly): freeze the whole card while ANY budget
+  // slider has focus, so a mid-drag re-render can never yank the thumb out of the player's hand.
+  if (document.activeElement && document.activeElement.dataset && document.activeElement.dataset.slider) return;
 
   const payroll = M.payrollTotal(s, DATA);
   const lstaff = M.staffMult(s, DATA);
@@ -1870,8 +1980,8 @@ function wireEvents() {
     handle(action, arg, b);
     render(S);
   });
-  // sliders (UX-plan §3): live-update while dragging without a full re-render (the concierge
-  // card freezes itself while its slider has focus — see renderConcierge's guard).
+  // sliders (UX-plan §3): live-update while dragging without a full re-render (the concierge/
+  // staff cards freeze themselves while a slider has focus — see their render guards).
   document.addEventListener('input', ev => {
     const t = ev.target;
     if (!t || !t.dataset || !t.dataset.slider) return;
@@ -1879,6 +1989,14 @@ function wireEvents() {
       S.concierge.budgetFrac = Number(t.value) / 100;
       const lbl = el('conciergeBudgetVal');
       if (lbl) lbl.textContent = `${t.value}%`;
+    } else if (t.dataset.slider.startsWith('staff-budget:')) {
+      // staff/butler budget dial (U2 leftover): same pattern, one slider per hired role.
+      const id = t.dataset.slider.slice('staff-budget:'.length);
+      if (S.staff[id]) {
+        S.staff[id].policy.budgetFrac = Number(t.value) / 100;
+        const lbl = el(`staffBudgetVal_${id}`);
+        if (lbl) lbl.textContent = `${t.value}%`;
+      }
     }
   });
   // on release, blur the slider so its card unfreezes and resumes normal rendering.
@@ -1978,6 +2096,9 @@ function handle(action, arg, btnEl) {
     case 'story-choice': { const [id, set] = arg.split('|'); E.applyStoryChoice(S, Number(id), set); break; }
     // ---- era modals (UX-plan §4, T1): the big moments get a postcard takeover, never a browser dialog ----
     case 'era-close': closeEra(); break;
+    // The Crossroads modal (checkArrivalModals): SAME E.applyStoryChoice as the inline
+    // fallback card's 'story-choice' above, just also closing the takeover on the way out.
+    case 'crossroads-choose': { const [id, set] = arg.split('|'); E.applyStoryChoice(S, Number(id), set); closeEra(); break; }
     // E27: the island offer — honest about the multi-currency cost, then a SOLD celebration.
     case 'buy-island': {
       if (!E.canAffordIsland(S)) break;
