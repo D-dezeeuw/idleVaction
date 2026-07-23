@@ -10,11 +10,20 @@
 // - cadenceSec: how often the simulated player "checks in" and acts. 0 = every macro-step
 //   (the greedy lower bound). The engine still ticks continuously either way — cadence
 //   gates DECISIONS only, which is what separates a casual player from a speedrunner.
-// - act(s, ctx): one action pass over the engine's buy* surface; ctx = { t, dt }.
+// - act(s, ctx): one action pass over the engine's buy* surface; ctx = { t, dt, mem }.
+//   ctx.mem is per-run scratch (scenario objects are shared module singletons — never
+//   store run state on them).
+// - ascension (optional): { when(s, ctx), spend: [nodeIds…] } — the runner ascends when
+//   `when` and P.canAscend agree, then pours ALL Legacy into `spend` (priority order,
+//   repeated passes until nothing is affordable). Different spend lists = the A-vs-B
+//   tree experiments.
+// - legend (optional): { when(s, ctx), perks: [perkIds…] } — same shape one prestige
+//   layer up: legendReset + exhaustive perk spending.
 import { CONFIG as C } from '../config.js';
 import { DATA } from '../data/index.js';
 import * as E from '../engine.js';
 import * as M from '../math.js';
+import * as P from '../prestige.js';
 import { play } from './harness.mjs';
 
 // ---- ROI-aware amenity test — copied from harness.mjs (private there; harness must stay
@@ -41,6 +50,7 @@ export function makeGreedyAct({
   branch = null,
   bankFrac = 0.5, accFrac = 0.7, amenFrac = 0.3, destFrac = 0.4, transportFrac = 0.2,
   trainFrac = 0.08, focusFrac = 0.08, genFrac = 0.7, upFrac = 0.1,
+  amenityROI = true,   // false = completionist: buy ANY affordable amenity, ignore payback
   lanes = [],
 } = {}) {
   return function act(s, ctx) {
@@ -52,7 +62,7 @@ export function makeGreedyAct({
     const cashRate = M.tierProd(s, 0) + M.savvyPassive(s);
     for (const a of DATA.amenities)
       if (E.amenityUnlocked(s, a.id) && E.amenityCost(s, a.id) <= s.resources.cash * amenFrac
-          && amenityWorthBuying(s, a, cashRate)) E.buyAmenity(s, a.id);
+          && (!amenityROI || amenityWorthBuying(s, a, cashRate))) E.buyAmenity(s, a.id);
     for (const d of DATA.destinations)
       if (!s.destinations[d.id].owned && E.destUnlocked(s, d.id) && E.destCost(s, d.id) <= s.resources.cash * destFrac) E.buyDestination(s, d.id);
     for (const t of DATA.transport)
@@ -110,6 +120,43 @@ export function laneCollections(s) {
     if (E.assetCost(s, a.id) <= s.resources.cash * 0.1) E.buyAsset(s, a.id);
 }
 
+// ---- prestige spending: "ALL money on A instead of B" for the Legacy/Legend layers ----
+// Repeated priority-order passes until nothing on the list is affordable — earlier ids
+// soak ranks first (their cost grows ×TREE.nodeGrowth per rank, so later ids still get
+// theirs). Prereqs (canBuyNode) gate naturally: a list that omits a prerequisite simply
+// never unlocks its dependents — a real consequence the A/B runs are meant to expose.
+export function spendLegacy(s, order) {
+  const bought = {};
+  let purchased = true;
+  while (purchased) {
+    purchased = false;
+    for (const id of order)
+      if (P.canBuyNode(s, id)) { P.buyNode(s, id); bought[id] = (bought[id] || 0) + 1; purchased = true; }
+  }
+  return bought;
+}
+
+export function spendLegendPoints(s, order) {
+  const bought = {};
+  let purchased = true;
+  while (purchased) {
+    purchased = false;
+    for (const id of order)
+      if (P.canBuyLegendPerk(s, id)) { P.buyLegendPerk(s, id); bought[id] = (bought[id] || 0) + 1; purchased = true; }
+  }
+  return bought;
+}
+
+// Ascend timing: generation 1 climbs to the island (tier 20); later generations re-ascend
+// once the preview doubles the previous haul (anti-thrash — ASCEND_GATE hardens tier
+// costs ×6^√count, so forcing tier 20 every life would drag). ctx.mem.lastGain is set by
+// the runner on each ascension.
+export function makeAscendWhen({ firstAtTier = 20, previewFactor = 2 } = {}) {
+  return (s, ctx) =>
+    s.accommodation.tier >= firstAtTier
+    || (s.ascension.count > 0 && P.legacyPreview(s) >= previewFactor * (ctx.mem.lastGain || 1));
+}
+
 // ---- the registry ----
 export const SCENARIOS = [
   {
@@ -139,6 +186,54 @@ export const SCENARIOS = [
     desc: 'Amenity-leaning budget + appreciating art/wine collections.',
     branch: 'connoisseur', cadenceSec: 0,
     act: makeGreedyAct({ branch: 'connoisseur', amenFrac: 0.35, lanes: [laneCollections] }),
+  },
+
+  // ---- prestige loop: ascension + Legend, balanced tree ----
+  {
+    id: 'ascension-loop',
+    name: 'Ascension loop (balanced tree + Legend)',
+    desc: 'Multi-generation run: island → ascend → balanced Legacy spread; Legend-resets when possible.',
+    branch: 'vlogger', cadenceSec: 0,
+    act: makeGreedyAct({ branch: 'vlogger' }),
+    ascension: {
+      when: makeAscendWhen(),
+      spend: ['sun_kissed', 'silver_tongue', 'legacy_investor', 'compounding_interest', 'head_start', 'faster_metab', 'second_wind'],
+    },
+    legend: { when: () => true, perks: ['eternal_tan', 'old_money', 'quick_study'] },
+  },
+
+  // ---- tree A/B: all Legacy on income vs. all Legacy on meta ----
+  {
+    id: 'ascend-income-tree',
+    name: 'Ascension A: all Legacy on income',
+    desc: 'Same run, but Legacy goes ONLY to income/cost nodes (Sun-Kissed, Silver Tongue, Compounding).',
+    branch: 'vlogger', cadenceSec: 0,
+    act: makeGreedyAct({ branch: 'vlogger' }),
+    ascension: { when: makeAscendWhen(), spend: ['sun_kissed', 'silver_tongue', 'compounding_interest'] },
+  },
+  {
+    id: 'ascend-meta-tree',
+    name: 'Ascension B: all Legacy on meta',
+    desc: 'Same run, but Legacy goes ONLY to meta nodes (Legacy Investor, Head Start, Second Wind).',
+    branch: 'vlogger', cadenceSec: 0,
+    act: makeGreedyAct({ branch: 'vlogger' }),
+    ascension: { when: makeAscendWhen(), spend: ['legacy_investor', 'head_start', 'second_wind'] },
+  },
+
+  // ---- cash A/B: all reinvestment into generators vs. into Comfort ----
+  {
+    id: 'vlogger-genrush',
+    name: 'Cash A: generators only',
+    desc: 'No amenities/destinations/training — every euro into generators, upgrades and the tier ladder.',
+    branch: 'vlogger', cadenceSec: 0,
+    act: makeGreedyAct({ branch: 'vlogger', amenFrac: 0, destFrac: 0, transportFrac: 0, trainFrac: 0, genFrac: 0.9, upFrac: 0.2 }),
+  },
+  {
+    id: 'vlogger-comfort-max',
+    name: 'Cash B: Comfort completionist',
+    desc: 'Buys EVERY affordable amenity (ROI ignored) with a fat budget; generators get the rest.',
+    branch: 'vlogger', cadenceSec: 0,
+    act: makeGreedyAct({ branch: 'vlogger', amenityROI: false, amenFrac: 0.5, genFrac: 0.5, upFrac: 0.05 }),
   },
 ];
 
