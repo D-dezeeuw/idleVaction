@@ -46,9 +46,9 @@ export const CONFIG = {
     // so high tiers unlock late and (b) small perUnit on high tiers so they matter only in
     // the late game (they still feed the chain). Steep growth slopes stretch time-to-next
     // purchase and keep the soft-capped milestone tame. Tune with `node js/dev/harness.mjs`.
-    base:    [15, 6e4, 7e8, 8e11, 8e14, 8e17, 8e20, 8e23],
-    growth:  [1.8, 1.9, 2.0, 2.1, 2.2, 2.3, 2.4, 2.5],
-    perUnit: [1, 0.007, 3e-5, 2e-9, 2e-13, 2e-17, 2e-21, 2e-25],
+    base:    [15, 1.6e6, 1.8e10, 1e12, 4e13, 1.2e15, 4e16, 1.4e18],
+    growth:  [1.7, 2.3, 2.4, 2.4, 2.5, 2.6, 2.7, 2.8],
+    perUnit: [0.55, 0.007, 3e-5, 4e-9, 8e-12, 2e-15, 2e-18, 2e-21],
   },
   MILESTONE_STEP: 10,       // every N buys → tier ×2 (lowered by meta upgrades later)
   MILESTONE_MULT: 2,
@@ -63,11 +63,11 @@ export const CONFIG = {
   // post-knee tail; see docs/math-proof.md §3/§4). bonus 0 ⇒ the factor is exactly 1 and the
   // pre-refit curve is bit-identical. Purpose: a felt milestone-family event every ~10-15 min
   // mid-game instead of one doubling per ~82 min (audit 2.2).
-  MILESTONE_MINI: { every: 5, bonus: 0 },
+  MILESTONE_MINI: { every: 5, bonus: 0.05 },
   // Story spacing valve (Phase-C refit): when > 0, at most ONE story beat fires per this many
   // game-seconds — a ready cluster queues in monotone order instead of dumping 3 beats in one
   // tick (audit 2.5: 26 beats on 14 distinct timestamps). 0 ⇒ bit-identical legacy behavior.
-  STORY_VALVE_SEC: 0,
+  STORY_VALVE_SEC: 90,
 
   // ---- per-tier "renovation" upgrades: the L_upgrade income layer ----
   // L_upgrade = 1 + L_UPGRADE_RATE · (upgrades bought for that generator tier), additive
@@ -87,7 +87,7 @@ export const CONFIG = {
   // cash — the same safe class as L_dest. xRate 0 ⇒ the layer is exactly 1 (1 + 0·Σ, IEEE-exact)
   // and the pre-refit curve is bit-identical. Scope 'all' hits every tier; 'social' hits the
   // social tiers (k=1,2), matching L_skill's charisma scope.
-  AMENITY: { growthDefault: 1.5, comfortWeight: 1.0, xRate: 0, xCap: 2.0 },
+  AMENITY: { growthDefault: 1.5, comfortWeight: 1.0, xRate: 0.6, xCap: 5.0, costScale: 2.0 },
 
   // ---- concierge: the first automation seed (E11 "Five-Star Frame of Mind") ----
   // A bounded, OFF-BY-DEFAULT auto-purchaser (state.concierge.on, backfilled false for
@@ -177,7 +177,8 @@ export const CONFIG = {
   ACC: {
     base: 50,               // accScore base
     growth: 2.6,            // each tier's comfort weight ~2.6× the previous
-    cashMult: 25,           // cash cost of a tier = accScore(tier)·cashMult
+    cashMult: 160,
+    costExp: 1.08,          // late-anchored pricing: cost ∝ accScore^costExp (1 = legacy flat)           // cash cost of a tier = accScore(tier)·cashMult
     // Next tier unlocks when Comfort ≥ accScore(nextTier)·unlockFrac.
     // unlockFrac < 1/growth (0.385) guarantees owning a tier nearly unlocks the
     // next on its own — amenities/Body just bring it sooner. Never a hard stall.

@@ -50,6 +50,10 @@ export function rng(seed, cursor = 0) {
 export function bulkCost(base, growth, bought, qty) {
   if (qty <= 0) return 0;
   if (growth === 1) return base * qty;
+  // qty 1 uses the exact power form: the closed-form's (g^1−1)/(g−1) is 1 only in exact
+  // arithmetic — at e.g. g=1.7 the FP quotient lands a hair ABOVE 1, pricing a single unit
+  // at 15.000000000000002 and silently failing exact-budget buys (the €15 bootstrap).
+  if (qty === 1) return base * Math.pow(growth, bought);
   return base * Math.pow(growth, bought) * (Math.pow(growth, qty) - 1) / (growth - 1);
 }
 

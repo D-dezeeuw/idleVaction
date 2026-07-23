@@ -51,6 +51,9 @@ export function makeGreedyAct({
   bankFrac = 0.5, accFrac = 0.7, amenFrac = 0.3, destFrac = 0.4, transportFrac = 0.2,
   trainFrac = 0.08, focusFrac = 0.08, genFrac = 0.7, upFrac = 0.1,
   amenityROI = true,   // false = completionist: buy ANY affordable amenity, ignore payback
+  amenBudgetFrac = null, // TRUE per-act amenity budget: stop once Σ spent > frac·cash-at-act-start
+                         // (amenFrac alone caps each ITEM at frac·current-cash — across 186 rows
+                         // that's a fire hose, not a budget; the casual-tourist persona needs this)
   lanes = [],
 } = {}) {
   return function act(s, ctx) {
@@ -60,9 +63,15 @@ export function makeGreedyAct({
     let g = 0;
     while (E.accUnlocked(s) && E.accCost(s) <= s.resources.cash * accFrac && g++ < 6) E.buyAccommodation(s);
     const cashRate = M.tierProd(s, 0) + M.savvyPassive(s);
-    for (const a of DATA.amenities)
-      if (E.amenityUnlocked(s, a.id) && E.amenityCost(s, a.id) <= s.resources.cash * amenFrac
-          && (!amenityROI || amenityWorthBuying(s, a, cashRate))) E.buyAmenity(s, a.id);
+    const amenBudget = amenBudgetFrac !== null ? s.resources.cash * amenBudgetFrac : Infinity;
+    let amenSpent = 0;
+    for (const a of DATA.amenities) {
+      if (amenSpent >= amenBudget) break;
+      const cost = E.amenityCost(s, a.id);
+      if (E.amenityUnlocked(s, a.id) && cost <= s.resources.cash * amenFrac
+          && (!amenityROI || amenityWorthBuying(s, a, cashRate))
+          && E.buyAmenity(s, a.id)) amenSpent += cost;
+    }
     for (const d of DATA.destinations)
       if (!s.destinations[d.id].owned && E.destUnlocked(s, d.id) && E.destCost(s, d.id) <= s.resources.cash * destFrac) E.buyDestination(s, d.id);
     for (const t of DATA.transport)
@@ -165,6 +174,13 @@ export const SCENARIOS = [
     desc: 'The balance harness bot verbatim — greedy-optimal, commits vlogger at beat 6.',
     branch: null, cadenceSec: 0,
     act: (s) => play(s),
+  },
+  {
+    id: 'casual-tourist',
+    name: 'Casual tourist (the ~20h contract persona)',
+    desc: 'Checks in every 20 game-min and spends like a person: ROI-aware core plus a 10% flavor budget that buys ANY affordable amenity. This is docs/05\'s "casual play lands the ~20h arc" made measurable — the Phase-C refit fits THIS run to 18-22h (selftest [109]).',
+    branch: 'vlogger', cadenceSec: 1200,
+    act: makeGreedyAct({ branch: 'vlogger', amenityROI: false, amenBudgetFrac: 0.10 }),
   },
   {
     id: 'greedy-traveler',

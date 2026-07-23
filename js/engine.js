@@ -816,7 +816,9 @@ export function amenityCost(state, id) {
   // GATED to connoisseur-active (returns exactly 1 otherwise), so the greedy vlogger harness
   // buying luxury amenities sees ×1 and the fitted island time is unmoved.
   const lux = a.tag === 'luxury' ? M.luxuryCostMult(state) : 1;
-  return a.costBase * Math.pow(g, lvl) * (1 - M.pathBonus(state, 'amenityDiscount')) * lux * M.commsCostMult(state);
+  // costScale (Phase-C refit): one knob scaling the whole catalog's price level against the
+  // refitted economy — the 186 data rows keep their relative spacing untouched. 1 = legacy.
+  return a.costBase * (C.AMENITY.costScale || 1) * Math.pow(g, lvl) * (1 - M.pathBonus(state, 'amenityDiscount')) * lux * M.commsCostMult(state);
 }
 export function amenityUnlocked(state, id) {
   const a = amenityData(id);
@@ -1869,7 +1871,10 @@ export function nextAccTier(state) { return state.accommodation.tier + 1; }
 // config.ASCEND_GATE / docs/math-proof.md §12); the Comfort unlock gate is untouched.
 export function accCostForTier(state, tier) {
   // E29 NG+ hardens the CASH gate by gateScale^ngPlus (1 at ngPlus 0 ⇒ bit-identical for the harness).
-  return M.accScore(tier) * C.ACC.cashMult * M.ascGateMult(state, tier) * M.ngPlusGateMult(state) * M.commsCostMult(state);
+  // costExp (Phase-C refit): a single late-anchored pricing knob — cost scales with
+  // accScore^costExp, so a value slightly above 1 keeps early check-ins cheap while the
+  // summit tiers carry the run's length. Exactly the legacy formula at costExp 1.
+  return Math.pow(M.accScore(tier), C.ACC.costExp || 1) * C.ACC.cashMult * M.ascGateMult(state, tier) * M.ngPlusGateMult(state) * M.commsCostMult(state);
 }
 export function accCost(state) {
   return accCostForTier(state, nextAccTier(state));
