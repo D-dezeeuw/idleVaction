@@ -28,7 +28,17 @@ let lastTabSig = '';
 // per-tag "show all" state for the amenity shelves (UX-plan §6.4) — transient, resets on reload.
 const expandedAmenTags = new Set();
 
-export function bind(state, h) { S = state; hooks = h; wireEvents(); }
+export function bind(state, h) {
+  S = state; hooks = h; wireEvents();
+  // Measure the topbar into --iv-topbar-h so the sticky tab bar docks BELOW it instead of
+  // painting over the cash HUD (the topbar wraps to variable heights on narrow screens).
+  const topbar = document.getElementById('topbar');
+  if (topbar && typeof ResizeObserver !== 'undefined') {
+    const sync = () => document.documentElement.style.setProperty('--iv-topbar-h', topbar.offsetHeight + 'px');
+    new ResizeObserver(sync).observe(topbar);
+    sync();
+  }
+}
 export function setState(state) { S = state; }
 
 const $ = sel => document.querySelector(sel);
@@ -157,8 +167,9 @@ function renderOnboarding(s) {
   if (acted) { box.hidden = true; box.innerHTML = ''; return; }
   box.hidden = false;
   box.innerHTML = `☔ <b>Rain Check:</b> you're soggy, broke, and stuck at a bus stop with
-    €${fmt(s.resources.cash)}. Buy your first <b>${DATA.generators[0].name}</b> below to start
-    the cash trickle — or just tap the umbrella in the footer while you wait. Money comes either way.`;
+    €${fmt(s.resources.cash)}. Buy your first <b>${DATA.generators[0].name}</b> in the
+    <b>💶 Income</b> tab above to start the cash trickle — or tap <b>☔ Odd jobs</b> in the
+    footer while you wait. Money comes either way.`;
 }
 
 function renderNotifications(s) {
@@ -222,7 +233,7 @@ function renderStory(s) {
   }
   // R1 (UX-plan §2): never reveal the total beat count — the trip's length is part of the mystery.
   // The branch line only appears once a branch is chosen (before that it's just "the trip so far").
-  const branchLabel = s.story.branch !== 'neutral' ? ` — <b>${s.story.branch}</b>` : '';
+  const branchLabel = s.story.branch !== 'neutral' ? ` — <b>${esc(s.story.branch)}</b>` : '';
   el('story').innerHTML = `
     <div class="iv-beatnum">Entry ${latestBeat.id}${branchLabel} ${btn('open-diary', '', '📔 Diary', s.story.seen.length > 1, 'btn-link')}</div>
     <div class="iv-beattitle">${latest.title}</div>
@@ -814,7 +825,7 @@ function renderConcierge(s) {
     html += `<div class="iv-tag">recent purchases <small>(${cfg.totalBought} total, ${fmt(cfg.totalSpent)} spent)</small></div>
       <div class="iv-concierge-log${pulsing ? ' iv-concierge-flash' : ''}">`;
     for (const a of cfg.lastActions) {
-      html += `<div class="iv-sub">${fmtTime(a.t)} — ${a.items.map(i => i.name).join(', ')} <small>(${fmt(a.cost)})</small></div>`;
+      html += `<div class="iv-sub">${fmtTime(a.t)} — ${a.items.map(i => esc(i.name)).join(', ')} <small>(${fmt(a.cost)})</small></div>`;
     }
     html += '</div>';
   } else {
@@ -1021,7 +1032,7 @@ function renderCrypto(s) {
   if (s.market.eventLog && s.market.eventLog.length) {
     html += '<div class="iv-tag">recent market moves</div>';
     for (const e of s.market.eventLog) {
-      html += `<div class="iv-sub">${fmtTime(e.t)} — ${e.id === 'whale_boom' ? '🐋 whale pump' : e.kind} ×${e.mult.toFixed(2)} (${e.dur}s)</div>`;
+      html += `<div class="iv-sub">${fmtTime(e.t)} — ${e.id === 'whale_boom' ? '🐋 whale pump' : esc(e.kind)} ×${e.mult.toFixed(2)} (${e.dur}s)</div>`;
     }
   }
   el('crypto').innerHTML = html;
@@ -1317,7 +1328,7 @@ function estateStaffTileHtml(s, def) {
     : `${btn('assign-staff', `${def.id}:${def.automates}`, def.automates, st.assignedTo !== 'synergy', st.assignedTo !== 'synergy' ? 'btn-primary' : '')}
        ${btn('assign-staff', `${def.id}:synergy`, 'synergy', canSynergy, st.assignedTo === 'synergy' ? 'btn-primary' : '')}`;
   return `<div class="iv-btn iv-content-item" title="${def.desc}">
-    <b>${icon} ${def.name}</b> <small>lvl ${st.level} · → ${st.assignedTo}</small>
+    <b>${icon} ${def.name}</b> <small>lvl ${st.level} · → ${esc(st.assignedTo ?? '—')}</small>
     <div class="iv-sub">wage <span class="iv-upkeep">${fmt(M.staffWage(def, st.level))}/s</span></div>
     <div class="iv-row-buy">${assignBtns} ${btn('level-staff', def.id, `Level — ${fmt(lvlCost)}`, afford(lvlCost))}</div>
   </div>`;
@@ -2205,7 +2216,7 @@ export function renderControls(state) {
       <span id="debugpanel"></span>
     </span>` : '<span id="debugpanel"></span>';
   el('controls').innerHTML = `
-    <button class="btn btn-lg btn-primary" data-action="click">👆 Tap (small gain + combo)</button>
+    <button class="btn btn-lg btn-primary" data-action="click">☔ Odd jobs (+€)</button>
     <span id="energyMini" class="iv-sub iv-energy-inline"
       title="Energy fuels a bigger tap — Body raises the tank size and its regen rate. Never required to progress."></span>
     ${btn('save', '', '💾 Save')}

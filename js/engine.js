@@ -1029,12 +1029,15 @@ export function sellCoin(state, id, qty = 1) {
   // crypto stage 3 (Exit Liquidity (Theirs)) raises the payout fraction, capped well
   // short of 1 so selling never becomes a free round-trip against commsCostMult buys.
   const sellFrac = Math.min(0.95, C.MARKET.sellFrac + M.pathBonus(state, 'sellBonus'));
-  const unitPrice = M.coinUnitCost(c, Math.max(0, held - qty)) * sellFrac * M.marketMult(state, DATA);
+  // geometric SUM over the rungs being vacated — the exact mirror of buyCoin's bulkCost —
+  // so a bulk sale pays the same as selling one-at-a-time (pricing the whole lot at the
+  // lowest rung shortchanged bulk sellers by ~43% at qty 10).
+  const gross = bulkCost(c.costBase, c.costGrowth, held - qty, qty) * sellFrac * M.marketMult(state, DATA);
   state.crypto.holdings[id] = held - qty;
   // proceeds bank through the wallet cap like every other inflow (one rule, no side
   // doors) — selling into a full wallet spills to overflowLost, and the Crypto Desk
   // UI warns before the player does it (ui.renderCrypto's wallet-full note).
-  gainCash(state, unitPrice * qty);
+  gainCash(state, gross);
   return true;
 }
 
