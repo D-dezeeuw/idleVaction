@@ -48,7 +48,7 @@ export const DESTINATIONS = [
   { id: 'dest_amsterdam_return', name: 'Amsterdam (Return Trip)', region: 'Benelux',
     costBase: 64800, mult: 1.035, unlockAfter: 'dest_prague', unlockComfort: 8000, tag: 'return',
     pathAffinity: { traveler: 1.0 }, travelTime: 15,
-    flavor: 'You go home to Amsterdam — as a tourist, this time. The locals give you a knowing nod.' },
+    flavor: 'You go home to Amsterdam, as a tourist this time. The locals give you a knowing nod.' },
   { id: 'dest_brussels', name: 'Brussels', region: 'Benelux',
     costBase: 194400, mult: 1.035, unlockAfter: 'dest_amsterdam_return', unlockComfort: 5e4, tag: 'capital',
     pathAffinity: { traveler: 1.0 }, travelTime: 20,

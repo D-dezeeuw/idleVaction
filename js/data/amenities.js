@@ -18,7 +18,7 @@ export const AMENITIES = [
   { id: 'hostel_earplugs',      name: 'Industrial Earplugs',    tag: 'hostel', costBase: 800,  comfort: 9,  xMult: 0.01, xScope: 'all',    unlockComfort: 110, flavor: 'For the snorer in bunk 4, and the rain on the roof.' },
   { id: 'hostel_locker',        name: 'A Locker That Locks',    tag: 'hostel', costBase: 1050, comfort: 11, xMult: 0.02, xScope: 'all',    unlockComfort: 130, flavor: 'Your passport sleeps soundly now. So, mostly, do you.' },
   { id: 'hostel_shared_kitchen',name: 'Shared Kitchen Shelf',   tag: 'hostel', costBase: 1350, comfort: 13, xMult: 0.02, xScope: 'social', unlockComfort: 150, flavor: 'Labeled "DO NOT TOUCH" in four languages. Nobody touches it.' },
-  { id: 'hostel_hot_shower',    name: 'Reliably Hot Shower',    tag: 'hostel', costBase: 1700, comfort: 15, xMult: 0.02, xScope: 'all',    unlockComfort: 170, flavor: 'Hot water, on demand. You almost cry. Fine — you do cry.' },
+  { id: 'hostel_hot_shower',    name: 'Reliably Hot Shower',    tag: 'hostel', costBase: 1700, comfort: 15, xMult: 0.02, xScope: 'all',    unlockComfort: 170, flavor: 'Hot water, on demand. You almost cry. Fine, you do cry.' },
   { id: 'hostel_wifi',          name: 'Wi-Fi That Reaches Bunk 7', tag: 'hostel', costBase: 2100, comfort: 17, xMult: 0.03, xScope: 'social', unlockComfort: 190, flavor: 'One bar. Just enough to like a photo. A society runs on less.' },
 
   // --- backpack cluster (E04-S5) — the small-wins engine at the guesthouse stage.
@@ -42,7 +42,7 @@ export const AMENITIES = [
   { id: 'star1_minibar_water',  name: 'Minibar (Water Only)',            tag: 'onestar', costBase: 14000, comfort: 19, xMult: 0.02, xScope: 'all',    unlockComfort: 620,  flavor: '€6 for water you could get from the tap. You buy it anyway. Growth.' },
   { id: 'star1_tv_remote',      name: 'TV Remote That Works',            tag: 'onestar', costBase: 18500, comfort: 22, xMult: 0.03, xScope: 'social', unlockComfort: 750,  flavor: 'The TV gets two channels, both in a language you do not speak.' },
   { id: 'star1_do_not_disturb', name: 'Do Not Disturb Sign',             tag: 'onestar', costBase: 24000, comfort: 26, xMult: 0.03, xScope: 'all',    unlockComfort: 900,  flavor: 'You hang it on the handle like a tiny flag of a nation of one.' },
-  { id: 'star1_shower_cap',     name: 'Individually Wrapped Shower Cap', tag: 'onestar', costBase: 31000, comfort: 30, xMult: 0.04, xScope: 'social', unlockComfort: 1080, flavor: 'Plastic. Crinkly. Yours to keep. You will never use it and never throw it away.' },
+  { id: 'star1_shower_cap',     name: 'Individually Wrapped Shower Cap', tag: 'onestar', costBase: 31000, comfort: 30, xMult: 0.04, xScope: 'social', unlockComfort: 1080, flavor: 'Plastic and crinkly, yours to keep. You will never use it and never throw it away.' },
   { id: 'star1_wakeup_call',    name: 'Wake-Up Call Service',            tag: 'onestar', costBase: 40000, comfort: 35, xMult: 0.05, xScope: 'all',    unlockComfort: 1300, flavor: 'The front desk rings at 7:00 sharp. You were already awake, dreading it.' },
 
   // --- Continental Breakfast cluster (E06-S5) — the small-wins engine at the 2-Star
@@ -55,7 +55,7 @@ export const AMENITIES = [
   { id: 'bfast_stale_croissant', name: 'Yesterday\'s Croissant',         tag: 'breakfast', costBase: 45000,  comfort: 22, xMult: 0.02, xScope: 'all',    unlockComfort: 900,  flavor: 'Possibly the day before\'s. You dunk it in coffee and call it fresh.' },
   { id: 'bfast_boiled_egg',      name: 'The Regulation Boiled Egg',      tag: 'breakfast', costBase: 58000,  comfort: 26, xMult: 0.02, xScope: 'all',    unlockComfort: 1100, flavor: 'One per guest. The sign about it is laminated and very serious.' },
   { id: 'bfast_cheese_slice',    name: 'Individually Wrapped Cheese',    tag: 'breakfast', costBase: 75000,  comfort: 30, xMult: 0.03, xScope: 'all',    unlockComfort: 1400, flavor: 'Orange, rectangular, indestructible. A Dutch breakfast staple, allegedly.' },
-  { id: 'bfast_hagelslag',       name: 'Bowl of Hagelslag',              tag: 'breakfast', costBase: 95000,  comfort: 34, xMult: 0.03, xScope: 'social', unlockComfort: 1800, flavor: 'Chocolate sprinkles on buttered bread — a Dutch human right, photographed accordingly.' },
+  { id: 'bfast_hagelslag',       name: 'Bowl of Hagelslag',              tag: 'breakfast', costBase: 95000,  comfort: 34, xMult: 0.03, xScope: 'social', unlockComfort: 1800, flavor: 'Chocolate sprinkles on buttered bread, a Dutch human right, photographed accordingly.' },
   { id: 'bfast_orange_juice',    name: 'Orange Juice (From Concentrate)',tag: 'breakfast', costBase: 125000, comfort: 38, xMult: 0.04, xScope: 'all',    unlockComfort: 2300, flavor: 'Technically orange. Technically juice. Vitamin C is vitamin C.' },
   { id: 'bfast_filter_coffee',   name: 'Bottomless Filter Coffee',       tag: 'breakfast', costBase: 160000, comfort: 42, xMult: 0.04, xScope: 'all',    unlockComfort: 2900, flavor: 'Filter coffee: technically hot, technically coffee.' },
   { id: 'bfast_waffle_iron',     name: 'Make-Your-Own Waffle Iron',      tag: 'breakfast', costBase: 205000, comfort: 46, xMult: 0.05, xScope: 'social', unlockComfort: 3600, flavor: 'The queue is long. The waffle is worth it. Everyone photographs theirs.' },
@@ -63,10 +63,10 @@ export const AMENITIES = [
 
   // --- pool cluster (E07) — the fun showcase ---
   { id: 'floatie_duck',   name: 'Rubber Duck Floatie',  tag: 'pool', costBase: 800,   comfort: 12, xMult: 0.02, xScope: 'social', unlockComfort: 200,  flavor: 'Quack. Iconic.' },
-  { id: 'floatie_flamingo',name:'Flamingo Floatie',     tag: 'pool', costBase: 1600,  comfort: 18, xMult: 0.03, xScope: 'social', unlockComfort: 300,  flavor: 'Pink. Judgmental. Photogenic.' },
+  { id: 'floatie_flamingo',name:'Flamingo Floatie',     tag: 'pool', costBase: 1600,  comfort: 18, xMult: 0.03, xScope: 'social', unlockComfort: 300,  flavor: 'Pink, judgmental, and extremely photogenic.' },
   { id: 'floatie_unicorn',name: 'Unicorn Floatie',      tag: 'pool', costBase: 3200,  comfort: 26, xMult: 0.04, xScope: 'social', unlockComfort: 450,  flavor: 'It judges your backstroke.' },
   { id: 'pool_lounger',   name: 'Poolside Lounger',     tag: 'pool', costBase: 5000,  comfort: 30, xMult: 0.03, xScope: 'all',    unlockComfort: 500,  flavor: 'Reclines to exactly one angle. It is the correct angle.' },
-  { id: 'heated_bed',     name: 'Heated Pool Bed',      tag: 'pool', costBase: 12000, comfort: 48, xMult: 0.05, xScope: 'all',    unlockComfort: 800,  flavor: 'Warm. In a pool. Decadent.' },
+  { id: 'heated_bed',     name: 'Heated Pool Bed',      tag: 'pool', costBase: 12000, comfort: 48, xMult: 0.05, xScope: 'all',    unlockComfort: 800,  flavor: 'Warm, in a pool, decadent.' },
   { id: 'cocktail_1',     name: 'Poolside Cocktail Cart',tag:'pool', costBase: 20000, comfort: 60, xMult: 0.06, xScope: 'all',    unlockComfort: 1200, flavor: 'The umbrella is bigger than the drink.' },
   { id: 'cabana',         name: 'Private Cabana',       tag: 'pool', costBase: 60000, comfort: 110,xMult: 0.08, xScope: 'all',    unlockComfort: 2000, flavor: 'Shade you own. A first.' },
 
@@ -199,7 +199,7 @@ export const AMENITIES = [
   // (renderAmenities), so 'suite' surfaces there automatically, same as onestar/
   // breakfast/hostel/backpack/motel before it — additive UI, no new subsystem. ---
   { id: 'turndown_service',   name: 'Turndown Service',       tag: 'suite', costBase: 2.4e7,  comfort: 1300, xMult: 0.06, xScope: 'all', unlockComfort: 60000,  flavor: 'They fold your poncho into a swan. You did not know it could do that.' },
-  { id: 'pillow_menu',        name: 'Pillow Menu',            tag: 'suite', costBase: 4.8e7,  comfort: 1700, xMult: 0.08, xScope: 'all', unlockComfort: 90000,  flavor: 'Seven pillows, one head — finally, abundance.' },
+  { id: 'pillow_menu',        name: 'Pillow Menu',            tag: 'suite', costBase: 4.8e7,  comfort: 1700, xMult: 0.08, xScope: 'all', unlockComfort: 90000,  flavor: 'Seven pillows, one head. Finally, abundance.' },
   { id: 'minibar',            name: 'Fully Stocked Minibar',  tag: 'suite', costBase: 9.6e7,  comfort: 2200, xMult: 0.10, xScope: 'all', unlockComfort: 130000, flavor: 'The Toblerone alone costs more than your old motel room.' },
   { id: 'bathrobe',           name: 'Monogrammed Bathrobe',   tag: 'suite', costBase: 1.92e8, comfort: 2900, xMult: 0.12, xScope: 'all', unlockComfort: 180000, flavor: 'Your initials, embroidered, on a robe you will absolutely try to take home.' },
   { id: 'rainfall_shower',    name: 'Rainfall Shower',        tag: 'suite', costBase: 3.84e8, comfort: 3800, xMult: 0.14, xScope: 'all', unlockComfort: 240000, flavor: 'Actual Dutch rain, but warm, and entirely by choice.' },
@@ -299,10 +299,10 @@ export const AMENITIES = [
   // above the car cluster). The floating pool is the showpiece (biggest comfort). Comfort/cost
   // kept at the conservative end (like every prior cluster) so the sea leg doesn't stretch the
   // fitted curve; unlockComfort staggered for the post-tier-11 marina stage. ---
-  { id: 'pool_on_a_boat',   name: 'Pool On A Boat (On The Sea)', tag: 'yacht', costBase: 1e8,   costGrowth: 1.8, comfort: 6000, xMult: 0.05, xScope: 'all', unlockComfort: 1.2e7, flavor: 'A pool. On a boat. On the sea. You have questions. The answer to all of them is "yes".' },
+  { id: 'pool_on_a_boat',   name: 'Pool On A Boat (On The Sea)', tag: 'yacht', costBase: 1e8,   costGrowth: 1.8, comfort: 6000, xMult: 0.05, xScope: 'all', unlockComfort: 1.2e7, flavor: 'A pool, on a boat, on the sea. You have questions. The answer to all of them is "yes".' },
   { id: 'sun_deck_bed',     name: 'Sun-Deck Daybed',             tag: 'yacht', costBase: 1.8e8, costGrowth: 1.8, comfort: 2600, xMult: 0.04, xScope: 'all', unlockComfort: 1.5e7, flavor: 'Horizontal is a lifestyle now, not a position.' },
   { id: 'floating_bar',     name: 'Floating Swim-Up Bar',        tag: 'yacht', costBase: 3.2e8, costGrowth: 1.8, comfort: 3100, xMult: 0.045,xScope: 'all', unlockComfort: 2.0e7, flavor: 'The only commute left is the swim to the bar. You do it responsibly. Twice.' },
-  { id: 'inflatable_orca',  name: 'Inflatable Orca',             tag: 'yacht', costBase: 5.6e8, costGrowth: 1.8, comfort: 1900, xMult: 0.03, xScope: 'all', unlockComfort: 2.6e7, flavor: 'Life-sized. Judgmental. Named Kees.' },
+  { id: 'inflatable_orca',  name: 'Inflatable Orca',             tag: 'yacht', costBase: 5.6e8, costGrowth: 1.8, comfort: 1900, xMult: 0.03, xScope: 'all', unlockComfort: 2.6e7, flavor: 'Life-sized, judgmental, and named Kees.' },
   { id: 'banana_boat',      name: 'Banana Boat',                 tag: 'yacht', costBase: 1e9,   costGrowth: 1.8, comfort: 2200, xMult: 0.03, xScope: 'all', unlockComfort: 3.4e7, flavor: 'Seats six. You have no friends here, which is the point.' },
   { id: 'jet_ski',          name: 'Jet-Ski',                     tag: 'yacht', costBase: 1.8e9, costGrowth: 1.8, comfort: 2800, xMult: 0.04, xScope: 'all', unlockComfort: 4.4e7, flavor: 'Loud, wet, and entirely unnecessary. Perfect.' },
   { id: 'seabob',           name: 'Seabob Underwater Scooter',   tag: 'yacht', costBase: 3.2e9, costGrowth: 1.8, comfort: 3400, xMult: 0.045,xScope: 'all', unlockComfort: 5.8e7, flavor: 'You are a torpedo now, a rich and relaxed torpedo.' },
@@ -325,7 +325,7 @@ export const AMENITIES = [
   // 0 unless connoisseur-active), get the +25% connoisseur Comfort perk, and the old-money haggle
   // discount — no new math. costGrowth 1.9 (a steep ultra-luxury slope); each carries an
   // `exclusivity` weight; unlockComfort staggered for the tier-12/13 stage (accScore(12)≈4.8e6). ---
-  { id: 'sail_gold_taps',   name: 'Solid-Gold Taps',             tag: 'luxury', costBase: 5e6,   costGrowth: 1.9, comfort: 900,  exclusivity: 4,  xMult: 0.04, xScope: 'all', unlockComfort: 4.8e6, flavor: 'The taps are gold — solid, this time. The water is the same. This is the point of taste.' },
+  { id: 'sail_gold_taps',   name: 'Solid-Gold Taps',             tag: 'luxury', costBase: 5e6,   costGrowth: 1.9, comfort: 900,  exclusivity: 4,  xMult: 0.04, xScope: 'all', unlockComfort: 4.8e6, flavor: 'The taps are solid gold this time, not plated. The water is the same. This is the point of taste.' },
   { id: 'gold_sheets',      name: 'Gold-Thread Sheets',          tag: 'luxury', costBase: 9e6,   costGrowth: 1.9, comfort: 1100, exclusivity: 5,  xMult: 0.04, xScope: 'all', unlockComfort: 6e6,   flavor: 'You sleep under spun gold. It is heavier than it sounds and warmer than it looks.' },
   { id: 'gold_leaf_breakfast', name: 'Gold-Leaf Breakfast',      tag: 'luxury', costBase: 1.6e7, costGrowth: 1.9, comfort: 1300, exclusivity: 6,  xMult: 0.045,xScope: 'all', unlockComfort: 8e6,   flavor: 'Edible gold on the eggs. Tastes of nothing, which is the most expensive flavour of all.' },
   { id: 'gilded_elevator',  name: 'Gilded Private Elevator',     tag: 'luxury', costBase: 2.8e7, costGrowth: 1.9, comfort: 1600, exclusivity: 8,  xMult: 0.045,xScope: 'all', unlockComfort: 1.1e7, flavor: 'It only stops at your floor. There is only your floor.' },
@@ -374,7 +374,7 @@ export const AMENITIES = [
   { id: 'monogrammed_bathrobe',    name: 'Monogrammed Bathrobe',      tag: 'luxury', costBase: 3e8,   costGrowth: 1.9, comfort: 3900, exclusivity: 11, xMult: 0.054,xScope: 'all', unlockComfort: 1.4e8, flavor: 'The robe costs more than the first motel did. Somehow, standing in it, this is entirely fine.' },
   { id: 'caviar_room_service',     name: 'Caviar Room Service',       tag: 'luxury', costBase: 5e8,   costGrowth: 1.9, comfort: 4200, exclusivity: 13, xMult: 0.056,xScope: 'all', unlockComfort: 1.8e8, flavor: 'Caviar at 2am, no eyebrow raised. You spread it on a stroopwafel. The waiter does not flinch. He has seen the passport.' },
   { id: 'personal_anthem',         name: 'A Personal Anthem',         tag: 'luxury', costBase: 8e8,   costGrowth: 1.9, comfort: 4500, exclusivity: 16, xMult: 0.058,xScope: 'all', unlockComfort: 2.2e8, flavor: 'The lobby plays a short fanfare when you enter. You pretend to be embarrassed. You have it played twice.' },
-  { id: 'seven_star_concierge',    name: 'Seven-Star Concierge',      tag: 'luxury', costBase: 1.3e9, costGrowth: 1.9, comfort: 4800, exclusivity: 19, xMult: 0.06, xScope: 'all', unlockComfort: 2.6e8, flavor: 'A concierge for a rating that does not exist. He anticipates needs you have not had yet. It is unnerving and wonderful.' },
+  { id: 'seven_star_concierge',    name: 'Seven-Star Concierge',      tag: 'luxury', costBase: 1.3e9, costGrowth: 1.9, comfort: 4800, exclusivity: 19, xMult: 0.06, xScope: 'all', unlockComfort: 2.6e8, flavor: 'A concierge for a rating that does not exist. He anticipates needs you have not had yet. It is unnerving, in a way you have started to enjoy.' },
   { id: 'rooftop_helipad_umbrella',name: 'Rooftop Helipad Umbrella',  tag: 'luxury', costBase: 2e9,   costGrowth: 1.9, comfort: 5100, exclusivity: 22, xMult: 0.062,xScope: 'all', unlockComfort: 3e8,   flavor: 'A parasol on the private helipad, against a sun you flew half your life to complain your way toward. The umbrella, at least, understands the irony.' },
 
   // --- Property-hosted amenities (E22 "A Bungalow of One's Own" — S5): micro-luxuries that attach
@@ -416,7 +416,7 @@ export const AMENITIES = [
   { id: 'grd_tennis',        name: 'Grass Tennis Court',      tag: 'grounds', kind: 'court',  unlockProperty: 'estate', costBase: 9e12,  costGrowth: 1.5, comfort: 2.4e8, xMult: 0.055,xScope: 'all', unlockComfort: 3.5e9, flavor: 'A grass court, rolled and lined daily. You play twice a year, badly, joyfully, against staff who let you win by a believable margin.' },
   { id: 'grd_padel',         name: 'Padel Court',             tag: 'grounds', kind: 'court',  unlockProperty: 'estate', costBase: 1.3e13,costGrowth: 1.5, comfort: 2.6e8, xMult: 0.06, xScope: 'all', unlockComfort: 4.4e9, flavor: 'The fashionable racquet sport. You are not sure of the rules. The court is beautiful. The rules can wait.' },
   { id: 'grd_putting_green', name: 'Putting Green',           tag: 'grounds', kind: 'court',  unlockProperty: 'estate', costBase: 1.9e13,costGrowth: 1.5, comfort: 2.8e8, xMult: 0.06, xScope: 'all', unlockComfort: 5.6e9, flavor: 'Nine holes of manicured green. You take up golf, briefly, then take up watching the green instead. It is very good at being green.' },
-  { id: 'grd_boules_pit',    name: 'A Boules Pit',            tag: 'grounds', kind: 'court',  unlockProperty: 'estate', costBase: 2.7e13,costGrowth: 1.5, comfort: 3.0e8, xMult: 0.065,xScope: 'all', unlockComfort: 7e9,  flavor: 'A boules pit. To remind you where you came from — a damp car park in Utrecht, a borrowed set, a Sunday. You play here exactly as you played there.' },
+  { id: 'grd_boules_pit',    name: 'A Boules Pit',            tag: 'grounds', kind: 'court',  unlockProperty: 'estate', costBase: 2.7e13,costGrowth: 1.5, comfort: 3.0e8, xMult: 0.065,xScope: 'all', unlockComfort: 7e9,  flavor: 'A boules pit, to remind you where you came from: a damp car park in Utrecht, a borrowed set, a Sunday. You play here exactly as you played there.' },
 
   // --- Signature amenities (E24 "Where the Rich Hide" — S5): one per premium destination, unlocked
   // by OWNING that place (tag:'signature' + unlockDest). A hard gate the harness never clears (it
