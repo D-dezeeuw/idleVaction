@@ -405,3 +405,16 @@ div.iv-passport-stamp.iv-stamp-empty { padding: 5px 2px; border-radius: 8px; }
 @media (max-width: 480px) {
   .iv-modal.iv-passport-modal { max-width: 100%; }
 }
+
+/* ---- final art-wiring pass: island building thumbnails + owned grounds-cluster deeds ---- */
+
+/* island resort buildings (E28): a small photo of the built structure atop its stats — same
+   onerror-remove contract as the passport cover thumb (a missing image just leaves the row
+   text-only, never a broken image icon). */
+.iv-island-thumb { width: 72px; height: 72px; object-fit: cover; border-radius: 10px; display: block; margin-bottom: 4px; }
+
+/* owned grounds clusters (garden/pool/court, E23): a little framed deed photo pinned to the
+   cluster header, tilted like a real paper deed tucked in a folder. */
+.iv-deed-thumb { width: 72px; height: auto; border-radius: 6px; vertical-align: middle; margin-right: 6px;
+  transform: rotate(-3deg); box-shadow: 0 1px 4px rgba(43, 30, 22, .3); }
+@media (prefers-reduced-motion: reduce) { .iv-deed-thumb { transform: none; } }

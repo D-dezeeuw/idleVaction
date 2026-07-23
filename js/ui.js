@@ -357,6 +357,21 @@ function arrivalModalHtml(scene, title, text, cta) {
 }
 function emojiScene(e) { return `<div class="iv-postcard-scene" aria-hidden="true">${e}</div>`; }
 
+// Era-modal hero art (final art-wiring pass): the four biggest life-event modals (island SOLD,
+// retirement ceremony, Legend, NG+ boarding pass) get a generated hero image — same manifest +
+// onerror-swap contract as postcardSceneHtml/polaroidSceneHtml. `fallbackScene` is the modal's
+// existing emoji-scene HTML verbatim (unquoted attributes, so it's safe to inline inside the
+// onerror JS string); a key not in ERA_ART, or a failed image load, always falls back to it
+// untouched — a missing file can never break a modal, and art for a key outside the set is
+// never even requested.
+const ERA_ART = new Set(['sold', 'retirement', 'legend', 'ngplus']);
+function eraSceneHtml(key, fallbackScene) {
+  return ERA_ART.has(key)
+    ? `<img class="iv-postcard-img" src="assets/img/era/${key}.webp" alt=""
+         onerror="this.outerHTML='${fallbackScene}'">`
+    : fallbackScene;
+}
+
 // key: fires once ever (per session); test: reads state only; build: returns the modal's
 // inner HTML. TIER arrivals (6/12) use the SAME postcard art + emoji-fallback ui.js already
 // uses for the ladder (postcardSceneHtml) — progressive enhancement, never a broken modal.
@@ -1655,6 +1670,18 @@ function renderProperty(s) {
   el('property').innerHTML = html;
 }
 
+// Property deed art (final art-wiring pass): a small framed photo of the deed for an OWNED grounds
+// cluster — same manifest + onerror-remove contract as the island thumbnails above. A grounds
+// cluster only ever appears in `clusters` below once its underlying property is owned
+// (E.propertyOwned(s, g.unlockProperty) — the only "owned" state a cluster has), so this never
+// surfaces a deed for anything unlocked/locked (R1).
+const DEED_ART = new Set(['garden', 'pool', 'court']);
+function deedThumbHtml(id) {
+  return DEED_ART.has(id)
+    ? `<img class="iv-deed-thumb" src="assets/img/property/deed_${id}.webp" alt="" onerror="this.remove()">`
+    : '';
+}
+
 // The grounds mega-clusters (garden/pool/court) + the property×staff synergy readout (E23).
 function groundsSectionHtml(s) {
   const clusters = DATA.grounds.filter(g => E.propertyOwned(s, g.unlockProperty));
@@ -1668,7 +1695,7 @@ function groundsSectionHtml(s) {
   for (const g of clusters) {
     const nodes = DATA.amenities.filter(a => a.tag === 'grounds' && a.kind === g.kind);
     const subtotal = nodes.reduce((t, a) => t + (s.amenities[a.id].level || 0) * a.comfort, 0);
-    html += `<div class="iv-tag">${g.name} <small>+${fmt(subtotal)}😌</small></div><div class="iv-amenities">`;
+    html += `<div class="iv-tag">${deedThumbHtml(g.id)}${g.name} <small>+${fmt(subtotal)}😌</small></div><div class="iv-amenities">`;
     for (const a of nodes) {
       if (!E.amenityUnlocked(s, a.id)) continue;
       const cost = E.amenityCost(s, a.id);
@@ -1957,6 +1984,18 @@ function esc(str) {
   return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+// Island building art (final art-wiring pass): a small photo of the built structure next to its
+// stats — same manifest + onerror contract as everywhere else (a missing file just removes the
+// image, never a broken row). Only ever consulted for DATA.buildings rows, which the Developer's
+// Dashboard above already renders solely once the island is owned (E.islandListingUnlocked +
+// s.island.owned) — no new reveal surface, just a thumbnail on an already-visible row.
+const ISLAND_ART = new Set(['guest_villa', 'beach_cabanas', 'island_marina', 'heliport', 'island_spa', 'grand_resort']);
+function islandThumbHtml(id) {
+  return ISLAND_ART.has(id)
+    ? `<img class="iv-island-thumb" src="assets/img/island/${id}.webp" alt="" onerror="this.remove()">`
+    : '';
+}
+
 // The Island Listing (E27): the real-estate brochure with four per-currency progress bars and one
 // triumphant "Make an Offer" button. Revealed at beat 28; swaps to a SOLD state once bought.
 function renderIslandListing(s) {
@@ -1977,6 +2016,7 @@ function renderIslandListing(s) {
       const n = M.buildingCount(s, b.id);
       const cost = E.buildingCost(s, b.id);
       html += `<div class="iv-btn iv-content-item" title="${b.flavor}">
+        ${islandThumbHtml(b.id)}
         <b>${b.name}</b> <small>×${n}</small>
         <div class="iv-sub">+${fmt(b.comfort)}😌 · guests ${fmt(b.guestBase)}/s · upkeep <span class="iv-upkeep">${fmt(b.upkeepBase)}/s</span></div>
         <div class="iv-row-buy">${btn('buy-building', b.id, `Build — ${fmt(cost)}`, afford(cost))}</div>
@@ -2305,7 +2345,7 @@ function handle(action, arg, btnEl) {
       if (E.buyIsland(S)) {
         setState(S);
         showEra(`
-          <div class="iv-postcard-scene" aria-hidden="true">🏝️☀️⛵</div>
+          ${eraSceneHtml('sold', '<div class=iv-postcard-scene>🏝️☀️⛵</div>')}
           <h3>SOLD — welcome home</h3>
           <div class="iv-beattext">Forty hectares, one (1) confused goat, and a horizon with your name on it. The mainland era is over.</div>
           <div class="iv-era-actions">${btn('era-close', '', 'Set foot on the island 🦶', true, 'btn-primary')}</div>`);
@@ -2320,7 +2360,7 @@ function handle(action, arg, btnEl) {
       const r = P.makeRetiree(S);
       const nextGen = ((S.lineage && S.lineage.generation) || 1) + 1;
       showEra(`
-        <div class="iv-postcard-scene" aria-hidden="true">🕯️🧳🌅</div>
+        ${eraSceneHtml('retirement', '<div class=iv-postcard-scene>🕯️🧳🌅</div>')}
         <h3>Time to retire?</h3>
         <div class="iv-beattext"><b>${esc(r.name) || 'This tourist'}</b> — generation ${r.generation} — is ready to shed the old self.</div>
         <div class="iv-sub iv-era-epitaph">“${esc(r.epitaph)}”</div>
@@ -2341,7 +2381,7 @@ function handle(action, arg, btnEl) {
     case 'legend-reset': {
       if (!P.canLegend(S)) break;
       showEra(`
-        <div class="iv-postcard-scene" aria-hidden="true">👑✨🌅</div>
+        ${eraSceneHtml('legend', '<div class=iv-postcard-scene>👑✨🌅</div>')}
         <h3>Become a Legend?</h3>
         <div class="iv-beattext">This wipes your Legacy AND the whole skill tree — for <b>+${fmt(P.legendPreview(S))} Legend</b>, spent on things that survive everything.</div>
         <div class="iv-era-actions">${btn('legend-go', '', 'Become a Legend 👑', true, 'btn-primary')} ${btn('era-close', '', 'Not yet')}</div>`);
@@ -2351,7 +2391,7 @@ function handle(action, arg, btnEl) {
     case 'buy-legend-perk': P.buyLegendPerk(S, arg); break;
     case 'ng-plus': {
       showEra(`
-        <div class="iv-boarding-scene" aria-hidden="true">✈️ SHED → SHED <small>(but sunnier)</small></div>
+        ${eraSceneHtml('ngplus', '<div class=iv-boarding-scene>✈️ SHED → SHED <small>(but sunnier)</small></div>')}
         <h3>New Game+${(S.ngPlus || 0) + 1}</h3>
         <div class="iv-beattext">Every gate hardens; a permanent income multiplier compensates. Your Legend, tree, and island stay yours.</div>
         <div class="iv-era-actions">${btn('ng-plus-go', '', 'Board 🔄', true, 'btn-primary')} ${btn('era-close', '', 'Stay a while')}</div>`);

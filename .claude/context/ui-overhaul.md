@@ -14,9 +14,10 @@
 | U1 — holiday theme + Travel Diary | ✅ done |
 | U2 — component kit | ✅ done (staff/butler sliders landed 2026-07-23; icon sprite = hand-author-only, optional) |
 | U3 — reveal choreography | ✅ done (engine-fired arrival modals + Crossroads polaroid modal landed 2026-07-23; only the optional one-goal shelves rule remains) |
-| U4 — journey polish | 🟡 started (era skies only) |
-| U5 — QA sweep | 🟡 script exists in scratchpad, not committed |
-| Art pipeline (generated images) | 🟢 **Wave-1 postcards ALL 22 generated, committed & WIRED in-game**; favicon done & wired; passport set (cover/inside/19 stamps) generated & committed, spread-view UI still open |
+| U4 — journey polish | ✅ done 2026-07-23 (passport spread, postcard flip, polaroid story/diary, patron silhouette, offline reskin, era skies; §5 stage screenshots via uxcheck) |
+| U5 — QA sweep | ✅ done 2026-07-23 (`tools/uxcheck.mjs` committed, `npm run uxcheck`, 52/52 in ~6s; found+fixed the .iv-tap-pop reduced-motion gap) |
+| Art pipeline (generated images) | ✅ **Waves 1–3 COMPLETE & WIRED** (~120 assets, ~3.2 MB: 22 postcards, icon set, passport+24 stamps, 30 polaroids, 21 stickers, patron, 3 deeds, 6 buildings, 4 era heroes) |
+| Copy voice pass (de-AI) | ✅ done 2026-07-23 (story.js all 30 beats + 23 flavor strings across 7 data files; ORIGIN page-zero added) |
 
 ## Done (with merge commits)
 
@@ -76,17 +77,26 @@
 - [ ] One-goal rule for the remaining shelves (pool/beach/wellness groups; destinations "one
   next stamp" if desired — currently all unlocked show).
 
-### U4 — journey polish
-- [ ] §5 stage-matrix audit pass: walk all 12 stages, verify each unlock's tier & metaphor.
-- [ ] Postcard-flip animation on tier-up (reduced-motion: crossfade).
-- [ ] Patron silhouette moments; premium-destination "gold passport page"; polaroid framing on
-  the Story card; "While you were away…" postcard reskin.
+### U4 — journey polish — ALL DONE 2026-07-23
+- [x] Passport spread view (`renderPassport` + `#passportModal`): inside.webp spread, earned
+  stamps at deterministic slots, dotted unlocked-unvisited, locked absent, gold premium page,
+  paginated. Postcard-flip on tier-up (crossfade under reduced-motion, baseline-at-load).
+  Polaroid framing on Story card + diary (POLAROID_ART all 30 beats). Patron silhouette
+  (PATRON_ART) in Seven Stars modal + diary. Offline "While you were away" leads with the
+  current-tier postcard. Era heroes (ERA_ART: sold/retirement/legend/ngplus), island building
+  thumbs (ISLAND_ART), property deed thumbs (DEED_ART) — every image behind a manifest +
+  onerror fallback. Diary opens with page zero = ORIGIN (js/data/story.js).
+- [ ] (optional, unclaimed) deeper §5 stage-matrix metaphor audit beyond the uxcheck
+  screenshots — nothing known broken.
 
-### U5 — QA
-- [ ] Commit the Playwright sweep (now only in scratchpad `pw/shot3.mjs`) as `tools/uxcheck.mjs`:
-  screenshots per stage + the automated spoiler check (fresh-start visible text vs
-  Monaco/Legend/Ascension/Butler/Marina/… list) + locked-stickers-are-??? + devtools-hidden.
-- [ ] A11y + reduced-motion audit pass.
+### U5 — QA — DONE 2026-07-23
+- [x] `tools/uxcheck.mjs` committed (`npm run uxcheck`): zero-dep CDP driver, 10 real-engine
+  stages, 52 assertions — spoiler sweep (20 terms, zero exclusions needed), locked-stickers-
+  are-???, debug-drawer-hidden, mystery-rungs, reduced-motion static check, per-stage
+  screenshots to tmp, console-error capture. ~6s, deterministic. CDN hosts blocked per-page
+  (sandbox proxy doesn't cover them); Chromium ≥130 needs PUT for /json/new.
+- [x] Reduced-motion: uxcheck's static check found `.iv-tap-pop` unguarded; fixed. A11y:
+  new components shipped with aria-labels/keyboard access; no dedicated audit beyond that.
 
 ## The images idea (generated art via OpenRouter)
 
@@ -157,9 +167,17 @@ tiers 1–21 into `POSTCARD_ART` (one line, held back only because ui.js is mid-
   key shared in the 2026-07-22 chat transcript / trigger prompt **should still be revoked on
   OpenRouter** if it wasn't already.
 
-## Suggested order of attack
-1. ~~Generate Wave-1 test image → judge style~~ ✅ → run full Wave 1 (`node tools/genart.mjs
-   postcards`) → compress to WebP → wire the remaining tiers into `POSTCARD_ART`.
-2. U3 engine-fired arrival modals (Crossroads first — biggest narrative moment).
-3. U5 committed `tools/uxcheck.mjs` (locks the no-spoiler guarantee into a runnable check).
-4. U4 polish pass, then Waves 2–3 art.
+## Suggested order of attack — ALL COMPLETE 2026-07-23
+Everything on the original list landed: Wave 1–3 art generated/reviewed/wired, U3 arrival
+modals + Crossroads, U5 uxcheck committed and green (52/52), U4 polish incl. the passport
+spread, plus the copy voice pass + ORIGIN. Gates at every step: npm test ALL PASS, harness
+island exactly 8h 15m 5s, npm run uxcheck 52/52.
+
+### What's genuinely left (all optional / next-phase)
+- Hand-authored SVG chrome-icon sprite (gear/lock/close/diary) — emoji serve fine; generated
+  art confirmed unusable at 16–24px.
+- One-goal "next stamp" treatment for destinations (chips currently show all unlocked).
+- Seasonal-stamp UI moment (assets committed in stamps/, no dedicated UI yet) and a
+  Legend-perk sticker spot (renderLegend has no sticker-like slot; skipped deliberately).
+- Wave-4 nice-to-haves: vehicles (~18), grounds clusters, era sky strips, og-image/logo.
+- Deeper §5 metaphor audit; staff/butler dials for estate-wing roles (assignment-only today).
