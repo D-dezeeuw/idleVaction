@@ -167,6 +167,18 @@
     </div>
   </div>
 
+  <!-- Passport spread (Task 1, U4 "the headline feature"): inside.webp as the page background
+       with earned stamps overlaid at deterministic slots; opened from the Travel tab. -->
+  <div id="passportModal" class="iv-modal-overlay" hidden>
+    <div class="iv-modal iv-passport-modal" role="dialog" aria-modal="true" aria-label="Your passport">
+      <div class="iv-passport-header">
+        <h3>📔 Passport</h3>
+        <button class="btn btn-sm iv-btn" data-action="close-passport" aria-label="Close passport">✕</button>
+      </div>
+      <div id="passportBody"></div>
+    </div>
+  </div>
+
   <!-- ES modules; served over HTTPS by GitHub Pages. For LOCAL testing use a server
        (npm run serve) — file:// blocks module loading. -->
   <script type="module" src="js/main.js"></script>

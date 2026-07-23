@@ -1,6 +1,7 @@
 // ui.js — "simple buttons" renderer. No framework logic; reads state, calls engine.
 import { CONFIG as C } from './config.js';
 import { DATA } from './data/index.js';
+import { ORIGIN } from './data/story.js';
 import * as M from './math.js';
 import * as E from './engine.js';
 import * as P from './prestige.js';
@@ -209,6 +210,35 @@ function renderNotifications(s) {
 }
 const toastQueue = [];
 
+// One emoji composition per story beat (pure display data, mirrors TIER_SCENES) — the polaroid
+// "photo" for the Story card + each diary page (Task 2b, U4).
+const STORY_SCENES = {
+  1: '☔🚌', 2: '🪳🛏️', 3: '🧳🚪', 4: '🛏️🎒', 5: '📘🗺️', 6: '🧭📶', 7: '⭐🌤️', 8: '🥐☕',
+  9: '🏊💦', 10: '😎🏖️', 11: '🍴🛎️', 12: '💪🧴', 13: '⭐🥂', 14: '📱🔥', 15: '🔑🚗',
+  16: '⛵🌊', 17: '✈️☁️', 18: '⛵🏨', 19: '🛎️🤵', 20: '🏠👨‍👩‍👧', 21: '⭐⭐⭐⭐⭐⭐⭐',
+  22: '✉️❓🏝️', 23: '🏡🔑', 24: '🏡🌴', 25: '🥂🕶️', 26: '🕯️🌅', 27: '🧬🧳', 28: '🏝️❓',
+  29: '🏗️🏝️👷', 30: '👑🏝️',
+};
+// Patron silhouette (Task 2d, U4): a mysterious recurring figure at the Seven Stars era (beat
+// 21) — no name, no reveal, ever, even once art exists. Flip to true only after the generated
+// art has been reviewed; false keeps the current ⭐-scene everywhere the patron could appear.
+const PATRON_ART = true;   // reviewed 2026-07-23 — the silhouette stays faceless
+// Diary-page art hook (Task 2b, U4): a generated polaroid photo for a beat the player has SEEN.
+// Progressive enhancement, same contract as POSTCARD_ART — a beat not in this set (or a failed
+// image load) always falls back to its emoji scene; art for unseen beats is never requested.
+const POLAROID_ART = new Set(Array.from({ length: 30 }, (_, i) => i + 1));   // Wave 2: all 30 beats
+function polaroidSceneHtml(beatId) {
+  const emoji = STORY_SCENES[beatId] || '🧳';
+  if (beatId === 21 && PATRON_ART) {
+    return `<img class="iv-polaroid-photo-img" src="assets/img/story/patron.webp" alt=""
+      onerror="this.outerHTML='<div class=iv-polaroid-photo>${emoji}</div>'">`;
+  }
+  return POLAROID_ART.has(beatId)
+    ? `<img class="iv-polaroid-photo-img" src="assets/img/polaroids/beat-${String(beatId).padStart(2, '0')}.webp"
+         alt="" onerror="this.outerHTML='<div class=iv-polaroid-photo>${emoji}</div>'">`
+    : `<div class="iv-polaroid-photo" aria-hidden="true">${emoji}</div>`;
+}
+
 function renderStory(s) {
   const latestBeat = DATA.story.filter(b => s.story.seen.includes(b.id)).slice(-1)[0] || DATA.story[0];
   // branch-flavored copy (E13 Task D, "Whale Watching"): swaps in latestBeat.variants[branch]
@@ -224,21 +254,32 @@ function renderStory(s) {
   // R1 (UX-plan §2): never reveal the total beat count — the trip's length is part of the mystery.
   // The branch line only appears once a branch is chosen (before that it's just "the trip so far").
   const branchLabel = s.story.branch !== 'neutral' ? ` — <b>${s.story.branch}</b>` : '';
+  // Task 2b: the current beat sits in the polaroid frame (white border, slight rotation — CSS only).
   el('story').innerHTML = `
-    <div class="iv-beatnum">Entry ${latestBeat.id}${branchLabel} ${btn('open-diary', '', '📔 Diary', s.story.seen.length > 1, 'btn-link')}</div>
-    <div class="iv-beattitle">${latest.title}</div>
-    <div class="iv-beattext">${latest.text}</div>
-    ${choiceHtml}`;
+    <div class="iv-polaroid-frame">
+      ${polaroidSceneHtml(latestBeat.id)}
+      <div class="iv-beatnum">Entry ${latestBeat.id}${branchLabel} ${btn('open-diary', '', '📔 Diary', s.story.seen.length > 1, 'btn-link')}</div>
+      <div class="iv-beattitle">${latest.title}</div>
+      <div class="iv-beattext">${latest.text}</div>
+      ${choiceHtml}
+    </div>`;
 }
 
 // ---------- the Travel Diary (UX-plan §3/§6) ----------
 // Every beat the player has LIVED, as dated journal pages — chronological, branch-flavored
 // (beatCopy), and future-blind: only story.seen renders, and the closing line promises more
-// without naming it (Reveal Doctrine R1).
+// without naming it (Reveal Doctrine R1). Task 2b: each page is a polaroid — art only for
+// SEEN beats, since the loop below only ever visits story.seen ids.
 function renderDiary(s) {
   const body = el('diaryBody');
   if (!body) return;
-  let html = '';
+  // Page zero (the origin story): who this tourist was before Entry 1 — always the first page.
+  let html = `<div class="iv-diary-entry iv-polaroid-frame">
+    <div class="iv-polaroid-photo" aria-hidden="true">🗄️🌧️📎</div>
+    <div class="iv-diary-when">before the trip</div>
+    <div class="iv-diary-title">${ORIGIN.title}</div>
+    <div class="iv-diary-text">${ORIGIN.text}</div>
+  </div>`;
   const seen = [...s.story.seen].sort((a, b) => a - b);
   for (const id of seen) {
     const beat = DATA.story.find(b => b.id === id);
@@ -246,7 +287,8 @@ function renderDiary(s) {
     const copy = E.beatCopy(s, beat);
     const at = s.story.seenAt?.[id];
     const when = at === 0 ? 'where it all began' : (at > 0 ? `${fmtTime(at)} into the trip` : '');
-    html += `<div class="iv-diary-entry">
+    html += `<div class="iv-diary-entry iv-polaroid-frame">
+      ${polaroidSceneHtml(beat.id)}
       <div class="iv-diary-when">Entry ${beat.id}${when ? ` · ${when}` : ''}</div>
       <div class="iv-diary-title">${copy.title}</div>
       <div class="iv-diary-text">${copy.text}</div>
@@ -330,8 +372,14 @@ const ARRIVAL_MODALS = [
       'Six stars. Gold on the taps. The velvet rope parts before you even reach for it.',
       'Step past the rope') },
   { key: 'sevenStars', test: s => s.story.seen.includes(21),
+    // the patron silhouette (Task 2d): PATRON_ART swaps in the mystery figure once reviewed;
+    // false (today) keeps the ⭐-scene, with a matching onerror fallback either way.
     build: s => { const c = E.beatCopy(s, DATA.story.find(b => b.id === 21));
-      return arrivalModalHtml(emojiScene('⭐⭐⭐⭐⭐⭐⭐'), c.title, c.text, 'Nod back, coolly'); } },
+      const scene = PATRON_ART
+        ? `<img class="iv-postcard-img" src="assets/img/story/patron.webp" alt=""
+             onerror="this.outerHTML='<div class=iv-postcard-scene>⭐⭐⭐⭐⭐⭐⭐</div>'">`
+        : emojiScene('⭐⭐⭐⭐⭐⭐⭐');
+      return arrivalModalHtml(scene, c.title, c.text, 'Nod back, coolly'); } },
   { key: 'invitation', test: s => s.story.seen.includes(22),
     build: s => { const c = E.beatCopy(s, DATA.story.find(b => b.id === 22));
       // scene stays a MYSTERY silhouette (❓🏝️), never the listing itself (UX-plan §5 stage 7).
@@ -363,7 +411,7 @@ function checkArrivalModals(s) {
   if (arrivalQueue.length && !modalIsOpen()) showEra(arrivalQueue.shift());
 }
 function modalIsOpen() {
-  return ['eraModal', 'diaryModal', 'offlineModal'].some(id => { const m = el(id); return m && !m.hidden; });
+  return ['eraModal', 'diaryModal', 'offlineModal', 'passportModal'].some(id => { const m = el(id); return m && !m.hidden; });
 }
 
 // The shed→island ladder panel (E05-S3-T1..T4): rather than dumping all 21 rows, this
@@ -481,6 +529,11 @@ function renderDestinations(s) {
   for (const d of DATA.destinations) (byRegion[d.region] ||= []).push(d);
 
   let html = `<div class="iv-sub">🌍 Combined bonus: <b>×${fmt(lDest)}</b> on all income</div>`;
+  // Passport button (Task 1, U4 "the headline feature"): opens the full spread view — the SAME
+  // owned/unlocked state the stamp chips below already render, just laid out like a real passport.
+  html += `<button class="btn btn-sm iv-btn iv-passport-btn" data-action="open-passport" aria-label="Open your passport">
+    <img class="iv-passport-cover-thumb" src="assets/img/passport/cover.webp" alt="" onerror="this.remove()">📔 Passport
+  </button>`;
   // E24 premium collection board (S3/S4): the set-collection meta-game. Shown once any premium
   // destination is unlockable/owned (i.e. the summit era). "Collect the rich people's hiding spots."
   const premiums = DATA.destinations.filter(d => d.premium);
@@ -517,6 +570,84 @@ function renderDestinations(s) {
   }
   el('destinations').innerHTML = html;
 }
+
+// ---------- Passport spread view (Task 1, U4 "the headline feature") ----------
+// A real passport the player opens: inside.webp as the page background, earned stamps overlaid
+// as absolutely-positioned images at deterministic per-destination slots. Reuses the EXACT SAME
+// "visited/owned" state the stamp chips above already read (s.destinations[id].owned /
+// E.destUnlocked) — no separate reveal logic, so the passport can never show a destination the
+// chips wouldn't. Premium destinations get their own gold page, appended after the regular
+// spreads, using the same "own or unlocked" visibility as the "Where the Rich Hide" board above.
+// Content is set ONCE per open/page-flip (mirrors the diary/era modal convention) — not on every
+// tick — so a page-flip mid-render never yanks focus.
+let passportPage = 0;
+const PASSPORT_SLOTS_PER_SPREAD = 12;     // 6 per page-half: 2 columns × 3 rows, column-flow
+// Slot geometry, in % of the spread container. inside.webp is a 960×720 open two-page spread
+// with a spine gutter down the middle — index 0-5 lands on the left page, 6-11 on the right.
+const PASSPORT_COL_X = { left: [16, 36], right: [64, 84] };
+const PASSPORT_ROW_Y = [22, 46, 70];
+function passportSlotPos(i) {
+  const side = i < 6 ? 'left' : 'right';
+  const local = i % 6;
+  const col = local < 3 ? 0 : 1;          // column-flow: column 0's 3 rows fill first, then column 1's
+  const row = local % 3;
+  return { left: `${PASSPORT_COL_X[side][col]}%`, top: `${PASSPORT_ROW_Y[row]}%` };
+}
+// Stable pseudo-random rotation (-12°..12°), derived from the index alone — NOT Math.random(),
+// so the charmingly-crooked layout is reproducible across renders instead of reshuffling.
+function passportStampRot(i) { return ((i * 53) % 25) - 12; }
+
+function passportStampHtml(s, d, i) {
+  const pos = passportSlotPos(i % PASSPORT_SLOTS_PER_SPREAD);
+  const style = `left:${pos.left};top:${pos.top};transform:translate(-50%,-50%) rotate(${passportStampRot(i)}deg);`;
+  if (s.destinations[d.id].owned) {
+    // owned = the earned ink. All 19 destination stamps are already committed assets (no
+    // manifest gate needed) — onerror still hides gracefully rather than showing a broken image.
+    return `<img class="iv-passport-stamp" style="${style}" src="assets/img/passport/stamps/${d.id}.webp"
+      alt="${esc(d.name)} stamp" onerror="this.style.display='none'">`;
+  }
+  // unlocked but not yet visited = the dotted empty slot, same look the stamp chips use (R3).
+  return `<div class="iv-passport-stamp iv-stamp-empty" style="${style}"><b>${esc(d.name)}</b></div>`;
+}
+
+// Chunk the visible destinations into spreads of PASSPORT_SLOTS_PER_SPREAD, regular pages first,
+// then the gold premium page(s) — a locked destination never appears (R1).
+function passportSpreads(s) {
+  const visible = d => s.destinations[d.id].owned || E.destUnlocked(s, d.id);
+  const regular = DATA.destinations.filter(d => !d.premium && visible(d));
+  const premium = DATA.destinations.filter(d => d.premium && visible(d));
+  const spreads = [];
+  for (let i = 0; i < regular.length; i += PASSPORT_SLOTS_PER_SPREAD) {
+    spreads.push({ gold: false, items: regular.slice(i, i + PASSPORT_SLOTS_PER_SPREAD) });
+  }
+  if (!spreads.length) spreads.push({ gold: false, items: [] });   // a blank first page before any stamp
+  for (let i = 0; i < premium.length; i += PASSPORT_SLOTS_PER_SPREAD) {
+    spreads.push({ gold: true, items: premium.slice(i, i + PASSPORT_SLOTS_PER_SPREAD) });
+  }
+  return spreads;
+}
+
+function renderPassport() {
+  const body = el('passportBody');
+  if (!body) return;
+  const spreads = passportSpreads(S);
+  passportPage = clamp(passportPage, 0, spreads.length - 1);
+  const spread = spreads[passportPage];
+  const stamps = spread.items.map((d, i) => passportStampHtml(S, d, i)).join('');
+  const empty = !spread.items.length
+    ? '<div class="iv-sub iv-passport-empty">The pages are still blank — your first stamp goes here.</div>' : '';
+  body.innerHTML = `
+    ${spread.gold ? '<div class="iv-passport-goldlabel">🥂 the gold page</div>' : ''}
+    <div class="iv-passport-spread${spread.gold ? ' iv-passport-gold' : ''}">${stamps}</div>
+    ${empty}
+    <div class="iv-passport-nav">
+      <button class="btn btn-sm iv-btn" data-action="passport-page" data-arg="-1" aria-label="Previous passport page" ${passportPage > 0 ? '' : 'disabled'}>‹ Prev</button>
+      <span class="iv-sub">Page ${passportPage + 1} / ${spreads.length}</span>
+      <button class="btn btn-sm iv-btn" data-action="passport-page" data-arg="1" aria-label="Next passport page" ${passportPage < spreads.length - 1 ? '' : 'disabled'}>Next ›</button>
+    </div>`;
+}
+function openPassport() { passportPage = 0; renderPassport(); const m = el('passportModal'); if (m) m.hidden = false; }
+function closePassport() { const m = el('passportModal'); if (m) m.hidden = true; }
 
 function renderTransport(s) {
   const card = el('transportCard');
@@ -616,10 +747,21 @@ function postcardSceneHtml(t) {
          alt="" onerror="this.outerHTML='<div class=iv-postcard-scene>${TIER_SCENES[t] || '🏝️'}</div>'">`
     : `<div class="iv-postcard-scene" aria-hidden="true">${TIER_SCENES[t] || '🏝️'}</div>`;
 }
+// Postcard-flip on tier-up (Task 2, U4): a brief flip plays the render AFTER the tier actually
+// changes — same "pulse until a timestamp" convention as energyPulseUntil/conciergePulseUntil,
+// so the class only appears for POSTCARD_FLIP_MS instead of re-triggering every render tick.
+// Baseline-at-load mirrors the arrival-modal watcher: whatever tier is already current on the
+// very first render never flips, only a LIVE tier-up observed during this session does.
+let lastPostcardTier = -1;
+let postcardFlipUntil = 0;
+const POSTCARD_FLIP_MS = 600;
 function tierPostcardHtml(s) {
   const t = s.accommodation.tier;
+  if (lastPostcardTier === -1) lastPostcardTier = t;
+  else if (t !== lastPostcardTier) { lastPostcardTier = t; postcardFlipUntil = Date.now() + POSTCARD_FLIP_MS; }
+  const flipping = Date.now() < postcardFlipUntil;
   const acc = DATA.accommodation[t];
-  return `<div class="iv-postcard">
+  return `<div class="iv-postcard${flipping ? ' iv-postcard-flip' : ''}">
     ${postcardSceneHtml(t)}
     <div class="iv-postcard-name">${acc.name}</div>
     <div class="iv-postcard-caption">— ${acc.flavor}</div>
@@ -705,13 +847,21 @@ function renderPoolside(s) {
     const visible = poolItems.filter(a => grp.ids.includes(a.id) && E.amenityUnlocked(s, a.id));
     if (!visible.length) continue;
     anyVisible = true;
+    // one-goal shelves (Task 3, mirrors renderAmenities' 3 + "+N more ▾" exactly): everything
+    // in `visible` is already unlocked — this just tames the wall, nothing future is hidden.
+    const key = `pool:${grp.label}`;
+    const expanded = expandedAmenTags.has(key);
+    const shown = expanded ? visible : visible.slice(0, 3);
     html += `<div class="iv-tag">${grp.label}</div><div class="iv-amenities">`;
-    for (const a of visible) {
+    for (const a of shown) {
       const cost = E.amenityCost(s, a.id);
       const lvl = s.amenities[a.id].level;
       html += btn('buy-amenity', a.id,
         `${a.name} <small>Lv${lvl}</small><br><small>${fmt(cost)} · +${fmt(a.comfort)}😌</small>`,
         afford(cost), '', a.flavor);
+    }
+    if (visible.length > 3) {
+      html += btn('toggle-amen-tag', key, expanded ? 'fewer ▴' : `+${visible.length - 3} more ▾`, true, 'iv-more-chip');
     }
     html += '</div>';
   }
@@ -765,22 +915,29 @@ function renderBeachfront(s) {
   let html = `<div class="iv-sub">🏖️ Beach + Service Comfort: <b>${fmt(zoneComfort)}</b> (${share.toFixed(0)}% of your total Comfort)</div>`;
   html += serviceMeterHtml(s);
 
-  const renderGroup = (label, items) => {
+  // one-goal shelves (Task 3, mirrors renderAmenities' 3 + "+N more ▾" exactly).
+  const renderGroup = (label, items, keySuffix) => {
     const visible = items.filter(a => E.amenityUnlocked(s, a.id));
     if (!visible.length) return '';
+    const key = `beach:${keySuffix}`;
+    const expanded = expandedAmenTags.has(key);
+    const shown = expanded ? visible : visible.slice(0, 3);
     let h = `<div class="iv-tag">${label}</div><div class="iv-amenities">`;
-    for (const a of visible) {
+    for (const a of shown) {
       const cost = E.amenityCost(s, a.id);
       const lvl = s.amenities[a.id].level;
       h += btn('buy-amenity', a.id,
         `${a.name} <small>Lv${lvl}</small><br><small>${fmt(cost)} · +${fmt(a.comfort)}😌</small>`,
         afford(cost), '', a.flavor);
     }
+    if (visible.length > 3) {
+      h += btn('toggle-amen-tag', key, expanded ? 'fewer ▴' : `+${visible.length - 3} more ▾`, true, 'iv-more-chip');
+    }
     return h + '</div>';
   };
   // separate sand vs. service sections (E08-S3-T6), same buyAmenity(id) buy-flow for both.
-  const sandHtml = renderGroup('Sun & Sand', sandItems);
-  const serviceHtml = renderGroup('Service', serviceItems);
+  const sandHtml = renderGroup('Sun & Sand', sandItems, 'sand');
+  const serviceHtml = renderGroup('Service', serviceItems, 'service');
   html += sandHtml + serviceHtml;
   if (!sandHtml && !serviceHtml) html += '<em>The beach just opened. Keep building Comfort — the first towel is close.</em>';
   el('beachfront').innerHTML = html;
@@ -846,13 +1003,20 @@ function renderWellness(s) {
     const visible = DATA.amenities.filter(a => grp.ids.includes(a.id) && E.amenityUnlocked(s, a.id));
     if (!visible.length) continue;
     anyVisible = true;
+    // one-goal shelves (Task 3, mirrors renderAmenities' 3 + "+N more ▾" exactly).
+    const key = `wellness:${grp.label}`;
+    const expanded = expandedAmenTags.has(key);
+    const shown = expanded ? visible : visible.slice(0, 3);
     html += `<div class="iv-tag">${grp.label}</div><div class="iv-amenities">`;
-    for (const a of visible) {
+    for (const a of shown) {
       const cost = E.amenityCost(s, a.id);
       const lvl = s.amenities[a.id].level;
       html += btn('buy-amenity', a.id,
         `${a.name} <small>Lv${lvl}</small><br><small>${fmt(cost)} · +${fmt(a.comfort)}😌</small>`,
         afford(cost), '', a.flavor);
+    }
+    if (visible.length > 3) {
+      html += btn('toggle-amen-tag', key, expanded ? 'fewer ▴' : `+${visible.length - 3} more ▾`, true, 'iv-more-chip');
     }
     html += '</div>';
   }
@@ -1842,6 +2006,22 @@ function renderIslandListing(s) {
 
 // The Trophy Cabinet + Statistics (E30): the completionist gallery (earned vs locked) and a live
 // stats readout. Always visible — it's the record of the whole journey.
+// Luggage sticker art hook (Task 4, U4): a generated sticker image for an EARNED trophy only —
+// locked trophies stay "???" with nothing to leak (R1), so a locked id in this set is simply
+// never consulted. A missing file (or an id not yet in the set) falls back to the 🏆 emoji,
+// same onerror-swap contract as postcardSceneHtml.
+const STICKER_ART = new Set([   // Wave 3: all 16 trophies (reviewed 2026-07-23)
+  'first_star', 'poolside', 'five_star', 'sail_hotel', 'the_island', 'comfy', 'very_comfy',
+  'first_million', 'first_ascend', 'seasoned', 'homeowner', 'the_host', 'a_legend', 'legendary',
+  'new_game_plus', 'collector',
+]);
+function stickerSceneHtml(a) {
+  return STICKER_ART.has(a.id)
+    ? `<img class="iv-sticker-img" src="assets/img/stickers/${a.id}.webp" alt=""
+         onerror="this.outerHTML='<span class=iv-sticker-emoji>🏆</span>'">`
+    : `<span class="iv-sticker-emoji" aria-hidden="true">🏆</span>`;
+}
+
 function renderAchievements(s) {
   const total = DATA.achievements.length;
   const earned = DATA.achievements.filter(a => E.achievementUnlocked(s, a.id)).length;
@@ -1857,7 +2037,7 @@ function renderAchievements(s) {
     const got = E.achievementUnlocked(s, a.id);
     if (got) {
       html += `<div class="iv-btn iv-content-item iv-sticker" title="${a.desc}">
-        <b>🏆 ${a.name}</b>
+        <b>${stickerSceneHtml(a)} ${a.name}</b>
         <div class="iv-sub"><small>${a.desc}${a.reward > 0 ? ` · +${(a.reward * 100).toFixed(0)}%×` : ''}</small></div>
       </div>`;
     } else {
@@ -2012,6 +2192,15 @@ function handle(action, arg, btnEl) {
     // the Travel Diary (UX-plan §6)
     case 'open-diary': openDiary(); break;
     case 'close-diary': { const m = el('diaryModal'); if (m) m.hidden = true; break; }
+    // the Passport (Task 1)
+    case 'open-passport': openPassport(); break;
+    case 'close-passport': closePassport(); break;
+    case 'passport-page': {
+      const spreads = passportSpreads(S);
+      passportPage = clamp(passportPage + Number(arg), 0, spreads.length - 1);
+      renderPassport();
+      break;
+    }
     case 'set-qty': S.ui.bulkMode = arg === 'max' ? 'max' : Number(arg); break;
     case 'buy-gen': { const [k, q] = arg.split('|'); E.buyGenerator(S, Number(k), q === 'max' ? 'max' : Number(q)); break; }
     case 'buy-gen-upg': E.buyGenUpgrade(S, Number(arg)); break;
@@ -2275,7 +2464,15 @@ export function showOfflineSummary(state, rep) {
   const body = el('offlineModalBody');
   if (!overlay || !body) return;
   const lComfort = M.comfortMultiplier(state);
+  // Task 2c: leads with the SAME postcard scene the Home ladder uses (postcardSceneHtml) —
+  // "greetings from the current tier" energy, no fake handwriting, just the picture + a caption.
+  const t = state.accommodation.tier;
   body.innerHTML = `
+    <div class="iv-postcard iv-offline-postcard">
+      ${postcardSceneHtml(t)}
+      <div class="iv-postcard-name">Greetings from ${DATA.accommodation[t].name}</div>
+      <div class="iv-postcard-caption">— while you were away…</div>
+    </div>
     <div class="iv-offline-row">You were away for <b>${fmtTime(rep.seconds)}</b>${rep.capped ? ' <span class="iv-sub">(capped)</span>' : ''}.</div>
     <div class="iv-offline-row">💶 <b>+${fmt(rep.cash)}</b> cash</div>
     <div class="iv-offline-row">📣 <b>+${fmt(rep.clout)}</b> clout</div>
