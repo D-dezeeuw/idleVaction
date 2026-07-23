@@ -22,9 +22,14 @@ export const SKILLS = [
 
 // "Training" purchases grant flat XP for cash (a spend-to-grow loop).
 export const TRAINING = [
-  { id: 'train_charisma', skill: 'charisma', costBase: 500,  costGrowth: 1.6, xp: 120 },
-  { id: 'train_comms',    skill: 'comms',    costBase: 500,  costGrowth: 1.6, xp: 120 },
-  { id: 'train_body',     skill: 'body',     costBase: 800,  costGrowth: 1.6, xp: 120 },
-  { id: 'train_taste',    skill: 'taste',    costBase: 5000, costGrowth: 1.7, xp: 120 },
-  { id: 'train_savvy',    skill: 'savvy',    costBase: 5000, costGrowth: 1.7, xp: 120 },
+  { id: 'train_charisma', skill: 'charisma', costBase: 500,  costGrowth: 1.6, xp: 120,
+    name: 'Poolside Small Talk', flavor: 'A course in laughing at the right moment. You test well.' },
+  { id: 'train_comms',    skill: 'comms',    costBase: 500,  costGrowth: 1.6, xp: 120,
+    name: 'Haggling Abroad', flavor: 'Lesson one: the first price is a greeting, not a price.' },
+  { id: 'train_body',     skill: 'body',     costBase: 800,  costGrowth: 1.6, xp: 120,
+    name: 'Sunrise Swim', flavor: 'Cold water, warm sun, and the smugness of having done both by nine.' },
+  { id: 'train_taste',    skill: 'taste',    costBase: 5000, costGrowth: 1.7, xp: 120,
+    name: 'Wine Tasting (Spitting Optional)', flavor: 'You learn the word "terroir" and deploy it responsibly.' },
+  { id: 'train_savvy',    skill: 'savvy',    costBase: 5000, costGrowth: 1.7, xp: 120,
+    name: 'Compound Interest, Explained Poolside', flavor: 'A man in sunglasses draws a curve in the condensation. It goes up.' },
 ];

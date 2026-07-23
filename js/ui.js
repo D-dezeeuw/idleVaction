@@ -161,6 +161,9 @@ function renderTabs(s) {
 }
 
 function afford(cost) { return S.resources.cash >= cost; }
+// Branch-skinned generator names (Phase E / audit 3.1): the committed road re-labels the SAME
+// economy — display-only, ids/math untouched (data/generators.js `names`).
+function genName(s, g) { return (g.names && g.names[s.story.branch]) || g.name; }
 function btn(action, arg, label, enabled = true, cls = '', title = '') {
   return `<button class="btn btn-sm iv-btn ${cls}" data-action="${action}" data-arg="${arg ?? ''}" ${enabled ? '' : 'disabled'} ${title ? `title="${title}"` : ''}>${label}</button>`;
 }
@@ -826,7 +829,7 @@ function renderGenerators(s) {
     const upgMult = M.upgradeMult(st.upgrades);
     rows += `<div class="iv-row">
       <div class="iv-row-main" title="${g.flavor}">
-        <b>${g.name}</b> <small>×${st.count | 0}</small>
+        <b>${genName(s, g)}</b> <small>×${st.count | 0}</small>
         <div class="iv-sub">out ×${fmt(mult)} · next double in ${toDouble} · bought ${st.bought}</div>
         <div class="iv-sub" aria-label="renovation layer: ${st.upgrades} bought, times ${fmt(upgMult)}">
           🔧 L_upgrade ×${fmt(upgMult)} (${st.upgrades} reno${st.upgrades === 1 ? '' : 's'}) · next +${renoPct}%</div>
@@ -834,7 +837,7 @@ function renderGenerators(s) {
       </div>
       <div class="iv-row-buy">
         ${btn('buy-gen', `${k}|${buyQty}`, `Buy${buyQty === 'max' ? ` ×${qty}` : ''}<br><small>${fmt(cost)}</small>`, afford(cost) && qty > 0)}
-        ${btn('buy-gen-upg', k, `Upg<br><small>${fmt(upgCost)}</small>`, afford(upgCost), '', `+${renoPct}% to ${g.name}'s output — L_upgrade`)}
+        ${btn('buy-gen-upg', k, `Upg<br><small>${fmt(upgCost)}</small>`, afford(upgCost), '', `+${renoPct}% to ${genName(s, g)}'s output — L_upgrade`)}
       </div></div>`;
   });
   setHTML(el('generators'), rows);
@@ -1978,7 +1981,7 @@ function renderSkills(s) {
   html += '</div><div class="iv-tag">training</div><div class="iv-amenities">';
   for (const t of DATA.training) {
     const cost = E.trainingCost(s, t.id);
-    html += btn('buy-training', t.id, `Train ${t.skill}<br><small>${fmt(cost)} → +${t.xp}xp</small>`, afford(cost));
+    html += btn('buy-training', t.id, `${t.name || `Train ${t.skill}`}<br><small>${fmt(cost)} → +${t.xp}xp</small>`, afford(cost), '', t.flavor || '');
   }
   html += '</div>';
   setHTML(el('skills'), html);

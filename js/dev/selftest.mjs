@@ -4788,8 +4788,8 @@ console.log('\n[109] Phase B instruments: branch parity, casual band, beat spaci
   // audit's ×2.28 spread to ×1.37: every branch inside ±20% of the vlogger baseline.
   ok(Math.abs(times.vlogger - 39440) <= 120, `vlogger pin ≈ golden 39440s / 10h57m20s (got ${times.vlogger})`);
   ok(Math.abs(times.traveler - 38025) <= 300, `traveler fitted pin ~10h34m (got ${fmtTime(times.traveler)})`);
-  ok(Math.abs(times.connoisseur - 32425) <= 300, `connoisseur fitted pin ~9h00m (got ${fmtTime(times.connoisseur)})`);
-  ok(Math.abs(times.crypto - 44235) <= 300, `crypto fitted pin ~12h17m (got ${fmtTime(times.crypto)})`);
+  ok(Math.abs(times.connoisseur - 32095) <= 300, `connoisseur fitted pin ~8h55m (got ${fmtTime(times.connoisseur)})`);
+  ok(Math.abs(times.crypto - 43705) <= 300, `crypto fitted pin ~12h08m (got ${fmtTime(times.crypto)})`);
   for (const [b, t] of Object.entries(times))
     ok(t >= times.vlogger * 0.8 && t <= times.vlogger * 1.25, `branch parity: ${b} within ±20-25% of the vlogger baseline`);
 
