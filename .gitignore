@@ -152,3 +152,4 @@ assets/img/story/*.png
 assets/img/property/*.png
 assets/img/island/*.png
 assets/img/era/*.png
+__pycache__/
