@@ -105,5 +105,17 @@ addEventListener('visibilitychange', () => {
   hiddenAt = 0;
 });
 
+// Multi-tab guard (Phase F / audit 5.3): two open tabs used to autosave over each other every
+// 15s, last writer silently winning. When ANOTHER tab writes our save key, this tab yields —
+// deliberately, visibly — instead of clobbering.
+addEventListener('storage', ev => {
+  if (ev.key !== C.SAVE_KEY || dead || document.hasFocus()) return;
+  dead = true;
+  const d = document.createElement('div');
+  d.style.cssText = 'position:fixed;inset:0;z-index:99;background:rgba(43,30,22,.55);display:flex;align-items:center;justify-content:center;padding:20px;';
+  d.innerHTML = '<div style="background:#fff;border-radius:16px;padding:20px;max-width:420px;text-align:center;"><h3>🧳 The trip moved tabs</h3><p>Another tab is playing this save now. This one stepped aside so nothing gets overwritten.</p><button class="btn btn-primary" onclick="location.reload()">Play here instead</button></div>';
+  document.body.append(d);
+});
+
 // expose for QA console
 window.IV = { get state() { return state; }, C, E, UI };

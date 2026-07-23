@@ -2,7 +2,7 @@
 
 **From a cold, damp, soggy Dutch bus stop to a private island.** A player-directed idle
 game (not a clicker) built to run on **GitHub Pages** with **no dependencies**, **localStorage**
-saves, and **one CDN CSS framework** (Spectre.css). No monetization, ~**20 active hours** to the
+saves, and **zero third-party origins** (the one-time Spectre.css CDN link is vendored in-repo). No monetization, ~**20 active hours** to the
 summit, fully **tweakable** pacing.
 
 > **Scale of this plan:** **30 epics × 10 stories × 10 tasks = 3,000 tasks**, all written out
@@ -73,7 +73,7 @@ Full conventions: **[`docs/06-plan-format.md`](06-plan-format.md)**.
 
 A vertical slice implementing the core of the above lives at repo root and **runs today**:
 
-- `index.html` + `css/game.css` + `js/**` — vanilla ES modules, Spectre.css from CDN, no build.
+- `index.html` + `css/game.css` + `js/**` — vanilla ES modules, vendored css (no CDN), no build.
 - Implements: the tick loop, 8-tier income ladder, amenities/Comfort, the 5 skills, 4 paths,
   the 30 story beats (monotonic, with the branch choice), accommodation ladder, **ascension +
   Legacy + the permanent skill tree**, **offline progress bounded by the bank-account
@@ -87,7 +87,7 @@ A vertical slice implementing the core of the above lives at repo root and **run
   - `npm test` → `js/dev/selftest.mjs` asserts economy growth, ladder climb, ascension, tree,
     save round-trip, offline. **All pass.**
   - `npm run harness` → `js/dev/harness.mjs` prints the full **~20h pacing curve** (greedy-
-    optimal ROI island ≈ **8h15m** — a hard *lower bound*; guard band 6–12h, casual/offline
+    optimal ROI island ≈ **10h57m** (post-refit) — a hard *lower bound*; guard band 6–12h, the measured casual-tourist
     play lands ~20h+; beats spread monotonically; peak cash `1e11`, safely inside `double`).
 
 > **Balance status:** the economy is **fitted to the ~20h target** (`docs/05 §9` has the golden

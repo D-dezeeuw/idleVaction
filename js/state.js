@@ -224,7 +224,17 @@ export function newGame() {
 
 // --- migrations: version N-1 -> N. Applied in order. ---
 const MIGRATIONS = {
-  // 2: (s) => { s.someNewField = default; return s; },
+  // v2 (Phase F): the first REAL migration — the ladder below is no longer dead machinery.
+  // (a) drop serialized transient caches (every `_`-prefixed key; they were never meant to be
+  //     saved — tick()/backfill re-seed them), (b) grandfather the investor run-start snapshot
+  //     for pre-snapshot saves (the rank was legitimately held — see prestige.legacyPreview).
+  2: (s) => {
+    for (const k of Object.keys(s)) if (k.startsWith('_')) delete s[k];
+    if (s.ascension && s.ascension.investorAtRunStart === undefined) {
+      s.ascension.investorAtRunStart = s.ascension.tree?.legacy_investor || 0;
+    }
+    return s;
+  },
 };
 
 export function migrate(s) {
@@ -368,11 +378,15 @@ function stripStrings(obj, depth = 0) {
   return obj;
 }
 
+// `_`-prefixed keys are per-tick transients (caches, combo timers) — recomputed on load, never
+// serialized (Phase F / audit 5.3: they used to bloat every save and export).
+const stripTransients = (k, v) => (k.startsWith('_') ? undefined : v);
+
 export function save(state) {
   state.meta.lastSaved = Date.now();
   state.meta.lastSeen = Date.now();
   try {
-    localStorage.setItem(C.SAVE_KEY, JSON.stringify(state));
+    localStorage.setItem(C.SAVE_KEY, JSON.stringify(state, stripTransients));
     return true;
   } catch (e) { console.warn('save failed', e); return false; }
 }
@@ -386,11 +400,14 @@ export function load() {
 }
 
 export function exportSave(state) {
-  return btoa(unescape(encodeURIComponent(JSON.stringify(state))));
+  return btoa(unescape(encodeURIComponent(JSON.stringify(state, stripTransients))));
 }
 export function importSave(str) {
   try {
     const obj = JSON.parse(decodeURIComponent(escape(atob(str.trim()))));
+    // Downgrade guard (Phase F / audit 5.4): a save from a NEWER schema than this client
+    // understands must not be munged through older assumptions — refuse instead of corrupting.
+    if ((obj.version || 1) > C.SAVE_VERSION) { console.warn('save is from a newer version', obj.version); return null; }
     return migrate(obj);
   } catch (e) { return null; }
 }
