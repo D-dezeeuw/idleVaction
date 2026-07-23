@@ -141,3 +141,6 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# genart raw output — only the compressed .webp postcards are committed
+assets/img/postcards/*.png

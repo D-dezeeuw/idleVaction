@@ -4,8 +4,13 @@
 //   OPENROUTER_API_KEY=sk-or-...  node tools/genart.mjs postcards   # the full Wave-1 tier set (22)
 //
 // The key is read from the environment ONLY — never hardcode it here, never commit it.
-// Output: assets/img/postcards/tier-NN.png (skip-if-exists, so re-runs only fill gaps).
-// After generating, add the new tier numbers to POSTCARD_ART in js/ui.js (the manifest that
+// Output: assets/img/postcards/tier-NN.png (skip-if-exists — a compressed tier-NN.webp also
+// counts as done, so re-runs only fill gaps). The raw 1024px PNGs are gitignored; compress to
+// the committed 760px WebP (the size the UI ships) with Pillow before wiring the manifest:
+//   pip install pillow && python3 -c "from PIL import Image; import sys; \
+//     [Image.open(f).resize((760,760), Image.LANCZOS).save(f[:-4]+'.webp','WEBP',quality=82,method=6) \
+//      for f in sys.argv[1:]]" assets/img/postcards/tier-*.png
+// After compressing, add the new tier numbers to POSTCARD_ART in js/ui.js (the manifest that
 // tells the UI which tiers have art — everything else keeps its emoji-scene fallback).
 //
 // Node ≥ 18 (global fetch). No dependencies — in keeping with the repo rules; this is a dev
@@ -84,7 +89,8 @@ const targets = mode === 'test' ? [0] : POSTCARDS.map((_, i) => i);
 const done = [];
 for (const i of targets) {
   const file = `${OUT}/tier-${String(i).padStart(2, '0')}.png`;
-  if (existsSync(file)) { console.log(`skip (exists): ${file}`); done.push(i); continue; }
+  const webp = file.slice(0, -4) + '.webp';
+  if (existsSync(file) || existsSync(webp)) { console.log(`skip (exists): ${existsSync(webp) ? webp : file}`); done.push(i); continue; }
   process.stdout.write(`tier ${i} … `);
   try {
     const bytes = await generate(POSTCARDS[i], file);

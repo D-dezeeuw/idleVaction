@@ -16,7 +16,7 @@
 | U3 — reveal choreography | ✅ ~80% (engine-fired arrival modals remain) |
 | U4 — journey polish | 🟡 started (era skies only) |
 | U5 — QA sweep | 🟡 script exists in scratchpad, not committed |
-| Art pipeline (generated images) | 🟡 pipeline on main, **zero images generated yet** |
+| Art pipeline (generated images) | 🟡 **test image done & wired** (tier 0, in-game); Wave 1 remaining 21 postcards not yet run |
 
 ## Done (with merge commits)
 
@@ -84,11 +84,22 @@ The era-modal system exists but only wraps player-initiated actions. Still toast
 
 ## The images idea (generated art via OpenRouter)
 
-**State: pipeline ready, zero images generated.** `tools/genart.mjs` on main; the in-game hook
-falls back to emoji until `POSTCARD_ART` lists a tier.
+**State: TEST IMAGE DONE (2026-07-23) — style approved-quality, wired in-game for tier 0.**
+Wave 1 = the remaining 21 tier postcards, one `node tools/genart.mjs postcards` run away.
 
-- Run: `OPENROUTER_API_KEY=sk-or-... node tools/genart.mjs test` (tier-0 postcard) or
-  `... postcards` (all 22). Then add the tier numbers to `POSTCARD_ART` in `js/ui.js`.
+- **Test verdict (tier 0, The Soggy Shed):** on-bible — palette-locked (yellow poncho, pink
+  shoes, sky-blue umbrella/rain on warm sand), thick soft outlines, no text, tourist from
+  behind, the one hopeful sun ray present. One deviation: the model returns **square 1024²**
+  despite the "landscape composition" prompt wording; square looks fine in the card, so accept
+  square as the format (or tune wording later — don't block Wave 1 on it).
+- **Format decision:** commit **760px WebP q82** (display is max-width 380px, so 760 covers
+  2×). Sizes measured: raw PNG 965 KB → 760px WebP **26 KB**. Full 22-tier wave ≈ 600 KB,
+  comfortably inside the ~2 MB Wave-1 budget. Raw PNGs are now **gitignored**
+  (`assets/img/postcards/*.png`); genart's skip-if-exists also counts the `.webp` as done, and
+  the Pillow compress one-liner lives in the genart header comment (`pip install pillow`).
+- Run: `node tools/genart.mjs test` (tier-0 postcard) or `... postcards` (all 22) — the key
+  now comes from the environment (see below). Then compress to WebP and add the tier numbers
+  to `POSTCARD_ART` in `js/ui.js` (tier 0 already listed; hook src is `.webp` now).
 - Model: `google/gemini-2.5-flash-image` (override with `GENART_MODEL`).
 - Style bible lives in the script — flat holiday illustration, palette-locked (#FFC800/#FF2E88/
   #45C4FF/#7ED957 on sand), thick soft outlines, **no text in images**, tourist seen from behind.
@@ -101,20 +112,20 @@ falls back to emoji until `POSTCARD_ART` lists a tier.
   4. Nice-to-have: vehicles (~18), grounds clusters (3), era sky strips (4).
   - NOT generating: tiny chrome icons (mushy at 16–24px) and 300+ amenity thumbnails.
 - Weight budget: WebP/compressed, ~2 MB Wave 1, ~6 MB total. Keep repo light.
-- **Network gotchas (learned the hard way):** the session sandbox blocks `openrouter.ai` unless
-  the environment's Network access allows it, and **policy applies only to sessions started
-  AFTER the change** — a running container keeps its birth policy. Also `node fetch` ignores
-  `HTTPS_PROXY` (curl honors it) — if node fails in-sandbox while curl works, do the API call
-  with curl and decode the base64 with node. A trigger-spawned unattended session was tried and
-  produced nothing (likely parked on a permission prompt) — prefer an ATTENDED fresh session or
-  a local run.
-- **Key hygiene:** the OpenRouter key is passed via env var only — never in any file or commit.
-  A key was shared in the chat transcript of the 2026-07-22 session and used in a trigger prompt;
-  **it should be revoked on OpenRouter once art generation is done** (and ideally replaced with
-  an environment-variable key, set in the environment settings dialog).
+- **Network status (RESOLVED 2026-07-23):** in the current environment the sandbox reaches
+  `openrouter.ai` and plain `node tools/genart.mjs test` works first try — no curl workaround
+  needed. (Historical gotchas, kept in case the environment changes: policy applies only to
+  sessions started AFTER a network-access change; `node fetch` ignored `HTTPS_PROXY` in the old
+  sandbox while curl honored it; a trigger-spawned unattended session produced nothing — prefer
+  an attended session.)
+- **Key hygiene:** `OPENROUTER_API_KEY` is now set as an environment variable in the
+  environment settings (confirmed working 2026-07-23) — never in any file or commit. The old
+  key shared in the 2026-07-22 chat transcript / trigger prompt **should still be revoked on
+  OpenRouter** if it wasn't already.
 
 ## Suggested order of attack
-1. Generate Wave-1 test image → judge style → run full Wave 1 → wire `POSTCARD_ART`.
+1. ~~Generate Wave-1 test image → judge style~~ ✅ → run full Wave 1 (`node tools/genart.mjs
+   postcards`) → compress to WebP → wire the remaining tiers into `POSTCARD_ART`.
 2. U3 engine-fired arrival modals (Crossroads first — biggest narrative moment).
 3. U5 committed `tools/uxcheck.mjs` (locks the no-spoiler guarantee into a runnable check).
 4. U4 polish pass, then Waves 2–3 art.
