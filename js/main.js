@@ -25,15 +25,20 @@ if (state.meta.lastSeen) {
 // stale after import/hard-reset until a manual reload).
 const hooks = {
   save: () => { flash(ST.save(state) ? 'Saved.' : '⚠️ Save failed — storage full?'); },
-  exportSave: () => { const s = ST.exportSave(state); prompt('Copy your save:', s); },
-  importSave: () => {
-    const str = prompt('Paste a save string:');
-    if (!str) return;
+  // Phase D (audit 6.10): the browser prompt()/confirm() flows are gone — ui.js owns the
+  // export/import/reset dialogs and calls these data hooks instead.
+  exportSaveString: () => ST.exportSave(state),
+  importSaveString: (str) => {
     const loaded = ST.importSave(str);
-    if (loaded) { state = loaded; syncMilestoneStep(state); UI.setState(state); flash('Imported.'); } else alert('Invalid save.');
+    if (loaded) { state = loaded; syncMilestoneStep(state); UI.setState(state); flash('Imported.'); }
+    else flash('⚠️ That save string didn\'t parse.');
   },
-  hardReset: () => { state = ST.hardReset(); syncMilestoneStep(state); UI.setState(state); flash('Reset.'); },
+  hardReset: () => { state = ST.hardReset(); syncMilestoneStep(state); UI.setState(state); flash('Reset. Fresh drizzle.'); },
 };
+
+// apply persisted display options before the first paint
+import('./util.js').then(u => u.setNotation(state.settings.notation));
+document.documentElement.dataset.motion = state.settings.motion === 'reduced' ? 'reduced' : '';
 
 UI.bind(state, hooks);
 UI.renderControls(state);
@@ -82,9 +87,23 @@ function frame(now) {
 }
 requestAnimationFrame(frame);
 
-// save on unload / tab hide
+// save on unload / tab hide — and CATCH UP on return (Phase D / audit 5.5): rAF stops in a
+// hidden tab, so "leave the tab open overnight" used to earn ~nothing until a manual reload.
+// Now the hidden span replays through the same offline path the boot uses (wallet-capped,
+// deterministic), with the away summary for long absences.
+let hiddenAt = 0;
 addEventListener('beforeunload', () => ST.save(state));
-addEventListener('visibilitychange', () => { if (document.hidden) ST.save(state); });
+addEventListener('visibilitychange', () => {
+  if (document.hidden) { hiddenAt = Date.now(); ST.save(state); return; }
+  if (hiddenAt && Date.now() - hiddenAt > 5000) {
+    try {
+      const rep = E.applyOffline(state, Date.now() - hiddenAt);
+      if (rep && rep.seconds > 30) UI.showOfflineSummary(state, rep);
+    } catch (e) { console.warn('hidden-tab catch-up failed', e); }
+    last = performance.now(); acc = 0;   // don't double-count the gap in the rAF accumulator
+  }
+  hiddenAt = 0;
+});
 
 // expose for QA console
 window.IV = { get state() { return state; }, C, E, UI };

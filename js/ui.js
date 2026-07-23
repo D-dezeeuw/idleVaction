@@ -5,7 +5,7 @@ import { ORIGIN } from './data/story.js';
 import * as M from './math.js';
 import * as E from './engine.js';
 import * as P from './prestige.js';
-import { fmt, fmtTime, clamp } from './util.js';
+import { fmt, fmtTime, clamp, setNotation } from './util.js';
 
 let S = null;                 // live state ref (stable across ascension)
 let hooks = {};               // { save, exportSave, importSave, hardReset }
@@ -24,13 +24,41 @@ const TABS = [
   { id: 'legacy', label: 'Legacy', icon: '👑', cards: ['ascensionCard', 'treeCard', 'legendCard', 'achievementsCard'] },
 ];
 let activeTab = 'home';
-const seenTabs = new Set(['home']);
+let seenTabs = new Set(['home']);
 let lastTabSig = '';
+// The opener of the currently-open modal — focus returns here on close (audit 6.8).
+let modalOpener = null;
+// Quiet-first-minute buffer (audit 6.5): unlock toasts held during a fresh game's first 60s,
+// folded into one welcome toast once the player has acted (or the minute passes).
+let quietHeld = [];
+let quietFlushed = false;
+function quietMinuteFlush(s) {
+  if (quietFlushed || !quietHeld.length) return;
+  const acted = s.generators[0].bought > 0 || s.stats.totalClicks > 0;
+  if (s.stats.runSec >= 60 || (acted && s.stats.runSec >= 15)) {
+    quietFlushed = true;
+    toastQueue.push({ type: 'unlock', text: `✈️ The trip has started — ${quietHeld.length} little thing${quietHeld.length > 1 ? 's' : ''} opened up in the tabs.` });
+    quietHeld = [];
+  }
+}
+// Tab persistence (audit 6.7): reloads used to dump the player on Home and re-light EVERY
+// tab's "new" pulse — training players to ignore the game's main discovery affordance. The
+// active tab + seen set live in the save now (state.ui — backfill handles old saves).
+function persistTabs() {
+  if (!S || !S.ui) return;
+  S.ui.activeTab = activeTab;
+  S.ui.seenTabs = [...seenTabs];
+}
+function restoreTabs(state) {
+  if (state.ui?.activeTab && TABS.some(t => t.id === state.ui.activeTab)) activeTab = state.ui.activeTab;
+  if (Array.isArray(state.ui?.seenTabs) && state.ui.seenTabs.length) seenTabs = new Set(state.ui.seenTabs.filter(id => TABS.some(t => t.id === id)).concat(['home']));
+  lastTabSig = '';
+}
 // per-tag "show all" state for the amenity shelves (UX-plan §6.4) — transient, resets on reload.
 const expandedAmenTags = new Set();
 
 export function bind(state, h) {
-  S = state; hooks = h; wireEvents();
+  S = state; hooks = h; restoreTabs(state); wireEvents();
   // Measure the topbar into --iv-topbar-h so the sticky tab bar docks BELOW it instead of
   // painting over the cash HUD (the topbar wraps to variable heights on narrow screens).
   const topbar = document.getElementById('topbar');
@@ -40,12 +68,30 @@ export function bind(state, h) {
     sync();
   }
 }
-export function setState(state) { S = state; }
+export function setState(state) { S = state; restoreTabs(state); }
 
 const $ = sel => document.querySelector(sel);
 const el = id => document.getElementById(id);
 
 // ---------- top-level render ----------
+// ---- dirty-flag rendering (Phase D) ----
+// The old loop rebuilt every card via innerHTML at 20 FPS, hidden tabs included — constant node
+// churn, broken text selection, and a focus-wipe on any input the player was typing in. Now:
+// (a) only the ACTIVE tab's cards render each frame; a low-frequency full sweep (every 2s) keeps
+// hidden tabs' unlock reveals fresh so tab-birth still works; (b) setHTML() skips identical
+// writes (the built string IS the card's state signature) and never replaces a subtree the
+// player is currently typing in.
+const CARD_RENDERERS = {
+  accCard: renderAccommodation, bankCard: renderBank, destCard: renderDestinations,
+  transportCard: renderTransport, generatorsCard: renderGenerators, amenitiesCard: renderAmenities,
+  poolCard: renderPoolside, beachCard: renderBeachfront, wellnessCard: renderWellness,
+  conciergeCard: renderConcierge, creatorCard: renderCreator, cryptoCard: renderCrypto,
+  collectionCard: renderCollection, garageCard: renderGarage, marinaCard: renderMarina,
+  hangarCard: renderHangar, staffCard: renderStaff, propertyCard: renderProperty,
+  islandListingCard: renderIslandListing, legendCard: renderLegend, achievementsCard: renderAchievements,
+  skillsCard: renderSkills, pathsCard: renderPaths, ascensionCard: renderAscension, treeCard: renderTree,
+};
+let lastFullSweep = 0;
 export function render(state) {
   S = state;
   document.body.dataset.era = eraFor(state.accommodation.tier);
@@ -54,36 +100,30 @@ export function render(state) {
   renderNotifications(state);
   renderStory(state);
   checkArrivalModals(state);
-  renderAccommodation(state);
-  renderBank(state);
-  renderDestinations(state);
-  renderTransport(state);
-  renderGenerators(state);
-  renderAmenities(state);
-  renderPoolside(state);
-  renderBeachfront(state);
-  renderWellness(state);
-  renderConcierge(state);
-  renderCreator(state);
-  renderCrypto(state);
-  renderCollection(state);
-  renderGarage(state);
-  renderMarina(state);
-  renderHangar(state);
-  renderStaff(state);
-  renderProperty(state);
-  renderIslandListing(state);
-  renderLegend(state);
-  renderAchievements(state);
-  renderSkills(state);
-  renderPaths(state);
-  renderAscension(state);
-  renderTree(state);
+  const now = performance.now();
+  const full = now - lastFullSweep > 2000;
+  if (full) lastFullSweep = now;
+  const active = TABS.find(t => t.id === activeTab);
+  for (const [cardId, fn] of Object.entries(CARD_RENDERERS)) {
+    if (full || (active && active.cards.includes(cardId))) fn(state);
+  }
   renderEnergyMini(state);
   // progressive disclosure: gate the panels that used to be always-on, then (re)build the tab bar
   // from what's actually unlocked. Runs LAST so it reads every render*()'s freshly-set hidden state.
   applyCardReveals(state);
   renderTabs(state);
+}
+
+// Write-time guard: skip the (expensive, focus/selection-destroying) innerHTML replace when the
+// content is unchanged, and NEVER replace a subtree the player is typing in — the reserve
+// <input> used to be destroyed 20×/s, making it impossible to type a value.
+function setHTML(node, html) {
+  if (!node) return;
+  if (node._ivHtml === html) return;
+  const ae = document.activeElement;
+  if (ae && node.contains(ae) && ae.matches('input, textarea, select')) return;   // finish typing first
+  node._ivHtml = html;
+  node.innerHTML = html;   // the ONE raw write — every card funnels through this guard
 }
 
 // Reveal the previously-always-visible panels only when they become relevant, so the future stays
@@ -137,17 +177,31 @@ function renderHeader(s) {
   const capHtml = Number.isFinite(cap)
     ? ` / ${fmt(cap)}${s.resources.cash >= cap * 0.98 ? ' ⚠️' : ''}`
     : '';
-  const showClout = s.story.branch === 'vlogger' || (s.resources.clout || 0) >= 1;
+  // HUD chip diet (audit 6.2): Clout waited on "≥ 1", which passive accrual crossed ~2s into a
+  // fresh game — a "future" currency chip before the player had done anything. Now it earns its
+  // place: the vlogger road, or a felt amount.
+  const showClout = s.story.branch === 'vlogger' || (s.resources.clout || 0) >= 25;
   const showLegacy = s.story.seen.includes(26) || (s.ascension?.count || 0) > 0 || (s.resources.legacy || 0) > 0;
   const combo = s._combo ?? 1;
-  el('hdr').innerHTML = `
-    <span class="iv-res">💶 <b>${fmt(s.resources.cash)}</b><small>${capHtml}</small> <small>(+${fmt(perSec)}/s)</small></span>
+  // Cash count-up easing (audit 6.4): the displayed number rolls toward the real value instead
+  // of jumping at 20fps. Snap on big jumps (purchases/prestige) and under reduced motion.
+  const cash = s.resources.cash;
+  if (dispCash < 0 || !(cash > 0) || dispCash > cash * 3 || cash > dispCash * 3 || reducedMotion()) dispCash = cash;
+  else dispCash += (cash - dispCash) * 0.35;
+  const html = `
+    <span class="iv-res">💶 <b>${fmt(dispCash)}</b><small>${capHtml}</small> <small>(+${fmt(perSec)}/s)</small></span>
     <span class="iv-res">😌 Comfort <b>${fmt(s.resources.comfort)}</b> <small>(bonus ×${fmt(lComfort)})</small></span>
     ${showClout ? `<span class="iv-res">📣 Clout <b>${fmt(s.resources.clout)}</b></span>` : ''}
     ${showLegacy ? `<span class="iv-res">🏆 Legacy <b>${fmt(s.resources.legacy)}</b></span>` : ''}
     ${lDest > 1.001 ? `<span class="iv-res" aria-label="World Traveler destination bonus, times ${fmt(lDest)}">🌍 <b>×${fmt(lDest)}</b></span>` : ''}
     ${combo > 1.01 ? `<span class="iv-res">🔥 Combo ×${combo.toFixed(2)}</span>` : ''}
   `;
+  setHTML(el('hdr'), html);
+}
+let dispCash = -1;
+function reducedMotion() {
+  return typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches
+    || document.documentElement.dataset.motion === 'reduced';
 }
 
 // Era sky (UX-plan §3/U4): the page's light warms as the trip climbs — drizzle at the shed,
@@ -176,9 +230,19 @@ function renderOnboarding(s) {
 
 function renderNotifications(s) {
   const n = E.drainNotifications(s);
+  quietMinuteFlush(s);
   if (!n.length) return;
   const box = el('notifs');
   for (const item of n) {
+    // Quiet first minute (Phase D / audit 6.5): a brand-new game used to open with 3 unlock
+    // toasts + an overflow line — the "declutter" game announcing itself with spam. Unlock
+    // chatter in the first 60s is held and folded into one warm toast after the player acts.
+    if (s.stats.runSec < 60 && (s.ascension?.count || 0) === 0 && s.stats.lifetimeCash < 1000
+        && item.type === 'unlock') { quietHeld.push(item); continue; }
+    // toast density (Menu option): 'important' keeps story/celebration/prestige moments and
+    // drops routine unlock/info chatter (aria-live announcements above still fire).
+    if (s.settings.toastDensity === 'important'
+        && !['story', 'celebrate', 'ascend', 'boom', 'crash', 'sponsor', 'levelup'].includes(item.type)) continue;
     // skill level-up juice (E09-S3-T6/T7/S10-T1): turn the engine's 'levelup' event into
     // a bar-flash trigger + an aria-live announcement, on top of the toast every notif
     // type already gets below.
@@ -266,14 +330,14 @@ function renderStory(s) {
   // The branch line only appears once a branch is chosen (before that it's just "the trip so far").
   const branchLabel = s.story.branch !== 'neutral' ? ` — <b>${esc(s.story.branch)}</b>` : '';
   // Task 2b: the current beat sits in the polaroid frame (white border, slight rotation — CSS only).
-  el('story').innerHTML = `
+  setHTML(el('story'), `
     <div class="iv-polaroid-frame">
       ${polaroidSceneHtml(latestBeat.id)}
       <div class="iv-beatnum">Entry ${latestBeat.id}${branchLabel} ${btn('open-diary', '', '📔 Diary', s.story.seen.length > 1, 'btn-link')}</div>
       <div class="iv-beattitle">${latest.title}</div>
       <div class="iv-beattext">${latest.text}</div>
       ${choiceHtml}
-    </div>`;
+    </div>`);
 }
 
 // ---------- the Travel Diary (UX-plan §3/§6) ----------
@@ -306,12 +370,18 @@ function renderDiary(s) {
     </div>`;
   }
   html += `<div class="iv-diary-continues">…the next page is still blank. ✍️</div>`;
-  body.innerHTML = html;
+  setHTML(body, html);
 }
 function openDiary() {
   renderDiary(S);
   const m = el('diaryModal');
-  if (m) { m.hidden = false; const scroller = m.querySelector('.iv-diary'); if (scroller) scroller.scrollTop = scroller.scrollHeight; }
+  if (m) {
+    m.hidden = false;
+    const scroller = m.querySelector('.iv-diary'); if (scroller) scroller.scrollTop = scroller.scrollHeight;
+    modalOpener = document.activeElement;
+    const target = m.querySelector('button, [tabindex]') || m;
+    try { target.focus(); } catch (_) {}
+  }
 }
 
 // ---------- era modals (UX-plan §4, T1) ----------
@@ -319,11 +389,49 @@ function openDiary() {
 // content is set ONCE here (the render loop never touches #eraBody), so inputs keep focus.
 function showEra(html) {
   const b = el('eraBody');
-  if (b) b.innerHTML = html;
+  if (b) setHTML(b, html);
   const m = el('eraModal');
-  if (m) m.hidden = false;
+  if (m) {
+    m.hidden = false;
+    // Focus management (audit 6.8): remember the opener, move focus INTO the modal so a
+    // keyboard/screen-reader user isn't stranded behind an aria-modal overlay.
+    modalOpener = document.activeElement;
+    const target = m.querySelector('button, [tabindex]') || m;
+    try { target.focus(); } catch (_) {}
+  }
 }
-function closeEra() { const m = el('eraModal'); if (m) m.hidden = true; }
+function closeEra() {
+  const m = el('eraModal'); if (m) m.hidden = true;
+  if (modalOpener) { try { modalOpener.focus(); } catch (_) {} modalOpener = null; }
+}
+
+// ---------- save dialogs (Phase D / audit 6.10): no more browser prompt()/confirm() ----------
+// The save string is base64 (no markup characters), safe to interpolate into the textarea.
+function showExportDialog() {
+  const s = hooks.exportSaveString();
+  showEra(`<h3>📤 Export save</h3>
+    <p class="iv-sub">Copy it somewhere safe, or download it as a file.</p>
+    <textarea id="saveExportText" readonly rows="5" style="width:100%" aria-label="Your save string">${s}</textarea>
+    <div class="iv-era-actions">${btn('copy-save', '', '📋 Copy')} ${btn('download-save', '', '⬇️ Download .txt')} ${btn('era-close', '', 'Done', true, 'btn-primary')}</div>`);
+}
+function showImportDialog() {
+  showEra(`<h3>📥 Import save</h3>
+    <p class="iv-sub">Paste a save string, or pick the .txt you downloaded. Imports replace the current game.</p>
+    <textarea id="saveImportText" rows="5" style="width:100%" aria-label="Paste your save string here"></textarea>
+    <input id="saveImportFile" type="file" accept=".txt,text/plain" hidden>
+    <div class="iv-era-actions">${btn('pick-import-file', '', '📁 From file…')} ${btn('do-import', '', 'Import', true, 'btn-primary')} ${btn('era-close', '', 'Cancel')}</div>`);
+}
+function showResetDialog() {
+  const s = hooks.exportSaveString();
+  showEra(`<h3>🧨 Hard reset</h3>
+    <p class="iv-sub">This wipes <b>everything</b> — every generation, every trophy. Your current save is below;
+    copy or download it first if there is any doubt.</p>
+    <textarea id="saveExportText" readonly rows="4" style="width:100%" aria-label="Backup of your current save">${s}</textarea>
+    <div class="iv-era-actions">${btn('copy-save', '', '📋 Copy backup')} ${btn('download-save', '', '⬇️ Download backup')}</div>
+    <p class="iv-sub">Type <b>GOODBYE</b> to confirm:</p>
+    <input id="resetConfirmText" type="text" style="width:60%" aria-label="Type GOODBYE to confirm the reset">
+    <div class="iv-era-actions">${btn('do-reset', '', 'Reset the whole trip', true, 'btn-error')} ${btn('era-close', '', 'Keep playing', true, 'btn-primary')}</div>`);
+}
 
 // ---------- engine-fired arrival modals (UX-plan §4, T1 inventory) ----------
 // Every era modal above is hung off a button click. These six moments arrive on their OWN —
@@ -498,7 +606,7 @@ function renderAccommodation(s) {
     html += '<div class="iv-acc-row"><em>You own the dot on the map. There is nowhere higher.</em></div>';
   }
   html += '</div>';
-  el('accommodation').innerHTML = html;
+  setHTML(el('accommodation'), html);
 }
 
 // ---------- Bank Account panel (the wallet cap — offline-lump control) ----------
@@ -536,7 +644,7 @@ function renderBank(s) {
   if (s.stats.overflowLost > 0) {
     html += `<div class="iv-sub">💸 ${fmt(s.stats.overflowLost)} has overflowed past your wallet, lifetime. The bank does not apologize.</div>`;
   }
-  box.innerHTML = html;
+  setHTML(box, html);
 }
 
 // Destinations panel + Getting Around row reveal together once the map exists —
@@ -594,7 +702,7 @@ function renderDestinations(s) {
     }
     html += '</div>';
   }
-  el('destinations').innerHTML = html;
+  setHTML(el('destinations'), html);
 }
 
 // ---------- Passport spread view (Task 1, U4 "the headline feature") ----------
@@ -689,7 +797,7 @@ function renderTransport(s) {
     const label = `${t.name} ${active ? '🟢' : ''}<br><small>${owned ? 'owned' : fmt(cost)} · +${Math.round(t.speed * 100)}% speed · −${fmt(t.upkeep)}/s</small>`;
     html += btn('buy-transport', t.id, label, owned || afford(cost), active ? 'btn-primary' : '', t.flavor);
   }
-  el('transport').innerHTML = html;
+  setHTML(el('transport'), html);
 }
 
 function renderGenerators(s) {
@@ -729,7 +837,7 @@ function renderGenerators(s) {
         ${btn('buy-gen-upg', k, `Upg<br><small>${fmt(upgCost)}</small>`, afford(upgCost), '', `+${renoPct}% to ${g.name}'s output — L_upgrade`)}
       </div></div>`;
   });
-  el('generators').innerHTML = rows;
+  setHTML(el('generators'), rows);
 }
 
 // Comfort is unbounded (see math.js), so the meter fills toward something honest and
@@ -834,7 +942,7 @@ function renderAmenities(s) {
     html += '</div>';
   }
   if (!Object.keys(byTag).length) html += '<em>Get some Comfort to unlock little luxuries…</em>';
-  el('amenities').innerHTML = html;
+  setHTML(el('amenities'), html);
 }
 
 // ---------- Poolside panel (E07 "Making a Splash" — the fun showcase) ----------
@@ -892,7 +1000,7 @@ function renderPoolside(s) {
     html += '</div>';
   }
   if (!anyVisible) html += '<em>The pool is right there. Keep building Comfort — the first floatie is close.</em>';
-  el('poolside').innerHTML = html;
+  setHTML(el('poolside'), html);
 }
 
 // ---------- Beachfront panel (E08 "Sun, Sand & Service") ----------
@@ -966,7 +1074,7 @@ function renderBeachfront(s) {
   const serviceHtml = renderGroup('Service', serviceItems, 'service');
   html += sandHtml + serviceHtml;
   if (!sandHtml && !serviceHtml) html += '<em>The beach just opened. Keep building Comfort — the first towel is close.</em>';
-  el('beachfront').innerHTML = html;
+  setHTML(el('beachfront'), html);
 }
 
 // ---------- Wellness Wing panel (E10 "Body & Soul" — Personal Growth II) ----------
@@ -1047,7 +1155,7 @@ function renderWellness(s) {
     html += '</div>';
   }
   if (!anyVisible) html += '<em>The wing just opened. Keep building Comfort — the first sunbed is close.</em>';
-  el('wellness').innerHTML = html;
+  setHTML(el('wellness'), html);
 }
 
 // ---------- Concierge Desk (E11 "Five-Star Frame of Mind" — the first automation seed) ----------
@@ -1110,7 +1218,7 @@ function renderConcierge(s) {
   } else {
     html += '<div class="iv-sub"><em>No purchases yet — turn the concierge on and it will start shopping within its whitelist.</em></div>';
   }
-  el('concierge').innerHTML = html;
+  setHTML(el('concierge'), html);
 }
 
 // ---------- Creator Dashboard (E12 "Lights, Camera, Clout" — the Clout economy's home) ----------
@@ -1231,7 +1339,7 @@ function renderCreator(s) {
   }
   html += '</div>';
 
-  el('creator').innerHTML = html;
+  setHTML(el('creator'), html);
 }
 
 // ---------- Crypto Poolside Lounge (E13 "Money Works While You Tan") ----------
@@ -1314,7 +1422,7 @@ function renderCrypto(s) {
       html += `<div class="iv-sub">${fmtTime(e.t)} — ${e.id === 'whale_boom' ? '🐋 whale pump' : esc(e.kind)} ×${e.mult.toFixed(2)} (${e.dur}s)</div>`;
     }
   }
-  el('crypto').innerHTML = html;
+  setHTML(el('crypto'), html);
 }
 
 // ---------- The Gallery & Cellar (E14 "Acquired Taste" — the Connoisseur path) ----------
@@ -1397,7 +1505,7 @@ function renderCollection(s) {
   for (const a of DATA.collections.wine) html += collectionRowHtml(s, a);
   html += '</div>';
 
-  el('collection').innerHTML = html;
+  setHTML(el('collection'), html);
 }
 
 // ---------- The Garage (E15 "Keys to the Coupe" — private logistics) ----------
@@ -1449,7 +1557,7 @@ function renderGarage(s) {
   for (const c of DATA.vehicles) html += carRowHtml(s, c);
   html += '</div>';
 
-  el('garage').innerHTML = html;
+  setHTML(el('garage'), html);
 }
 
 // ---------- The Marina (E16 "Sea Legs" — boats + a pre-staff crew) ----------
@@ -1497,7 +1605,7 @@ function renderMarina(s) {
   for (const c of DATA.crew) html += crewRowHtml(s, c);
   html += '</div>';
 
-  el('marina').innerHTML = html;
+  setHTML(el('marina'), html);
 }
 
 // ---------- The Hangar: jets + the logistics capstone (E17 "Wheels Up") ----------
@@ -1530,7 +1638,7 @@ function renderHangar(s) {
   for (const j of DATA.jets) html += jetRowHtml(s, j);
   html += '</div>';
 
-  el('hangar').innerHTML = html;
+  setHTML(el('hangar'), html);
 }
 
 // ---------- Staff: the Butler (E19 "At Your Service") ----------
@@ -1592,7 +1700,7 @@ function renderStaff(s) {
     for (const def of DATA.staff) { if (def.estate) html += estateStaffTileHtml(s, def); }
     html += '</div>';
   }
-  el('staff').innerHTML = html;
+  setHTML(el('staff'), html);
 }
 
 // An estate-staff tile: reuses the hire/level machinery, plus an assignment control (which cluster,
@@ -1678,7 +1786,7 @@ function renderProperty(s) {
   for (const p of DATA.property) html += propertyBlockHtml(s, p);
   // E23 grounds + estate synergy: only shown once a grounds cluster is unlockable (villa owned).
   html += groundsSectionHtml(s);
-  el('property').innerHTML = html;
+  setHTML(el('property'), html);
 }
 
 // Property deed art (final art-wiring pass): a small framed photo of the deed for an OWNED grounds
@@ -1873,7 +1981,7 @@ function renderSkills(s) {
     html += btn('buy-training', t.id, `Train ${t.skill}<br><small>${fmt(cost)} → +${t.xp}xp</small>`, afford(cost));
   }
   html += '</div>';
-  el('skills').innerHTML = html;
+  setHTML(el('skills'), html);
 }
 
 // Recurring NPC roster (E03-S1-T3/S6-T9/S7-T1): revealed once you're in the hostel
@@ -1986,7 +2094,7 @@ function renderPaths(s) {
       html += `<div class="iv-sub">🚪 Roads not taken this life: ${notTaken.join(' · ')} — another generation, perhaps${jack ? '' : ' (or a Jack of All Trades, deep in the tree)'}.</div>`;
     }
   }
-  el('paths').innerHTML = html;
+  setHTML(el('paths'), html);
 }
 
 // small HTML escaper for defence-in-depth on player-entered names (sanitizeName already strips the
@@ -2034,7 +2142,7 @@ function renderIslandListing(s) {
       </div>`;
     }
     html += '</div>';
-    el('islandListing').innerHTML = html;
+    setHTML(el('islandListing'), html);
     return;
   }
   const p = C.ISLAND.price;
@@ -2052,7 +2160,7 @@ function renderIslandListing(s) {
       <div class="iv-comfort-meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct.toFixed(0)}"><i style="width:${pct.toFixed(0)}%"></i></div></div>`;
   }
   html += `<div class="iv-row-buy">${btn('buy-island', '', can ? 'Make an Offer 🏝️' : 'Make an Offer 🏝️ (keep saving)', can, 'btn-primary')}</div>`;
-  el('islandListing').innerHTML = html;
+  setHTML(el('islandListing'), html);
 }
 
 // The Trophy Cabinet + Statistics (E30): the completionist gallery (earned vs locked) and a live
@@ -2099,7 +2207,7 @@ function renderAchievements(s) {
     }
   }
   html += '</div>';
-  el('achievements').innerHTML = html;
+  setHTML(el('achievements'), html);
 }
 
 // The Hall of Fame (E29): the Legend prestige-2 screen + the meta-meta shop + the NG+ toggle.
@@ -2136,7 +2244,7 @@ function renderLegend(s) {
   html += `<div class="iv-sub">NG+ hardens every gate (×${C.NGPLUS.gateScale}/cycle) and reshuffles the world, offset by a permanent income ×${C.NGPLUS.incomeMult}/cycle so the cycle compresses.</div>`;
   html += `<div>${btn('ng-plus', '', `Start New Game+${(s.ngPlus || 0) + 1} 🔄`, (s.ascension?.count || 0) >= 1 || !!s.island?.owned)}</div>`;
 
-  el('legend').innerHTML = html;
+  setHTML(el('legend'), html);
 }
 
 function renderAscension(s) {
@@ -2198,7 +2306,7 @@ function renderTree(s) {
     }
     html += '</div>';
   }
-  el('tree').innerHTML = html;
+  setHTML(el('tree'), html);
 }
 
 // ---------- events (delegated) ----------
@@ -2210,6 +2318,55 @@ function wireEvents() {
     const arg = b.dataset.arg;
     handle(action, arg, b);
     render(S);
+  });
+  // Keyboard support (Phase D / audit 6.8): the ARIA plumbing existed but nothing listened.
+  // Escape closes any open modal (restoring focus to its opener); 1-5 switch tabs; arrow keys
+  // move through the tablist when it has focus. All no-ops while typing in an input.
+  document.addEventListener('keydown', ev => {
+    const typing = ev.target && ev.target.matches && ev.target.matches('input, textarea, select');
+    if (ev.key === 'Escape') {
+      for (const id of ['eraModal', 'diaryModal', 'offlineModal', 'passportModal']) {
+        const m = el(id);
+        if (m && !m.hidden) {
+          m.hidden = true;
+          if (modalOpener) { try { modalOpener.focus(); } catch (_) {} modalOpener = null; }
+          ev.preventDefault(); render(S); return;
+        }
+      }
+      return;
+    }
+    if (typing) return;
+    if (/^[1-9]$/.test(ev.key)) {
+      const visible = TABS.filter(tabHasContent);
+      const t = visible[Number(ev.key) - 1];
+      if (t) { activeTab = t.id; seenTabs.add(t.id); persistTabs(); lastTabSig = ''; render(S); }
+      return;
+    }
+    if ((ev.key === 'ArrowRight' || ev.key === 'ArrowLeft') && ev.target.closest && ev.target.closest('#tabbar')) {
+      const visible = TABS.filter(tabHasContent);
+      const i = visible.findIndex(t => t.id === activeTab);
+      const next = visible[(i + (ev.key === 'ArrowRight' ? 1 : visible.length - 1)) % visible.length];
+      if (next) {
+        activeTab = next.id; seenTabs.add(next.id); persistTabs(); lastTabSig = ''; render(S);
+        const btn = document.querySelector(`#tabbar [data-arg="${next.id}"]`);
+        if (btn) btn.focus();
+      }
+      ev.preventDefault();
+    }
+  });
+  // Modal overlays close on backdrop click (not on clicks inside the card).
+  document.addEventListener('click', ev => {
+    if (ev.target.classList && ev.target.classList.contains('iv-modal-overlay')) {
+      ev.target.hidden = true;
+      if (modalOpener) { try { modalOpener.focus(); } catch (_) {} modalOpener = null; }
+      render(S);
+    }
+  });
+  // import-from-file (Phase D): the picker reads the .txt into the paste box, mobile-friendly.
+  document.addEventListener('change', ev => {
+    if (ev.target && ev.target.id === 'saveImportFile' && ev.target.files?.[0]) {
+      ev.target.files[0].text().then(txt => { const t = el('saveImportText'); if (t) t.value = txt.trim(); });
+    }
   });
   // sliders (UX-plan §3): live-update while dragging without a full re-render (the concierge/
   // staff cards freeze themselves while a slider has focus — see their render guards).
@@ -2239,7 +2396,7 @@ function wireEvents() {
 function handle(action, arg, btnEl) {
   switch (action) {
     // UI: switch the active tab (marks it seen ⇒ clears the "new" dot). render(S) below re-lays out.
-    case 'switch-tab': activeTab = arg; seenTabs.add(arg); lastTabSig = ''; break;
+    case 'switch-tab': activeTab = arg; seenTabs.add(arg); persistTabs(); lastTabSig = ''; break;
     // the Travel Diary (UX-plan §6)
     case 'open-diary': openDiary(); break;
     case 'close-diary': { const m = el('diaryModal'); if (m) m.hidden = true; break; }
@@ -2489,9 +2646,26 @@ function handle(action, arg, btnEl) {
     case 'dbg-boat': S.vehicles.boats['dinghy'].count++; S.vehicles.boatSlots += E.boatData('dinghy').slotBonus; break;
     case 'dbg-crew': if (M.crewCount(S, DATA) < M.crewCapTotal(S, DATA)) S.vehicles.crew['deckhand'].count++; break;
     case 'dbg-jet': S.vehicles.jets['turboprop'].count++; S.vehicles.jetSlots += E.jetData('turboprop').slotBonus; break;
-    case 'export': hooks.exportSave(); break;
-    case 'import': hooks.importSave(); break;
-    case 'reset': if (confirm('Hard reset? This wipes everything.')) hooks.hardReset(); break;
+    case 'export': showExportDialog(); break;
+    case 'import': showImportDialog(); break;
+    case 'reset': showResetDialog(); break;
+    case 'copy-save': { const t = el('saveExportText'); if (t) { t.select(); navigator.clipboard?.writeText(t.value).catch(() => document.execCommand('copy')); } break; }
+    case 'download-save': { const t = el('saveExportText'); if (t) {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([t.value], { type: 'text/plain' }));
+      a.download = `idleVaction-save-${new Date().toISOString().slice(0, 10)}.txt`;
+      a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    } break; }
+    case 'do-import': { const t = el('saveImportText'); if (t && t.value.trim()) hooks.importSaveString(t.value.trim()); closeEra(); break; }
+    case 'pick-import-file': { const f = el('saveImportFile'); if (f) f.click(); break; }
+    case 'do-reset': { const t = el('resetConfirmText');
+      if (t && t.value.trim().toUpperCase() === 'GOODBYE') { hooks.hardReset(); closeEra(); }
+      else if (t) { t.value = ''; t.placeholder = 'type GOODBYE (exactly) to confirm'; }
+      break; }
+    case 'opt-notation': S.settings.notation = (S.settings.notation === 'sci' ? 'suffix' : 'sci'); setNotation(S.settings.notation); renderControls(S); break;
+    case 'opt-motion': S.settings.motion = (S.settings.motion === 'reduced' ? 'auto' : 'reduced');
+      document.documentElement.dataset.motion = S.settings.motion === 'reduced' ? 'reduced' : ''; renderControls(S); break;
+    case 'opt-toasts': S.settings.toastDensity = (S.settings.toastDensity === 'important' ? 'all' : 'important'); renderControls(S); break;
     case 'save': hooks.save(); break;
     case 'dismiss-offline': hideOfflineSummary(); break;
   }
@@ -2561,16 +2735,27 @@ export function renderControls(state) {
   S = state;
   const speeds = C.GAME_SPEED_CHOICES.map(v =>
     `<button class="btn btn-sm ${state.settings.gameSpeed === v ? 'btn-primary' : ''}" data-action="set-speed" data-arg="${v}">${v}×</button>`).join('');
-  const devtools = devToolsOpen ? `
+  // The Menu (Phase D / audit 6.10): save tools are a PLAYER feature, no longer filed under a
+  // drawer literally titled "Developer tools". Options (notation/motion/toasts) live here too.
+  const notation = state.settings.notation || 'suffix';
+  const motion = state.settings.motion || 'auto';
+  const toasts = state.settings.toastDensity || 'all';
+  const menu = devToolsOpen ? `
     <span class="iv-devtools">
+      <span class="iv-tag">save</span>
+      ${btn('export', '', '📤 Export save')}
+      ${btn('import', '', '📥 Import save')}
+      ${btn('reset', '', 'Hard reset…', true, 'btn-error')}
+      <span class="iv-tag">options</span>
+      ${btn('opt-notation', '', `№ ${notation === 'sci' ? 'Scientific' : 'Suffix (K/M/B)'}`, true, '', 'Toggle number notation')}
+      ${btn('opt-motion', '', `${motion === 'reduced' ? '🧘 Motion: reduced' : '✨ Motion: auto'}`, true, '', 'Reduce animations')}
+      ${btn('opt-toasts', '', `${toasts === 'important' ? '🔕 Toasts: important only' : '🔔 Toasts: all'}`, true, '', 'Toast density')}
+      <span class="iv-tag">pace (dev)</span>
       <span class="iv-speed">Speed <b>${state.settings.gameSpeed}×</b>: ${speeds}
         <input id="speedInput" type="number" min="0" step="1" value="${state.settings.gameSpeed}"
           style="width:74px" title="Custom pace — 1 = natural course, high = hyperspeed for testing">
         ${btn('set-speed-custom', '', 'Set×')}</span>
-      ${btn('export', '', 'Export')}
-      ${btn('import', '', 'Import')}
       ${btn('toggle-debug', '', '🐞 Debug')}
-      ${btn('reset', '', 'Reset', true, 'btn-error')}
       <span id="debugpanel"></span>
     </span>` : '<span id="debugpanel"></span>';
   el('controls').innerHTML = `
@@ -2578,8 +2763,8 @@ export function renderControls(state) {
     <span id="energyMini" class="iv-sub iv-energy-inline"
       title="Energy fuels a bigger tap — Body raises the tank size and its regen rate. Never required to progress."></span>
     ${btn('save', '', '💾 Save')}
-    ${btn('toggle-devtools', '', '⚙️', true, devToolsOpen ? 'btn-primary' : '', 'Developer tools')}
-    ${devtools}`;
+    ${btn('toggle-devtools', '', '☰ Menu', true, devToolsOpen ? 'btn-primary' : '', 'Save, options & pace')}
+    ${menu}`;
 }
 
 function renderDebug() {
