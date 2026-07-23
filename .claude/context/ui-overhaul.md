@@ -130,6 +130,14 @@ tiers 1–21 into `POSTCARD_ART` (one line, held back only because ui.js is mid-
   1. 22 tier postcards + 4 Crossroads branch polaroids + logo/favicon/og-image + the goat (~30).
   2. 30 story-beat polaroids (diary pages) + ~30 passport stamps (5 premium gold, 5 seasonal) +
      the patron silhouette.
+     **Passport slice PULLED FORWARD & DONE (2026-07-23):** `assets/img/passport/` — cover.webp
+     (14 KB), inside.webp (13 KB, blank spread for the stamp overlay), + `stamps/` 19 transparent
+     ink-only WebPs (15–33 KB each; one per destination id in js/data/destinations.js; premium =
+     gold ink; alpha-keyed by tools/artpost.py so paper shows through like real ink). Generated
+     via `node tools/genart.mjs passport` / `... stamps` (stamps style-chain off the first stamp).
+     Still to do from this line: 5 seasonal stamps, polaroids, patron silhouette. UI wiring for a
+     passport-spread view (overlay stamps on inside.webp) is OPEN — current passport UI is the
+     CSS-chip version; wire after the U3 ui.js work lands.
   3. 16 trophy stickers + 5 Legend-perk gold stickers + 4 property deeds + 6 island buildings +
      remaining era-modal heroes.
   4. Nice-to-have: vehicles (~18), grounds clusters (3), era sky strips (4).
