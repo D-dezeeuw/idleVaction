@@ -4,10 +4,18 @@ export const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
 
 // Compact number formatting: 1.23K, 4.56M, ... then scientific.
 const SUFFIX = ['', 'K', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp', 'Oc', 'No', 'Dc'];
+// Notation option (Phase D / audit 6.10): 'suffix' (default, unchanged) or 'sci' — players who
+// don't read suffix ladders can switch in the Menu. Set from state.settings at boot + on toggle.
+let NOTATION = 'suffix';
+export function setNotation(mode) { NOTATION = mode === 'sci' ? 'sci' : 'suffix'; }
 export function fmt(x) {
   if (x === undefined || x === null || Number.isNaN(x)) return '0';
   if (!Number.isFinite(x)) return '∞';
   const neg = x < 0; x = Math.abs(x);
+  if (NOTATION === 'sci' && x >= 1e6) {
+    const e = Math.floor(Math.log10(x));
+    return (neg ? '-' : '') + (x / Math.pow(10, e)).toFixed(2) + 'e' + e;
+  }
   if (x < 1000) return (neg ? '-' : '') + (x < 10 ? x.toFixed(2) : x < 100 ? x.toFixed(1) : Math.floor(x).toString());
   const tier = Math.floor(Math.log10(x) / 3);
   if (tier < SUFFIX.length) {

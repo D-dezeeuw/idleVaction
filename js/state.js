@@ -197,8 +197,12 @@ export function newGame() {
     story: { beat: 1, seen: [1], seenAt: { 1: 0 }, branch: 'neutral', flags: {}, lastBeatAt: 0 },
     // ui.bulkMode (E03-S1-T6): the ×1/×10/max buy-quantity toggle, persisted so the
     // choice survives reload instead of living in a transient ui.js module var.
-    ui: { bulkMode: 1 },
-    settings: { gameSpeed: C.DEFAULT_GAME_SPEED, offlineEnabled: true, debug: false },
+    // activeTab/seenTabs (Phase D / audit 6.7): where the player was + which tabs they've
+    // visited — reloads return them there instead of re-lighting every "new" pulse.
+    ui: { bulkMode: 1, activeTab: 'home', seenTabs: ['home'] },
+    // notation/motion/toastDensity (Phase D / audit 6.10): the Menu's display options.
+    settings: { gameSpeed: C.DEFAULT_GAME_SPEED, offlineEnabled: true, debug: false,
+      notation: 'suffix', motion: 'auto', toastDensity: 'all' },
     stats: { lifetimeCash: 0, lifetimeCashThisTree: 0, bestComfort: 0, totalClicks: 0, runSec: 0,
       tapWindowSec: 0, tapWindowCount: 0, overflowLost: 0,
       // E29: cumulative Legacy ever earned across ALL ascensions — the √-base for legendGain.

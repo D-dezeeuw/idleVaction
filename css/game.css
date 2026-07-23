@@ -12,7 +12,7 @@
   --iv-line: #F0E2CC;        /* sand line — soft separators */
   /* ink */
   --iv-ink: #2B1E16;         /* warm near-black */
-  --iv-sub: #8A7360;         /* dune — secondary text */
+  --iv-sub: #77614F;         /* dune — secondary text (darkened for AA at small sizes, audit 6.8) */
   /* brand */
   --iv-sun: #FFC800;         /* Sunshine — fills & highlights only, never text */
   --iv-sun-tint: #FFF4CC;
@@ -23,7 +23,7 @@
   --iv-sky-text: #0E7FC0;
   --iv-sky-tint: #E4F6FF;
   --iv-green: #7ED957;       /* Apple Green — go (fills/borders) */
-  --iv-green-text: #3E9B2E;
+  --iv-green-text: #2E7D24;   /* darkened for AA (audit 6.8) */
   --iv-green-tint: #EFFAE8;
   --iv-red-text: #C0392B;    /* costs/crashes (text-safe) */
   --iv-red-tint: #FDECEA;
@@ -41,7 +41,7 @@ h1, h2, h3, .iv-beattitle { font-family: 'Fredoka', 'Nunito', system-ui, sans-se
 #topbar { position: sticky; top: 0; z-index: 5; padding: 8px 14px;
   background: linear-gradient(180deg, var(--iv-sun-tint), var(--iv-bg)); box-shadow: var(--iv-shadow); }
 #topbar h1 { margin: 0 0 4px; font-size: 1.15rem; }
-#topbar h1 small { color: var(--iv-sub); font-size: .7rem; text-transform: uppercase; letter-spacing: .1em; }
+#topbar h1 small { color: var(--iv-sub); font-size: .75rem; text-transform: uppercase; letter-spacing: .1em; }
 .iv-header { display: flex; flex-wrap: wrap; gap: 12px; font-size: .82rem; }
 .iv-res b { color: var(--iv-pink-text); }
 
@@ -94,7 +94,7 @@ h1, h2, h3, .iv-beattitle { font-family: 'Fredoka', 'Nunito', system-ui, sans-se
   padding: 6px 10px; margin: 2px; cursor: pointer; font-size: .78rem; line-height: 1.2; text-align: center; height: auto;
   font-family: 'Nunito', sans-serif; box-shadow: 0 1px 4px rgba(43, 30, 22, .06); }
 .iv-btn:hover:not(:disabled) { border-color: var(--iv-pink); }
-.iv-btn:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
+.iv-btn:disabled { opacity: .6; cursor: not-allowed; box-shadow: none; }
 .iv-btn small { color: var(--iv-sub); }
 .iv-btn.btn-primary { background: var(--iv-pink); border-color: var(--iv-pink); color: #fff; font-weight: 800;
   border-radius: 999px; }
@@ -105,10 +105,10 @@ h1, h2, h3, .iv-beattitle { font-family: 'Fredoka', 'Nunito', system-ui, sans-se
 .iv-row { display: flex; justify-content: space-between; align-items: center; gap: 8px;
   border-bottom: 1px dashed var(--iv-line); padding: 6px 0; }
 .iv-row-main b { color: var(--iv-ink); } .iv-row-buy { display: flex; gap: 4px; }
-.iv-sub { color: var(--iv-sub); font-size: .74rem; }
+.iv-sub { color: var(--iv-sub); font-size: .76rem; }
 .iv-gen-flavor { font-size: .72rem; margin: 2px 0 0; }
 .iv-qty { margin-bottom: 6px; font-size: .78rem; color: var(--iv-sub); }
-.iv-tag { text-transform: uppercase; letter-spacing: .08em; color: var(--iv-pink-text); font-size: .68rem;
+.iv-tag { text-transform: uppercase; letter-spacing: .08em; color: var(--iv-pink-text); font-size: .75rem;
   font-weight: 800; margin: 8px 0 4px; }
 .iv-amenities { display: flex; flex-wrap: wrap; gap: 4px; }
 .iv-amenities > .iv-btn, .iv-amenities > button { flex: 1 1 130px; max-width: 220px; }
@@ -132,12 +132,12 @@ h1, h2, h3, .iv-beattitle { font-family: 'Fredoka', 'Nunito', system-ui, sans-se
 /* accommodation ladder: postcard-ish rows (full postcard component lands in U2) */
 .iv-acc-ladder { display: flex; flex-direction: column; gap: 4px; }
 .iv-acc-row { background: var(--iv-well); border: 1px solid var(--iv-line); border-radius: 12px; padding: 6px 10px; font-size: .8rem; }
-.iv-acc-owned { color: var(--iv-sub); font-size: .74rem; background: transparent; border: none; }
+.iv-acc-owned { color: var(--iv-sub); font-size: .76rem; background: transparent; border: none; }
 .iv-acc-current { background: var(--iv-sun-tint); border-color: var(--iv-sun); }
 .iv-acc-next { background: var(--iv-card); border-color: var(--iv-pink); box-shadow: var(--iv-shadow); }
 .iv-acc-next .iv-comfort-meter { margin: 4px 0; }
 .iv-acc-locked { opacity: .6; }
-.iv-acc-more { color: var(--iv-sub); font-size: .72rem; text-align: center; background: transparent; border: none; }
+.iv-acc-more { color: var(--iv-sub); font-size: .75rem; text-align: center; background: transparent; border: none; }
 
 .iv-upg-legend { margin-bottom: 6px; }
 
@@ -158,7 +158,7 @@ h1, h2, h3, .iv-beattitle { font-family: 'Fredoka', 'Nunito', system-ui, sans-se
 .label { background: var(--iv-sun-tint); color: var(--iv-ink); border-radius: 999px; padding: 1px 8px; font-size: .7rem; }
 
 .iv-badge-maxed { background: var(--iv-green-tint); color: var(--iv-green-text); border: 1px solid var(--iv-green);
-  border-radius: 999px; padding: 1px 8px; font-size: .68rem; margin-left: 4px; }
+  border-radius: 999px; padding: 1px 8px; font-size: .75rem; margin-left: 4px; }
 
 .iv-notif.iv-levelup { border-color: var(--iv-sky); font-weight: bold; font-size: .88rem;
   animation: slidein .25s ease, celebrateglow 1.2s ease 1; }
@@ -420,3 +420,25 @@ div.iv-passport-stamp.iv-stamp-empty { padding: 5px 2px; border-radius: 8px; }
 .iv-deed-thumb { width: 72px; height: auto; border-radius: 6px; vertical-align: middle; margin-right: 6px;
   transform: rotate(-3deg); box-shadow: 0 1px 4px rgba(43, 30, 22, .3); }
 @media (prefers-reduced-motion: reduce) { .iv-deed-thumb { transform: none; } }
+
+
+/* ---- Phase D (audit 6.6/6.8/6.9) ---- */
+/* the two verified prefers-reduced-motion holes: toast slide-in and the tap float */
+@media (prefers-reduced-motion: reduce) {
+  .iv-notif { animation: none; }
+  .iv-tap-pop, .iv-splash-pop, .iv-xp-pop { animation: none; transition: none; }
+}
+/* app-level motion override (Options → motion: reduced) mirrors the media query */
+:root[data-motion="reduced"] .iv-notif { animation: none; }
+:root[data-motion="reduced"] .iv-tap-pop,
+:root[data-motion="reduced"] .iv-splash-pop,
+:root[data-motion="reduced"] .iv-xp-pop { animation: none; }
+
+/* mobile ergonomics (audit 6.9): ≥44px touch targets where thumbs live; safe-area footer */
+@media (max-width: 720px) {
+  .iv-tab-btn { min-height: 44px; padding: 10px 16px; }
+  .iv-btn, .btn.iv-btn { min-height: 40px; }
+  #footer { padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px)); flex-wrap: nowrap; overflow-x: auto; }
+  /* right-edge fade signals the tab bar scrolls horizontally */
+  .iv-tabbar { -webkit-mask-image: linear-gradient(90deg, #000 92%, transparent); mask-image: linear-gradient(90deg, #000 92%, transparent); }
+}
