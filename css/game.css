@@ -191,6 +191,8 @@ h1, h2, h3, .iv-beattitle { font-family: 'Fredoka', 'Nunito', system-ui, sans-se
 .iv-tap-pop { position: absolute; bottom: 46px; transform: translateX(-50%); color: var(--iv-green-text);
   font-weight: bold; font-size: .85rem; pointer-events: none; animation: tapfloat .7s ease-out forwards; }
 @keyframes tapfloat { from { opacity: 1; transform: translate(-50%, 0); } to { opacity: 0; transform: translate(-50%, -22px); } }
+/* found by tools/uxcheck.mjs: the one pop that skipped the reduced-motion guard its siblings have */
+@media (prefers-reduced-motion: reduce) { .iv-tap-pop { animation: none; opacity: 0; } }
 
 /* Energy: sunshine → pink gradient (fully on-palette) */
 .iv-energy-meter i { background: linear-gradient(90deg, var(--iv-sun), var(--iv-pink)); }
@@ -252,6 +254,8 @@ h1, h2, h3, .iv-beattitle { font-family: 'Fredoka', 'Nunito', system-ui, sans-se
   padding: 16px; max-width: 380px; width: 100%; box-shadow: 0 12px 40px rgba(43, 30, 22, .25); }
 .iv-modal h3 { margin: 0 0 8px; }
 .iv-offline-row { margin: 4px 0; font-size: .88rem; }
+/* Task 2c: the offline-summary postcard reskin — a dashed "postcard back" divider under the scene */
+.iv-offline-postcard { border-bottom: 2px dashed var(--iv-sky); padding-bottom: 8px; }
 
 /* ---- U2: the Holiday component kit (UX-plan §3) ---- */
 
@@ -262,6 +266,18 @@ h1, h2, h3, .iv-beattitle { font-family: 'Fredoka', 'Nunito', system-ui, sans-se
 .iv-postcard-img { width: 100%; max-width: 380px; border-radius: 8px; display: block; margin: 0 auto 4px; }
 .iv-postcard-name { font-family: 'Fredoka', sans-serif; font-weight: 600; font-size: 1.1rem; }
 .iv-postcard-caption { color: var(--iv-sub); font-size: .74rem; font-style: italic; }
+
+/* Task 2: postcard-flip on tier-up — the one sanctioned "unlock flip" (UX-plan §1.4) */
+.iv-postcard.iv-postcard-flip { animation: postcardflip .6s ease; }
+@keyframes postcardflip {
+  0%, 100% { transform: rotateY(0deg); }
+  45% { transform: rotateY(94deg); opacity: .35; }
+  55% { transform: rotateY(-94deg); opacity: .35; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .iv-postcard.iv-postcard-flip { animation: postcardcrossfade .3s ease; }
+}
+@keyframes postcardcrossfade { from { opacity: .15; } to { opacity: 1; } }
 
 /* passport stamps: owned destinations sit inked-and-rotated; unowned = a dotted empty slot */
 .iv-stamp { transform: rotate(-2deg); border: 2px solid var(--iv-green); }
@@ -277,6 +293,8 @@ h1, h2, h3, .iv-beattitle { font-family: 'Fredoka', 'Nunito', system-ui, sans-se
 .iv-sticker-locked { border: 2px dashed var(--iv-line); border-radius: 18px; background: transparent;
   box-shadow: none; color: var(--iv-sub); }
 @media (prefers-reduced-motion: reduce) { .iv-sticker, .iv-sticker:nth-child(3n) { transform: none; } }
+/* Task 4: sticker art hook — the generated image sits where the 🏆 emoji used to */
+.iv-sticker-img { width: 22px; height: 22px; object-fit: contain; vertical-align: middle; border-radius: 50%; margin-right: 2px; }
 
 /* boarding passes: transport rows get a route-card look with a perforated edge */
 #transport > .iv-btn { text-align: left; border-left: 6px solid var(--iv-sky);
@@ -316,17 +334,87 @@ h1, h2, h3, .iv-beattitle { font-family: 'Fredoka', 'Nunito', system-ui, sans-se
 .iv-era-actions { margin-top: 10px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
 .iv-era-epitaph { font-style: italic; margin: 6px 0; }
 
+/* The Crossroads (beat 6, T1): four polaroid branch choices, 2×2 on desktop, stacked narrow. */
+.iv-crossroads-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 10px; }
+@media (max-width: 480px) { .iv-crossroads-grid { grid-template-columns: 1fr; } }
+.iv-polaroid-choice { background: var(--iv-card); border: 1px solid var(--iv-line); border-radius: 4px 4px 12px 12px;
+  padding: 10px 6px 12px; cursor: pointer; text-align: center; box-shadow: var(--iv-shadow);
+  font-family: 'Nunito', sans-serif; transform: rotate(-2deg); transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
+.iv-polaroid-choice:nth-child(2n) { transform: rotate(1.5deg); }
+.iv-polaroid-choice:hover, .iv-polaroid-choice:focus-visible { transform: rotate(0deg) scale(1.03);
+  box-shadow: 0 8px 20px rgba(43, 30, 22, .18); border-color: var(--iv-pink); }
+.iv-polaroid-scene { font-size: 1.7rem; margin-bottom: 4px; }
+.iv-polaroid-name { font-family: 'Fredoka', sans-serif; font-weight: 600; font-size: .82rem; color: var(--iv-pink-text); }
+.iv-polaroid-flavor { font-size: .72rem; color: var(--iv-sub); margin-top: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .iv-polaroid-choice, .iv-polaroid-choice:nth-child(2n) { transform: none; }
+  .iv-polaroid-choice:hover, .iv-polaroid-choice:focus-visible { transform: none; }
+}
+
+/* Task 2b: polaroid framing on the Story card + diary pages — extends the Crossroads polaroid
+   look (white frame, slight rotation) to the "current beat" presentation everywhere it shows up. */
+.iv-polaroid-frame { background: var(--iv-card); border: 1px solid var(--iv-line); border-radius: 4px 4px 14px 14px;
+  padding: 10px 10px 12px; box-shadow: var(--iv-shadow); transform: rotate(-1deg); }
+.iv-polaroid-photo { font-size: 2rem; text-align: center; background: var(--iv-well); border-radius: 4px;
+  padding: 14px 0; margin-bottom: 6px; }
+.iv-polaroid-photo-img { width: 100%; max-width: 320px; display: block; margin: 0 auto 6px; border-radius: 4px; }
+@media (prefers-reduced-motion: reduce) { .iv-polaroid-frame { transform: none; } }
+
 /* ---- U4: era skies — the light warms as the trip climbs (body[data-era] set in ui.render) ---- */
 body[data-era="drizzle"] #topbar { background: linear-gradient(180deg, #E8EEF2, var(--iv-bg)); }
 body[data-era="bright"] #topbar { background: linear-gradient(180deg, var(--iv-sky-tint), var(--iv-bg)); }
 body[data-era="warm"] #topbar { background: linear-gradient(180deg, var(--iv-sun-tint), var(--iv-bg)); }
 body[data-era="golden"] #topbar { background: linear-gradient(180deg, #FFE3B3, #FFECD9); }
 
-/* ---- the Travel Diary (UX-plan §3/§6): seen story beats as journal pages. ---- */
+/* ---- the Travel Diary (UX-plan §3/§6): seen story beats as journal pages, each a polaroid
+   (Task 2b) — margin-stacked instead of the old border-separated list, alternating tilt. ---- */
 .iv-diary { max-width: 460px; max-height: 70vh; overflow-y: auto; }
-.iv-diary-entry { border-bottom: 1px dashed var(--iv-line); padding: 8px 0; }
-.iv-diary-entry:last-child { border-bottom: none; }
+.iv-diary-entry.iv-polaroid-frame { margin-bottom: 10px; }
+.iv-diary-entry.iv-polaroid-frame:nth-child(even) { transform: rotate(1deg); }
+@media (prefers-reduced-motion: reduce) { .iv-diary-entry.iv-polaroid-frame:nth-child(even) { transform: none; } }
 .iv-diary-when { color: var(--iv-sub); font-size: .7rem; }
 .iv-diary-title { font-family: 'Fredoka', sans-serif; color: var(--iv-pink-text); font-size: .95rem; margin: 1px 0; }
 .iv-diary-text { font-size: .82rem; font-style: italic; }
 .iv-diary-continues { text-align: center; color: var(--iv-sub); font-size: .74rem; padding: 8px 0 2px; }
+
+/* ---- Task 1: the Passport spread view ---- */
+.iv-passport-btn { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.iv-passport-cover-thumb { width: 20px; height: auto; border-radius: 2px; vertical-align: middle; box-shadow: 0 1px 3px rgba(43, 30, 22, .3); }
+
+.iv-modal.iv-passport-modal { max-width: 640px; }
+.iv-passport-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.iv-passport-header h3 { margin: 0; }
+
+/* the open spread: inside.webp as the page background, cream fallback if the image never loads */
+.iv-passport-spread { position: relative; width: 100%; max-width: 600px; aspect-ratio: 960 / 720;
+  margin: 8px auto; border-radius: 10px; background-color: #FFF6E9;
+  background-image: url('../assets/img/passport/inside.webp'); background-size: cover; background-position: center;
+  box-shadow: var(--iv-shadow); }
+.iv-passport-gold { box-shadow: 0 0 0 3px var(--iv-sun), var(--iv-shadow); background-color: #FFF4CC; }
+.iv-passport-goldlabel { text-align: center; color: var(--iv-pink-text); font-family: 'Fredoka', sans-serif;
+  font-weight: 600; font-size: .85rem; margin-top: 6px; }
+
+/* stamps sit at deterministic slots (ui.js passportSlotPos) — owned ink or a dotted empty slot */
+.iv-passport-stamp { position: absolute; width: 15%; text-align: center; font-size: .62rem; line-height: 1.15; }
+img.iv-passport-stamp { background: none; border: none; box-shadow: none; padding: 0; height: auto; }
+div.iv-passport-stamp.iv-stamp-empty { padding: 5px 2px; border-radius: 8px; }
+
+.iv-passport-nav { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 4px; }
+.iv-passport-empty { text-align: center; margin-top: 4px; }
+
+@media (max-width: 480px) {
+  .iv-modal.iv-passport-modal { max-width: 100%; }
+}
+
+/* ---- final art-wiring pass: island building thumbnails + owned grounds-cluster deeds ---- */
+
+/* island resort buildings (E28): a small photo of the built structure atop its stats — same
+   onerror-remove contract as the passport cover thumb (a missing image just leaves the row
+   text-only, never a broken image icon). */
+.iv-island-thumb { width: 72px; height: 72px; object-fit: cover; border-radius: 10px; display: block; margin-bottom: 4px; }
+
+/* owned grounds clusters (garden/pool/court, E23): a little framed deed photo pinned to the
+   cluster header, tilted like a real paper deed tucked in a folder. */
+.iv-deed-thumb { width: 72px; height: auto; border-radius: 6px; vertical-align: middle; margin-right: 6px;
+  transform: rotate(-3deg); box-shadow: 0 1px 4px rgba(43, 30, 22, .3); }
+@media (prefers-reduced-motion: reduce) { .iv-deed-thumb { transform: none; } }

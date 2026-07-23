@@ -9,7 +9,7 @@
 
 export const SEASONAL = [
   { id: 'season_carnival', name: 'Rio Carnival',       mult: 1.04, flavor: 'Feathers, drums, and a crowd that does not care who you were. In season now.' },
-  { id: 'season_aurora',   name: 'Lapland Aurora',     mult: 1.04, flavor: 'The sky performs, for free, for everyone — even for a former shed-dweller.' },
+  { id: 'season_aurora',   name: 'Lapland Aurora',     mult: 1.04, flavor: 'The sky performs, for free, for everyone, even for a former shed-dweller.' },
   { id: 'season_regatta',  name: 'Monaco Regatta',     mult: 1.05, flavor: 'Boats you recognise from your own marina, racing. You wave. They wave back.' },
   { id: 'season_sakura',   name: 'Kyoto Sakura',       mult: 1.04, flavor: 'Blossoms for two weeks a year. You flew across the planet for the exact right fortnight.' },
   { id: 'season_harvest',  name: 'Tuscan Harvest',     mult: 1.05, flavor: 'The wine you cellared, at its source. Old money nods; older vines nod back.' },
