@@ -505,3 +505,21 @@ div.iv-passport-stamp.iv-stamp-empty { padding: 5px 2px; border-radius: 8px; }
 
 /* the golden frame (Clout shop, pure pride) */
 .iv-polaroid-frame.iv-frame-gold { box-shadow: 0 0 0 3px #ffc800, 0 4px 18px rgba(255, 200, 0, .35); }
+
+/* ---- Living-World W1: Trip Events banner + The Golden Goat (both hidden while
+   CONFIG.EVENTS.enabled is false — this wave's shipped default) ---- */
+.iv-event-banner { border-radius: 12px; padding: 5px 8px; margin-bottom: 6px; font-size: .8rem;
+  font-weight: bold; background: var(--iv-sun-tint); border: 1px solid var(--iv-sun); color: var(--iv-ink); }
+
+.iv-goat-btn { position: fixed; bottom: 74px; right: 14px; z-index: 7; width: 52px; height: 52px;
+  border-radius: 50%; border: 2px solid var(--iv-sun); background: var(--iv-card); font-size: 1.6rem;
+  line-height: 1; cursor: pointer; box-shadow: var(--iv-shadow); animation: goatwander 2.4s ease-in-out infinite; }
+.iv-goat-btn[hidden] { display: none; }
+@keyframes goatwander { 0%, 100% { transform: translateY(0) rotate(-4deg); } 50% { transform: translateY(-6px) rotate(4deg); } }
+@media (prefers-reduced-motion: reduce) { .iv-goat-btn { animation: none; } }
+:root[data-motion="reduced"] .iv-goat-btn { animation: none; }
+
+.iv-goat-pop { position: fixed; transform: translate(-50%, -100%); color: var(--iv-green-text);
+  font-weight: bold; font-size: .9rem; pointer-events: none; z-index: 8; animation: tapfloat .7s ease-out forwards; }
+@media (prefers-reduced-motion: reduce) { .iv-goat-pop { animation: none; opacity: 0; } }
+:root[data-motion="reduced"] .iv-goat-pop { animation: none; opacity: 0; }

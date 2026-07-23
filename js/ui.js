@@ -17,7 +17,7 @@ let hooks = {};               // { save, exportSave, importSave, hardReset }
 // future stays hidden). The player sees one focused screen at a time. activeTab/seenTabs are
 // transient (reset to Home on reload) — a deliberate light touch, no save-schema change.
 const TABS = [
-  { id: 'home',   label: 'Home',   icon: '🏨', cards: ['accCard', 'amenitiesCard', 'poolCard', 'beachCard', 'wellnessCard', 'conciergeCard', 'propertyCard', 'islandListingCard'] },
+  { id: 'home',   label: 'Home',   icon: '🏨', cards: ['eventsCard', 'accCard', 'amenitiesCard', 'poolCard', 'beachCard', 'wellnessCard', 'conciergeCard', 'propertyCard', 'islandListingCard'] },
   { id: 'income', label: 'Income', icon: '💶', cards: ['generatorsCard', 'creatorCard', 'cryptoCard', 'collectionCard', 'staffCard'] },
   { id: 'travel', label: 'Travel', icon: '🌍', cards: ['destCard', 'transportCard', 'garageCard', 'marinaCard', 'hangarCard'] },
   { id: 'growth', label: 'Growth', icon: '💪', cards: ['skillsCard', 'pathsCard'] },
@@ -90,6 +90,7 @@ const CARD_RENDERERS = {
   hangarCard: renderHangar, staffCard: renderStaff, propertyCard: renderProperty,
   islandListingCard: renderIslandListing, legendCard: renderLegend, achievementsCard: renderAchievements,
   skillsCard: renderSkills, pathsCard: renderPaths, ascensionCard: renderAscension, treeCard: renderTree,
+  eventsCard: renderEvents,
 };
 let lastFullSweep = 0;
 export function render(state) {
@@ -112,6 +113,7 @@ export function render(state) {
     if (full || (active && active.cards.includes(cardId))) fn(state);
   }
   renderEnergyMini(state);
+  renderGoat(state);
   // progressive disclosure: gate the panels that used to be always-on, then (re)build the tab bar
   // from what's actually unlocked. Runs LAST so it reads every render*()'s freshly-set hidden state.
   applyCardReveals(state);
@@ -201,6 +203,7 @@ function renderHeader(s) {
     ${showLegacy ? `<span class="iv-res">🏆 Legacy <b>${fmt(s.resources.legacy)}</b></span>` : ''}
     ${lDest > 1.001 ? `<span class="iv-res" aria-label="World Traveler destination bonus, times ${fmt(lDest)}">🌍 <b>×${fmt(lDest)}</b></span>` : ''}
     ${combo > 1.01 ? `<span class="iv-res">🔥 Combo ×${combo.toFixed(2)}</span>` : ''}
+    ${weatherChipHtml(s)}
   `;
   setHTML(el('hdr'), html);
 }
@@ -377,6 +380,74 @@ function polaroidSceneHtml(beatId) {
     ? `<img class="iv-polaroid-photo-img" src="assets/img/polaroids/beat-${String(beatId).padStart(2, '0')}.webp"
          alt="" onerror="this.outerHTML='<div class=iv-polaroid-photo>${emoji}</div>'">`
     : `<div class="iv-polaroid-photo" aria-hidden="true">${emoji}</div>`;
+}
+
+// ---------- Trip Events + Vacation Weather + The Golden Goat (Living-World W1) ----------
+// Reveal gate: mirrors engine.eventsTick's own early-return EXACTLY (config.EVENTS.enabled —
+// this wave's shipped `false` — AND the player's own settings toggle AND the story-beat gate),
+// so nothing here can ever render before the mechanism itself is switched on (the reveal
+// doctrine: the future — and, this wave, the WHOLE feature — stays hidden).
+function eventsRevealed(s) {
+  return C.EVENTS.enabled && s.settings.events && s.story.beat >= C.EVENTS.minBeat;
+}
+const TRIP_EVENT_LOG_SHOWN = 5;
+// Home-tab banner: any LIVE timed effect (income/tap/destSale windows) with a name + countdown,
+// plus a short "recent trip events" list — mirrors renderCrypto's "recent market moves" style.
+function renderEvents(s) {
+  const card = el('eventsCard');
+  const reveal = eventsRevealed(s);
+  if (card) card.hidden = !reveal;
+  if (!reveal) { if (el('events')) el('events').innerHTML = ''; return; }
+
+  const live = (s.effects || []).filter(e => e.endsAt > s.stats.runSec);
+  let html = '';
+  if (live.length) {
+    for (const e of live) {
+      const row = DATA.events.find(r => r.id === e.id);
+      const remain = Math.max(0, e.endsAt - s.stats.runSec);
+      html += `<div class="iv-event-banner">${row ? esc(row.name) : esc(e.id)} — ×${fmt(e.mult)} · ${fmtTime(remain)} left</div>`;
+    }
+  } else {
+    html += `<div class="iv-sub">Nothing brewing right now — the next twist could land any time.</div>`;
+  }
+  if (s.events.log && s.events.log.length) {
+    html += '<div class="iv-tag">recent trip events</div>';
+    for (const e of s.events.log.slice(0, TRIP_EVENT_LOG_SHOWN)) {
+      const row = DATA.events.find(r => r.id === e.id);
+      const detail = e.amount ? ` (+${fmt(e.amount)})` : e.mult ? ` (×${e.mult}, ${e.dur}s)` : '';
+      html += `<div class="iv-sub">${fmtTime(e.t)} — ${row ? esc(row.name) : esc(e.id)}${detail}</div>`;
+    }
+  }
+  setHTML(el('events'), html);
+}
+
+// Vacation Weather HUD chip: folded into renderHeader's chip row below, same reveal gate as the
+// events banner above. Display + event-mix bias ONLY (config.WEATHER's comment) — reads
+// state.weather.id but never affects any income math itself.
+function weatherChipHtml(s) {
+  if (!eventsRevealed(s)) return '';
+  const row = DATA.weatherStates.find(w => w.id === s.weather.id) || DATA.weatherStates[0];
+  return `<span class="iv-res" aria-label="Weather: ${esc(row.name)}">${esc(row.name)}</span>`;
+}
+
+// The Golden Goat: a floating button, invisible unless engine.goatVisible says one is actually
+// out. Its wander/bounce animation is entirely CSS-gated behind prefers-reduced-motion (game.css
+// '.iv-goat-btn', same convention as every other animated element in this file).
+function renderGoat(s) {
+  const b = el('goatBtn');
+  if (b) b.hidden = !E.goatVisible(s);
+}
+function showGoatPopup(gain) {
+  const btnEl = el('goatBtn');
+  if (!btnEl || !(gain > 0)) return;
+  const rect = btnEl.getBoundingClientRect();
+  const pop = document.createElement('span');
+  pop.className = 'iv-goat-pop';
+  pop.textContent = `+${fmt(gain)}`;
+  pop.style.left = `${rect.left + rect.width / 2}px`;
+  pop.style.top = `${rect.top}px`;
+  document.body.appendChild(pop);
+  setTimeout(() => pop.remove(), 700);
 }
 
 function renderStory(s) {
@@ -2677,6 +2748,9 @@ function handle(action, arg, btnEl) {
     }
     case 'respec-go': closeEra(); P.respec(S); break;
     case 'click': { const gain = E.click(S); showTapPopup(gain); if (gain > 0) { pulseEnergy(); pulseCombo(); } break; }
+    // The Golden Goat (Living-World W1): tapGoat is itself idempotent once hidden (pays 0),
+    // so a stray double-click can't double-pay — showGoatPopup only fires on a real payout.
+    case 'tap-goat': { const gain = E.tapGoat(S); showGoatPopup(gain); break; }
     // UX-plan R8: the ⚙️ drawer — dev tools exist only when a dev asks for them.
     case 'toggle-devtools': devToolsOpen = !devToolsOpen; renderControls(S); break;
     // UX-plan §6.4: per-tag amenity lists collapse to 3; this chip expands/collapses a tag.
@@ -2754,6 +2828,9 @@ function handle(action, arg, btnEl) {
     case 'opt-motion': S.settings.motion = (S.settings.motion === 'reduced' ? 'auto' : 'reduced');
       document.documentElement.dataset.motion = S.settings.motion === 'reduced' ? 'reduced' : ''; renderControls(S); break;
     case 'opt-toasts': S.settings.toastDensity = (S.settings.toastDensity === 'important' ? 'all' : 'important'); renderControls(S); break;
+    // Living-World W1: the player's own Trip Events toggle. Only ever rendered (see
+    // renderControls) once CONFIG.EVENTS.enabled is true — no dead toggle for an inert feature.
+    case 'opt-events': S.settings.events = !S.settings.events; renderControls(S); break;
     case 'save': hooks.save(); break;
     case 'dismiss-offline': hideOfflineSummary(); break;
   }
@@ -2838,6 +2915,7 @@ export function renderControls(state) {
       ${btn('opt-notation', '', `№ ${notation === 'sci' ? 'Scientific' : 'Suffix (K/M/B)'}`, true, '', 'Toggle number notation')}
       ${btn('opt-motion', '', `${motion === 'reduced' ? '🧘 Motion: reduced' : '✨ Motion: auto'}`, true, '', 'Reduce animations')}
       ${btn('opt-toasts', '', `${toasts === 'important' ? '🔕 Toasts: important only' : '🔔 Toasts: all'}`, true, '', 'Toast density')}
+      ${C.EVENTS.enabled ? btn('opt-events', '', `${state.settings.events ? '🍹 Trip Events: on' : '🍹 Trip Events: off'}`, true, '', 'Happy hours, windfalls, and the odd wandering goat') : ''}
       <span class="iv-tag">pace (dev)</span>
       <span class="iv-speed">Speed <b>${state.settings.gameSpeed}×</b>: ${speeds}
         <input id="speedInput" type="number" min="0" step="1" value="${state.settings.gameSpeed}"

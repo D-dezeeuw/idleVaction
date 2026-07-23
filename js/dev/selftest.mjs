@@ -19,6 +19,7 @@ import { validateIsland } from '../data/island.js';
 import { validateLegend } from '../data/legend.js';
 import { validateAchievements } from '../data/achievements.js';
 import { validateSeasonal } from '../data/seasonal.js';
+import { validateEvents } from '../data/events.js';
 import { fmt, fmtTime, rng } from '../util.js';
 // E11 harness-invariance guard ([62] below): importing runCurve does NOT auto-run the
 // harness's own report() — that's guarded behind `process.argv[1].endsWith('harness.mjs')`,
@@ -4857,6 +4858,104 @@ console.log('\n[110] 8.5-push: comfort progression gate, Clout shop, tree play-c
   const offline = M.marketMult(om, DATA);
   om._macroDt = 0;
   ok(offline < online && offline > 1, `offline macro-steps weight a 30s event by its overlap (online ×${online.toFixed(2)} → offline ×${offline.toFixed(2)})`);
+}
+
+console.log('\n[111] Living-World W1: shared effects registry + Trip Events + Vacation Weather + The Golden Goat — neutral by default (CONFIG.EVENTS.enabled: false), deterministic once flipped on');
+{
+  ok(validateEvents(), 'validateEvents() passes on the shipped EVENTS/WEATHER_STATES rosters');
+  ok(C.EVENTS.enabled === false, 'CONFIG.EVENTS.enabled ships false this wave — the neutrality gate');
+
+  // ---- (d) neutrality: even with the OTHER two gate conditions satisfied (story beat + the
+  // player's own settings toggle), CONFIG.EVENTS.enabled:false alone keeps the scheduler dark.
+  const neutral = ST.newGame();
+  neutral.story.beat = 10; neutral.settings.events = true;
+  for (let i = 0; i < 2000; i++) E.tick(neutral, 5);   // ~2h47m of sim time
+  ok(neutral.events.cursor === 0 && neutral.effects.length === 0 && neutral.goat === null,
+    'CONFIG.EVENTS.enabled:false alone keeps Trip Events fully dark — cursor 0, effects empty, goat null, even after heavy ticking');
+  ok(neutral.weather.id === 'sunny' && neutral.weather.cursor === 0, 'Vacation Weather (same gate) never advances past its seeded sunny default either');
+  const { islandAt: neutralIsland } = runCurve({ dt: 5, maxHours: 40 });
+  ok(Math.abs(neutralIsland - 39440) < 1, `harness island time is UNCHANGED by Living-World W1 (got ${fmtTime(neutralIsland)}, expected 39440s)`);
+
+  // ---- (c) effectsMult cap property: several ×10 entries of the SAME kind still cap the
+  // product at config.EFFECTS.maxMult (the registry works whether or not the scheduler is on).
+  const capped = ST.newGame();
+  for (let i = 0; i < 5; i++) E.addEffect(capped, { id: `stack_${i}`, kind: 'income', mult: 10, durationSec: 100 });
+  ok(capped.effects.length === 5, 'addEffect adds distinct ids as distinct entries');
+  const stackedMult = M.effectsMult(capped, 'income');
+  ok(stackedMult <= C.EFFECTS.maxMult + 1e-9, `5 stacked ×10 income entries (raw product 1e5) still cap at EFFECTS.maxMult (got ×${stackedMult.toFixed(2)})`);
+  ok(M.effectsMult(capped, 'tap') === 1, 'the cap is PER KIND — a kind with no live entries reads exactly 1');
+  E.addEffect(capped, { id: 'stack_0', kind: 'income', mult: 2, durationSec: 50 });   // same id, new mult
+  ok(capped.effects.length === 5 && capped.effects.find(e => e.id === 'stack_0').mult === 2,
+    'addEffect REPLACES an existing entry with the same id rather than stacking a duplicate');
+
+  // ---- (f) expired effects prune: an entry past its endsAt is gone after the next tick
+  // (engine.pruneEffects, called at the top of tick() before anything reads the registry).
+  const pr = ST.newGame();
+  E.addEffect(pr, { id: 'short_lived', kind: 'tap', mult: 3, durationSec: 5 });
+  ok(pr.effects.length === 1, 'addEffect registers the entry');
+  pr.stats.runSec += 10;   // fast-forward PAST endsAt without a tick
+  E.tick(pr, 1);
+  ok(pr.effects.length === 0, 'an expired entry is pruned by the very next tick');
+
+  // ---- (e) tapGoat respects walletRoom: a nearly-full wallet bounds the payout to the room
+  // actually free, never the full income-scaled formula.
+  const goatState = ST.newGame();
+  goatState.generators[0].count = 1e6;   // real income so incomeRate > 0 (mirrors [85]'s "strong D1 income" fixture)
+  goatState.bank.tier = 5;
+  goatState.resources.cash = M.walletCap(goatState) - 1;   // 1 of room left
+  goatState.goat = { visibleUntil: goatState.stats.runSec + C.GOAT.visibleSec, taps: 0 };
+  ok(E.goatVisible(goatState), 'a freshly-spawned, unexpired goat reads as visible');
+  const room = M.walletRoom(goatState);
+  const banked = E.tapGoat(goatState);
+  ok(banked <= room + 1e-6, `tapGoat never banks more than the wallet's free room (banked ${banked.toFixed(4)} <= room ${room.toFixed(4)})`);
+  ok(!E.goatVisible(goatState) && goatState.stats.goatsGreeted === 1, 'tapping hides the goat immediately and increments stats.goatsGreeted');
+  ok(E.tapGoat(goatState) === 0, 'tapping an already-hidden goat pays nothing');
+  const untapped = ST.newGame();
+  untapped.goat = { visibleUntil: untapped.stats.runSec - 1, taps: 0 };   // already expired, never tapped
+  ok(!E.goatVisible(untapped), 'an expired, untapped goat just reads as no longer visible — no penalty, it wandered off');
+
+  // ---- (a)/(b): temporarily flip the scheduler on to test its determinism + offline parity —
+  // restored to the shipped false at the end of this block.
+  C.EVENTS.enabled = true;
+  // (a) determinism: the SAME seed draws the IDENTICAL event + weather sequence across two
+  // independent replays (mirrors test [81]'s crypto-market determinism check).
+  const seedEvState = () => {
+    const s = ST.newGame();
+    s.events.seed = 909090;
+    s.story.beat = C.EVENTS.minBeat;   // past the story gate
+    return s;
+  };
+  const runA = seedEvState();
+  for (let i = 0; i < 4000; i++) E.tick(runA, 5);
+  const runB = seedEvState();
+  for (let i = 0; i < 4000; i++) E.tick(runB, 5);
+  ok(runA.events.cursor > 0, 'enabling Trip Events actually draws (this determinism check is not vacuous)');
+  ok(runA.events.cursor === runB.events.cursor, 'the SAME seed draws the IDENTICAL number of Trip Events cursor steps');
+  ok(JSON.stringify(runA.events.log) === JSON.stringify(runB.events.log), 'the SAME seed fires the IDENTICAL event sequence (the log ring buffer matches exactly)');
+  ok(runA.weather.cursor === runB.weather.cursor && runA.weather.id === runB.weather.id, 'the SAME seed rolls the IDENTICAL weather sequence too');
+
+  // (b) offline vs online parity: a manual macro-step loop and applyOffline produce IDENTICAL
+  // outcomes for the SAME elapsed time (mirrors test [81]'s exact applyOffline-vs-manual pattern).
+  const seedEvState2 = () => {
+    const s = ST.newGame();
+    s.events.seed = 424242;
+    s.story.beat = C.EVENTS.minBeat;
+    s.settings.offlineEnabled = true;
+    return s;
+  };
+  const manual = seedEvState2();
+  const viaOffline = ST.migrate(JSON.parse(JSON.stringify(seedEvState2())));
+  const elapsedMs = 3600 * 1000;   // 1h away
+  const capH = C.OFFLINE_CAP_H + 2 * (manual.ascension.tree.iron_const || 0);
+  const total = Math.min(elapsedMs, capH * 3600 * 1000) / 1000;
+  const step = total / C.OFFLINE_STEPS;
+  for (let i = 0; i < C.OFFLINE_STEPS; i++) E.tick(manual, step);
+  const rep = E.applyOffline(viaOffline, elapsedMs);
+  ok(rep && rep.seconds > 0, 'applyOffline returns a report for a real elapsed gap');
+  ok(manual.events.cursor === viaOffline.events.cursor, 'manual macro-step loop and applyOffline draw the IDENTICAL number of seeded Trip Events draws');
+  ok(approx(manual.resources.cash, viaOffline.resources.cash, 1e-6), 'manual macro-step loop and applyOffline produce IDENTICAL cash for identical elapsed time (the offline overlap-weighting is deterministic, not approximate)');
+
+  C.EVENTS.enabled = false;   // restore the shipped default — nothing after this point should rely on it being on
 }
 
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);

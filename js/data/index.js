@@ -21,6 +21,7 @@ import { BUILDINGS } from './island.js';
 import { LEGEND_PERKS } from './legend.js';
 import { ACHIEVEMENTS } from './achievements.js';
 import { SEASONAL } from './seasonal.js';
+import { EVENTS, WEATHER_STATES } from './events.js';
 
 export const DATA = {
   generators: GENERATORS,
@@ -82,4 +83,10 @@ export const DATA = {
   achievements: ACHIEVEMENTS,
   // seasonal (E30): rotating live-ops destinations, a small bounded × gated on owning the island.
   seasonal: SEASONAL,
+  // Trip Events + Vacation Weather (Living-World W1, docs/08 points 1/3): the seeded serendipity
+  // deck + ambient weather. validateEvents lives in data/events.js, imported directly by the dev
+  // harness/selftest (same convention as validateBank/validatePaths/…). Neutral by default —
+  // config.EVENTS.enabled ships false this wave, so engine.eventsTick never draws either table.
+  events: EVENTS,
+  weatherStates: WEATHER_STATES,
 };

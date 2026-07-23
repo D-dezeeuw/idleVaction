@@ -629,6 +629,35 @@ export function energyRegenRate(state) {
   return C.ENERGY.regen * (1 + C.ENERGY.perBody * state.skills.body.level);
 }
 
+// ---- shared timed-effects registry (Living-World W1 infrastructure, config.EFFECTS) ----
+// state.effects: [{ id, kind, mult, endsAt, durationSec }], endsAt/durationSec in RUN GAME-TIME
+// (state.stats.runSec units) — deterministic, so offline replay is automatically identical to
+// online (applyOffline replays the same tick()). effectsMult multiplies together every LIVE
+// entry of the requested `kind` and hard-caps the PRODUCT at config.EFFECTS.maxMult — a bounded
+// flat ×, duration-bounded, never a power of cash (the same safe class as L_dest, docs/math-
+// proof.md §3/§4). Exactly 1 with an empty/absent registry (every fresh game, and the harness —
+// Trip Events never populates it, see config.EVENTS), so this cannot move the fitted goldens.
+export function effectsMult(state, kind) {
+  let m = 1;
+  const macroDt = state._macroDt || 0;
+  for (const e of (state.effects || [])) {
+    if (e.kind !== kind || !(e.endsAt > state.stats.runSec)) continue;
+    let mult = e.mult;
+    // Offline overlap weighting (mirrors marketMult's macro-step fairness below, eacdc70): a
+    // short window (e.g. a 90s Happy Hour) shouldn't apply its full × across an entire coarse
+    // offline step (up to 216s) — weight the window's × toward 1 by its true duration's share
+    // of the step, the SAME time-weighted-average trick the crypto market uses. Online play
+    // (macroDt 0) is untouched — this only ever engages during applyOffline's macro-loop.
+    if (macroDt > 0) {
+      const dur = Math.max(1, e.durationSec || 1);
+      const frac = Math.min(1, dur / macroDt);
+      mult = 1 + (mult - 1) * frac;
+    }
+    m *= mult;
+  }
+  return Math.min(C.EFFECTS.maxMult, m);
+}
+
 // ---- vlogger clout economy (E12 "Lights, Camera, Clout") ----
 // Sum of every owned content tier's OWN contentRate (times its Clout-priced "boost"
 // layer, engine.buyContentBoost) plus any creator-gear (tag:'gear') amenity's
@@ -1046,6 +1075,11 @@ export function destDiscountMult(state) {
   // a plain scan of the owned map. The vlogger harness owns no jet ⇒ no discount ⇒ island unmoved.
   const anyJet = state.vehicles?.jets && Object.values(state.vehicles.jets).some(j => (j.count || 0) > 0);
   if (anyJet) m *= (1 - C.LOGISTICS.jetDiscount);
+  // Trip Events' `dest_sale` rows (Living-World W1): a timed extra × < 1 through the shared
+  // effects registry — joins the SAME stack, floored by the SAME hard floor below, so a sale
+  // stacked with the traveler/wanderer/jet discounts still can never go implausibly cheap.
+  // Exactly 1 with an empty registry (the harness/a fresh game), so this line is a no-op today.
+  m *= effectsMult(state, 'destSale');
   return Math.max(C.LOGISTICS.destDiscountFloor, m);   // floored — destinations never hit zero
 }
 // equipped cars' total speed (Σ speed) — engine.transportSpeed adds this to the active ride's

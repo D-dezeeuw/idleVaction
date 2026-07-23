@@ -312,6 +312,60 @@ export const CONFIG = {
     maxCrashDamp: 0.95,
   },
 
+  // ---- shared timed-effects registry (Living-World W1 infrastructure) ----
+  // state.effects: [{ id, kind, mult, endsAt, durationSec }] — the substrate every later
+  // "timed flat ×" mechanism reuses (Trip Events here; Sunscreen Boosts/Splurge Moments/Legacy
+  // Honeymoon in later waves, docs/08 §"safety classes"). math.effectsMult(state, kind)
+  // multiplies together every LIVE entry of one kind and hard-caps the PRODUCT at maxMult — a
+  // bounded flat × with a duration bound, never a power of cash (the same safe class as L_dest,
+  // docs/math-proof.md §3/§4). maxMult only ever bounds the EFFECTS portion of engine.runtimeMult
+  // — Second Wind's own ×5 window is folded in OUTSIDE this cap and is completely unchanged.
+  // Empty state.effects (every fresh game, and the harness — Trip Events never fires for it,
+  // see EVENTS below) ⇒ effectsMult returns exactly 1, so the fitted island/casual goldens
+  // cannot move from this registry existing.
+  EFFECTS: { maxMult: 5 },
+
+  // ---- Trip Events: the serendipity deck (Living-World W1, plan point 1) ----
+  // A seeded scheduler (engine.eventsTick), drawing from data/events.js's EVENTS table via the
+  // EXACT marketTick pattern (util.rng(state.events.seed, state.events.cursor++), game-time only
+  // — offline replay is bit-identical to online since applyOffline replays the SAME tick()).
+  // NEUTRALITY GATE (this wave ships enabled:false): engine.eventsTick's entire body is
+  // `if (!C.EVENTS.enabled || !state.settings.events || state.story.beat < C.EVENTS.minBeat) return;`
+  // — so a fresh newGame() and the harness (which never reaches beat 3, let alone flips a
+  // config flag) draw NOTHING, ever: state.events.cursor stays 0, state.effects stays [],
+  // state.goat stays null, state.weather never advances — the fitted island/casual goldens
+  // cannot move. The @balance-tuner flips `enabled` once the deck is fitted (docs/08 W5).
+  //   minBeat         — story gate: events don't start rolling until the player has enough
+  //                      context (beat 3) to understand what just happened.
+  //   everyRange      — game-seconds of calm between one event ending/firing and the next
+  //                      being drawn (mirrors config.MARKET.eventEveryRange).
+  //   windfallRoomFrac/windfallSecs — a `windfall`-kind row always pays
+  //                      min(walletRoom·windfallRoomFrac, incomeRate·windfallSecs), banked through
+  //                      engine.gainCash like every other inflow — bounded by BOTH the wallet's
+  //                      free room and a capped multiple of the player's own current income, so it
+  //                      scales with the player without ever being a fixed-cash exploit.
+  //   seed            — default seed; state.js migrate() reseeds existing saves from
+  //                      meta.createdAt (the crypto-market precedent).
+  EVENTS: { enabled: false, minBeat: 3, everyRange: [360, 720], windfallRoomFrac: 0.25, windfallSecs: 45, seed: 4242 },
+
+  // ---- Vacation Weather (Living-World W1, plan point 3) ----
+  // Seeded ambient flavor (engine's weatherTick, called from inside eventsTick — same gate, no
+  // separate one) — 5 states in data/events.js's WEATHER_STATES, each carrying an `eventBias`
+  // (nudges which EVENTS rows draw more/less often while that weather is live) and flavor-only
+  // tapMult/energyRegenMult scalars read ONLY in engine.click / the energy-regen tick line —
+  // NEVER tierProd/computeComfort/any unlock check — so weather cannot move the income stack by
+  // construction. It shares state.events.seed (its own cursor lives in state.weather.cursor) —
+  // see engine.weatherTick's disjoint-cursor-namespace comment for why the two never collide.
+  WEATHER: { everyRange: [180, 480] },
+
+  // ---- The Golden Goat (Living-World W1, plan point 2) ----
+  // A rare `goat`-kind EVENTS row sets state.goat = { visibleUntil, taps } — engine.goatVisible/
+  // tapGoat read it. Untapped, it just expires (visibleUntil elapses, no cleanup needed). Tapping
+  // pays min(walletRoom, incomeRate·rewardSecs) through gainCash — same bounded-by-wallet-and-
+  // income shape as the windfall row above. The harness never taps (E10's established contract),
+  // so the goat is harness-neutral even once Trip Events is enabled.
+  GOAT: { visibleSec: 20, rewardSecs: 90 },
+
   // ---- connoisseur economy (E14 "Acquired Taste"): OPT-IN, gated-off-by-default ----
   // The whole Old-Money Aesthete lane (exclusivity ×, luxury discount, appreciation, the
   // +25% luxury-Comfort perk) stays a hard no-op until the connoisseur system is genuinely

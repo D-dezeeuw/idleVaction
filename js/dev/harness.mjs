@@ -19,6 +19,7 @@ import { validateIsland } from '../data/island.js';
 import { validateLegend } from '../data/legend.js';
 import { validateAchievements } from '../data/achievements.js';
 import { validateSeasonal } from '../data/seasonal.js';
+import { validateEvents } from '../data/events.js';
 import { fmt, fmtTime } from '../util.js';
 
 // ---- ROI-aware amenity buying (the max-speed player, not a completionist) ----
@@ -148,6 +149,7 @@ function report() {
   validateLegend();         // dev schema guard (E29): legend perk ids/kinds/costs
   validateAchievements();   // dev schema guard (E30): achievement ids + reward-0-unless-meta invariant
   validateSeasonal();       // dev schema guard (E30): seasonal ids + bounded mults
+  validateEvents();         // dev schema guard (Living-World W1): Trip Events + Vacation Weather rows
   const { beatTime, islandAt, peakLog, dblAtIsland } = runCurve({ dt: 5, maxHours: 40 });
   console.log('\n=== idleVaction balance-fit curve (greedy optimal, LOWER bound on real time) ===\n');
   const beats = Object.keys(beatTime).map(Number).sort((a, b) => a - b);

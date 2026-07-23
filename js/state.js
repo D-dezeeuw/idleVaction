@@ -128,6 +128,32 @@ export function newGame() {
     bank: { tier: 0 },
     market: { seed: C.MARKET.seed, cursor: 0, phase: 'calm', eventId: null, mult: 1,
       nextEventT: 0, expiresAtSec: 0, eventStartSec: 0, eventLog: [], totalEvents: 0 },
+    // ---- Living-World W1: shared timed-effects registry + Trip Events + Vacation Weather +
+    // The Golden Goat (docs/08-living-world.md points 1/2/3) ----
+    // effects: the shared registry (config.EFFECTS/math.effectsMult/engine.addEffect) — empty
+    // until something adds to it. Entries are { id, kind, mult, endsAt, durationSec }: the extra
+    // `durationSec` (beyond the docs/08 plan's { id, kind, mult, endsAt }) is what lets
+    // math.effectsMult replicate the crypto market's offline overlap-weighting fairness
+    // (math.marketMult, eacdc70) — it needs each entry's ORIGINAL window length, not just its
+    // absolute end time, to weight a short window's × down when a coarse offline macro-step
+    // spans past it. Run-scoped like market/crypto (NOT in prestige.ascend's keep-list), so
+    // every ascension starts with a clean slate, same as everything else here.
+    effects: [],
+    // events: the seeded Trip Events scheduler's own state — mirrors state.market's shape
+    // exactly (seed/cursor/nextAt). engine.eventsTick is a no-op until config.EVENTS.enabled +
+    // settings.events + beat >= EVENTS.minBeat all hold (this wave ships enabled:false), so a
+    // fresh game/the harness never advance cursor past 0 and log stays empty. `log` is a ring
+    // buffer (cap 20) of recently-fired rows, for the UI's "recent trip events" list.
+    events: { seed: C.EVENTS.seed, cursor: 0, nextAt: 0, log: [] },
+    // weather: seeded ambient flavor, gated behind the SAME eventsTick() early return — shares
+    // events.seed (its own cursor namespace, see engine.weatherTick). 'sunny' (tapMult/
+    // energyRegenMult both 1) is the neutral default it never advances past for a fresh game.
+    weather: { id: 'sunny', nextAt: 0, cursor: 0 },
+    // goat: null until a `goat`-kind Trip Event spawns one ({ visibleUntil, taps }) — see
+    // engine.goatVisible/tapGoat. Mirrors island.purchasedAt/market.eventId's nullable-
+    // placeholder convention (state.js coerceTypes' comment: null in the fresh shape ⇒ skip
+    // type-checking this key, since its real shape varies by whether a goat is currently out).
+    goat: null,
     // homeBase (E27): 'mainland' until the private island is bought, then 'island' — a permanent
     // meta fact (carried across ascension by prestige.ascend) even as the run's tier resets.
     accommodation: { tier: 0, owned: [0], homeBase: 'mainland' },
@@ -204,13 +230,21 @@ export function newGame() {
     // visited — reloads return them there instead of re-lighting every "new" pulse.
     ui: { bulkMode: 1, activeTab: 'home', seenTabs: ['home'] },
     // notation/motion/toastDensity (Phase D / audit 6.10): the Menu's display options.
+    // events (Living-World W1): the player's OWN intent toggle — the master switch stays
+    // CONFIG.EVENTS.enabled this wave (shipped false), so this being true by default cannot
+    // itself turn Trip Events on for anyone; it only matters once the balance wave flips the
+    // config flag, at which point a player can still opt back out from the Menu.
     settings: { gameSpeed: C.DEFAULT_GAME_SPEED, offlineEnabled: true, debug: false,
-      notation: 'suffix', motion: 'auto', toastDensity: 'all' },
+      notation: 'suffix', motion: 'auto', toastDensity: 'all', events: true },
     stats: { lifetimeCash: 0, lifetimeCashThisTree: 0, bestComfort: 0, totalClicks: 0, runSec: 0,
       tapWindowSec: 0, tapWindowCount: 0, overflowLost: 0,
       // E29: cumulative Legacy ever earned across ALL ascensions — the √-base for legendGain.
       // Survives the Legend reset (it is the record the next layer telescopes on). 0 for the harness.
-      totalLegacyEverEarned: 0 },
+      totalLegacyEverEarned: 0,
+      // goatsGreeted (Living-World W1): a run-scoped lifetime counter, like totalClicks — resets
+      // each ascension along with the rest of `stats`. 0 for a fresh game/the harness (Trip
+      // Events gated off ⇒ no goat is ever spawned, let alone tapped).
+      goatsGreeted: 0 },
     // transient caches (not strictly needed in save, recomputed each tick). _exclCache is
     // the connoisseur exclusivity score (E14) — a derived cache like _comfortCache, so no
     // persisted state.exclusivity is needed (S9-T1 satisfied by the cache); backfill adds it
@@ -250,6 +284,9 @@ export function migrate(s) {
   // a save that predates the crypto market entirely (no `market` key at all) — captured
   // BEFORE backfill() below fills it in with the shared default seed (E13-S9-T2).
   const hadMarket = s.market !== undefined;
+  // a save that predates Trip Events (Living-World W1) — captured BEFORE backfill() below fills
+  // it in with the shared default seed, mirroring hadMarket exactly.
+  const hadEvents = s.events !== undefined;
   // captured BEFORE backfill: a pre-snapshot save's investor rank was legitimately held, so
   // grandfather it as the run-start rank rather than zeroing an honest player's bonus.
   const hadInvestorSnap = s.ascension && s.ascension.investorAtRunStart !== undefined;
@@ -280,6 +317,10 @@ export function migrate(s) {
   // leaving every migrated save on the same shared default seed — the first (and so
   // far only) seeded-RNG state the codebase ships, so no other field has this pattern.
   if (!hadMarket) s.market.seed = (s.meta.createdAt || Date.now()) >>> 0;
+  // reseed Trip Events (+ Vacation Weather, which reads this SAME seed) from THIS save's own
+  // creation time, exactly like market.seed above — a save from before Living-World W1 doesn't
+  // silently share the default CONFIG.EVENTS.seed with every other migrated save.
+  if (!hadEvents) s.events.seed = (s.meta.createdAt || Date.now()) >>> 0;
   // bank grandfathering: a save from before the wallet cap existed (backfilled to
   // tier 0 above) may already hold far more cash than the Soggy Money Belt allows.
   // The inflow clamp (engine.gainCash) never confiscates, but it WOULD silently

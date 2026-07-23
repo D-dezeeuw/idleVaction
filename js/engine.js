@@ -48,14 +48,25 @@ export function gainCash(state, amount) {
 // ---------- runtime (non-pure) multiplier: Second Wind window ----------
 function runtimeMult(state) {
   const rank = state.ascension.tree.second_wind || 0;
-  if (rank > 0 && state.stats.runSec < 300 * rank) return 5;
-  return 1;
+  const secondWind = (rank > 0 && state.stats.runSec < 300 * rank) ? 5 : 1;
+  // Trip Events (Living-World W1): timed `income_window` rows (Happy Hour/Golden Hour) fold in
+  // here through the shared effects registry — M.effectsMult already caps its OWN product at
+  // config.EFFECTS.maxMult, so Second Wind's ×5 stays OUTSIDE that cap (unchanged behavior).
+  // Exactly 1 with an empty state.effects (every fresh game, and the harness — Trip Events is
+  // gated off by default, see config.EVENTS), so the fitted island/casual goldens cannot move.
+  return secondWind * M.effectsMult(state, 'income');
 }
 
 // ---------- the tick ----------
 export function tick(state, dt) {
   state.stats.runSec += dt;
   state.meta.playtimeMs += dt * 1000;
+
+  // 0) drop any expired timed effect (Living-World W1 registry) BEFORE anything below reads
+  // M.effectsMult — mirrors marketTick's own "expire back to calm first" ordering, so a window
+  // that closed exactly this tick reads as gone for the whole tick (never a stale partial
+  // credit). Empty/absent state.effects (every fresh game, the harness) is an instant no-op.
+  pruneEffects(state);
 
   // 1) refresh path-stage, comfort + destination caches (feed the multiplier stack) —
   // _pathBonus first: computeComfort reads the connoisseur stage scalars from it.
@@ -117,6 +128,10 @@ export function tick(state, dt) {
   // the fitted ~8h26m island time cannot move. marketMult scales ONLY this yield, never
   // savvyPassive/tierProd above (opt-in volatility, never a base-income effect).
   marketTick(state);
+  // Trip Events + Vacation Weather (Living-World W1 "the serendipity deck"): the SAME seeded-
+  // scheduler pattern as marketTick, one tick step later — gated off by default (config.EVENTS),
+  // see eventsTick's own comment for the full neutrality contract.
+  eventsTick(state);
   const cryptoYield = M.cryptoYieldPerSec(state, DATA) * dt;
   cashGain += cryptoYield;
   state.crypto.lifetimeYield += cryptoYield;
@@ -151,9 +166,12 @@ export function tick(state, dt) {
 
   // 5a) energy regen (E10 "Body & Soul"): optional clicker fuel, Body-scaled tank +
   // regen — never read by tierProd/tierMultiplier, so it cannot affect idle income or
-  // pacing (the harness never taps; see math.energyMax/energyRegenRate).
+  // pacing (the harness never taps; see math.energyMax/energyRegenRate). Vacation Weather's
+  // energyRegenMult flavors the regen rate only (weatherRow's 'sunny' default is exactly 1,
+  // so a fresh game/the harness — which never rolls away from 'sunny' — are unaffected).
   state.resources.energy = clamp(
-    (state.resources.energy || 0) + M.energyRegenRate(state) * dt, 0, M.energyMax(state));
+    (state.resources.energy || 0) + M.energyRegenRate(state) * weatherRow(state).energyRegenMult * dt,
+    0, M.energyMax(state));
 
   // 5b) Transport upkeep (E04-S2-T8) drains cash while a ride is active; clamped so it
   // never goes negative, offline included (both just call tick()). NOTE: the traveler
@@ -1196,6 +1214,176 @@ export function checkWhaleWatching(state) {
   addPathPoints(state, 'crypto', WHALE_WATCH_PATH_BONUS);
   refreshSkillLevels(state);
   notify(state, 'celebrate', '🐋 Whale Watching: you clocked the pattern before the chart did. Savvy sharpens — the market, ever so slightly, notices you noticing.');
+}
+
+// ---------- Trip Events + Vacation Weather + The Golden Goat (Living-World W1) ----------
+// docs/08-living-world.md points 1/2/3. The shared timed-effects registry (config.EFFECTS,
+// math.effectsMult/engine.addEffect) is this wave's substrate; Trip Events is its first tenant.
+
+// addEffect: replaces an existing entry with the SAME id rather than stacking it (re-rolling
+// Happy Hour while one is already live refreshes its own window instead of a second copy
+// compounding on top) — every caller (eventsTick today; boosts/splurges/honeymoon later,
+// docs/08 waves 2-3) just calls this, never searches state.effects itself.
+export function addEffect(state, { id, kind, mult, durationSec }) {
+  const list = (state.effects ||= []);
+  const i = list.findIndex(e => e.id === id);
+  const entry = { id, kind, mult, endsAt: state.stats.runSec + durationSec, durationSec };
+  if (i >= 0) list[i] = entry; else list.push(entry);
+}
+// drop every entry whose window has already closed — called once per tick (see tick's step 0)
+// so state.effects never grows unbounded and a save never serializes a stale expired entry.
+// A no-op whenever the registry is empty (every fresh game, the harness).
+function pruneEffects(state) {
+  const list = state.effects;
+  if (!list || !list.length) return;
+  state.effects = list.filter(e => e.endsAt > state.stats.runSec);
+}
+
+// current cash income rate (€/s) — mirrors engine.tick's own cashGain accumulation (tier-0
+// production + Savvy passive + crypto yield + guest income), just without the ·dt. Used ONLY to
+// SIZE flavor payouts (Trip Events' `windfall` rows, the Golden Goat) against the player's own
+// economy so a payout always feels proportional — NOT part of the pinned multiplier stack itself.
+function currentIncomeRate(state) {
+  const rt = runtimeMult(state);
+  return M.tierProd(state, 0) * rt + M.savvyPassive(state) * cryptoSavvyPerk(state)
+       + M.cryptoYieldPerSec(state, DATA) + M.guestIncomeRaw(state, DATA) * rt;
+}
+
+// the live weather row (data/events.js WEATHER_STATES) — falls back to the first row ('sunny',
+// tapMult/energyRegenMult both 1) if state.weather.id ever fails to match, so a lookup miss can
+// never break a tap or the energy tick. 'sunny' is also the seeded DEFAULT until weatherTick
+// actually rolls something else, so a fresh game/the harness (which never trips the gate below)
+// always read the neutral row.
+function weatherRow(state) {
+  return DATA.weatherStates.find(w => w.id === state.weather.id) || DATA.weatherStates[0];
+}
+
+// weighted draw over DATA.events via the seeded, pure util.rng — mirrors pickMarketEvent exactly
+// (consumes one state.events.cursor slot). The live weather's eventBias (data/events.js) nudges
+// specific rows' weight up/down while that weather holds — pure event-MIX flavor, not an income
+// effect of its own.
+function pickEventRow(state) {
+  const rows = DATA.events;
+  const bias = weatherRow(state).eventBias || {};
+  const weightOf = r => r.weight * (bias[r.id] || 1);
+  const totalWeight = rows.reduce((s, r) => s + weightOf(r), 0);
+  const roll = rng(state.events.seed, state.events.cursor++) * totalWeight;
+  let acc = 0;
+  for (const r of rows) { acc += weightOf(r); if (roll <= acc) return r; }
+  return rows[rows.length - 1];
+}
+
+const EVENTS_LOG_MAX = 20;
+function logTripEvent(state, entry) {
+  const log = (state.events.log ||= []);
+  log.unshift(entry);
+  if (log.length > EVENTS_LOG_MAX) log.length = EVENTS_LOG_MAX;
+}
+
+// apply a drawn EVENTS row — one branch per kind (data/events.js's schema comment). Every cash
+// path routes through gainCash (the wallet cap), never a side door.
+function applyEvent(state, row) {
+  switch (row.kind) {
+    case 'income_window':
+      addEffect(state, { id: row.id, kind: 'income', mult: row.mult, durationSec: row.durationSec });
+      notify(state, 'unlock', `${row.name} — income ×${row.mult} for ${row.durationSec}s!`);
+      logTripEvent(state, { id: row.id, kind: row.kind, t: state.stats.runSec, mult: row.mult, dur: row.durationSec });
+      break;
+    case 'tap_window':
+      addEffect(state, { id: row.id, kind: 'tap', mult: row.mult, durationSec: row.durationSec });
+      notify(state, 'unlock', `${row.name} — tap value ×${row.mult} for ${row.durationSec}s!`);
+      logTripEvent(state, { id: row.id, kind: row.kind, t: state.stats.runSec, mult: row.mult, dur: row.durationSec });
+      break;
+    case 'dest_sale':
+      addEffect(state, { id: row.id, kind: 'destSale', mult: row.mult, durationSec: row.durationSec });
+      notify(state, 'unlock', `${row.name} — destinations ×${row.mult} for ${row.durationSec}s!`);
+      logTripEvent(state, { id: row.id, kind: row.kind, t: state.stats.runSec, mult: row.mult, dur: row.durationSec });
+      break;
+    case 'windfall': {
+      // config.EVENTS sizes EVERY windfall row the same bounded way — a flat fraction of
+      // wallet room, capped by a bounded multiple of current income (never a fixed-cash
+      // exploit; scales with the player). Always routed through gainCash.
+      const amount = Math.min(M.walletRoom(state) * C.EVENTS.windfallRoomFrac,
+        currentIncomeRate(state) * C.EVENTS.windfallSecs);
+      const banked = gainCash(state, amount);
+      notify(state, 'celebrate', `${row.name} — +${fmt(banked)}!`);
+      logTripEvent(state, { id: row.id, kind: row.kind, t: state.stats.runSec, amount: banked });
+      break;
+    }
+    case 'goat':
+      state.goat = { visibleUntil: state.stats.runSec + C.GOAT.visibleSec, taps: 0 };
+      notify(state, 'unlock', `${row.name} — a goat has wandered onto the property!`);
+      logTripEvent(state, { id: row.id, kind: row.kind, t: state.stats.runSec });
+      break;
+  }
+}
+
+// Vacation Weather's OWN seeded cursor namespace — shares state.events.seed (one RNG stream per
+// save, not two) but a DISJOINT slot range (offset below), so weather's draws never collide with
+// eventsTick's OWN state.events.cursor draws (the exact math.marketBaselineJitter vs.
+// engine.marketTick disjoint-namespace trick, offset 1e6 there — a different, equally-arbitrary
+// offset here). The two streams stay disjoint because eventsTick's OWN cursor draws at most 2
+// slots per fired event (state.events.cursor++ once per draw + once per gap roll) at least
+// EVENTS.everyRange[0]=360s apart — even a multi-thousand-hour save could never advance
+// state.events.cursor anywhere near this offset, so it can never collide with weather's range.
+const WEATHER_CURSOR_OFFSET = 5_000_000;
+function weatherTick(state) {
+  const w = state.weather;
+  if (state.stats.runSec < w.nextAt) return;
+  const rows = DATA.weatherStates;
+  const totalWeight = rows.reduce((s, r) => s + r.weight, 0);
+  const pickRoll = rng(state.events.seed, WEATHER_CURSOR_OFFSET + w.cursor++) * totalWeight;
+  let acc = 0, picked = rows[rows.length - 1];
+  for (const r of rows) { acc += r.weight; if (pickRoll <= acc) { picked = r; break; } }
+  w.id = picked.id;
+  const gapRoll = rng(state.events.seed, WEATHER_CURSOR_OFFSET + w.cursor++);
+  const [lo, hi] = C.WEATHER.everyRange;
+  w.nextAt = state.stats.runSec + lo + gapRoll * (hi - lo);
+}
+
+// The seeded Trip Events scheduler (docs/08 point 1) — a pure function of (state.events.seed,
+// state.events.cursor, state.stats.runSec), exactly mirroring engine.marketTick, so it is
+// trivially reproducible online or replayed offline through the SAME tick() loop applyOffline
+// already drives (no separate offline code path exists to drift).
+//
+// NEUTRALITY GATE: the entire body below is this one early return — a fresh newGame() and the
+// harness (which never reaches beat 3, let alone flips config.EVENTS.enabled) draw NOTHING,
+// ever: state.events.cursor stays 0, state.effects stays [], state.goat stays null,
+// state.weather never advances past its seeded 'sunny' default — the fitted island/casual
+// goldens cannot move. config.EVENTS.enabled ships false this wave; the balance wave flips it.
+function eventsTick(state) {
+  if (!C.EVENTS.enabled || !state.settings.events || state.story.beat < C.EVENTS.minBeat) return;
+  const ev = state.events;
+  if (state.stats.runSec >= ev.nextAt) {
+    applyEvent(state, pickEventRow(state));
+    const gapRoll = rng(ev.seed, ev.cursor++);
+    const [lo, hi] = C.EVENTS.everyRange;
+    ev.nextAt = state.stats.runSec + lo + gapRoll * (hi - lo);
+  }
+  // Weather rolls behind the SAME gate (docs/08 point 3: "gated behind the same EVENTS
+  // enabled/minBeat gate") — called from inside this function rather than duplicating the
+  // condition at the tick() call site.
+  weatherTick(state);
+}
+
+// ---------- The Golden Goat (docs/08 point 2) ----------
+// visible iff a goat has been spawned (a `goat`-kind EVENTS row fired) AND its window hasn't
+// elapsed. Untapped, it just goes false on its own once visibleUntil passes — no cleanup needed.
+export function goatVisible(state) {
+  return !!(state.goat && state.stats.runSec < state.goat.visibleUntil);
+}
+// tapping pays min(walletRoom, incomeRate·rewardSecs) through gainCash — bounded by BOTH the
+// wallet's free room and a capped multiple of current income, same shape as the windfall row.
+// The harness never taps (E10's established contract), so the goat is harness-neutral even once
+// Trip Events is enabled.
+export function tapGoat(state) {
+  if (!goatVisible(state)) return 0;
+  const amount = Math.min(M.walletRoom(state), currentIncomeRate(state) * C.GOAT.rewardSecs);
+  const banked = gainCash(state, amount);
+  state.stats.goatsGreeted = (state.stats.goatsGreeted || 0) + 1;
+  state.goat.visibleUntil = 0;   // hide immediately — a tapped goat doesn't linger
+  notify(state, 'celebrate', `🐐 The goat is delighted — +${fmt(banked)} in appreciation (and one good ear-scratch).`);
+  return banked;
 }
 
 // ---------- connoisseur collections: art/wine appreciating assets (E14 "Acquired Taste") ----------
@@ -2261,6 +2449,11 @@ export function click(state) {
   } else {
     gain = baseGain * C.ENERGY.tapFloorFrac;
   }
+  // Trip Events' `tap_window` rows + Vacation Weather's tapMult flavor (Living-World W1): both
+  // scoped to tap cash ONLY, never tierProd/tierMultiplier (the harness never taps — E10's
+  // established contract), so neither can move idle pacing. Weather's 'sunny' default and an
+  // empty effects registry are both exactly 1, so a fresh game's tap value is unchanged.
+  gain *= weatherRow(state).tapMult * M.effectsMult(state, 'tap');
   // taps bank through the wallet cap too — returns what actually landed, so the
   // "+N" popup never claims cash a full wallet refused.
   return gainCash(state, gain);
