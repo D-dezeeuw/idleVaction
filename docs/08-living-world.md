@@ -54,7 +54,11 @@ pace against**, and **sound**.
 - **W4 — presentation:** Trophy Road plumbing (rewards 0), Petra ghost, Postcards, audio.
 - **W5 — the flip (@balance-tuner):** turn all knobs on, fit with multi-seed scenario
   sweeps, size Trophy Road, re-pin goldens once, land the band instruments, update
-  docs/05 §9 + math-proof appendix.
+  docs/05 §9 + math-proof appendix. Reviewed on the **simulation dashboard**
+  (`docs/09-sim-dashboard.md`, `npm run report` → `tools/dashboard/`): quiet-vs-living
+  runs across seeds, per-tier deviation vs the pre-flip baseline, band verdicts — then
+  regenerate the committed sample report and the `GOLDEN` block in the same commit as
+  the re-pin.
 - **W6 — verification (@verifier):** full suite + harness + demo sweep + Verified-commit
   check, fix what surfaces, push.
 
