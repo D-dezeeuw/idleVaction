@@ -692,6 +692,20 @@ export const CONFIG = {
   // only meta/collection achievements carry the ×. seasonalMultCap bounds the live-ops nudge.
   ACHIEVE: { rewardCap: 0.75, seasonalMultCap: 1.1 },
 
+  // ---- Trophy Road plumbing (Living-World W4, docs/08-living-world.md point 9) ----
+  // A NEW bounded additive layer, separate from L_achieve: in-run (non-meta) achievement rows may
+  // now carry an OPTIONAL `trophyReward` (data/achievements.js) that feeds L_trophy = 1 + min(xCap−1,
+  // Σ trophyReward of unlocked in-run trophies) — math.computeTrophySum/trophyMultiplier, cached
+  // per-tick as state._trophyCache (engine.tick), folded into math.tierMultiplier beside
+  // L_souvenir/L_keepsake. THIS WAVE every trophyReward ships 0 (or is simply absent ⇒ 0 via
+  // `a.trophyReward || 0`), so L_trophy is EXACTLY 1 for every existing run/scenario and the
+  // goldens are bit-identical — this is PLUMBING ONLY. The balance wave (W5) is the one deliberate
+  // golden-mover: it sizes real trophyReward values on a subset of the 57 trophies and re-pins.
+  //   xCap    — hard ceiling on the trophy-road income layer (≤ ×1.25 total, same bound as SOUVENIR).
+  //   maxPer  — the per-trophy cap validateAchievements enforces on any non-zero trophyReward, so no
+  //             single trophy can ever dominate the layer (mirrors SOUVENIRS' per-item ≤0.05 bound).
+  TROPHY: { xCap: 1.25, maxPer: 0.02 },
+
   // ---- pacing / QA (NEVER used to balance — only to pace/test) ----
   // gameSpeed multiplies simulated time in the loop. 1 = natural course; the high presets +
   // the custom input let QA run the ~20h arc in seconds. The custom field accepts any value

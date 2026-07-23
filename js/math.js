@@ -105,8 +105,14 @@ export function tierMultiplier(state, k) {
   // move a pinned golden.
   const L_souvenir = souvenirMultiplier(state);
   const L_keepsake = keepsakeMultiplier(state);
+  // L_trophy (Trophy Road plumbing, Living-World W4, docs/08 point 9): a THIRD bounded flat layer,
+  // same safe class as L_souvenir/L_keepsake just above — separate from the meta-gated L_achieve
+  // (this one reads IN-RUN trophies' new optional trophyReward field). Every shipped trophyReward
+  // is 0 this wave (see config.TROPHY's comment), so L_trophy is EXACTLY 1 for every existing run —
+  // the golden-mover is deferred to W5.
+  const L_trophy = trophyMultiplier(state);
 
-  return mMilestone * L_upgrade * L_path * L_skill * L_amenity * L_comfort * L_dest * L_exclusivity * L_logistics * L_staff * L_owner * L_estate * L_island * L_ascension * L_tree * L_legend * L_ngplus * L_achieve * L_seasonal * L_souvenir * L_keepsake;
+  return mMilestone * L_upgrade * L_path * L_skill * L_amenity * L_comfort * L_dest * L_exclusivity * L_logistics * L_staff * L_owner * L_estate * L_island * L_ascension * L_tree * L_legend * L_ngplus * L_achieve * L_seasonal * L_souvenir * L_keepsake * L_trophy;
 }
 
 // ---- L_amenity: the activated amenity income layer (Phase-C refit) ----
@@ -724,6 +730,28 @@ export function computeKeepsakeSum(state, DATA) {
 }
 export function keepsakeMultiplier(state) {
   return 1 + Math.min(C.KEEPSAKE.xCap - 1, state._keepsakeCache ?? 0);
+}
+
+// ---- Trophy Road plumbing (Living-World W4, docs/08-living-world.md point 9) ----
+// L_trophy sums unlocked IN-RUN (non-meta) achievements' trophyReward — a THIRD bounded additive
+// layer, the same safe class as L_souvenir/L_keepsake above (docs/math-proof.md §3/§4), but reading
+// a DIFFERENT field (trophyReward, not the meta-gated `reward` L_achieve already reads) over a
+// DIFFERENT subset (non-meta rows only — meta rows never carry trophyReward, enforced by
+// validateAchievements). `a.trophyReward || 0` treats an absent field as 0, so every existing
+// achievement row (which doesn't carry the field yet) contributes nothing. Reads the per-tick
+// cache (state._trophyCache, set by engine.tick mirroring _souvCache/_keepsakeCache exactly)
+// rather than DATA directly, keeping math.js data-free.
+export function computeTrophySum(state, DATA) {
+  const u = state.achievements?.unlocked;
+  if (!u) return 0;
+  let sum = 0;
+  for (const a of DATA.achievements) {
+    if (!a.meta && u[a.id]) sum += a.trophyReward || 0;
+  }
+  return sum;
+}
+export function trophyMultiplier(state) {
+  return 1 + Math.min(C.TROPHY.xCap - 1, state._trophyCache ?? 0);
 }
 
 // ---- vlogger clout economy (E12 "Lights, Camera, Clout") ----

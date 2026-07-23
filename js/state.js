@@ -106,7 +106,11 @@ export function newGame() {
 
   return {
     version: C.SAVE_VERSION,
-    meta: { createdAt: 0, lastSaved: 0, lastSeen: 0, playtimeMs: 0, runStartSec: 0 },
+    // streak (Postcards Home, Living-World W4, docs/08-living-world.md point 11): a gentle,
+    // NO-PENALTY day-streak stamp — lastDay (a local 'YYYY-MM-DD' string) + count, updated once on
+    // load (main.js, via state.updateStreak). A missed day just restarts the count silently — no
+    // loss, no nag, never read by any income path. Cosmetic bookkeeping only.
+    meta: { createdAt: 0, lastSaved: 0, lastSeen: 0, playtimeMs: 0, runStartSec: 0, streak: { lastDay: '', count: 0 } },
     // energy (E10 "Body & Soul"): starts at a full tank (base energyMax at Body level 0)
     // — an optional clicker-fuel resource, see config.ENERGY / math.energyMax.
     resources: { cash: 15, comfort: 0, clout: 0, legacy: 0, energy: C.ENERGY.base },
@@ -270,8 +274,13 @@ export function newGame() {
     // CONFIG.EVENTS.enabled this wave (shipped false), so this being true by default cannot
     // itself turn Trip Events on for anyone; it only matters once the balance wave flips the
     // config flag, at which point a player can still opt back out from the Menu.
+    // sound (The Sound of Summer, Living-World W4, docs/08 point 12): a dependency-free WebAudio
+    // synth (js/audio.js) reads this master on/volume — inert (every cue a no-op) outside a
+    // browser, so this setting has zero effect in Node/the harness/selftest. Defaults to a quiet,
+    // present cue set; the Menu gains a toggle + volume slider next to motion/notation.
     settings: { gameSpeed: C.DEFAULT_GAME_SPEED, offlineEnabled: true, debug: false,
-      notation: 'suffix', motion: 'auto', toastDensity: 'all', events: true },
+      notation: 'suffix', motion: 'auto', toastDensity: 'all', events: true,
+      sound: { on: true, volume: 0.35 } },
     stats: { lifetimeCash: 0, lifetimeCashThisTree: 0, bestComfort: 0, totalClicks: 0, runSec: 0,
       tapWindowSec: 0, tapWindowCount: 0, overflowLost: 0,
       // E29: cumulative Legacy ever earned across ALL ascensions — the √-base for legendGain.
@@ -295,6 +304,9 @@ export function newGame() {
     // L_souvenir / L_keepsake per-tick sums (Living-World W3, docs/08 points 6/7) — neutral zeros
     // ⇒ both layers read exactly 1, mirroring _amenCache/_achieveMult's convention exactly.
     _souvCache: 0, _keepsakeCache: 0,
+    // L_trophy per-tick sum (Trophy Road plumbing, Living-World W4, docs/08 point 9) — neutral
+    // zero ⇒ the layer reads exactly 1, mirroring _souvCache/_keepsakeCache's convention exactly.
+    _trophyCache: 0,
   };
 }
 
@@ -498,4 +510,32 @@ export function importSave(str) {
 export function hardReset() {
   try { localStorage.removeItem(C.SAVE_KEY); } catch (e) {}
   return newGame();
+}
+
+// ---- day-streak (Postcards Home, Living-World W4, docs/08-living-world.md point 11) ----
+// A gentle, NO-PENALTY stamp: local calendar date, not wall-clock hours, so "played a little every
+// day" is what's tracked, not "played every 24h on the dot". Pure — takes `now` as a parameter
+// (defaults to `new Date()`) so it's deterministic and unit-testable without mocking the clock.
+export function localDateStr(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+// updateStreak(state, now): idempotent same-day (calling it twice in one day changes nothing),
+// increments on a genuine consecutive day, and silently RESTARTS (never zeroes-with-a-nag) on any
+// gap — a missed day just means tomorrow's play starts a fresh count of 1, same as a first-ever
+// visit. Called once on load (main.js) — never in the tick loop, so it can't be gamed by leaving
+// the tab open past midnight mid-session. Never read by any income path.
+export function updateStreak(state, now = new Date()) {
+  const streak = state.meta.streak || (state.meta.streak = { lastDay: '', count: 0 });
+  const today = localDateStr(now);
+  if (streak.lastDay === today) return streak;              // same-day: idempotent no-op
+  if (streak.lastDay) {
+    const prevMs = new Date(streak.lastDay + 'T00:00:00').getTime();
+    const todayMs = new Date(today + 'T00:00:00').getTime();
+    const gapDays = Math.round((todayMs - prevMs) / 86400000);
+    streak.count = gapDays === 1 ? streak.count + 1 : 1;     // consecutive day: +1; any other gap: restart
+  } else {
+    streak.count = 1;                                        // first-ever visit
+  }
+  streak.lastDay = today;
+  return streak;
 }

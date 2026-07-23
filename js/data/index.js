@@ -26,6 +26,7 @@ import { BOOSTS } from './boosts.js';
 import { SPLURGES } from './splurges.js';
 import { SOUVENIRS } from './souvenirs.js';
 import { CHALLENGES } from './challenges.js';
+import { PETRA } from './petra.js';
 
 export const DATA = {
   generators: GENERATORS,
@@ -105,4 +106,9 @@ export const DATA = {
   // by the dev harness/selftest (same convention as validateBoosts/validateSplurges/…).
   souvenirs: SOUVENIRS,
   challenges: CHALLENGES,
+  // Petra, the Pace Ghost (Living-World W4, docs/08 point 10): the casual-tourist golden curve,
+  // baked as flat data by js/dev/petra-gen.mjs (GENERATED — do not hand-edit data/petra.js).
+  // DISPLAY-ONLY, never read by any income path. validatePetra lives in data/petra.js, imported
+  // directly by the dev harness/selftest (same convention as validateBoosts/validateSouvenirs/…).
+  petra: PETRA,
 };

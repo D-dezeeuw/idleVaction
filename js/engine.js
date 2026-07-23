@@ -2,7 +2,7 @@
 import { CONFIG as C } from './config.js';
 import { DATA } from './data/index.js';
 import * as M from './math.js';
-import { bulkCost, maxAffordable, clamp, rng, fmt } from './util.js';
+import { bulkCost, maxAffordable, clamp, rng, fmt, fmtTime } from './util.js';
 
 // ---------- notifications (drained by UI) ----------
 function notify(state, type, text) {
@@ -135,6 +135,11 @@ export function tick(state, dt) {
   // _amenCache/_achieveMult, both exactly 0 (⇒ ×1) for a fresh game/the harness.
   state._souvCache = M.computeSouvenirPerkSum(state, DATA);
   state._keepsakeCache = M.computeKeepsakeSum(state, DATA);
+  // Trophy Road plumbing (Living-World W4, docs/08 point 9): L_trophy's per-tick sum, recomputed
+  // right after evaluateAchievements() above (so a trophy unlocked THIS tick is already counted) —
+  // mirrors _souvCache/_keepsakeCache exactly. Every shipped trophyReward is 0 this wave, so this
+  // stays 0 (⇒ ×1) for every existing run.
+  state._trophyCache = M.computeTrophySum(state, DATA);
 
   const rt = runtimeMult(state);
 
@@ -234,6 +239,7 @@ export function tick(state, dt) {
   checkNpcUnlocks(state);
   checkDestinationReveals(state);
   checkStory(state);
+  checkPetra(state);
   checkComfortOnline(state);
   checkPoolTease(state);
   checkWellnessReveal(state);
@@ -1433,6 +1439,31 @@ export function tapGoat(state) {
   state.goat.visibleUntil = 0;   // hide immediately — a tapped goat doesn't linger
   notify(state, 'celebrate', `🐐 The goat is delighted — +${fmt(banked)} in appreciation (and one good ear-scratch).`);
   return banked;
+}
+
+// ---------- Petra, the Pace Ghost (Living-World W4, docs/08 point 10) ----------
+// DISPLAY-ONLY — checkPetra never touches cash/multipliers/unlocks, only story.flags (a one-shot
+// per tier, mirroring checkParadise's flag convention) and a notification (mirrors every other
+// checkX's `notify` call). Revealed once the player has enough context (beat 4, "1-Star Hotel" —
+// the first real arrival), same reveal-gate shape as Sunscreen Boosts (config.BOOSTS.minBeat).
+export function petraRevealed(state) { return state.story.beat >= 4; }
+// Fires a one-shot toast the FIRST time the player's OWN accommodation tier lands strictly BEFORE
+// Petra's own casual-tourist arrival time at that same tier (data/petra.js's tierTimes, generated
+// by js/dev/petra-gen.mjs) — "beat Petra there". Flag-gated per tier so it can never re-fire on
+// reload/re-tick; silent (no toast, still flags it so the check isn't repeated) when Petra either
+// beat the player there or hasn't recorded that tier at all.
+export function checkPetra(state) {
+  if (!petraRevealed(state)) return;
+  const t = state.accommodation.tier;
+  const petraT = DATA.petra.tierTimes[t];
+  if (petraT === undefined) return;
+  const flagKey = `petraTier_${t}`;
+  if (state.story.flags[flagKey]) return;
+  state.story.flags[flagKey] = true;
+  if (state.stats.runSec < petraT) {
+    const lead = petraT - state.stats.runSec;
+    notify(state, 'celebrate', `✈️ Beat Petra to ${DATA.accommodation[t].name} by ${fmtTime(lead)}!`);
+  }
 }
 
 // ---------- Sunscreen Boosts (Living-World W2, docs/08 point 4) ----------

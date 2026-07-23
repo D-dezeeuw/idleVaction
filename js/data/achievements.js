@@ -2,7 +2,7 @@
 // completionist meta: a trophy for reaching milestones, and a small permanent income × for the
 // meta/collection accomplishments.
 //
-// ACHIEVEMENT shape: { id, name, desc, metric, threshold, reward, meta }
+// ACHIEVEMENT shape: { id, name, desc, metric, threshold, reward, meta, trophyReward? }
 //   · metric/threshold — unlocked when `stateMetric(state, metric) >= threshold` (engine, pure).
 //   · reward — the income × bonus fed into L_achieve (1 + Σ rewards). SMALL (×1.01–1.05).
 //   · meta — true iff the metric requires a META action (ascension / legend / island / NG+ /
@@ -10,9 +10,18 @@
 //     in-run milestone (comfort/cash/tier — things the greedy harness reaches) has reward 0. The
 //     harness never performs a meta action, so it unlocks only reward-0 trophies ⇒ L_achieve stays
 //     exactly 1 ⇒ the fitted 29705s island time is unmoved. (validated in data + selftest.)
+//   · trophyReward — Trophy Road plumbing (Living-World W4, docs/08-living-world.md point 9): an
+//     OPTIONAL second, SEPARATE income bonus feeding a NEW layer, L_trophy (math.trophyMultiplier —
+//     1 + min(config.TROPHY.xCap−1, Σ)), folded into the stack beside L_achieve/L_souvenir/
+//     L_keepsake. THE CONTRACT (mirrors the reward-0-unless-meta invariant above, one field over):
+//     trophyReward is allowed ONLY on IN-RUN (non-meta) rows — the opposite gating of `reward` —
+//     and every value ships ≤ config.TROPHY.maxPer. THIS WAVE every row omits it (or ships 0), so
+//     L_trophy stays EXACTLY 1 for every existing run/scenario and the goldens are bit-identical;
+//     W5 (the balance wave) is the one deliberate golden-mover that sizes real values and re-pins.
 //
 // In-run milestones are RECOGNITION (a trophy, a stat), not power; the completionist × comes from
 // the meta layer — the players who prestige, collect, and go long.
+import { CONFIG as C } from '../config.js';
 
 export const ACHIEVEMENTS = [
   // --- in-run milestones (reward 0 — cosmetic trophies the harness can reach) ---
@@ -93,10 +102,14 @@ export const ACHIEVEMENTS = [
 
 export function achievementDef(id) { return ACHIEVEMENTS.find(a => a.id === id); }
 
-export function validateAchievements() {
+// `list` defaults to the shipped ACHIEVEMENTS roster (every existing call site — harness.mjs,
+// selftest.mjs's report-time checks — passes no argument, so behavior is unchanged); the optional
+// override lets selftest [114] exercise the trophyReward invariant against LOCALLY-constructed bad
+// rows without ever mutating the real, shared ACHIEVEMENTS array (or the DATA object built from it).
+export function validateAchievements(list = ACHIEVEMENTS) {
   const errors = [];
   const seen = new Set();
-  for (const a of ACHIEVEMENTS) {
+  for (const a of list) {
     if (seen.has(a.id)) errors.push(`duplicate achievement id: ${a.id}`);
     seen.add(a.id);
     for (const k of ['id', 'name', 'desc', 'metric']) if (typeof a[k] !== 'string' || !a[k]) errors.push(`${a.id}: "${k}" must be a non-empty string`);
@@ -105,6 +118,15 @@ export function validateAchievements() {
     if (typeof a.meta !== 'boolean') errors.push(`${a.id}: meta must be a boolean`);
     // THE INVARIANT: a positive reward is allowed ONLY on meta achievements (harness never reaches them).
     if (a.reward > 0 && !a.meta) errors.push(`${a.id}: a positive reward requires meta:true (in-run trophies must be reward 0 to keep the fitted run invariant)`);
+    // Trophy Road plumbing (Living-World W4, docs/08 point 9): the SECOND, opposite-gated
+    // invariant — trophyReward is the in-run counterpart of `reward` above, so it may appear ONLY
+    // on non-meta rows (meta rows already have their own income lever via `reward`), and every
+    // value must stay within the per-trophy cap so no single trophy can dominate L_trophy.
+    if (a.trophyReward !== undefined) {
+      if (typeof a.trophyReward !== 'number' || !(a.trophyReward >= 0)) errors.push(`${a.id}: trophyReward must be a number >= 0`);
+      if (a.meta) errors.push(`${a.id}: trophyReward is for IN-RUN rows only (meta:false) — meta rows carry power via "reward" instead`);
+      else if (a.trophyReward > C.TROPHY.maxPer + 1e-9) errors.push(`${a.id}: trophyReward (${a.trophyReward}) exceeds config.TROPHY.maxPer (${C.TROPHY.maxPer})`);
+    }
   }
   if (errors.length) throw new Error('validateAchievements() failed:\n' + errors.join('\n'));
   return true;

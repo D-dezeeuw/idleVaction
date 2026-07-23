@@ -24,6 +24,7 @@ import { validateBoosts } from '../data/boosts.js';
 import { validateSplurges } from '../data/splurges.js';
 import { validateSouvenirs } from '../data/souvenirs.js';
 import { validateChallenges } from '../data/challenges.js';
+import { validatePetra } from '../data/petra.js';
 import { fmt, fmtTime } from '../util.js';
 
 // ---- ROI-aware amenity buying (the max-speed player, not a completionist) ----
@@ -158,6 +159,7 @@ function report() {
   validateSplurges();       // dev schema guard (Living-World W2): Splurge Moments rows + effect vocabulary
   validateSouvenirs();      // dev schema guard (Living-World W3): Souvenir Stand shelf rows
   validateChallenges();     // dev schema guard (Living-World W3): Ascension Challenges roster
+  validatePetra();          // dev schema guard (Living-World W4): Petra the Pace Ghost — pin-consistency
   const { beatTime, islandAt, peakLog, dblAtIsland } = runCurve({ dt: 5, maxHours: 40 });
   console.log('\n=== idleVaction balance-fit curve (greedy optimal, LOWER bound on real time) ===\n');
   const beats = Object.keys(beatTime).map(Number).sort((a, b) => a - b);

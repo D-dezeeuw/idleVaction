@@ -24,6 +24,9 @@ import { validateBoosts } from '../data/boosts.js';
 import { validateSplurges } from '../data/splurges.js';
 import { validateSouvenirs } from '../data/souvenirs.js';
 import { validateChallenges } from '../data/challenges.js';
+import { validatePetra } from '../data/petra.js';
+import { buildPostcard } from '../postcard.js';
+import * as AU from '../audio.js';
 import { fmt, fmtTime, rng } from '../util.js';
 // E11 harness-invariance guard ([62] below): importing runCurve does NOT auto-run the
 // harness's own report() — that's guarded behind `process.argv[1].endsWith('harness.mjs')`,
@@ -5311,6 +5314,116 @@ console.log('\n[113] Living-World W3: Souvenir Stand + Ascension Challenges + Le
       ok(genIslandSec[2] <= 14 * 3600, `the SECOND challenged generation (${DATA.challenges[1].name}) reaches its island within 14h (got ${fmtTime(genIslandSec[2])})`);
     }
   }
+}
+
+console.log('\n[114] Living-World W4 (presentation): Trophy Road plumbing, Petra the Pace Ghost, Postcards Home, day-streak, audio — all display-only or zeroed this wave, goldens bit-identical');
+{
+  // ---- (a) goldens exact: reuse the existing pin helpers ([109]/[111]/[112]/[113]'s pattern)
+  const { islandAt: greedyIsland114 } = runCurve({ dt: 5, maxHours: 40 });
+  ok(Math.abs(greedyIsland114 - 39440) < 1, `harness island time is UNCHANGED by Living-World W4 (got ${fmtTime(greedyIsland114)}, expected 39440s)`);
+  const { runScenario: runScenario114 } = await import('./demo.mjs');
+  const { getScenario: getScenario114 } = await import('./scenarios.mjs');
+  const cas114 = runScenario114(getScenario114('casual-tourist'), { dt: 5, maxHours: 26 });
+  ok(Math.abs(cas114.islandAt - 76800) <= 1200, `casual-tourist pin UNMOVED by Living-World W4 (got ${fmtTime(cas114.islandAt)})`);
+
+  // ---- (b) Trophy Road plumbing (docs/08 point 9): L_trophy is EXACTLY 1 with every shipped
+  // trophyReward at 0/absent, folds into the stack the same way L_souvenir/L_keepsake do, and the
+  // validator enforces the new opposite-gated invariant against LOCALLY-constructed bad rows —
+  // never mutating the real, shared ACHIEVEMENTS array (or the DATA object built from it).
+  ok(DATA.achievements.every(a => (a.trophyReward || 0) === 0), 'every shipped achievement carries trophyReward 0 (or omits it) this wave');
+  const trophyRun = ST.newGame(); trophyRun.accommodation.tier = 20; trophyRun.stats.bestComfort = 1e9; trophyRun.stats.lifetimeCash = 1e6;
+  E.evaluateAchievements(trophyRun);
+  ok(M.computeTrophySum(trophyRun, DATA) === 0, 'computeTrophySum is exactly 0 with every shipped trophyReward at 0');
+  ok(M.trophyMultiplier(trophyRun) === 1, 'trophyMultiplier reads exactly 1 with a 0 sum (state._trophyCache defaults to 0)');
+  const stk114 = ST.newGame(); stk114.generators[0].bought = 20; stk114.generators[0].count = 20;
+  const m0_114 = M.tierMultiplier(stk114, 0); stk114._trophyCache = 0.1;
+  ok(approx(M.tierMultiplier(stk114, 0) / m0_114, 1.1), 'tierMultiplier scales by exactly the L_trophy cache (clean global factor, folded beside L_souvenir/L_keepsake)');
+  stk114._trophyCache = 5;   // way over cap
+  ok(approx(M.trophyMultiplier(stk114), C.TROPHY.xCap), 'L_trophy is bounded at config.TROPHY.xCap regardless of the summed cache');
+
+  const goodRow = { id: 'x1', name: 'X', desc: 'd', metric: 'accTier', threshold: 1, reward: 0, meta: false, trophyReward: 0.01 };
+  ok(validateAchievements([goodRow]), 'validateAchievements accepts a small in-run trophyReward on a non-meta row');
+  const metaWithTrophy = { id: 'x2', name: 'X', desc: 'd', metric: 'ascensionCount', threshold: 1, reward: 0.02, meta: true, trophyReward: 0.01 };
+  let threwMeta = false;
+  try { validateAchievements([metaWithTrophy]); } catch (e) { threwMeta = true; }
+  ok(threwMeta, 'validateAchievements REJECTS a meta row carrying trophyReward');
+  const overCap = { id: 'x3', name: 'X', desc: 'd', metric: 'accTier', threshold: 1, reward: 0, meta: false, trophyReward: C.TROPHY.maxPer + 0.01 };
+  let threwCap = false;
+  try { validateAchievements([overCap]); } catch (e) { threwCap = true; }
+  ok(threwCap, 'validateAchievements REJECTS an in-run row above TROPHY.maxPer');
+  ok(validateAchievements(), 'validateAchievements() still passes on the REAL shipped ACHIEVEMENTS roster (untouched by the local bad-row checks above)');
+
+  // ---- (c) Petra, the Pace Ghost (docs/08 point 10): the committed data/petra.js validates, and
+  // its islandAt matches the casual-tourist pin (the pin-consistency guard); checkPetra is
+  // display-only, one-shot per tier, gated behind beat >= 4.
+  ok(validatePetra(), 'validatePetra() passes on the committed data/petra.js');
+  ok(Math.abs(DATA.petra.islandAt - 76800) <= 1200, `Petra's islandAt (${fmtTime(DATA.petra.islandAt)}) is within tolerance of the casual-tourist pin`);
+  ok(DATA.petra.name === 'Petra' && !!DATA.petra.flavor, 'Petra carries a name + a flavor line');
+  const petraFast = ST.newGame();
+  petraFast.story.beat = 4; petraFast.accommodation.tier = 1; petraFast.stats.runSec = 1;   // WAY before Petra's tier-1 time
+  E.checkPetra(petraFast);
+  ok(petraFast.story.flags.petraTier_1 === true, 'checkPetra sets a one-shot per-tier flag');
+  ok(E.drainNotifications(petraFast).some(n => /Beat Petra/.test(n.text)), 'arriving before Petra fires a celebratory toast');
+  const petraSlow = ST.newGame();
+  petraSlow.story.beat = 4; petraSlow.accommodation.tier = 1; petraSlow.stats.runSec = DATA.petra.tierTimes[1] + 1000;   // after Petra
+  E.checkPetra(petraSlow);
+  ok(petraSlow.story.flags.petraTier_1 === true && !E.drainNotifications(petraSlow).some(n => /Beat Petra/.test(n.text)),
+    'arriving AFTER Petra still flags the tier (one-shot) but fires no toast');
+  const petraHidden = ST.newGame();
+  ok(!E.petraRevealed(petraHidden), 'Petra stays hidden before story beat 4');
+  petraHidden.accommodation.tier = 1; petraHidden.stats.runSec = 1;
+  E.checkPetra(petraHidden);
+  ok(!petraHidden.story.flags.petraTier_1, 'checkPetra is a no-op before the reveal gate (never sets the flag)');
+
+  // ---- (d) Postcards Home (docs/08 point 11): buildPostcard never throws and reports every
+  // documented field for a mid-game fixture — no URLs, no HTML.
+  let threwPostcard = false;
+  try { buildPostcard(ST.newGame()); } catch (e) { threwPostcard = true; }
+  ok(!threwPostcard, 'buildPostcard never throws on a fresh newGame()');
+  const mid = ST.newGame();
+  mid.meta.playtimeMs = 3 * 86400000 + 3600000;   // day 4
+  mid.accommodation.tier = 6;
+  mid.story.branch = 'vlogger';
+  mid.achievements.unlocked.first_star = true;
+  mid.souvenirs.count = 4;
+  mid.stats.goatsGreeted = 2;
+  mid.ascension.count = 1;
+  mid.lineage.name = 'Willem';
+  mid.meta.streak = { lastDay: '2026-07-23', count: 3 };
+  const card = buildPostcard(mid);
+  ok(/Day 4/.test(card), 'buildPostcard reports the trip day, derived from meta.playtimeMs');
+  ok(card.includes(DATA.accommodation[6].name), 'buildPostcard reports the current accommodation name');
+  ok(/billions|thousands|millions|small change|trillions|sense/.test(card), 'buildPostcard phrases the cash magnitude in human words, never a raw log10 exponent');
+  ok(card.includes('Luxury Vlogging Backpacker'), "buildPostcard reports the committed path's name");
+  ok(/Trophies earned: 1/.test(card), 'buildPostcard counts unlocked trophies');
+  ok(/Souvenirs collected: 4/.test(card), 'buildPostcard reports souvenirs collected');
+  ok(/Goats greeted: 2/.test(card), 'buildPostcard reports goats greeted');
+  ok(/Ascensions: 1/.test(card) && card.includes('Willem'), "buildPostcard reports ascensions + the dynasty name");
+  ok(/Day-streak: 3/.test(card), 'buildPostcard includes the day-streak once count >= 2');
+  ok(!card.includes('<') && !card.includes('>'), 'buildPostcard emits no HTML');
+  ok(!/https?:\/\//.test(card), 'buildPostcard emits no URLs');
+  const noStreak = ST.newGame(); noStreak.meta.streak = { lastDay: '2026-07-23', count: 1 };
+  ok(!/Day-streak/.test(buildPostcard(noStreak)), 'buildPostcard omits the streak line when count < 2');
+
+  // ---- (e) audio (docs/08 point 12): imports cleanly in Node (no window/AudioContext ⇒ inert —
+  // hasAudio false), and every exported cue is a callable no-op.
+  for (const fn of ['blip', 'chime', 'fanfare', 'bleat', 'jingle', 'swell']) ok(typeof AU[fn] === 'function', `audio.${fn} is exported`);
+  AU.bindAudio(ST.newGame());
+  let audioThrew = false;
+  try { AU.blip(); AU.chime(3); AU.fanfare(); AU.bleat(); AU.jingle(); AU.swell(); } catch (e) { audioThrew = true; }
+  ok(!audioThrew, 'every audio cue runs as a callable no-op in Node (no window/AudioContext)');
+
+  // ---- (f) streak (docs/08 point 11): same-day idempotent, next-day increments, any other gap
+  // silently restarts the count (no penalty, no nag).
+  const sk = ST.newGame();
+  ST.updateStreak(sk, new Date(2026, 6, 20));
+  ok(sk.meta.streak.count === 1 && sk.meta.streak.lastDay === '2026-07-20', 'first-ever visit starts the streak at 1');
+  ST.updateStreak(sk, new Date(2026, 6, 20, 23, 0));   // later the SAME day
+  ok(sk.meta.streak.count === 1, 'a second update the same day is idempotent');
+  ST.updateStreak(sk, new Date(2026, 6, 21, 1, 0));    // the very next day
+  ok(sk.meta.streak.count === 2, 'a consecutive day increments the streak');
+  ST.updateStreak(sk, new Date(2026, 6, 25));          // a 4-day gap
+  ok(sk.meta.streak.count === 1, 'a gap silently RESTARTS the count (no penalty flag, no nag)');
 }
 
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);
