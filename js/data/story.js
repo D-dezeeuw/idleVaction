@@ -59,6 +59,15 @@ export const STORY = [
       // plants the beat-25 "Where the Rich Hide" setup line (E14-S7-T6, exclusive
       // destinations — Monaco, St. Barths, an unlisted address) so beat 25's own reveal
       // and E24's set-collection payoff both land with the seed already sown.
+      traveler: { title: 'Grand Tour', text:
+        'Somewhere between the sixth country and the seventh, the trip stops being a trip. A ' +
+        'magazine wants your route. A stranger in a station recognizes your backpack before ' +
+        'your face. You have become a direction other people point at. The internet has ' +
+        'decided you are worth money, and you were not even filming.' },
+      vlogger: { title: 'Going Viral', text:
+        'One of your holiday clips takes off overnight — the one you almost deleted, the one ' +
+        'where the umbrella loses. By morning there are duets, remixes, a sea shanty. The ' +
+        'internet has decided you are worth money. You film your breakfast. It also does numbers.' },
       connoisseur: { title: 'Provenance', text:
         'An auction house calls about your Bordeaux, not the other way around. You ' +
         'decline, mostly to hear how they take it. Before hanging up, the man mentions ' +
@@ -164,21 +173,52 @@ export const STORY = [
         'coordinates. "The island is ready when you are," signs the patron. You already know it is.' },
     } },
   { id: 23, title: "A Bungalow of One's Own", requires: { accTier: 16 },
-    text: 'You stop renting rooms. The walls are yours, and so is the hammock, and so is the little gate. You say it out loud to nobody: my gate.' },
+    text: 'You stop renting rooms. The walls are yours, and so is the hammock, and so is the ' +
+      'little gate that squeaks. A decade of checkout times ends with a key that has no tag, ' +
+      'because it does not belong to a desk. You say it out loud to nobody: my gate. Then, ' +
+      'quieter, because it is somehow bigger: my squeak.' },
   { id: 24, title: 'Villa Vita', requires: { accTier: 18 },
-    text: 'The villa has grounds and the grounds have staff. On day three you get lost on the way to your own kitchen, and decide this is wonderful.' },
+    text: 'The villa has grounds, the grounds have staff, and the staff have opinions about ' +
+      'hedges you did not know could be held. On day three you get lost on the way to your own ' +
+      'kitchen and are escorted back by a gardener who pretends this happens to everyone. It ' +
+      'is the nicest lie anyone has told you since the poncho was "a look."' },
   { id: 25, title: 'Where the Rich Hide', requires: { taste: 25 },
-    text: 'Monaco. Dubai. The Maldives. Aspen. St. Barths. You collect them like stamps.' },
+    text: 'Monaco. Dubai. The Maldives. Aspen. St. Barths. Places that do not advertise, ' +
+      'because advertising implies they want to be found. You collect them the way you once ' +
+      'collected hostel stamps, and notice the stamps have stopped impressing you. Somewhere ' +
+      'behind all five doors, you suspect, is a sixth door. The patron has never mentioned it. ' +
+      'That is how you know it exists.' },
   { id: 26, title: 'Letting Go', requires: { comfort: 1e9 },
-    text: 'The only way to go further is to go home and start again, keeping what the trip made of you. You can ASCEND now.' },
+    text: 'One evening, on the best balcony you have ever rented, you understand what has to ' +
+      'go: not the money — the money was never the point — but the going itself. The next ' +
+      'traveler in your family will start where you started, bus stop and all, carrying only ' +
+      'what the trip made of you: the poise, the taste, the tan that outlived the doubts. ' +
+      'You fold the poncho one last time, leave it where the next one will find it, and let ' +
+      'go of the ladder so someone you love can climb it. You can ASCEND now.' },
   { id: 27, title: 'Who You Become', requires: { ascensions: 1 },
-    text: 'Some changes stick: the tan, the poise, the taste. Spend Legacy on who you are.' },
+    text: 'A new passport, an old family. Some changes stick between generations: the tan, ' +
+      'the poise, the way you now read a lobby like a weather report. At the bus stop — the ' +
+      'same bus stop, the same sideways rain — a figure with no luggage nods as if you had ' +
+      'never left. "The family resemblance," the patron says, "is not in the face." Spend ' +
+      'Legacy on who you are.' },
   { id: 28, title: 'The Island Listing', requires: { legacy: 20 },
-    text: 'The dot on the map has a price. A very large, extremely worth-it price.' },
+    text: 'It arrives without an envelope: a listing for a dot on a map no ferry serves. No ' +
+      'agent is named. None is needed — you recognize the handwriting in the margin, the same ' +
+      'hand that once wrote "ready when you are." The dot has a price. Generations of a ' +
+      'family could look at that price and laugh, and yours is the generation that does not ' +
+      'have to. A very large, extremely worth-it price.' },
   { id: 29, title: 'Building Paradise', requires: { accTier: 20 },
-    text: 'You stop buying luxury. You start making it. Guests arrive. You host now.' },
+    text: 'The first guests arrive by boat, overdressed and under-sunscreened, and you catch ' +
+      'yourself checking their rooms twice — the towels, the water pressure, the earplugs in ' +
+      'the drawer, because you remember bunk 4. You stop buying luxury the day you start ' +
+      'making it. Somewhere a front desk does not exist, and you are it. You host now.' },
   { id: 30, title: 'Empire of Leisure', requires: { comfort: 3e9 },
-    text: 'An empire of loungers, all yours, and still the sea keeps going. You could do the whole trip again, bigger. New Game+ awaits.' },
+    text: 'An empire of loungers, all yours, and still the sea keeps going. On the jetty you ' +
+      'find a last note, no address, weighted down with a stroopwafel tin: "You were never ' +
+      'buying rooms. You were buying the distance from the rain. There is no front desk ' +
+      'anywhere now — so build one, and be kind to whoever arrives soggy." You pour one at ' +
+      'the jetty bar, sit, and watch the horizon not end. You could do the whole trip again, ' +
+      'bigger, with the sky a shade harder. New Game+ awaits.' },
 ];
 
 // The origin story (diary page zero): who this tourist was before Entry 1. Display-only —
@@ -200,4 +240,38 @@ export const VIGNETTES = [
   { id: 'motel_manager_1', minComfort: 80,
     text: '📋 The manager taps his clipboard. "Rats are down two stars this week. Congratulations. ' +
           'There\'s a hostel down the road, you know. Cheaper. The rats there have union representation too."' },
+  { id: 'bram_map', minComfort: 900,
+    text: '🎒 Backpacker Bram unfolds a map with more tape than paper. "Everywhere worth going is ' +
+          'off it," he says, pointing at a hole. You write that down. He asks you not to.' },
+  { id: 'vera_tripod', minComfort: 4000,
+    text: '🎥 Vlogger Vera is filming the sunset, the sunset is not cooperating, and she narrates ' +
+          'it anyway: "authentic." She glances at you. "You should point a camera at all this. Or don\'t. ' +
+          'More sunset for me."' },
+  { id: 'henk_upgrade', minComfort: 22000,
+    text: '🍺 Hostel Regular Henk surveys your hotel lobby from the good chair, unimpressed and ' +
+          'impressed at once. "Free breakfast until NINE?" he says. "Decadence." He takes four croissants for the road.' },
+  { id: 'sven_usual', minComfort: 120000,
+    text: '🍹 Sven the mixologist slides one across before you order. "The usual." You have never ' +
+          'been here. You have, apparently, a usual that travels ahead of you now.' },
+  { id: 'goat_rumor', minComfort: 9e5,
+    text: '🐐 A goat is asleep on a lounger it has no business reaching. Staff deny owning a goat. ' +
+          'The goat, waking briefly, denies nothing.' },
+  { id: 'willem_interest', minComfort: 6e6,
+    text: '🏦 Willem, private banker, calls to say your money made more money while you were in the ' +
+          'pool. "Do nothing," he advises, professionally. You were already doing that. You are so good at it now.' },
+  { id: 'vera_return', minComfort: 4e7,
+    text: '🎥 Vera again, festival lanyard, three cameras. "Remember the hostel Wi-Fi?" she says. ' +
+          '"baguette123." You both stand quietly, like veterans.' },
+  { id: 'bram_postcard', minComfort: 3e8,
+    text: '🎒 A postcard from Bram, postmarked from the hole in his map: "Found it. You would hate ' +
+          'it. No pool. — B." You frame it next to the receipt with the one star.' },
+  { id: 'patron_echo', minComfort: 9e8,
+    text: '🕴️ At the seven-star bar, the barman polishes a glass that is already clean. "The patron ' +
+          'asked after you," he says. You did not mention the patron. Nobody ever mentions the patron first.' },
+  { id: 'henk_visit', minComfort: 2e9,
+    text: '🍺 Henk arrives at your island unannounced, which is impressive, given the sea. He naps on ' +
+          'the good lounger next to the goat, and leaves a five-euro note "for the room." You frame that too.' },
+  { id: 'staff_quiet', minComfort: 4e9,
+    text: '🤵 Late, the estate quiet, the butler sets out two glasses instead of one and says nothing ' +
+          'about it. Some service anticipates needs. Some just keeps you company.' },
 ];

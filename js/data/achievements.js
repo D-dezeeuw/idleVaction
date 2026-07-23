@@ -34,6 +34,61 @@ export const ACHIEVEMENTS = [
   { id: 'legendary',     name: 'Legendary',           desc: 'Become a Legend 3 times.',         metric: 'legendCount',    threshold: 3,  reward: 0.05, meta: true },
   { id: 'new_game_plus', name: 'Again, But More',     desc: 'Start New Game+.',                 metric: 'ngPlus',         threshold: 1,  reward: 0.04, meta: true },
   { id: 'collector',     name: 'Where the Rich Hide', desc: 'Collect all 5 premium destinations.', metric: 'premiumDestOwned', threshold: 5, reward: 0.05, meta: true },
+
+  // --- Phase E expansion (audit 1.9: 16 trophies was a fraction of genre norm). In-run rows
+  // are RECOGNITION (reward 0 — the harness may reach them); meta rows use harness-unreachable
+  // systems and carry the small completionist ×, still curved by ACHIEVE.rewardCap. ---
+  // the ladder
+  { id: 'checkout',      name: 'Checkout Time',       desc: 'Leave the shed behind.',            metric: 'accTier',     threshold: 1,   reward: 0, meta: false },
+  { id: 'own_door',      name: 'A Door of One\'s Own', desc: 'Reach the private room.',          metric: 'accTier',     threshold: 3,   reward: 0, meta: false },
+  { id: 'boutique',      name: 'Boutique & Bougie',   desc: 'Reach the boutique retreat.',       metric: 'accTier',     threshold: 8,   reward: 0, meta: false },
+  { id: 'seven_stars',   name: 'Off the Scale',       desc: 'Reach the seven-star tier.',        metric: 'accTier',     threshold: 14,  reward: 0, meta: false },
+  { id: 'own_walls',     name: 'My Gate. My Squeak.', desc: 'Own the bungalow.',                 metric: 'accTier',     threshold: 16,  reward: 0, meta: false },
+  { id: 'villa_vita',    name: 'Villa Vita',          desc: 'Reach the private villa.',          metric: 'accTier',     threshold: 18,  reward: 0, meta: false },
+  // money
+  { id: 'first_grand',   name: 'The First Thousand',  desc: 'Earn €1,000 lifetime.',             metric: 'lifetimeCash', threshold: 1e3,  reward: 0, meta: false },
+  { id: 'billionaire',   name: 'A Thousand Millions', desc: 'Earn €1B lifetime.',                metric: 'lifetimeCash', threshold: 1e9,  reward: 0, meta: false },
+  { id: 'trillionaire',  name: 'Guilders Were Smaller', desc: 'Earn €1T lifetime.',              metric: 'lifetimeCash', threshold: 1e12, reward: 0, meta: false },
+  { id: 'money_belt',    name: 'Beyond the Money Belt', desc: 'Reach bank tier 5.',              metric: 'bankTier',    threshold: 5,   reward: 0, meta: false },
+  { id: 'numberless',    name: 'Nearly Numberless',   desc: 'Reach bank tier 15.',               metric: 'bankTier',    threshold: 15,  reward: 0, meta: false },
+  // the trip
+  { id: 'four_stamps',   name: 'Four Brochures',      desc: 'Own 4 destinations.',               metric: 'destOwned',   threshold: 4,   reward: 0, meta: false },
+  { id: 'well_stamped',  name: 'A Well-Stamped Book', desc: 'Own 8 destinations.',               metric: 'destOwned',   threshold: 8,   reward: 0, meta: false },
+  { id: 'act_one',       name: 'Act One, Survived',   desc: 'Live 10 story beats.',              metric: 'beatsSeen',   threshold: 10,  reward: 0, meta: false },
+  { id: 'the_long_road', name: 'The Long Road',       desc: 'Live 22 story beats.',              metric: 'beatsSeen',   threshold: 22,  reward: 0, meta: false },
+  // comfort & things
+  { id: 'small_wins',    name: 'It\'s the Little Things', desc: 'Own 25 amenities.',            metric: 'amenOwned',   threshold: 25,  reward: 0, meta: false },
+  { id: 'many_things',   name: 'Fully Amenitized',    desc: 'Own 75 amenities.',                 metric: 'amenOwned',   threshold: 75,  reward: 0, meta: false },
+  { id: 'all_things',    name: 'The Catalog, Cleared', desc: 'Own 150 amenities.',               metric: 'amenOwned',   threshold: 150, reward: 0, meta: false },
+  { id: 'komfort',       name: 'Comfort, With a K',   desc: 'Reach Comfort 1,000.',              metric: 'bestComfort', threshold: 1e3, reward: 0, meta: false },
+  { id: 'cloud_soft',    name: 'Professionally Relaxed', desc: 'Reach Comfort 1,000,000,000,000.', metric: 'bestComfort', threshold: 1e12, reward: 0, meta: false },
+  // the grind
+  { id: 'hundred_buys',  name: 'A Hundred Purchases', desc: 'Buy 100 income units.',             metric: 'genBought',   threshold: 100, reward: 0, meta: false },
+  { id: 'well_rounded',  name: 'Well-Rounded Tourist', desc: 'Reach 25 total skill levels.',     metric: 'skillLevels', threshold: 25,  reward: 0, meta: false },
+  { id: 'renaissance',   name: 'Renaissance Lounger', desc: 'Reach 60 total skill levels.',      metric: 'skillLevels', threshold: 60,  reward: 0, meta: false },
+  { id: 'tap_tap',       name: 'Odd Jobs, Odder Hours', desc: 'Tap 500 times.',                  metric: 'clicks',      threshold: 500, reward: 0, meta: false },
+  { id: 'carpal_sunnel', name: 'Umbrella Elbow',      desc: 'Tap 5,000 times.',                  metric: 'clicks',      threshold: 5000, reward: 0, meta: false },
+  // wheels, hulls, wings (harness never buys — honest meta, tiny rewards)
+  { id: 'first_keys',    name: 'Keys to Something',   desc: 'Own your first vehicle.',           metric: 'fleetOwned',  threshold: 1,   reward: 0.01, meta: true },
+  { id: 'a_fleet',       name: 'A Modest Armada',     desc: 'Own 10 vehicles, hulls or wings.',  metric: 'fleetOwned',  threshold: 10,  reward: 0.02, meta: true },
+  // people
+  { id: 'first_hire',    name: 'At Your Service',     desc: 'Hire your first staff member.',     metric: 'staffHired',  threshold: 1,   reward: 0.01, meta: true },
+  { id: 'household',     name: 'The Whole Household', desc: 'Hire 6 staff.',                     metric: 'staffHired',  threshold: 6,   reward: 0.02, meta: true },
+  // the lanes
+  { id: 'hodler',        name: 'Cold Wallet, Warm Sand', desc: 'Hold 50 coins.',                 metric: 'coinsHeld',   threshold: 50,  reward: 0.02, meta: true },
+  { id: 'curator',       name: 'The Good Wall',       desc: 'Own 6 collection pieces.',          metric: 'collectionOwned', threshold: 6, reward: 0.02, meta: true },
+  { id: 'deed_holder',   name: 'Ink On the Deed',     desc: 'Own property.',                     metric: 'propertyOwned', threshold: 1, reward: 0.01, meta: true },
+  // generations
+  { id: 'gen_three',     name: 'A Family Tradition',  desc: 'Reach generation 3.',               metric: 'generation',  threshold: 3,   reward: 0.02, meta: true },
+  { id: 'gen_seven',     name: 'The Dynasty of Drizzle', desc: 'Reach generation 7.',            metric: 'generation',  threshold: 7,   reward: 0.03, meta: true },
+  { id: 'ascend_ten',    name: 'Ten Lifetimes of Sun', desc: 'Ascend 10 times.',                 metric: 'ascensionCount', threshold: 10, reward: 0.04, meta: true },
+  { id: 'tree_deep',     name: 'Deep Roots',          desc: 'Hold 12 skill-tree ranks.',         metric: 'treeRanks',   threshold: 12,  reward: 0.03, meta: true },
+  { id: 'tree_wide',     name: 'The Whole Person',    desc: 'Hold 25 skill-tree ranks.',         metric: 'treeRanks',   threshold: 25,  reward: 0.04, meta: true },
+  // the island era
+  { id: 'resort_row',    name: 'Paradise, Zoned',     desc: 'Build 10 resort buildings.',        metric: 'buildingsBuilt', threshold: 10, reward: 0.03, meta: true },
+  { id: 'resort_town',   name: 'The Town With No Desk', desc: 'Build 25 resort buildings.',      metric: 'buildingsBuilt', threshold: 25, reward: 0.04, meta: true },
+  { id: 'ng_deep',       name: 'Again. AGAIN.',       desc: 'Reach New Game+ 3.',                metric: 'ngPlus',      threshold: 3,   reward: 0.05, meta: true },
+  { id: 'ng_absurd',     name: 'The Sky Is a Ladder', desc: 'Reach New Game+ 5.',                metric: 'ngPlus',      threshold: 5,   reward: 0.05, meta: true },
 ];
 
 export function achievementDef(id) { return ACHIEVEMENTS.find(a => a.id === id); }

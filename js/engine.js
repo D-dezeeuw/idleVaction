@@ -1640,6 +1640,25 @@ export function stateMetric(state, metric) {
     case 'islandOwned':  return state.island?.owned ? 1 : 0;
     case 'buildingsBuilt': return DATA.buildings.reduce((n, b) => n + M.buildingCount(state, b.id), 0);
     case 'premiumDestOwned': return M.premiumDestOwned(state, DATA);
+    // Phase E (audit 1.9): broader trophy vocabulary — all pure reads. In-run reachable ones
+    // pair ONLY with reward-0 rows (the L_achieve invariant); harness-unreachable ones
+    // (staff/fleet/coins/collections/generation/tree) may carry meta rewards.
+    case 'destOwned':       return Object.values(state.destinations).filter(d => d.owned).length;
+    case 'amenOwned':       return Object.values(state.amenities).filter(a => a.level > 0).length;
+    case 'bankTier':        return state.bank.tier;
+    case 'beatsSeen':       return state.story.seen.length;
+    case 'genBought':       return Object.values(state.generators).reduce((n, g) => n + g.bought, 0);
+    case 'skillLevels':     return Object.values(state.skills).reduce((n, k) => n + k.level, 0);
+    case 'clicks':          return state.stats.totalClicks || 0;
+    case 'generation':      return state.lineage?.generation || 1;
+    case 'staffHired':      return Object.values(state.staff).filter(x => x.hired).length;
+    case 'fleetOwned':      return Object.values(state.vehicles.owned).reduce((n, c) => n + c.count, 0)
+                                 + Object.values(state.vehicles.boats).reduce((n, b) => n + b.count, 0)
+                                 + Object.values(state.vehicles.jets).reduce((n, j) => n + j.count, 0);
+    case 'coinsHeld':       return Object.values(state.crypto.holdings).reduce((n, c) => n + c, 0);
+    case 'collectionOwned': return Object.values(state.collections).filter(c => c.count > 0).length;
+    case 'treeRanks':       return Object.values(state.ascension.tree).reduce((n, r) => n + r, 0);
+    case 'propertyOwned':   return Object.values(state.property).filter(pr => pr.owned).length;
     default: return 0;
   }
 }
