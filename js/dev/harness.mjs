@@ -42,7 +42,9 @@ import { fmt, fmtTime } from '../util.js';
 const AMENITY_PAYBACK_HORIZON_SEC = 1800;
 
 // worth buying this level of amenity `a`? cashRate = current €/s cash income.
-function amenityWorthBuying(s, a, cashRate) {
+// EXPORTED as the single source of truth — scenarios.mjs imports this (a drifted local copy
+// there once cost the branch bots the entire L_amenity ramp).
+export function amenityWorthBuying(s, a, cashRate) {
   // 1) progression override: if Comfort is short of the NEXT accommodation tier's unlock gate,
   //    Comfort itself is gating the run — buy regardless of ROI. In the shipped economy accScore
   //    over-satisfies every gate (ACC.unlockFrac 0.33 < 1/ACC.growth 0.385), so this is a dormant
@@ -57,7 +59,19 @@ function amenityWorthBuying(s, a, cashRate) {
   const comf = s._comfortCache;
   const L = 1 + C.COMFORT.MULT * Math.log10(1 + comf / C.COMFORT.C0);
   const Lafter = 1 + C.COMFORT.MULT * Math.log10(1 + (comf + dComf) / C.COMFORT.C0);
-  const gainPerSec = cashRate * (Lafter - L) / L;
+  let gainPerSec = cashRate * (Lafter - L) / L;
+  // L_amenity income layer (Phase-C refit): the FIRST level of an xMult amenity also joins the
+  // additive income layer — include that marginal gain so the greedy bot prices activated
+  // amenities honestly ('social' scoped at half weight: it boosts D2/D3 production, which
+  // compounds into cash with a delay rather than multiplying it directly). 0 while xRate is 0.
+  const xr = C.AMENITY.xRate || 0;
+  if (xr > 0 && a.xMult && (s.amenities[a.id].level || 0) === 0) {
+    const cache = s._amenCache || { all: 0, social: 0 };
+    const cap = C.AMENITY.xCap - 1;
+    const Lx = 1 + Math.min(cap, xr * cache.all);
+    const LxAfter = 1 + Math.min(cap, xr * (cache.all + a.xMult * (a.xScope === 'social' ? 0.5 : 1)));
+    gainPerSec += cashRate * (LxAfter - Lx) / Lx;
+  }
   if (gainPerSec <= 0) return false;
   return E.amenityCost(s, a.id) / gainPerSec <= AMENITY_PAYBACK_HORIZON_SEC;
 }

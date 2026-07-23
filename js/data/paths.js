@@ -48,12 +48,17 @@ export const PATHS = [
     stages: [
       { at: 5,  name: 'First Cold Wallet',  bonus: { yieldMult: 0.25 },
         desc: '📈 The seed phrase lives in three places, one of them a sock. Coin yield +25%.' },
-      { at: 15, name: 'Diamond Hands',      bonus: { crashDamp: 0.25 },
-        desc: '💎 You have watched a −40% candle while ordering a second smoothie. Crash depth −25% for you.' },
+      // Phase-C refit: the crypto track gains 'global' components — the same bounded flat
+      // class as the traveler's Continental Fixture — because coin YIELD is linear in
+      // holdings while the core economy is polynomial: measured, yield fades to 0.02% of
+      // income by tier 18, leaving crypto the only branch with no core-income coupling
+      // (58% slower to the island than the vlogger). Portfolio confidence pays everywhere.
+      { at: 15, name: 'Diamond Hands',      bonus: { crashDamp: 0.25, global: 0.25 },
+        desc: '💎 You have watched a −40% candle while ordering a second smoothie. Crash depth −25% for you, and the calm is worth +25% income everywhere.' },
       { at: 30, name: 'Exit Liquidity (Theirs)', bonus: { sellBonus: 0.15 },
         desc: '🐊 You sell into strength now, not panic. Coin sales pay +15% of unit price.' },
-      { at: 50, name: 'The Whale Nods Back',bonus: { yieldMult: 0.5 },
-        desc: '🐋 Your wallet address gets recognized. Politely. Coin yield another +50%.' },
+      { at: 50, name: 'The Whale Nods Back',bonus: { yieldMult: 0.5, global: 0.45 },
+        desc: '🐋 Your wallet address gets recognized. Politely. Coin yield another +50%, and doors open ahead of you: +45% income everywhere.' },
     ] },
   { id: 'connoisseur', name: 'Old-Money Aesthete',
     identity: 'Taste & exclusivity; luxury tiers give outsized Comfort.',

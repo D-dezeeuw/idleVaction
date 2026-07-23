@@ -64,6 +64,9 @@ export function tick(state, dt) {
   state.resources.comfort = state._comfortCache;
   if (state._comfortCache > state.stats.bestComfort) state.stats.bestComfort = state._comfortCache;
   state._destCache = M.destMult(state, DATA);
+  // L_amenity cache (Phase-C refit): the activated amenity income layer's per-scope sums —
+  // recomputed like _comfortCache so the tier snapshot below sees a consistent value.
+  state._amenCache = M.computeAmenityX(state, DATA);
 
   // connoisseur economy (E14 "Acquired Taste"): advance each held asset's age in GAME-TIME
   // (so offline macro-step replay is automatically identical, exactly like the crypto
@@ -641,6 +644,12 @@ export function beatCopy(state, beat) {
   return (beat.variants && beat.variants[state.story.branch]) || beat;
 }
 export function checkStory(state) {
+  // Spacing valve (config.STORY_VALVE_SEC, Phase-C refit): when on, at most ONE beat fires per
+  // valve window — a ready cluster (several gates met in one tick, or queued behind monotone
+  // ordering) releases one beat at a time instead of dumping three in a single frame. The
+  // game's scarcest content deserves its own moment. Exactly the legacy behavior at 0.
+  const valve = C.STORY_VALVE_SEC || 0;
+  if (valve > 0 && state.stats.runSec - (state.story.lastBeatAt || 0) < valve) return;
   for (const beat of DATA.story) {
     if (state.story.seen.includes(beat.id)) continue;
     // Narrative monotonicity: a beat can't fire until the previous beat has. Beats gate on
@@ -654,6 +663,8 @@ export function checkStory(state) {
       (state.story.seenAt ||= {})[beat.id] = Math.round(state.stats.runSec || 0);
       state.story.beat = Math.max(state.story.beat, beat.id);
       notify(state, 'story', `📖 Beat ${beat.id}: ${beatCopy(state, beat).title}`);
+      state.story.lastBeatAt = state.stats.runSec;
+      if (valve > 0) break;
     }
   }
 }
@@ -805,7 +816,9 @@ export function amenityCost(state, id) {
   // GATED to connoisseur-active (returns exactly 1 otherwise), so the greedy vlogger harness
   // buying luxury amenities sees ×1 and the fitted island time is unmoved.
   const lux = a.tag === 'luxury' ? M.luxuryCostMult(state) : 1;
-  return a.costBase * Math.pow(g, lvl) * (1 - M.pathBonus(state, 'amenityDiscount')) * lux * M.commsCostMult(state);
+  // costScale (Phase-C refit): one knob scaling the whole catalog's price level against the
+  // refitted economy — the 186 data rows keep their relative spacing untouched. 1 = legacy.
+  return a.costBase * (C.AMENITY.costScale || 1) * Math.pow(g, lvl) * (1 - M.pathBonus(state, 'amenityDiscount')) * lux * M.commsCostMult(state);
 }
 export function amenityUnlocked(state, id) {
   const a = amenityData(id);
@@ -829,6 +842,7 @@ export function buyAmenity(state, id) {
   state.resources.cash -= cost;
   state.amenities[id].level++;
   state._comfortCache = M.computeComfort(state, DATA);
+  state._amenCache = M.computeAmenityX(state, DATA);   // the income layer reacts immediately too
   return true;
 }
 
@@ -1857,7 +1871,10 @@ export function nextAccTier(state) { return state.accommodation.tier + 1; }
 // config.ASCEND_GATE / docs/math-proof.md §12); the Comfort unlock gate is untouched.
 export function accCostForTier(state, tier) {
   // E29 NG+ hardens the CASH gate by gateScale^ngPlus (1 at ngPlus 0 ⇒ bit-identical for the harness).
-  return M.accScore(tier) * C.ACC.cashMult * M.ascGateMult(state, tier) * M.ngPlusGateMult(state) * M.commsCostMult(state);
+  // costExp (Phase-C refit): a single late-anchored pricing knob — cost scales with
+  // accScore^costExp, so a value slightly above 1 keeps early check-ins cheap while the
+  // summit tiers carry the run's length. Exactly the legacy formula at costExp 1.
+  return Math.pow(M.accScore(tier), C.ACC.costExp || 1) * C.ACC.cashMult * M.ascGateMult(state, tier) * M.ngPlusGateMult(state) * M.commsCostMult(state);
 }
 export function accCost(state) {
   return accCostForTier(state, nextAccTier(state));

@@ -37,9 +37,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
-      # the whole repo IS the site (no build) — upload it as the Pages artifact
+      # publish ONLY the playable site — docs/ (the full design plan + math proofs), .claude/
+      # (agent tooling), js/dev/ (test harnesses) and repo meta must not ship as public pages.
+      - name: Assemble site artifact (allow-list)
+        run: |
+          mkdir -p _site
+          cp index.html .nojekyll _site/
+          cp -r css _site/css
+          cp -r js _site/js
+          rm -rf _site/js/dev
+          [ -d assets ] && cp -r assets _site/assets || true
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: _site
       - id: deployment
         uses: actions/deploy-pages@v4

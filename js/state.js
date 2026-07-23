@@ -193,7 +193,8 @@ export function newGame() {
     // prestige.ascend (the keep-list) — never read by any income path.
     lineage: newLineage(),
     // seenAt (Travel Diary, UX-plan §6): beatId → runSec when it was lived. Display-only.
-    story: { beat: 1, seen: [1], seenAt: { 1: 0 }, branch: 'neutral', flags: {} },
+    // lastBeatAt: the spacing valve's window anchor (engine.checkStory) — game-seconds.
+    story: { beat: 1, seen: [1], seenAt: { 1: 0 }, branch: 'neutral', flags: {}, lastBeatAt: 0 },
     // ui.bulkMode (E03-S1-T6): the ×1/×10/max buy-quantity toggle, persisted so the
     // choice survives reload instead of living in a transient ui.js module var.
     ui: { bulkMode: 1 },
@@ -212,6 +213,8 @@ export function newGame() {
     // (exactly 1 while nothing is equipped). Seeded to 1 (NOT 0) so any tierMultiplier read
     // before the first tick multiplies by the identity, never zeroes income.
     _comfortCache: 0, _destCache: 1, _combo: 1, _comboTimer: 0, _pathBonus: {}, _exclCache: 0, _logiCache: 1, _staffMult: 1, _estateMult: 1, _legendMult: 1, _achieveMult: 1, _seasonalMult: 1,
+    // L_amenity per-scope sums (Phase-C refit) — neutral zeros ⇒ the layer reads exactly 1.
+    _amenCache: { all: 0, social: 0 },
   };
 }
 
