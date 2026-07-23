@@ -127,7 +127,7 @@ export function newGame() {
     // bottom of the ladder again. See config.BANK's comment / docs/math-proof.md §11.
     bank: { tier: 0 },
     market: { seed: C.MARKET.seed, cursor: 0, phase: 'calm', eventId: null, mult: 1,
-      nextEventT: 0, expiresAtSec: 0, eventLog: [], totalEvents: 0 },
+      nextEventT: 0, expiresAtSec: 0, eventStartSec: 0, eventLog: [], totalEvents: 0 },
     // homeBase (E27): 'mainland' until the private island is bought, then 'island' — a permanent
     // meta fact (carried across ascension by prestige.ascend) even as the run's tier resets.
     accommodation: { tier: 0, owned: [0], homeBase: 'mainland' },
@@ -166,6 +166,9 @@ export function newGame() {
     // newGame() (and the harness, which never calls acceptSponsor) always has
     // active:null, so the fitted island time cannot move.
     sponsors: { active: null, offer: null, offerCycle: 0, nextOfferAtSec: 0, cooldowns: {}, totalExpired: 0 },
+    // cloutPerks (8.5-push): the opened Clout loop — travel vouchers, sponsor spotlights, the
+    // golden frame. All zero/false for a fresh game and the harness (which never spends clout).
+    cloutPerks: { vouchers: 0, vouchersBought: 0, spotlights: 0, frame: false },
     // staff (E19 "At Your Service"): the butler starts UNHIRED, so payroll is 0 and nothing is
     // automated — a fresh game and the harness (which never hires) are unaffected, the fitted
     // island time cannot move. policy mirrors the concierge's dials (budgetFrac/minRoi) + the

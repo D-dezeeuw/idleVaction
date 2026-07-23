@@ -442,3 +442,66 @@ div.iv-passport-stamp.iv-stamp-empty { padding: 5px 2px; border-radius: 8px; }
   /* right-edge fade signals the tab bar scrolls horizontally */
   .iv-tabbar { -webkit-mask-image: linear-gradient(90deg, #000 92%, transparent); mask-image: linear-gradient(90deg, #000 92%, transparent); }
 }
+
+/* ---- Home redesign: wallet chip · story row · next-step square · animated tiles ---- */
+.iv-topbar-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;
+  max-width: 1100px; margin: 0 auto; }
+.iv-wallet-chip { background: var(--iv-card); border: 1px solid var(--iv-line); border-radius: 14px;
+  padding: 6px 12px; cursor: pointer; text-align: right; min-width: 118px; font-family: inherit;
+  box-shadow: var(--iv-shadow); display: flex; flex-direction: column; gap: 3px; align-items: flex-end; }
+.iv-wallet-chip:hover { border-color: var(--iv-pink); }
+.iv-wallet-cash { font-size: .95rem; } .iv-wallet-cash b { color: var(--iv-pink-text); }
+.iv-wallet-rate { font-size: .72rem; color: var(--iv-sub); }
+.iv-wallet-bar { display: block; width: 100%; height: 5px; border-radius: 999px; background: var(--iv-well); overflow: hidden; }
+.iv-wallet-bar i { display: block; height: 100%; border-radius: 999px; background: var(--iv-sun); transition: width .3s; }
+.iv-wallet-chip.iv-wallet-full { border-color: var(--iv-red-text); }
+.iv-wallet-chip.iv-wallet-full .iv-wallet-bar i { background: var(--iv-red-text); }
+
+/* the story + next-step row: two columns EVERYWHERE, mobile included — "where am I" and
+   "what's next" share the first screen (per design direction). */
+.iv-story-row { display: grid; grid-template-columns: 1fr minmax(120px, 150px); gap: 10px; align-items: stretch; }
+.iv-next-square { display: flex; flex-direction: column; text-align: center; padding: 10px 8px; }
+.iv-next-label { font-size: .68rem; letter-spacing: .12em; color: var(--iv-pink-text); font-weight: 800; }
+.iv-next-scene { font-size: 1.7rem; margin: 4px 0 2px; }
+.iv-next-name { font-weight: 700; font-size: .82rem; line-height: 1.15; margin-bottom: 6px; }
+.iv-next-meter { height: 8px; border-radius: 999px; background: var(--iv-well); overflow: hidden; margin-bottom: 4px; }
+.iv-next-meter i { display: block; height: 100%; border-radius: 999px; background: var(--iv-sun); transition: width .3s; }
+.iv-next-meter i.iv-next-cash { background: var(--iv-green); }
+.iv-next-square .iv-btn { margin-top: auto; }
+
+/* animated generator tiles: progress-to-afford bars; milestone level deepens the color band
+   and speeds the sheen (--gen-anim, set per tile from bought/upgrades). */
+.iv-gen-tile { border: 1px solid var(--iv-line); border-radius: 14px; padding: 8px 10px; margin: 6px 0;
+  background: var(--iv-card); }
+.iv-gen-head { display: flex; align-items: baseline; gap: 6px; }
+.iv-gen-double { margin-left: auto; font-size: .7rem; color: var(--iv-sub); }
+.iv-gen-bar { position: relative; height: 10px; border-radius: 999px; background: var(--iv-well);
+  overflow: hidden; margin: 6px 0; }
+.iv-gen-bar i { display: block; height: 100%; border-radius: 999px; transition: width .25s;
+  background: linear-gradient(90deg, var(--gen-c1, #ffe9a8), var(--gen-c2, var(--iv-sun)));
+  background-size: 200% 100%; animation: iv-gen-sheen var(--gen-anim, 3s) linear infinite; }
+@keyframes iv-gen-sheen { from { background-position: 0% 0; } to { background-position: 200% 0; } }
+/* the color band deepens with milestone level: sand → sky → green → sun → pink */
+.iv-glvl-0 { --gen-c1: #ffe9a8; --gen-c2: #ffc800; }
+.iv-glvl-1 { --gen-c1: #a8e4ff; --gen-c2: #45c4ff; border-color: #bfe8fb; }
+.iv-glvl-2 { --gen-c1: #c9f0b2; --gen-c2: #7ed957; border-color: #cdeab9; }
+.iv-glvl-3 { --gen-c1: #ffd27a; --gen-c2: #ff9d00; border-color: #f7dba8; }
+.iv-glvl-4 { --gen-c1: #ffb1d4; --gen-c2: #ff2e88; border-color: #ffc4dd; }
+.iv-gen-tile.iv-can-buy { border-color: var(--iv-green); }
+.iv-gen-tile.iv-can-buy .iv-gen-bar { box-shadow: 0 0 0 2px var(--iv-green-tint); }
+.iv-gen-tile.iv-can-buy .iv-gen-actions .btn-primary { animation: iv-ready-pulse 1.2s ease-in-out infinite; }
+@keyframes iv-ready-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
+.iv-gen-actions { display: flex; gap: 6px; }
+@media (prefers-reduced-motion: reduce) {
+  .iv-gen-bar i, .iv-gen-tile.iv-can-buy .iv-gen-actions .btn-primary { animation: none; }
+}
+:root[data-motion="reduced"] .iv-gen-bar i,
+:root[data-motion="reduced"] .iv-gen-tile.iv-can-buy .iv-gen-actions .btn-primary { animation: none; }
+@media (max-width: 720px) {
+  .iv-topbar-row { align-items: center; }
+  .iv-wallet-chip { min-width: 104px; padding: 6px 10px; }
+  .iv-story-row { grid-template-columns: 1fr minmax(108px, 126px); }
+}
+
+/* the golden frame (Clout shop, pure pride) */
+.iv-polaroid-frame.iv-frame-gold { box-shadow: 0 0 0 3px #ffc800, 0 4px 18px rgba(255, 200, 0, .35); }

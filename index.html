@@ -17,16 +17,28 @@
 </head>
 <body>
   <header id="topbar">
-    <h1>🏝️ idleVaction <small>prototype</small></h1>
-    <div id="hdr" class="iv-header"></div>
+    <div class="iv-topbar-row">
+      <div>
+        <h1>🏝️ idleVaction <small>prototype</small></h1>
+        <div id="hdr" class="iv-header"></div>
+      </div>
+      <!-- The wallet (redesign): cash + wallet-fill at a glance, top right. Clicking opens the
+           financial modal — the old Bank Account card moved in there wholesale. -->
+      <button id="walletBtn" class="iv-wallet-chip" data-action="open-wallet"
+        aria-label="Wallet — open financial overview" title="Your wallet — tap for the full financial picture"></button>
+    </div>
   </header>
 
   <div id="onboarding" class="iv-onboarding" hidden></div>
 
   <div id="notifs" class="iv-notifs"></div>
 
-  <!-- Story: the persistent narrative throughline, above the tabs (always visible). -->
-  <div class="iv-story-strip"><section class="iv-card" id="storyCard"><h3>📖 Story</h3><div id="story"></div></section></div>
+  <!-- Story row (redesign): the narrative left, the NEXT STEP square right — two columns
+       even on mobile, so "where am I" and "what's next" share the first screen. -->
+  <div class="iv-story-strip iv-story-row">
+    <section class="iv-card" id="storyCard"><h3>📖 Story</h3><div id="story"></div></section>
+    <section class="iv-card iv-next-square" id="nextStepCard" aria-label="Your next step"><div id="nextStep"></div></section>
+  </div>
 
   <!-- Tab bar (rendered by ui.renderTabs — only tabs with unlocked content appear: the future stays hidden). -->
   <nav id="tabbar" class="iv-tabbar" role="tablist" aria-label="Sections"></nav>
@@ -34,7 +46,6 @@
   <main id="tabpanels">
     <div class="iv-tabpanel iv-grid" data-tab="home" role="tabpanel">
       <section class="iv-card" id="accCard"><h3 id="accTitle">🏨 Accommodation</h3><div id="accommodation"></div></section>
-      <section class="iv-card" id="bankCard"><h3 id="bankTitle">🏦 Bank Account</h3><div id="bank"></div></section>
       <section class="iv-card iv-wide" id="amenitiesCard"><h3>🛎️ Amenities <small>(small wins)</small></h3><div id="amenities"></div></section>
       <section class="iv-card iv-wide" id="poolCard" hidden>
         <h3>🏊 Poolside</h3>
@@ -138,6 +149,16 @@
   </main>
 
   <footer id="controls" class="iv-controls"></footer>
+
+  <!-- The financial modal (redesign): replaces the Home bank card — opened from the wallet
+       chip in the header. Simple money UX: income, wallet fill, the upgrade, the ledger. -->
+  <div id="walletModal" class="iv-modal-overlay" hidden>
+    <div class="iv-modal" role="dialog" aria-modal="true" aria-label="Your finances">
+      <h3 id="bankTitle">🏦 Wallet</h3>
+      <div id="bank"></div>
+      <button class="btn btn-sm iv-btn" data-action="close-wallet">Done</button>
+    </div>
+  </div>
 
   <div id="offlineModal" class="iv-modal-overlay" hidden>
     <div class="iv-modal">

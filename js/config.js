@@ -184,6 +184,7 @@ export const CONFIG = {
     // unlockFrac < 1/growth (0.385) guarantees owning a tier nearly unlocks the
     // next on its own — amenities/Body just bring it sooner. Never a hard stall.
     unlockFrac: 0.33,
+    unlockFracEarly: 0.45, fracEarlyTiers: 6, fracFadeTiers: 4,
   },
 
   // ---- personal-growth skills ----
@@ -247,6 +248,14 @@ export const CONFIG = {
     // per-tick trickle" pattern exactly) — so it can't compound into the runaway that
     // pattern was designed to avoid (see DEST's comment above).
     contentPathNudge: 0.1,
+    // The Clout shop (8.5-push / audit 1.6): Clout finally spends OUTSIDE its own loop.
+    //   voucherCost·voucherGrowth^bought — a one-shot −voucherOff on the NEXT destination
+    //     (consumed on purchase, hold at most voucherMax); the influencer's clout literally
+    //     opens doors abroad. Harness-neutral: it never spends clout ⇒ vouchers 0 ⇒ ×1.
+    //   spotlightCost — rolls a sponsor offer NOW (skips the wait), for the deal-chasers.
+    //   frameCost — the golden polaroid frame, pure pride (cosmetic, one-time).
+    voucherCost: 400, voucherGrowth: 1.6, voucherOff: 0.25, voucherMax: 2,
+    spotlightCost: 250, frameCost: 5000,
   },
 
   // ---- sponsor deals (E12 "Lights, Camera, Clout"): OPT-IN, TIMED Clout multipliers ----

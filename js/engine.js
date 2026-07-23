@@ -538,7 +538,10 @@ export function destCost(state, id) {
   const d = destData(id);
   const ownedCount = Object.values(state.destinations).filter(x => x.owned).length;
   const g = d.costGrowth || C.DEST.costGrowth;
-  const raw = d.costBase * Math.pow(g, ownedCount) * M.commsCostMult(state);
+  // Clout travel voucher (the opened Clout loop): one held voucher discounts the next
+  // destination by voucherOff — consumed in buyDestination. 0 held ⇒ ×1 (harness-neutral).
+  const voucher = (state.cloutPerks?.vouchers || 0) > 0 ? (1 - C.CLOUT.voucherOff) : 1;
+  const raw = d.costBase * Math.pow(g, ownedCount) * M.commsCostMult(state) * voucher;
   // destDiscountMult (math.js) stacks the committed traveler track's flat destDiscount stage
   // bonus with the traveler BRANCH −15% perk and Wanderer's Instinct −20%/rank, floored so the
   // stack can never drive a place implausibly cheap (E15-S2-T7/S7-T7/S8-T6). It is EXACTLY 1
@@ -554,6 +557,7 @@ export function buyDestination(state, id) {
   if (state.resources.cash < cost) return false;
   state.resources.cash -= cost;
   state.destinations[id].owned = true;
+  if ((state.cloutPerks?.vouchers || 0) > 0) state.cloutPerks.vouchers--;   // the voucher is spent
   state._destCache = M.destMult(state, DATA);
   const d = destData(id);
   // small traveler head start on first owning a place (E04-S4-T6/S7-T5) — via
@@ -1001,6 +1005,35 @@ export function cryptoSavvyPerk(state) {
 // playStep, which only ever invest in the vlogger path) never trip this, so
 // state.market.phase stays 'calm', mult 1, cursor 0 forever; the fitted ~8h26m island
 // time cannot move (see config.MARKET's comment / the harness-invariance test).
+// ---- the Clout shop (8.5-push): clout spends across systems, not just on itself ----
+export function voucherCost(state) { return C.CLOUT.voucherCost * Math.pow(C.CLOUT.voucherGrowth, state.cloutPerks?.vouchersBought || 0); }
+export function buyCloutVoucher(state) {
+  const cp = (state.cloutPerks ||= { vouchers: 0, vouchersBought: 0, spotlights: 0, frame: false });
+  const cost = voucherCost(state);
+  if (cp.vouchers >= C.CLOUT.voucherMax || state.resources.clout < cost) return false;
+  state.resources.clout -= cost;
+  cp.vouchers++; cp.vouchersBought++;
+  notify(state, 'unlock', `🎟️ Travel voucher — your name opens a door: next destination −${(C.CLOUT.voucherOff * 100).toFixed(0)}%.`);
+  return true;
+}
+export function buyCloutSpotlight(state) {
+  const cp = (state.cloutPerks ||= { vouchers: 0, vouchersBought: 0, spotlights: 0, frame: false });
+  if (state.sponsors.active || state.sponsors.offer || state.resources.clout < C.CLOUT.spotlightCost) return false;
+  state.resources.clout -= C.CLOUT.spotlightCost;
+  cp.spotlights++;
+  state.sponsors.nextOfferAtSec = state.stats.runSec;   // a deal rolls on the next tick
+  notify(state, 'unlock', '📞 You make one call. A sponsor calls back before you hang up.');
+  return true;
+}
+export function buyCloutFrame(state) {
+  const cp = (state.cloutPerks ||= { vouchers: 0, vouchersBought: 0, spotlights: 0, frame: false });
+  if (cp.frame || state.resources.clout < C.CLOUT.frameCost) return false;
+  state.resources.clout -= C.CLOUT.frameCost;
+  cp.frame = true;
+  notify(state, 'celebrate', '🖼️ The golden frame. Your story, displayed the way it deserves.');
+  return true;
+}
+
 export function cryptoActive(state) {
   if (state.paths.crypto.points > 0) return true;
   for (const c of DATA.crypto.coins) if ((state.crypto.holdings[c.id] || 0) > 0) return true;
@@ -1114,6 +1147,7 @@ function marketTick(state) {
     mult = clamp(mult, C.MARKET.crashFloor, C.MARKET.boomCap);
     mkt.phase = ev.kind; mkt.eventId = ev.id; mkt.mult = mult;
     mkt.expiresAtSec = state.stats.runSec + dur;
+    mkt.eventStartSec = state.stats.runSec;   // overlap anchor for offline fairness (math.marketMult)
     (mkt.eventLog ||= []).unshift({ id: ev.id, kind: ev.kind, mult, dur: Math.round(dur), t: state.stats.runSec });
     if (mkt.eventLog.length > MARKET_EVENT_LOG_MAX) mkt.eventLog.length = MARKET_EVENT_LOG_MAX;
     mkt.totalEvents = (mkt.totalEvents || 0) + 1;
@@ -2234,6 +2268,8 @@ export function click(state) {
 
 // ---------- offline / away ----------
 export function applyOffline(state, elapsedMs) {
+  // _macroDt: tells math.marketMult we're in coarse offline steps so short market events are
+  // weighted by their true duration (cleared in the finally below — online is untouched).
   if (!state.settings.offlineEnabled || elapsedMs <= 0) return null;
   const capH = C.OFFLINE_CAP_H + 2 * (state.ascension.tree.iron_const || 0);
   const cappedMs = Math.min(elapsedMs, capH * 3600 * 1000);
@@ -2248,7 +2284,9 @@ export function applyOffline(state, elapsedMs) {
     overflowLost: state.stats.overflowLost };
   const total = cappedMs / 1000;
   const step = total / C.OFFLINE_STEPS;
-  for (let i = 0; i < C.OFFLINE_STEPS; i++) tick(state, step);
+  state._macroDt = step;
+  try { for (let i = 0; i < C.OFFLINE_STEPS; i++) tick(state, step); }
+  finally { state._macroDt = 0; }
   return {
     seconds: total,
     cash: state.resources.cash - before.cash,
