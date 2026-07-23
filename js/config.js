@@ -588,5 +588,5 @@ export const CONFIG = {
   MAX_STEPS_PER_FRAME: 20000,   // at 10 tps → 2000 sim-sec/frame → a 20h run in ~0.3s real
 
   SAVE_KEY: 'idlevaction.save.v1',
-  SAVE_VERSION: 1,
+  SAVE_VERSION: 2,
 };

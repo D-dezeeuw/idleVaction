@@ -8,12 +8,11 @@
   <link rel="icon" type="image/png" sizes="32x32" href="assets/img/icon-32.png" />
   <link rel="icon" type="image/png" sizes="16x16" href="assets/img/icon-16.png" />
   <link rel="apple-touch-icon" href="assets/img/icon-180.png" />
-  <!-- CDN dependencies: Spectre.css (lightweight, no JS) + the two holiday Google Fonts
-       (UX-plan §1.2: Fredoka for headings, Nunito for body). Both are plain <link>s — no build. -->
-  <link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre.min.css" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito:wght@400;700;800&display=swap" />
+  <!-- Fully self-contained (Phase F / audit 5.8): the unpinned Spectre CDN link and the two
+       Google Fonts are gone. vendor.css carries the tiny button subset the game used;
+       typography rides the system stack (game.css font-family fallbacks). Zero third-party
+       origins at play time — the site works offline after first load. -->
+  <link rel="stylesheet" href="css/vendor.css" />
   <link rel="stylesheet" href="css/game.css" />
 </head>
 <body>

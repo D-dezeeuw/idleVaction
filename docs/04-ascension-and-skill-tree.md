@@ -33,7 +33,7 @@ character changes that stick across every future vacation.
 - **Ascended runs are re-paced, not re-trivialized** (`docs/math-proof.md §12`): phase
   gates cost `×base^(√count·(tier/span)²)` (`config.ASCEND_GATE`) — early tiers barely
   scale (a fresh ascension feels powerful), the island carries the full factor. Fitted:
-  every ascension ≥ **8h**, on a stable ~9–12h greedy-bot band (runs 1–6: 8h37m, 9h13m,
+  every ascension ≥ **8h**, on the Phase-C flat plateau (measured runs 1–3: 10h56m → 10h13m → 9h34m — runs 2+ hold 0.85–1.10× run 1; the pre-refit arc for the record: 8h37m, 9h13m,
   10h08m, 10h37m, 11h18m, 11h30m).
 
 ## 1b. Retirement & the Lineage (the narrative frame for ascension)
