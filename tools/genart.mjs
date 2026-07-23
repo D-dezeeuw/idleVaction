@@ -62,18 +62,22 @@ const POSTCARDS = [
   'a thriving private island resort at golden hour with villas along the shore, a marina of white boats, a helipad, and tiny guests arriving',
 ];
 
-// Style anchor: the approved tier-0 postcard rides along as a reference image on every call,
-// so the whole set matches ONE realized style, not 22 fresh interpretations of the bible.
+// Style anchor: the approved tier-0 postcard rides along as a reference image on illustration
+// calls, so each set matches ONE realized style, not N fresh interpretations of the bible.
+// (Stamps chain off the FIRST generated stamp instead — a different asset class.)
+function dataUrl(file) {
+  const mime = file.endsWith('.webp') ? 'image/webp' : 'image/png';
+  return { type: 'image_url', image_url: { url: `data:${mime};base64,${readFileSync(file).toString('base64')}` } };
+}
 const REF_FILE = `${OUT}/tier-00.webp`;
-const REF = existsSync(REF_FILE)
-  ? { type: 'image_url', image_url: { url: `data:image/webp;base64,${readFileSync(REF_FILE).toString('base64')}` } }
-  : null;
+const refPart = () => existsSync(REF_FILE) ? dataUrl(REF_FILE) : null;
+const matchRef = (text) =>
+  `Match the illustration style of the reference image exactly — same palette, same thick soft ` +
+  `outlines, same flat shading, same level of detail. Draw a completely NEW scene (do not copy ` +
+  `the reference composition): ${text}`;
 
-async function generate(prompt, outfile) {
-  const text = `${STYLE}A vintage travel postcard scene, landscape composition: ${prompt}.`;
-  const content = REF
-    ? [REF, { type: 'text', text: `Match the illustration style of the reference image exactly — same palette, same thick soft outlines, same flat shading, same level of detail. Draw a completely NEW scene (do not copy the reference composition): ${text}` }]
-    : text;
+async function generate(text, outfile, ref) {
+  const content = ref ? [ref, { type: 'text', text: matchRef(text) }] : text;
   const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${KEY}`, 'Content-Type': 'application/json' },
@@ -93,24 +97,109 @@ async function generate(prompt, outfile) {
   return buf.length;
 }
 
-const mode = process.argv[2] || 'test';
-mkdirSync(OUT, { recursive: true });
-const targets = mode === 'test' ? [0] : POSTCARDS.map((_, i) => i);
-
-const done = [];
-for (const i of targets) {
-  const file = `${OUT}/tier-${String(i).padStart(2, '0')}.png`;
-  const webp = file.slice(0, -4) + '.webp';
-  if (existsSync(file) || existsSync(webp)) { console.log(`skip (exists): ${existsSync(webp) ? webp : file}`); done.push(i); continue; }
-  process.stdout.write(`tier ${i} … `);
-  try {
-    const bytes = await generate(POSTCARDS[i], file);
-    console.log(`ok (${(bytes / 1024).toFixed(0)} KB) → ${file}`);
-    done.push(i);
-  } catch (e) {
-    console.log(`FAILED: ${e.message}`);
-  }
-  await new Promise(r => setTimeout(r, 1200));   // gentle pacing between calls
+// ---- Passport set (Wave-2 pull-forward, UX-plan §3): the cover, the blank inside spread the
+// stamp overlay sits on, and one rubber stamp per destination (matches js/data/destinations.js;
+// premium = gold ink per the ledger). Stamps generate on pure white and are alpha-keyed +
+// trimmed into overlay-ready transparent WebPs by tools/artpost.py.
+const PP_DIR = 'assets/img/passport';
+const ST_DIR = 'assets/img/passport/stamps';
+const PASSPORT = [
+  { name: 'cover', prompt:
+    `${STYLE}A closed passport booklet seen straight on, one bold centered object: a sunshine ` +
+    `yellow leather passport cover with a debossed rounded-rectangle border line and a round ` +
+    `central emblem of a tiny tropical island with one palm tree and a big sun, small ` +
+    `decorative suns in the corners, lying on the warm sand background with a soft shadow.` },
+  { name: 'inside', prompt:
+    `${STYLE}An open passport booklet lying flat, seen straight from above, filling the frame: ` +
+    `two blank facing pages in soft warm cream, faint wavy security-pattern lines and very ` +
+    `subtle pale watermarks of tiny palm trees and suns on the pages, a stitched seam down the ` +
+    `center gutter, rounded page corners, a soft shadow on the warm sand background. The pages ` +
+    `are completely blank — no stamps, no marks, no writing.` },
+];
+const INKS = ['sky blue', 'hot pink', 'apple green'];   // rotated across regular stamps
+const STAMPS = [   // one per destination id; shapes varied like a real well-travelled passport
+  { id: 'dest_ardennes_daytrip', shape: 'round',       motif: 'three pine trees above a winding road' },
+  { id: 'dest_paris_hostel',     shape: 'oval',        motif: 'the Eiffel Tower with a tiny bunk bed at its base' },
+  { id: 'dest_berlin',           shape: 'rectangular', motif: 'the Brandenburg Gate' },
+  { id: 'dest_prague',           shape: 'hexagonal',   motif: 'a stone bridge with two pointed gothic towers' },
+  { id: 'dest_amsterdam_return', shape: 'round',       motif: 'a tall narrow canal house beside a bicycle' },
+  { id: 'dest_brussels',         shape: 'oval',        motif: 'a round waffle above two crossed fries' },
+  { id: 'dest_cologne',          shape: 'rectangular', motif: 'a cathedral with two tall twin spires' },
+  { id: 'dest_vienna',           shape: 'round',       motif: 'a giant ferris wheel' },
+  { id: 'sea_hidden_cove',       shape: 'shield',      motif: 'an anchor inside a crescent-shaped cove' },
+  { id: 'sea_greek_islands',     shape: 'oval',        motif: 'a domed island chapel above three wavy lines' },
+  { id: 'sea_fjord_cruise',      shape: 'rectangular', motif: 'a small cruise ship between two steep fjord cliffs' },
+  { id: 'air_tokyo',             shape: 'round',       motif: 'a torii gate in front of a snow-capped mountain' },
+  { id: 'air_new_york',          shape: 'hexagonal',   motif: 'a liberty torch and a seven-pointed crown' },
+  { id: 'air_sydney',            shape: 'oval',        motif: 'an opera house with sail-shaped shells' },
+  { id: 'dest_monaco',    premium: true, shape: 'shield',    motif: 'a royal crown above a yacht' },
+  { id: 'dest_dubai',     premium: true, shape: 'round',     motif: 'a sail-shaped skyscraper beside a crescent moon' },
+  { id: 'dest_maldives',  premium: true, shape: 'oval',      motif: 'an overwater bungalow on stilts above wavy water' },
+  { id: 'dest_aspen',     premium: true, shape: 'hexagonal', motif: 'a large snowflake above two mountain peaks' },
+  { id: 'dest_st_barths', premium: true, shape: 'round',     motif: 'a star above a harbour with a moored sailboat' },
+];
+function stampPrompt(s, i) {
+  const ink = s.premium ? 'warm metallic gold' : INKS[i % INKS.length];
+  return `A single passport rubber stamp impression, ${s.shape} border, printed entirely in ` +
+    `${ink} ink — one single ink color only, slightly distressed and unevenly inked like a ` +
+    `real rubber stamp: ${s.motif}. Bold simplified flat shapes, thick lines, playful holiday ` +
+    `energy, centered on a plain pure white background, nothing else in the image, no text, ` +
+    `no letters, no numbers.`;
 }
-console.log(`\nGenerated/present: [${done.join(', ')}]`);
-console.log(`Now add these tier numbers to POSTCARD_ART in js/ui.js so the game shows them.`);
+
+// items: [{ png, prompt, ref }] — ref is a thunk so stamp-chaining sees files made this run.
+async function produce(items) {
+  const done = [];
+  for (const it of items) {
+    const webp = it.png.slice(0, -4) + '.webp';
+    if (existsSync(it.png) || existsSync(webp)) { console.log(`skip (exists): ${existsSync(webp) ? webp : it.png}`); done.push(it.png); continue; }
+    process.stdout.write(`${it.png} … `);
+    try {
+      const bytes = await generate(it.prompt, it.png, it.ref?.());
+      console.log(`ok (${(bytes / 1024).toFixed(0)} KB)`);
+      done.push(it.png);
+    } catch (e) {
+      console.log(`FAILED: ${e.message}`);
+    }
+    await new Promise(r => setTimeout(r, 1200));   // gentle pacing between calls
+  }
+  return done;
+}
+
+const mode = process.argv[2] || 'test';
+let items;
+if (mode === 'test' || mode === 'postcards') {
+  mkdirSync(OUT, { recursive: true });
+  const targets = mode === 'test' ? [0] : POSTCARDS.map((_, i) => i);
+  items = targets.map(i => ({
+    png: `${OUT}/tier-${String(i).padStart(2, '0')}.png`,
+    prompt: `${STYLE}A vintage travel postcard scene, landscape composition: ${POSTCARDS[i]}.`,
+    ref: refPart,
+  }));
+} else if (mode === 'passport') {
+  mkdirSync(PP_DIR, { recursive: true });
+  items = PASSPORT.map(p => ({ png: `${PP_DIR}/${p.name}.png`, prompt: p.prompt, ref: refPart }));
+} else if (mode === 'stamps') {
+  mkdirSync(ST_DIR, { recursive: true });
+  // consistency chain: the first stamp on disk anchors the style of every later stamp
+  const stampRef = () => {
+    for (const s of STAMPS) {
+      for (const ext of ['webp', 'png']) {
+        const f = `${ST_DIR}/${s.id}.${ext}`;
+        if (existsSync(f)) return dataUrl(f);
+      }
+    }
+    return null;
+  };
+  items = STAMPS.map((s, i) => ({ png: `${ST_DIR}/${s.id}.png`, prompt: stampPrompt(s, i), ref: stampRef }));
+} else {
+  console.error(`unknown mode "${mode}" — use: test | postcards | passport | stamps`);
+  process.exit(1);
+}
+
+const done = await produce(items);
+console.log(`\nGenerated/present: ${done.length}/${items.length}`);
+if (mode === 'test' || mode === 'postcards')
+  console.log(`Now compress (tools/artpost.py) and add the tier numbers to POSTCARD_ART in js/ui.js.`);
+else
+  console.log(`Now run tools/artpost.py to crop/alpha-key/compress into the shipped WebPs.`);

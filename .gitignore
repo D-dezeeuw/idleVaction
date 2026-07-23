@@ -144,3 +144,5 @@ vite.config.ts.timestamp-*
 
 # genart raw output — only the compressed .webp postcards are committed
 assets/img/postcards/*.png
+assets/img/passport/*.png
+assets/img/passport/stamps/*.png
