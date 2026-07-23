@@ -16,7 +16,7 @@
 | U3 — reveal choreography | ✅ ~80% (engine-fired arrival modals remain) |
 | U4 — journey polish | 🟡 started (era skies only) |
 | U5 — QA sweep | 🟡 script exists in scratchpad, not committed |
-| Art pipeline (generated images) | 🟡 **test image done & wired** (tier 0, in-game); Wave 1 remaining 21 postcards not yet run |
+| Art pipeline (generated images) | 🟡 **test image done & wired** (tier 0, in-game); **favicon/app icon done & wired**; Wave 1 remaining 21 postcards not yet run |
 
 ## Done (with merge commits)
 
@@ -57,7 +57,10 @@
 
 ### U2 leftovers
 - [ ] Icon sprite: hand-authored original SVG sprite for chrome (gear/lock/close/diary) — was
-  deferred (network blocked fetching Phosphor); emoji currently serve. Optional.
+  deferred (network blocked fetching Phosphor); emoji currently serve. Optional. The 2026-07-23
+  icon size-check CONFIRMS generated art can't serve these 16–24px glyphs (mush) — if ever
+  done, it's hand-authored SVG. The favicon/app icon, however, is now generated & shipped
+  (see images section).
 - [ ] Staff/butler budget dials → sliders (concierge pattern exists to copy).
 
 ### U3 leftovers — engine-FIRED arrival modals (T1 inventory, UX-plan §4)
@@ -100,6 +103,19 @@ Wave 1 = the remaining 21 tier postcards, one `node tools/genart.mjs postcards` 
 - Run: `node tools/genart.mjs test` (tier-0 postcard) or `... postcards` (all 22) — the key
   now comes from the environment (see below). Then compress to WebP and add the tier numbers
   to `POSTCARD_ART` in `js/ui.js` (tier 0 already listed; hook src is `.webp` now).
+- **Icon size-check (2026-07-23) — favicon DONE, chrome-icon ban confirmed.** Generated a
+  palm-island-and-sun app icon (style bible + icon-mode prompt: "one bold centered motif,
+  minimal detail, readable when shrunk"). Findings: the model adds its own rounded-square
+  frame despite "no border, no frame" — the frame+margin eat ~23% of the canvas and turn
+  16px into mush. **Tight-cropping to the inner art** (autocrop on the sky-blue span; was
+  px 116–908 of 1024) fixes it: crisp at 64/48, clearly readable at 32, acceptable at 16.
+  Shipped: `assets/img/icon-512.webp` (25.6 KB master for future PWA sizes — regeneration is
+  non-deterministic, keep this), `icon-180.png` apple-touch (38 KB), `icon-32.png` (2.6 KB) +
+  `icon-16.png` (0.8 KB) favicons, wired in `index.html` (game previously had NO favicon).
+  Icons ship as PNG (safe favicon format, already tiny); postcards stay WebP. Verdict for
+  future icon-ish waves: stamps/stickers/polaroids render ≥48px in-game → viable; tiny chrome
+  glyphs stay hand-authored-or-emoji. Wave-1 "logo/favicon/og-image": favicon ✅, logo &
+  og-image (landscape banner, different composition) still to do.
 - Model: `google/gemini-2.5-flash-image` (override with `GENART_MODEL`).
 - Style bible lives in the script — flat holiday illustration, palette-locked (#FFC800/#FF2E88/
   #45C4FF/#7ED957 on sand), thick soft outlines, **no text in images**, tourist seen from behind.
