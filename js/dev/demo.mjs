@@ -8,6 +8,7 @@
 //   npm run demo -- --every 300           snapshot every 5 game-min
 //   npm run demo -- --stall 6             abort a run after 6h with zero progression
 //                                         (pre-island only; 0 disables; default 10)
+//   npm run demo -- --seed 7              override the seeded-RNG streams (market/events)
 //   npm run demo -- --json out.json       dump the full time-series for analysis
 //   npm run demo -- --quick               2h smoke run
 //   npm run demo -- --list                print scenario ids
@@ -28,9 +29,19 @@ const CHECKPOINT_HOURS = [1, 2, 5, 10, 20, 40];
 // ---- one scenario, one full run ----
 // Loop shape (tick → act → commit) mirrors harness.runCurve exactly so the baseline
 // scenario stays bit-identical to `npm run harness` (locked by selftest [106]).
-export function runScenario(sc, { dt = 5, maxHours = 40, snapshotSec = 600, cadenceSec = null, stallHours = 10 } = {}) {
+export function runScenario(sc, { dt = 5, maxHours = 40, snapshotSec = 600, cadenceSec = null, stallHours = 10, seed = null } = {}) {
   const cadence = cadenceSec !== null ? cadenceSec : (sc.cadenceSec || 0);
   C.MILESTONE_STEP = 10;   // config singleton — prestige mutates it; keep runs independent
+  // --seed: override the seeded-RNG streams (crypto market + Trip Events) for multi-seed
+  // sweeps. Config is a module singleton and newGame() copies the seeds into state, so we
+  // set before newGame and restore after the run (same discipline as MILESTONE_STEP above).
+  // seed:null (the default) leaves config untouched — the baseline stays bit-identical to
+  // `npm run harness` (selftest [106]).
+  const savedSeeds = { market: C.MARKET.seed, events: C.EVENTS ? C.EVENTS.seed : null };
+  if (seed !== null) {
+    C.MARKET.seed = seed >>> 0;
+    if (C.EVENTS) C.EVENTS.seed = (seed + 101) >>> 0;   // distinct stream, deterministic pairing
+  }
   const wall0 = Date.now();
   const s = ST.newGame();
   const series = [], events = [];
@@ -92,10 +103,12 @@ export function runScenario(sc, { dt = 5, maxHours = 40, snapshotSec = 600, cade
     }
   }
   C.MILESTONE_STEP = 10;
+  C.MARKET.seed = savedSeeds.market;
+  if (C.EVENTS && savedSeeds.events !== null) C.EVENTS.seed = savedSeeds.events;
   const island = events.find(e => e.type === 'tier' && e.tier >= 20);
   return {
     id: sc.id, name: sc.name,
-    params: { dt, maxHours, snapshotSec, cadenceSec: cadence, stallHours },
+    params: { dt, maxHours, snapshotSec, cadenceSec: cadence, stallHours, seed },
     series, events, final: series[series.length - 1],
     islandAt: island ? island.t : null,
     stalled,
@@ -126,13 +139,20 @@ function snapshot(s, t, incomePerSec) {
   for (const d of DATA.destinations) if (s.destinations[d.id].owned) stamps++;
   let gens = 0;
   for (let k = 0; k < DATA.generators.length; k++) gens += s.generators[k].bought;
-  return {
+  const row = {
     t, cash: c, log10Cash: c > 1 ? Math.log10(c) : 0, incomePerSec,
     comfort: s.resources.comfort, clout: s.resources.clout, legacy: s.resources.legacy,
     ascensions: s.ascension.count, legendCount: s.legend.count, legendPoints: s.legend.points,
     accTier: s.accommodation.tier, stamps, beats: s.story.seen.length,
     gensBought: gens, lifetimeCash: s.stats.lifetimeCash,
+    // dashboard extras (tools/dashboard): still flat scalars, dynamically keyed off the
+    // data rosters so new skills/paths flow through without touching this file again.
+    bankTier: s.bank.tier, energy: s.resources.energy || 0,
+    goatsGreeted: s.stats.goatsGreeted || 0,
   };
+  for (const sk of DATA.skills) row['sk_' + sk.id] = s.skills[sk.id]?.level || 0;
+  for (const p of DATA.paths) row['pp_' + p.id] = s.paths[p.id]?.points || 0;
+  return row;
 }
 
 // cheap scalar diffing per step — full log lands in --json; the reporter prints the big
@@ -235,7 +255,7 @@ function printComparison(results) {
 
 // ---- CLI ----
 function parseArgs(argv) {
-  const opts = { hours: 40, dt: 5, every: 600, cadence: null, stall: 10, json: null, list: false, quick: false, ids: [] };
+  const opts = { hours: 40, dt: 5, every: 600, cadence: null, stall: 10, seed: null, json: null, list: false, quick: false, ids: [] };
   const num = (flag, v, min = Number.MIN_VALUE) => {
     const n = Number(v);
     if (!Number.isFinite(n) || n < min) { console.error(`${flag} needs a number >= ${min}, got "${v}"`); process.exit(1); }
@@ -250,6 +270,7 @@ function parseArgs(argv) {
     else if (a === '--every') opts.every = num(a, argv[++i]);
     else if (a === '--cadence') opts.cadence = num(a, argv[++i]);
     else if (a === '--stall') opts.stall = num(a, argv[++i], 0);
+    else if (a === '--seed') opts.seed = num(a, argv[++i], 0);
     else if (a === '--json') opts.json = argv[++i];
     else if (a.startsWith('--')) { console.error(`unknown flag: ${a} (see the header of js/dev/demo.mjs)`); process.exit(1); }
     else opts.ids.push(a);
@@ -273,7 +294,7 @@ function main() {
   console.log(`\n=== idleVaction demo playthroughs — ${opts.hours}h game time, dt ${opts.dt}s, snapshot every ${fmtTime(opts.every)}${cad} ===`);
   const results = [];
   for (const sc of chosen) {
-    const r = runScenario(sc, { dt: opts.dt, maxHours: opts.hours, snapshotSec: opts.every, cadenceSec: opts.cadence, stallHours: opts.stall });
+    const r = runScenario(sc, { dt: opts.dt, maxHours: opts.hours, snapshotSec: opts.every, cadenceSec: opts.cadence, stallHours: opts.stall, seed: opts.seed });
     results.push(r);
     printScenario(r);
   }

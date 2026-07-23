@@ -1,0 +1,768 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>idleVaction — simulation dashboard</title>
+<style>
+/* ---------- theme tokens (dataviz reference palette; light + dark both selected) ---------- */
+.viz-root {
+  color-scheme: light;
+  --page:        #f9f9f7;
+  --surface-1:   #fcfcfb;
+  --text-primary:#0b0b0b;
+  --text-secondary:#52514e;
+  --muted:       #898781;
+  --grid:        #e1e0d9;
+  --baseline:    #c3c2b7;
+  --border:      rgba(11,11,11,0.10);
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100;
+  --s5:#e87ba4; --s6:#008300; --s7:#4a3aa7; --s8:#e34948;
+  --div-neg:#2a78d6; --div-pos:#e34948; --div-mid:#f0efec;
+  --status-good:#0ca30c; --status-critical:#d03b3b;
+  --good-text:#006300;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .viz-root {
+    color-scheme: dark;
+    --page:        #0d0d0d;
+    --surface-1:   #1a1a19;
+    --text-primary:#ffffff;
+    --text-secondary:#c3c2b7;
+    --muted:       #898781;
+    --grid:        #2c2c2a;
+    --baseline:    #383835;
+    --border:      rgba(255,255,255,0.10);
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
+    --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767;
+    --div-neg:#3987e5; --div-pos:#e66767; --div-mid:#383835;
+    --status-good:#0ca30c; --status-critical:#d03b3b;
+    --good-text:#0ca30c;
+  }
+}
+:root[data-theme="dark"] .viz-root {
+  color-scheme: dark;
+  --page:        #0d0d0d;
+  --surface-1:   #1a1a19;
+  --text-primary:#ffffff;
+  --text-secondary:#c3c2b7;
+  --muted:       #898781;
+  --grid:        #2c2c2a;
+  --baseline:    #383835;
+  --border:      rgba(255,255,255,0.10);
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
+  --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767;
+  --div-neg:#3987e5; --div-pos:#e66767; --div-mid:#383835;
+  --status-good:#0ca30c; --status-critical:#d03b3b;
+  --good-text:#0ca30c;
+}
+
+/* ---------- layout & chrome ---------- */
+* { box-sizing: border-box; }
+body { margin: 0; }
+.viz-root {
+  background: var(--page); color: var(--text-primary);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  min-height: 100vh; padding: 20px clamp(12px, 3vw, 36px) 60px;
+}
+h1 { font-size: 20px; font-weight: 650; margin: 0; }
+h2 { font-size: 15px; font-weight: 600; margin: 0 0 2px; }
+.sub { color: var(--text-secondary); font-size: 12.5px; }
+.topbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: baseline; justify-content: space-between; margin-bottom: 14px; }
+.card {
+  background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: 10px; padding: 14px 16px 10px; margin-top: 14px;
+}
+.grid2 { display: grid; grid-template-columns: 1fr; gap: 0 14px; }
+@media (min-width: 1150px) { .grid2 { grid-template-columns: 1fr 1fr; } .grid2 > .card { margin-top: 14px; } }
+.tiles { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 14px; }
+.tile {
+  background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px;
+  padding: 10px 14px 12px; min-width: 190px; flex: 0 1 auto;
+}
+.tile .lbl { color: var(--text-secondary); font-size: 12px; display: flex; align-items: center; gap: 6px; }
+.tile .val { font-size: 26px; font-weight: 650; margin: 2px 0 1px; }   /* proportional figures: no tabular-nums on big values */
+.tile .sub2 { color: var(--muted); font-size: 11.5px; }
+.dotkey { display: inline-block; width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.chip {
+  display: inline-flex; align-items: center; gap: 5px; border-radius: 999px;
+  font-size: 11px; padding: 2px 9px; border: 1px solid var(--border); margin-top: 6px;
+}
+.chip.good { color: var(--good-text); border-color: var(--status-good); }
+.chip.bad  { color: var(--status-critical); border-color: var(--status-critical); }
+
+/* filter row — one row, above everything it scopes */
+.filters { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; margin-top: 10px; }
+.filters .flabel { color: var(--muted); font-size: 12px; margin-right: -8px; }
+.fchip {
+  display: inline-flex; align-items: center; gap: 7px; cursor: pointer; user-select: none;
+  border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary);
+  border-radius: 999px; padding: 4px 12px; font-size: 12.5px;
+}
+.fchip[aria-pressed="true"] { border-color: var(--text-secondary); box-shadow: inset 0 0 0 1px var(--text-secondary); }
+.fchip .key { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+.fchip:focus-visible, .themebtn:focus-visible, svg:focus-visible { outline: 2px solid var(--s1); outline-offset: 2px; }
+.themebtn, .filebtn {
+  border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary);
+  border-radius: 999px; padding: 4px 12px; font-size: 12.5px; cursor: pointer;
+}
+.drop { border: 1px dashed var(--baseline); border-radius: 10px; padding: 26px; text-align: center; color: var(--text-secondary); margin-top: 16px; }
+.drop.over { border-color: var(--s1); color: var(--text-primary); }
+
+/* charts */
+.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 6px 0 2px; font-size: 12px; color: var(--text-secondary); }
+.legend .item { display: inline-flex; gap: 6px; align-items: center; }
+.legend .key { width: 16px; height: 2.5px; border-radius: 2px; display: inline-block; }
+.legend .key.rect { height: 10px; width: 12px; border-radius: 2px; }
+.chartwrap { position: relative; }
+svg.chart { display: block; width: 100%; height: auto; }
+.tooltip {
+  position: absolute; pointer-events: none; z-index: 5; display: none;
+  background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px;
+  padding: 7px 10px; font-size: 12px; min-width: 130px; box-shadow: 0 4px 14px rgba(0,0,0,.13);
+}
+.tooltip .tt-t { color: var(--muted); font-size: 11px; margin-bottom: 3px; }
+.tooltip .row { display: flex; align-items: center; gap: 7px; margin-top: 2px; }
+.tooltip .row .key { width: 12px; height: 2.5px; border-radius: 2px; flex: none; }
+.tooltip .row .v { font-weight: 650; margin-left: auto; padding-left: 12px; }
+.tooltip .row .n { color: var(--text-secondary); }
+details.tblview { margin: 6px 0 4px; }
+details.tblview summary { color: var(--muted); font-size: 12px; cursor: pointer; }
+table.data { border-collapse: collapse; font-size: 12px; margin-top: 6px; width: 100%; }
+table.data th, table.data td { border-bottom: 1px solid var(--grid); text-align: right; padding: 3px 8px; font-variant-numeric: tabular-nums; }
+table.data th { color: var(--text-secondary); font-weight: 600; }
+table.data th:first-child, table.data td:first-child { text-align: left; }
+.note { color: var(--muted); font-size: 12px; margin-top: 8px; }
+.loading { opacity: .45; transition: opacity .15s; }   /* refetch keeps the frame */
+
+/* svg text */
+.axis-t { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.ref-t  { fill: var(--muted); font-size: 11px; }
+.dlabel { fill: var(--text-secondary); font-size: 11px; }
+</style>
+</head>
+<body>
+<div class="viz-root" id="app">
+  <div class="topbar">
+    <div>
+      <h1>idleVaction — simulation dashboard</h1>
+      <div class="sub" id="metaline">loading report…</div>
+    </div>
+    <div style="display:flex; gap:8px; align-items:center;">
+      <button class="filebtn" id="pickfile" type="button">Load report JSON…</button>
+      <input type="file" id="filein" accept="application/json" style="display:none">
+      <button class="themebtn" id="themebtn" type="button" aria-label="Toggle color theme">Theme: auto</button>
+    </div>
+  </div>
+
+  <div class="filters" id="filters" hidden>
+    <span class="flabel">Time range</span>
+    <span id="rangechips"></span>
+    <span class="flabel">Runs</span>
+    <span id="runchips"></span>
+  </div>
+
+  <div id="content"></div>
+
+  <div class="drop" id="drop">
+    Drop a report JSON here (from <code>npm run report</code> or <code>npm run demo -- --json out.json</code>)
+    — or serve the repo (<code>npm run serve</code>) so <code>data/report.json</code> loads automatically.
+  </div>
+</div>
+
+<script>
+'use strict';
+/* idleVaction simulation dashboard — dependency-free, single file.
+   Renders the report JSON produced by js/dev/report.mjs: progression charts, paths taken,
+   deviations vs the golden baseline/band, skills ("physique"), money growth.
+   Built to the dataviz method: validated reference palette, one axis per chart, thin marks,
+   crosshair+tooltip on lines / per-mark tooltips on bars, legends for ≥2 series, table views,
+   light+dark. Labels from data are inserted with textContent only. */
+
+const $ = (sel, el) => (el || document).querySelector(sel);
+const el = (tag, cls, txt) => { const n = document.createElement(tag); if (cls) n.className = cls; if (txt !== undefined) n.textContent = txt; return n; };
+const svgel = (tag, attrs) => { const n = document.createElementNS('http://www.w3.org/2000/svg', tag); for (const k in attrs || {}) n.setAttribute(k, attrs[k]); return n; };
+const SLOTS = ['--s1','--s2','--s3','--s4','--s5','--s6','--s7','--s8'];
+const slot = i => `var(${SLOTS[i % SLOTS.length]})`;
+
+const fmtTime = s => { s = Math.round(s); const h = Math.floor(s/3600), m = Math.floor((s%3600)/60); return h > 0 ? `${h}h${String(m).padStart(2,'0')}m` : `${m}m${String(s%60).padStart(2,'0')}s`; };
+const fmtNum = x => { if (!Number.isFinite(x)) return '—'; const a = Math.abs(x); if (a >= 1e6) return x.toExponential(2).replace('e+','e'); if (a >= 1000) return Math.round(x).toLocaleString('en-US'); if (a >= 10) return x.toFixed(1); return x.toFixed(2); };
+const fmtDelta = s => Math.abs(s) < 1 ? '±0s' : (s < 0 ? '−' : '+') + fmtTime(Math.abs(s));
+
+const STATE = { report: null, sel: new Set(), range: 'full', theme: 'auto' };
+
+/* ---------- data access ---------- */
+function runColor(i) { return slot(i); }                    // color follows the run's report position, never the filter
+function selectedRuns() { return STATE.report.runs.filter((r, i) => STATE.sel.has(r.key)); }
+function runIndex(r) { return STATE.report.runs.indexOf(r); }
+function rangeMax() {
+  const runs = selectedRuns();
+  const tmax = Math.max(1, ...runs.map(r => r.series.length ? r.series[r.series.length-1].t : 0));
+  if (STATE.range === 'full') return tmax;
+  if (STATE.range === 'island') {
+    const is = runs.map(r => r.islandAt).filter(x => x !== null);
+    return is.length ? Math.min(tmax, Math.max(...is) * 1.08) : tmax;
+  }
+  return Math.min(tmax, Number(STATE.range) * 3600);
+}
+function seriesIn(r, tmax) { return r.series.filter(p => p.t <= tmax); }
+function shortName(r) { return r.seed === null ? r.id : `${r.id} #${r.seed}`; }
+
+/* ---------- generic line/step chart with crosshair + tooltip + table view ---------- */
+/* cfg: { title, sub, series: [{name, color, pts:[{t,v}], step}], yLabel, yFmt, refH:[{y,label}],
+          refV:[{t,label}], band:{t0,t1,label}, height } */
+function lineChart(cfg) {
+  const card = el('section', 'card');
+  card.appendChild(el('h2', null, cfg.title));
+  if (cfg.sub) card.appendChild(el('div', 'sub', cfg.sub));
+  const W = 860, plotH = cfg.height || 230, axH = 26, H = plotH + axH;
+  const padL = 46, padR = 96, padT = 12;
+  const wrap = el('div', 'chartwrap');
+  const svg = svgel('svg', { class: 'chart', viewBox: `0 0 ${W} ${H}`, tabindex: '0', role: 'img' });
+  svg.setAttribute('aria-label', cfg.title);
+  wrap.appendChild(svg);
+
+  const tmax = Math.max(1, ...cfg.series.map(s => s.pts.length ? s.pts[s.pts.length-1].t : 0));
+  let vmax = Math.max(1e-9, ...cfg.series.map(s => Math.max(0, ...s.pts.map(p => p.v))));
+  for (const r of cfg.refH || []) vmax = Math.max(vmax, r.y);
+  vmax *= 1.06;
+  const X = t => padL + (t / tmax) * (W - padL - padR);
+  const Y = v => padT + (1 - v / vmax) * (plotH - padT - 8);
+
+  // grid: recessive solid hairlines, clean y ticks
+  const yticks = 4;
+  for (let i = 0; i <= yticks; i++) {
+    const v = vmax * i / yticks, y = Y(v);
+    svg.appendChild(svgel('line', { x1: padL, x2: W - padR, y1: y, y2: y, stroke: 'var(--grid)', 'stroke-width': 1 }));
+    const t = svgel('text', { x: padL - 6, y: y + 3.5, 'text-anchor': 'end', class: 'axis-t' });
+    t.textContent = cfg.yFmt ? cfg.yFmt(v) : fmtNum(v);
+    svg.appendChild(t);
+  }
+  // x ticks: clean hour marks
+  const hourStep = tmax > 20*3600 ? 10 : tmax > 8*3600 ? 4 : tmax > 2.5*3600 ? 1 : 0.5;
+  for (let h = 0; h * 3600 <= tmax + 1; h += hourStep) {
+    const x = X(h * 3600);
+    const t = svgel('text', { x, y: plotH + 16, 'text-anchor': 'middle', class: 'axis-t' });
+    t.textContent = h + 'h';
+    svg.appendChild(t);
+  }
+  svg.appendChild(svgel('line', { x1: padL, x2: W - padR, y1: Y(0), y2: Y(0), stroke: 'var(--baseline)', 'stroke-width': 1 }));
+
+  // reference band (neutral wash) + reference lines (muted, labeled)
+  if (cfg.band && cfg.band.t1 > 0 && cfg.band.t0 < tmax) {
+    const x0 = X(Math.max(0, cfg.band.t0)), x1 = X(Math.min(tmax, cfg.band.t1));
+    svg.appendChild(svgel('rect', { x: x0, y: padT, width: Math.max(0, x1 - x0), height: plotH - padT - 8, fill: 'var(--grid)', opacity: 0.45 }));
+    // band label one row below the refV labels so the two reference layers never collide
+    const t = svgel('text', { x: x0 + 4, y: padT + 24, class: 'ref-t' }); t.textContent = cfg.band.label; svg.appendChild(t);
+  }
+  for (const r of cfg.refV || []) {
+    if (r.t > tmax) continue;
+    const x = X(r.t);
+    svg.appendChild(svgel('line', { x1: x, x2: x, y1: padT, y2: plotH - 8, stroke: 'var(--baseline)', 'stroke-width': 1 }));
+    const t = svgel('text', { x: x + 4, y: padT + 11, class: 'ref-t' }); t.textContent = r.label; svg.appendChild(t);
+  }
+  for (const r of cfg.refH || []) {
+    const y = Y(r.y);
+    svg.appendChild(svgel('line', { x1: padL, x2: W - padR, y1: y, y2: y, stroke: 'var(--baseline)', 'stroke-width': 1 }));
+    const t = svgel('text', { x: W - padR - 4, y: y - 4, 'text-anchor': 'end', class: 'ref-t' }); t.textContent = r.label; svg.appendChild(t);
+  }
+
+  // series: 2px lines, round join/cap; selective direct label at line end (skip on collision)
+  const usedLabelY = [];
+  cfg.series.forEach(s => {
+    if (!s.pts.length) return;
+    let d = '';
+    s.pts.forEach((p, i) => {
+      const x = X(p.t), y = Y(p.v);
+      if (i === 0) d += `M${x.toFixed(1)},${y.toFixed(1)}`;
+      else if (s.step) d += `H${x.toFixed(1)}V${y.toFixed(1)}`;
+      else d += `L${x.toFixed(1)},${y.toFixed(1)}`;
+    });
+    svg.appendChild(svgel('path', { d, fill: 'none', stroke: s.color, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+    const last = s.pts[s.pts.length - 1];
+    // end marker ≥8px with 2px surface ring
+    svg.appendChild(svgel('circle', { cx: X(last.t), cy: Y(last.v), r: 4, fill: s.color, stroke: 'var(--surface-1)', 'stroke-width': 2 }));
+    let ly = Y(last.v) + 3.5;
+    if (!usedLabelY.some(u => Math.abs(u - ly) < 12)) {         // direct-label selectively; collisions fall back to legend
+      usedLabelY.push(ly);
+      const t = svgel('text', { x: X(last.t) + 8, y: ly, class: 'dlabel' });
+      t.textContent = s.name.length > 15 ? s.name.slice(0, 14) + '…' : s.name;   // supplemental — the legend carries the full name
+      svg.appendChild(t);
+    }
+  });
+
+  // legend (always when ≥2 series)
+  if (cfg.series.length >= 2) {
+    const lg = el('div', 'legend');
+    cfg.series.forEach(s => {
+      const it = el('span', 'item');
+      const k = el('span', 'key'); k.style.background = s.color;
+      it.appendChild(k); it.appendChild(el('span', null, s.name));
+      lg.appendChild(it);
+    });
+    card.appendChild(lg);
+  }
+  card.appendChild(wrap);
+
+  // crosshair + one tooltip listing every series at the snapped X (pointer + keyboard)
+  const cross = svgel('line', { x1: -10, x2: -10, y1: padT, y2: plotH - 8, stroke: 'var(--baseline)', 'stroke-width': 1, opacity: 0 });
+  svg.appendChild(cross);
+  const tip = el('div', 'tooltip'); wrap.appendChild(tip);
+  const tGrid = [...new Set(cfg.series.flatMap(s => s.pts.map(p => p.t)))].sort((a, b) => a - b);
+  let ci = -1;
+  function showAt(i, clientX) {
+    if (!tGrid.length) return;
+    ci = Math.max(0, Math.min(tGrid.length - 1, i));
+    const tv = tGrid[ci], x = X(tv);
+    cross.setAttribute('x1', x); cross.setAttribute('x2', x); cross.setAttribute('opacity', 1);
+    tip.style.display = 'block';
+    while (tip.firstChild) tip.removeChild(tip.firstChild);
+    tip.appendChild(el('div', 'tt-t', fmtTime(tv)));
+    cfg.series.forEach(s => {
+      let best = null;
+      for (const p of s.pts) { if (p.t <= tv) best = p; else break; }
+      if (!best) return;
+      const row = el('div', 'row');
+      const k = el('span', 'key'); k.style.background = s.color;
+      row.appendChild(k);
+      row.appendChild(el('span', 'n', s.name));
+      row.appendChild(el('span', 'v', (cfg.yFmt ? cfg.yFmt(best.v) : fmtNum(best.v))));
+      tip.appendChild(row);
+    });
+    const bb = wrap.getBoundingClientRect();
+    const px = (x / W) * bb.width;
+    tip.style.left = Math.min(bb.width - tip.offsetWidth - 6, Math.max(0, px + 12)) + 'px';
+    tip.style.top = '8px';
+  }
+  function hide() { cross.setAttribute('opacity', 0); tip.style.display = 'none'; ci = -1; }
+  svg.addEventListener('pointermove', ev => {
+    const bb = svg.getBoundingClientRect();
+    const xv = (ev.clientX - bb.left) / bb.width * W;
+    const tv = (xv - padL) / (W - padL - padR) * tmax;
+    let lo = 0, hi = tGrid.length - 1;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (tGrid[mid] < tv) lo = mid + 1; else hi = mid; }
+    if (lo > 0 && Math.abs(tGrid[lo-1] - tv) < Math.abs(tGrid[lo] - tv)) lo--;
+    showAt(lo);
+  });
+  svg.addEventListener('pointerleave', hide);
+  svg.addEventListener('keydown', ev => {           // keyboard parity with hover
+    if (ev.key === 'ArrowRight') { showAt(ci < 0 ? 0 : ci + 1); ev.preventDefault(); }
+    else if (ev.key === 'ArrowLeft') { showAt(ci < 0 ? tGrid.length - 1 : ci - 1); ev.preventDefault(); }
+    else if (ev.key === 'Escape') hide();
+  });
+  svg.addEventListener('blur', hide);
+
+  // table view — the WCAG-clean twin (downsampled to ≤ 40 rows)
+  const det = el('details', 'tblview');
+  det.appendChild(el('summary', null, 'View data as table'));
+  const tbl = el('table', 'data');
+  const hr = el('tr'); hr.appendChild(el('th', null, 'time'));
+  cfg.series.forEach(s => hr.appendChild(el('th', null, s.name)));
+  tbl.appendChild(hr);
+  const stepN = Math.max(1, Math.ceil(tGrid.length / 40));
+  for (let i = 0; i < tGrid.length; i += stepN) {
+    const tv = tGrid[i], tr = el('tr');
+    tr.appendChild(el('td', null, fmtTime(tv)));
+    cfg.series.forEach(s => {
+      let best = null;
+      for (const p of s.pts) { if (p.t <= tv) best = p; else break; }
+      tr.appendChild(el('td', null, best ? (cfg.yFmt ? cfg.yFmt(best.v) : fmtNum(best.v)) : '—'));
+    });
+    tbl.appendChild(tr);
+  }
+  det.appendChild(tbl);
+  card.appendChild(det);
+  return card;
+}
+
+/* ---------- diverging deviation bars (per run vs the golden baseline) ---------- */
+function deviationCard(runs, baseline, tmax) {
+  const card = el('section', 'card');
+  card.appendChild(el('h2', null, 'Deviation from the golden baseline — tier arrivals'));
+  card.appendChild(el('div', 'sub', `Δ time to reach each accommodation tier vs “${baseline.name}”. Left of the midline = ahead of golden, right = behind.`));
+  const others = runs.filter(r => r !== baseline);
+  if (!others.length) { card.appendChild(el('div', 'note', 'Select at least one run besides the baseline to compare.')); return card; }
+
+  others.forEach(run => {
+    const tiers = Object.keys(run.tierTimes).map(Number).filter(t => t in baseline.tierTimes && run.tierTimes[t] <= tmax).sort((a, b) => a - b);
+    const sub = el('div');
+    const head = el('div', 'legend');
+    const it = el('span', 'item');
+    const k = el('span', 'key'); k.style.background = runColor(runIndex(run));
+    it.appendChild(k); it.appendChild(el('span', null, shortName(run)));
+    head.appendChild(it); sub.appendChild(head);
+    if (!tiers.length) { sub.appendChild(el('div', 'note', 'No shared tier arrivals in range.')); card.appendChild(sub); return; }
+
+    const deltas = tiers.map(t => run.tierTimes[t] - baseline.tierTimes[t]);
+    const dmax = Math.max(60, ...deltas.map(Math.abs)) * 1.1;
+    const W = 860, rowH = 20, padL = 64, padR = 70, padT = 6, axH = 24;
+    const H = padT + tiers.length * rowH + axH;
+    const mid = padL + (W - padL - padR) / 2;
+    const XX = d => mid + (d / dmax) * ((W - padL - padR) / 2);
+    const wrap = el('div', 'chartwrap');
+    const svg = svgel('svg', { class: 'chart', viewBox: `0 0 ${W} ${H}`, role: 'img' });
+    svg.setAttribute('aria-label', `Tier arrival deviation for ${shortName(run)}`);
+    // midline = neutral
+    svg.appendChild(svgel('line', { x1: mid, x2: mid, y1: padT, y2: H - axH, stroke: 'var(--baseline)', 'stroke-width': 1 }));
+    // clean symmetric ticks
+    [-1, -0.5, 0.5, 1].forEach(f => {
+      const x = XX(f * dmax / 1.1);
+      const t = svgel('text', { x, y: H - 8, 'text-anchor': 'middle', class: 'axis-t' });
+      t.textContent = fmtDelta(f * dmax / 1.1); svg.appendChild(t);
+    });
+    const tip = el('div', 'tooltip'); wrap.appendChild(tip);
+    tiers.forEach((tier, i) => {
+      const d = deltas[i];
+      const y = padT + i * rowH + 2;
+      const barH = Math.min(16, rowH - 4);              // ≤24px thick, air in the band
+      const x0 = Math.min(mid, XX(d)), x1 = Math.max(mid, XX(d));
+      const wpx = Math.max(1.5, x1 - x0);
+      const rr = 4;                                     // 4px rounded data-end, square at the midline baseline
+      const behind = d > 0;
+      const path = behind
+        ? `M${mid},${y} H${x1 - rr} Q${x1},${y} ${x1},${y + rr} V${y + barH - rr} Q${x1},${y + barH} ${x1 - rr},${y + barH} H${mid} Z`
+        : `M${mid},${y} H${x0 + rr} Q${x0},${y} ${x0},${y + rr} V${y + barH - rr} Q${x0},${y + barH} ${x0 + rr},${y + barH} H${mid} Z`;
+      svg.appendChild(svgel('path', { d: path, fill: behind ? 'var(--div-pos)' : 'var(--div-neg)' }));
+      const lt = svgel('text', { x: padL - 8, y: y + barH - 3, 'text-anchor': 'end', class: 'axis-t' });
+      lt.textContent = 'T' + tier; svg.appendChild(lt);
+      // hit target: full row (≥24px effective), tooltip on hover/focus
+      const hit = svgel('rect', { x: padL, y: y - 2, width: W - padL - padR, height: rowH, fill: 'transparent', tabindex: '0' });
+      hit.setAttribute('aria-label', `Tier ${tier}: ${fmtDelta(d)} vs golden`);
+      const show = () => {
+        tip.style.display = 'block';
+        while (tip.firstChild) tip.removeChild(tip.firstChild);
+        tip.appendChild(el('div', 'tt-t', `Tier ${tier}`));
+        const r1 = el('div', 'row'); r1.appendChild(el('span', 'n', 'this run')); r1.appendChild(el('span', 'v', fmtTime(run.tierTimes[tier]))); tip.appendChild(r1);
+        const r2 = el('div', 'row'); r2.appendChild(el('span', 'n', 'golden')); r2.appendChild(el('span', 'v', fmtTime(baseline.tierTimes[tier]))); tip.appendChild(r2);
+        const r3 = el('div', 'row'); r3.appendChild(el('span', 'n', 'Δ')); r3.appendChild(el('span', 'v', fmtDelta(d))); tip.appendChild(r3);
+        const bb = wrap.getBoundingClientRect();
+        tip.style.left = Math.min(bb.width - tip.offsetWidth - 6, (XX(d) / W) * bb.width + 10) + 'px';
+        tip.style.top = ((y / H) * bb.height - 8) + 'px';
+      };
+      hit.addEventListener('pointerenter', show);
+      hit.addEventListener('focus', show);
+      hit.addEventListener('pointerleave', () => tip.style.display = 'none');
+      hit.addEventListener('blur', () => tip.style.display = 'none');
+      svg.appendChild(hit);
+    });
+    wrap.appendChild(svg);
+    sub.appendChild(wrap);
+    card.appendChild(sub);
+  });
+
+  // table twin
+  const det = el('details', 'tblview');
+  det.appendChild(el('summary', null, 'View data as table'));
+  const tbl = el('table', 'data');
+  const hr = el('tr'); hr.appendChild(el('th', null, 'tier'));
+  hr.appendChild(el('th', null, 'golden'));
+  others.forEach(r => hr.appendChild(el('th', null, shortName(r) + ' Δ')));
+  tbl.appendChild(hr);
+  const allTiers = Object.keys(baseline.tierTimes).map(Number).sort((a, b) => a - b);
+  allTiers.forEach(t => {
+    const tr = el('tr');
+    tr.appendChild(el('td', null, 'T' + t));
+    tr.appendChild(el('td', null, fmtTime(baseline.tierTimes[t])));
+    others.forEach(r => tr.appendChild(el('td', null, t in r.tierTimes ? fmtDelta(r.tierTimes[t] - baseline.tierTimes[t]) : '—')));
+    tbl.appendChild(tr);
+  });
+  det.appendChild(tbl);
+  card.appendChild(det);
+  return card;
+}
+
+/* ---------- trip timeline (events strip per run) ---------- */
+function timelineCard(runs, tmax) {
+  const card = el('section', 'card');
+  card.appendChild(el('h2', null, 'Trip timeline — beats, tiers, prestige'));
+  card.appendChild(el('div', 'sub', 'Every marker is an arrival: ● tier up · ○ story beat · ◆ ascension · ★ Legend · ⚑ island bought.'));
+  const W = 860, rowH = 30, padL = 8, padR = 20, axH = 24, labelH = 14;
+  const H = runs.length * rowH + axH + labelH;
+  const X = t => padL + (t / tmax) * (W - padL - padR);
+  const wrap = el('div', 'chartwrap');
+  const svg = svgel('svg', { class: 'chart', viewBox: `0 0 ${W} ${H}`, role: 'img' });
+  svg.setAttribute('aria-label', 'Trip timeline');
+  const tip = el('div', 'tooltip'); wrap.appendChild(tip);
+  const hourStep = tmax > 20*3600 ? 10 : tmax > 8*3600 ? 4 : 1;
+  for (let h = 0; h * 3600 <= tmax; h += hourStep) {
+    const x = X(h * 3600);
+    svg.appendChild(svgel('line', { x1: x, x2: x, y1: labelH, y2: H - axH, stroke: 'var(--grid)', 'stroke-width': 1 }));
+    const t = svgel('text', { x, y: H - 8, 'text-anchor': 'middle', class: 'axis-t' }); t.textContent = h + 'h'; svg.appendChild(t);
+  }
+  runs.forEach((run, ri) => {
+    const y = labelH + ri * rowH + rowH / 2;
+    const color = runColor(runIndex(run));
+    svg.appendChild(svgel('line', { x1: padL, x2: W - padR, y1: y, y2: y, stroke: 'var(--grid)', 'stroke-width': 1 }));
+    const nm = svgel('text', { x: padL, y: y - 9, class: 'dlabel' }); nm.textContent = shortName(run); svg.appendChild(nm);
+    (run.events || []).filter(e => e.t <= tmax).forEach(e => {
+      let mark = null;
+      if (e.type === 'tier') mark = svgel('circle', { cx: X(e.t), cy: y, r: 4, fill: color, stroke: 'var(--surface-1)', 'stroke-width': 2 });
+      else if (e.type === 'beat') mark = svgel('circle', { cx: X(e.t), cy: y, r: 3, fill: 'none', stroke: color, 'stroke-width': 1.5 });
+      else if (e.type === 'ascend') { mark = svgel('rect', { x: X(e.t) - 4.5, y: y - 4.5, width: 9, height: 9, fill: color, stroke: 'var(--surface-1)', 'stroke-width': 2, transform: `rotate(45 ${X(e.t)} ${y})` }); }
+      else if (e.type === 'legend') { mark = svgel('text', { x: X(e.t), y: y + 4.5, 'text-anchor': 'middle', style: `fill:${color}; font-size:12px` }); mark.textContent = '★'; }
+      else if (e.type === 'island') { mark = svgel('text', { x: X(e.t), y: y + 4.5, 'text-anchor': 'middle', style: `fill:${color}; font-size:12px` }); mark.textContent = '⚑'; }
+      else if (e.type === 'branch') { mark = svgel('rect', { x: X(e.t) - 1.25, y: y - 8, width: 2.5, height: 16, fill: color }); }
+      if (!mark) return;
+      svg.appendChild(mark);
+      const hit = svgel('rect', { x: X(e.t) - 12, y: y - 14, width: 24, height: 28, fill: 'transparent', tabindex: '0' });   // ≥24px hit target
+      hit.setAttribute('aria-label', `${fmtTime(e.t)} — ${e.detail}`);
+      const show = () => {
+        tip.style.display = 'block';
+        while (tip.firstChild) tip.removeChild(tip.firstChild);
+        tip.appendChild(el('div', 'tt-t', fmtTime(e.t)));
+        tip.appendChild(el('div', null, e.detail));
+        const bb = wrap.getBoundingClientRect();
+        tip.style.left = Math.min(bb.width - tip.offsetWidth - 6, (X(e.t) / W) * bb.width + 10) + 'px';
+        tip.style.top = ((y / H) * bb.height + 10) + 'px';
+      };
+      hit.addEventListener('pointerenter', show);
+      hit.addEventListener('focus', show);
+      hit.addEventListener('pointerleave', () => tip.style.display = 'none');
+      hit.addEventListener('blur', () => tip.style.display = 'none');
+      svg.appendChild(hit);
+    });
+  });
+  wrap.appendChild(svg);
+  card.appendChild(wrap);
+  return card;
+}
+
+/* ---------- comparison table ---------- */
+function comparisonCard(runs, golden) {
+  const card = el('section', 'card');
+  card.appendChild(el('h2', null, 'Run comparison'));
+  const tbl = el('table', 'data');
+  const cols = ['run', 'seed', 'island', 'Δ vs golden', 'band', 'peak log₁₀', 'beats', 'asc', 'legend', 'stamps', 'acts', 'sim wall'];
+  const hr = el('tr'); cols.forEach(c => hr.appendChild(el('th', null, c))); tbl.appendChild(hr);
+  runs.forEach(r => {
+    const tr = el('tr');
+    const isCasual = r.id === 'casual-tourist';
+    const band = isCasual ? golden.casualBandSec : golden.greedyBandSec;
+    const target = isCasual ? golden.casualIslandSec : golden.greedyIslandSec;
+    const inBand = r.islandAt !== null && r.islandAt >= band[0] && r.islandAt <= band[1];
+    tr.appendChild(el('td', null, shortName(r)));
+    tr.appendChild(el('td', null, r.seed === null ? 'default' : String(r.seed)));
+    tr.appendChild(el('td', null, r.islandAt !== null ? fmtTime(r.islandAt) : (r.stalled ? '✗ stalled' : '—')));
+    tr.appendChild(el('td', null, r.islandAt !== null ? fmtDelta(r.islandAt - target) : '—'));
+    tr.appendChild(el('td', null, r.islandAt === null ? '—' : (inBand ? '✓ inside' : '! outside')));
+    tr.appendChild(el('td', null, r.peakLog10 != null ? r.peakLog10.toFixed(1) : '—'));
+    tr.appendChild(el('td', null, String(r.final ? r.final.beats : '—')));
+    tr.appendChild(el('td', null, String(r.final ? r.final.ascensions : '—')));
+    tr.appendChild(el('td', null, String(r.final ? r.final.legendCount : '—')));
+    tr.appendChild(el('td', null, String(r.final ? r.final.stamps : '—')));
+    tr.appendChild(el('td', null, String(r.acts)));
+    tr.appendChild(el('td', null, r.wallMs + 'ms'));
+    tbl.appendChild(tr);
+  });
+  card.appendChild(tbl);
+  card.appendChild(el('div', 'note', `Golden targets — greedy island ${fmtTime(golden.greedyIslandSec)} (band ${fmtTime(golden.greedyBandSec[0])}–${fmtTime(golden.greedyBandSec[1])}) · casual ${fmtTime(golden.casualIslandSec)} (band ${fmtTime(golden.casualBandSec[0])}–${fmtTime(golden.casualBandSec[1])}) · peak log₁₀ policy ceiling ${golden.peakLog10Max}.`));
+  return card;
+}
+
+/* ---------- render ---------- */
+function render() {
+  const rep = STATE.report;
+  const content = $('#content');
+  content.classList.add('loading');
+  while (content.firstChild) content.removeChild(content.firstChild);
+  const runs = selectedRuns();
+  const tmax = rangeMax();
+  const golden = rep.golden;
+
+  // --- overview tiles (one per selected run; band verdict = icon + label, never color alone)
+  const tiles = el('div', 'tiles');
+  runs.forEach(r => {
+    const tile = el('div', 'tile');
+    const lbl = el('div', 'lbl');
+    const dot = el('span', 'dotkey'); dot.style.background = runColor(runIndex(r));
+    lbl.appendChild(dot); lbl.appendChild(el('span', null, shortName(r)));
+    tile.appendChild(lbl);
+    tile.appendChild(el('div', 'val', r.islandAt !== null ? fmtTime(r.islandAt) : (r.stalled ? 'stalled' : 'no island')));
+    const isCasual = r.id === 'casual-tourist';
+    const target = isCasual ? golden.casualIslandSec : golden.greedyIslandSec;
+    const band = isCasual ? golden.casualBandSec : golden.greedyBandSec;
+    tile.appendChild(el('div', 'sub2', r.islandAt !== null
+      ? `island · ${fmtDelta(r.islandAt - target)} vs ${isCasual ? 'casual' : 'greedy'} golden`
+      : `peak log₁₀ ${r.peakLog10 != null ? r.peakLog10.toFixed(1) : '—'}`));
+    if (r.islandAt !== null) {
+      const inBand = r.islandAt >= band[0] && r.islandAt <= band[1];
+      tile.appendChild(el('span', 'chip ' + (inBand ? 'good' : 'bad'), (inBand ? '✓ inside band' : '! outside band')));
+    }
+    tiles.appendChild(tile);
+  });
+  content.appendChild(tiles);
+
+  if (!runs.length) { content.appendChild(el('div', 'note', 'Select at least one run above.')); content.classList.remove('loading'); return; }
+
+  // --- money growth + income rate (two charts — never a dual axis)
+  content.appendChild(lineChart({
+    title: 'Money growth — log₁₀ lifetime cash',
+    sub: 'Banked lifetime cash (wallet-cap honest), log scale via log₁₀.',
+    series: runs.map(r => ({
+      name: shortName(r), color: runColor(runIndex(r)),
+      pts: seriesIn(r, tmax).map(p => ({ t: p.t, v: p.lifetimeCash > 1 ? Math.log10(p.lifetimeCash) : 0 })),
+    })),
+    yFmt: v => v.toFixed(1),
+  }));
+  const g2 = el('div', 'grid2');
+  g2.appendChild(lineChart({
+    title: 'Income rate — log₁₀( € / s )',
+    sub: 'Measured banked income between snapshots.',
+    series: runs.map(r => ({
+      name: shortName(r), color: runColor(runIndex(r)),
+      pts: seriesIn(r, tmax).map(p => ({ t: p.t, v: p.incomePerSec > 1 ? Math.log10(p.incomePerSec) : 0 })),
+    })),
+    yFmt: v => v.toFixed(1), height: 200,
+  }));
+  g2.appendChild(lineChart({
+    title: 'Comfort — log₁₀',
+    sub: 'The unbounded Comfort sum feeding L_comfort.',
+    series: runs.map(r => ({
+      name: shortName(r), color: runColor(runIndex(r)),
+      pts: seriesIn(r, tmax).map(p => ({ t: p.t, v: p.comfort > 1 ? Math.log10(p.comfort) : 0 })),
+    })),
+    yFmt: v => v.toFixed(1), height: 200,
+  }));
+  content.appendChild(g2);
+
+  // --- tier progression with golden reference + bands
+  content.appendChild(lineChart({
+    title: 'Accommodation ladder — tier over time',
+    sub: 'Step chart; the island is tier 20. Shaded region = the casual ~20h contract band; vertical line = the pinned greedy golden island.',
+    series: runs.map(r => ({
+      name: shortName(r), color: runColor(runIndex(r)), step: true,
+      pts: seriesIn(r, tmax).map(p => ({ t: p.t, v: p.accTier })),
+    })),
+    yFmt: v => String(Math.round(v)),
+    refH: [{ y: 20, label: 'island (T20)' }],
+    refV: [{ t: golden.greedyIslandSec, label: 'greedy golden ' + fmtTime(golden.greedyIslandSec) }],
+    band: { t0: golden.casualBandSec[0], t1: golden.casualBandSec[1], label: 'casual band' },
+    height: 250,
+  }));
+
+  // --- deviation vs baseline
+  const baseline = rep.runs.find(r => r.id === golden.baselineId) || null;
+  if (baseline) content.appendChild(deviationCard(runs, baseline, Infinity));
+
+  // --- timeline
+  content.appendChild(timelineCard(runs, tmax));
+
+  // --- per-run small multiples: skills (physique & growth) + paths
+  const skillKeys = runs.length ? Object.keys(runs[0].series[0] || {}).filter(k => k.startsWith('sk_')) : [];
+  const pathKeys = runs.length ? Object.keys(runs[0].series[0] || {}).filter(k => k.startsWith('pp_')) : [];
+  if (skillKeys.length) {
+    const g = el('div', 'grid2');
+    runs.forEach(r => {
+      g.appendChild(lineChart({
+        title: `Physique & growth — ${shortName(r)}`,
+        sub: 'Skill levels over the run.',
+        series: skillKeys.map((k, i) => ({
+          name: k.slice(3), color: slot(i),
+          pts: seriesIn(r, tmax).map(p => ({ t: p.t, v: p[k] || 0 })),
+        })),
+        yFmt: v => String(Math.round(v)), height: 190,
+      }));
+    });
+    content.appendChild(g);
+  }
+  if (pathKeys.length) {
+    const g = el('div', 'grid2');
+    runs.forEach(r => {
+      g.appendChild(lineChart({
+        title: `Paths taken — ${shortName(r)}`,
+        sub: 'Path points per lane (the beat-6 commitment shows as one lane pulling away).',
+        series: pathKeys.map((k, i) => ({
+          name: k.slice(3), color: slot(i),
+          pts: seriesIn(r, tmax).map(p => ({ t: p.t, v: p[k] || 0 })),
+        })),
+        yFmt: v => String(Math.round(v)), height: 190,
+      }));
+    });
+    content.appendChild(g);
+  }
+
+  // --- comparison table (also the tabular twin for the tiles)
+  content.appendChild(comparisonCard(runs, golden));
+  requestAnimationFrame(() => content.classList.remove('loading'));
+}
+
+/* ---------- filters ---------- */
+function buildFilters() {
+  const rep = STATE.report;
+  $('#filters').hidden = false;
+  const rc = $('#runchips');
+  while (rc.firstChild) rc.removeChild(rc.firstChild);
+  rep.runs.forEach((r, i) => {
+    const b = el('button', 'fchip'); b.type = 'button';
+    b.setAttribute('aria-pressed', STATE.sel.has(r.key) ? 'true' : 'false');
+    const k = el('span', 'key'); k.style.background = runColor(i);
+    b.appendChild(k); b.appendChild(el('span', null, shortName(r)));
+    b.addEventListener('click', () => {
+      if (STATE.sel.has(r.key)) STATE.sel.delete(r.key); else STATE.sel.add(r.key);
+      b.setAttribute('aria-pressed', STATE.sel.has(r.key) ? 'true' : 'false');
+      render();
+    });
+    rc.appendChild(b);
+  });
+  const ranges = [['full', 'Full run'], ['island', 'To island'], ['24', 'First 24h'], ['12', 'First 12h'], ['2', 'First 2h']];
+  const rgc = $('#rangechips');
+  while (rgc.firstChild) rgc.removeChild(rgc.firstChild);
+  ranges.forEach(([val, label]) => {
+    const b = el('button', 'fchip'); b.type = 'button';
+    b.setAttribute('aria-pressed', STATE.range === val ? 'true' : 'false');
+    b.appendChild(el('span', null, label));
+    b.addEventListener('click', () => {
+      STATE.range = val;
+      rgc.querySelectorAll('.fchip').forEach(x => x.setAttribute('aria-pressed', 'false'));
+      b.setAttribute('aria-pressed', 'true');
+      render();
+    });
+    rgc.appendChild(b);
+  });
+}
+
+function loadReport(rep, sourceLabel) {
+  if (!rep || !Array.isArray(rep.runs) || !rep.golden) { alert('Not a report JSON (expected {meta, golden, runs}).'); return; }
+  STATE.report = rep;
+  STATE.sel = new Set(rep.runs.slice(0, 8).map(r => r.key));   // ≤8 series on shared charts (palette slot cap); toggle chips to swap
+  const m = rep.meta || {};
+  $('#metaline').textContent = `${rep.runs.length} runs · ${m.hours || '?'}h horizon · dt ${m.dt || '?'}s · snapshot every ${m.snapshotSec || '?'}s · generated ${m.generatedAt || '?'} · ${sourceLabel}`;
+  $('#drop').style.display = 'none';
+  buildFilters();
+  render();
+}
+
+/* ---------- theme toggle (auto → light → dark) ---------- */
+const themebtn = $('#themebtn');
+themebtn.addEventListener('click', () => {
+  STATE.theme = STATE.theme === 'auto' ? 'light' : STATE.theme === 'light' ? 'dark' : 'auto';
+  if (STATE.theme === 'auto') delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = STATE.theme;
+  themebtn.textContent = 'Theme: ' + STATE.theme;
+});
+
+/* ---------- data intake: auto-fetch, file picker, drag-drop ---------- */
+$('#pickfile').addEventListener('click', () => $('#filein').click());
+$('#filein').addEventListener('change', ev => {
+  const f = ev.target.files[0];
+  if (f) f.text().then(tx => loadReport(JSON.parse(tx), f.name));
+});
+const drop = $('#drop');
+['dragover', 'dragenter'].forEach(evt => document.addEventListener(evt, ev => { ev.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(evt => document.addEventListener(evt, ev => { ev.preventDefault(); if (evt === 'drop') return; drop.classList.remove('over'); }));
+document.addEventListener('drop', ev => {
+  ev.preventDefault(); drop.classList.remove('over');
+  const f = ev.dataTransfer.files && ev.dataTransfer.files[0];
+  if (f) f.text().then(tx => loadReport(JSON.parse(tx), f.name));
+});
+if (window.IV_EMBEDDED_REPORT) {
+  loadReport(window.IV_EMBEDDED_REPORT, 'embedded snapshot');
+} else {
+  fetch('data/report.json').then(r => r.ok ? r.json() : null).then(rep => {
+    if (rep) loadReport(rep, 'data/report.json');
+    else $('#metaline').textContent = 'no data/report.json found — run `npm run report`, or drop a JSON below.';
+  }).catch(() => { $('#metaline').textContent = 'no data/report.json found — run `npm run report`, or drop a JSON below.'; });
+}
+</script>
+</body>
+</html>
