@@ -32,6 +32,15 @@ export const TREE = [
     effect: 'Begin each run at accommodation tier +1 per rank.', requires: ['legacy_investor:2'] },
   { id: 'second_wind',   branch: 'meta', name: 'Second Wind', maxRank: 3,
     effect: 'First 5 minutes of a run ×5 income per rank window.', requires: [] },
+  // Phase 8.5 play-changers (audit 1.5: the tree was "mostly numeric") — each changes HOW a
+  // run plays, not just how fast. All exactly neutral at rank 0 (the harness has no tree).
+  { id: 'deep_pockets',  branch: 'meta', name: 'Deep Pockets', maxRank: 3,
+    effect: 'Wallet capacity ×1.4 per rank at every bank tier — longer absences bank more.', requires: [] },
+  { id: 'room_to_grow',  branch: 'character', name: 'Room to Grow', maxRank: 2,
+    effect: 'Amenity income layer cap +0.5 per rank — deep catalogs keep paying.', requires: [] },
+  { id: 'auto_banker',   branch: 'meta', name: 'Auto-Banker', maxRank: 1,
+    effect: 'Every new run starts with the concierge ON and allowed to buy bank tiers — a full wallet never stalls an heir.',
+    requires: ['legacy_investor:1'] },
   // Jack of All Trades: re-opens path MIXING, deep in the tree — the committed-path
   // contract (one road per life, engine.buyPathFocus/addPathPoints) is deliberately
   // absolute for early lineages, and this node is the earned exception: each rank lets

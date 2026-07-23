@@ -961,3 +961,14 @@ story-free. The two 7.8 themes carry them; the plan's Tier-4/5 backlog covers th
 same discipline at the player's experience") executed: every felt-pacing promise is now a
 measured CI assertion, every dead layer is alive and reachable, and the page runs
 self-contained with a hardened save pipeline.
+
+**8.5-push addendum (same day):** Home redesign (wallet header chip → financial modal replacing
+the bank card; story + NEXT-step square, two-column on mobile; animated progress-to-afford
+generator tiles whose color band deepens and sheen speeds with milestone level), the Comfort
+progression fix (tier-faded unlock gate binds early + tier-relative display — a soggy shed
+reads Comfort +0 and every amenity visibly moves the meter), the Clout loop opened (travel
+vouchers, sponsor spotlight, the golden frame), three tree play-changers (Deep Pockets,
+Room to Grow, Auto-Banker), and offline market-event overlap weighting (audit 4.7's last
+math remainder). All regression-tested in [110]; goldens unmoved (greedy 10h57m20s exact,
+casual-tourist 21h20m). Re-scored: Concept ≈8.1, Balance ≈8.3, UX ≈8.2, Math ≈8.4 →
+**FINAL ≈ 8.3** (from 8.1). The gap to 8.5 is human-playtest polish, not engineering.

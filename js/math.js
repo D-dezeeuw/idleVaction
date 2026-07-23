@@ -120,7 +120,10 @@ export function amenityIncomeMult(state, k) {
   if (!(rate > 0)) return 1;                       // exact identity while the knob is off
   const cache = state._amenCache || { all: 0, social: 0 };
   const sum = cache.all + ((k === 1 || k === 2) ? cache.social : 0);
-  return 1 + Math.min(C.AMENITY.xCap - 1, rate * sum);
+  // Room to Grow (tree): +0.5 amenity-layer headroom per rank (max 2) — deep catalogs keep
+  // paying for lineages that invest. Rank 0 ⇒ the exact config cap (harness unmoved).
+  const cap = C.AMENITY.xCap - 1 + 0.5 * (state.ascension?.tree?.room_to_grow || 0);
+  return 1 + Math.min(cap, rate * sum);
 }
 
 // production per second of tier k (in units of tier k output)
@@ -214,7 +217,10 @@ export function bankCapAt(tier) {
   return C.BANK.base * Math.pow(C.BANK.growth, tier);
 }
 export function walletCap(state) {
-  return bankCapAt(state.bank?.tier || 0);
+  // Deep Pockets (tree): a bigger wallet at every bank tier — ×1.4 per rank, bounded (max 3).
+  // Rank 0 ⇒ ×1 exactly (the harness has no tree; the fitted curve is unmoved).
+  const dp = Math.pow(1.4, state.ascension?.tree?.deep_pockets || 0);
+  return bankCapAt(state.bank?.tier || 0) * dp;
 }
 // free room in the wallet right now — what engine.gainCash can actually bank.
 export function walletRoom(state) {
@@ -519,8 +525,28 @@ export function luxuryAmenityComfort(state, DATA) {
   return s;
 }
 // Comfort required to unlock a given accommodation tier (see config.ACC.unlockFrac).
+// Comfort, as the player should FEEL it (the "starts at 100%" fix): your current tier's
+// accScore is the baseline your digs give you for free — display Comfort relative to it, so
+// a soggy shed shows ~0, every amenity visibly adds, and a new check-in resets the meter
+// (new digs, higher expectations). Gates/math still use the raw sum; this is presentation.
+export function comfortFloor(state) { return accScore(state.accommodation.tier) * C.COMFORT.wAcc; }
+export function displayComfort(state) { return Math.max(0, (state.resources.comfort || 0) - comfortFloor(state)); }
+
 export function accUnlockComfort(tier) {
-  return accScore(tier) * C.ACC.unlockFrac;
+  // Tier-faded unlock fraction (the "Comfort actually progresses" fix): EARLY tiers use the
+  // higher unlockFracEarly, so owning tier t does NOT auto-satisfy tier t+1's gate — the gap
+  // must be bridged by amenities/Body and the check-in meter genuinely fills (it used to be
+  // born at 100%: unlockFrac 0.33 < 1/ACC.growth meant the gate could never bind). The
+  // fraction fades back to the legacy unlockFrac by mid-game because amenity Comfort is a
+  // fixed catalog while tier gaps grow ×ACC.growth — a flat raise measured as an unbridgeable
+  // wall at tier ~15 (island unreached in 40h). Early: felt progression. Late: unchanged.
+  const a = C.ACC;
+  const early = a.unlockFracEarly ?? a.unlockFrac;
+  const until = a.fracEarlyTiers ?? 0, fade = a.fracFadeTiers || 1;
+  const f = tier <= until ? early
+    : tier >= until + fade ? a.unlockFrac
+    : early - (early - a.unlockFrac) * (tier - until) / fade;
+  return accScore(tier) * f;
 }
 // Ascension gate scaling (config.ASCEND_GATE, docs/math-proof.md §12): the CASH cost of
 // accommodation tier t is multiplied by base^(ascensions·(t/span)^exp). Parabolic in
@@ -742,7 +768,17 @@ export function marketBaselineJitter(state, DATA) {
 // boom never runs away (E13-S4-T3/T10, "keep crashes bounded regardless").
 export function marketMult(state, DATA) {
   const jitter = marketBaselineJitter(state, DATA);
-  const eventMult = state.market.mult ?? 1;
+  let eventMult = state.market.mult ?? 1;
+  // Offline fairness (audit 4.7): a 20-40s boom/crash used to apply its full mult to an entire
+  // 216s offline macro-step (~7× over-weighting, both directions). During offline replay the
+  // event's effect is scaled by its true overlap fraction with the step — deterministic (the
+  // event duration is seeded data), online ticks (_macroDt unset) are bit-identical.
+  const macroDt = state._macroDt || 0;
+  if (macroDt > 0 && eventMult !== 1 && state.market.eventStartSec != null) {
+    const dur = Math.max(1, (state.market.expiresAtSec || 0) - state.market.eventStartSec);
+    const frac = Math.min(1, dur / macroDt);
+    eventMult = 1 + (eventMult - 1) * frac;
+  }
   return clamp(jitter * eventMult, C.MARKET.crashFloor, C.MARKET.boomCap);
 }
 

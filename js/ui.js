@@ -17,7 +17,7 @@ let hooks = {};               // { save, exportSave, importSave, hardReset }
 // future stays hidden). The player sees one focused screen at a time. activeTab/seenTabs are
 // transient (reset to Home on reload) — a deliberate light touch, no save-schema change.
 const TABS = [
-  { id: 'home',   label: 'Home',   icon: '🏨', cards: ['accCard', 'bankCard', 'amenitiesCard', 'poolCard', 'beachCard', 'wellnessCard', 'conciergeCard', 'propertyCard', 'islandListingCard'] },
+  { id: 'home',   label: 'Home',   icon: '🏨', cards: ['accCard', 'amenitiesCard', 'poolCard', 'beachCard', 'wellnessCard', 'conciergeCard', 'propertyCard', 'islandListingCard'] },
   { id: 'income', label: 'Income', icon: '💶', cards: ['generatorsCard', 'creatorCard', 'cryptoCard', 'collectionCard', 'staffCard'] },
   { id: 'travel', label: 'Travel', icon: '🌍', cards: ['destCard', 'transportCard', 'garageCard', 'marinaCard', 'hangarCard'] },
   { id: 'growth', label: 'Growth', icon: '💪', cards: ['skillsCard', 'pathsCard'] },
@@ -82,7 +82,7 @@ const el = id => document.getElementById(id);
 // writes (the built string IS the card's state signature) and never replaces a subtree the
 // player is currently typing in.
 const CARD_RENDERERS = {
-  accCard: renderAccommodation, bankCard: renderBank, destCard: renderDestinations,
+  accCard: renderAccommodation, destCard: renderDestinations,
   transportCard: renderTransport, generatorsCard: renderGenerators, amenitiesCard: renderAmenities,
   poolCard: renderPoolside, beachCard: renderBeachfront, wellnessCard: renderWellness,
   conciergeCard: renderConcierge, creatorCard: renderCreator, cryptoCard: renderCrypto,
@@ -96,6 +96,10 @@ export function render(state) {
   S = state;
   document.body.dataset.era = eraFor(state.accommodation.tier);
   renderHeader(state);
+  renderWalletChip(state);
+  renderNextStep(state);
+  const wm = el('walletModal');
+  if (wm && !wm.hidden) renderBank(state);
   renderOnboarding(state);
   renderNotifications(state);
   renderStory(state);
@@ -192,8 +196,7 @@ function renderHeader(s) {
   if (dispCash < 0 || !(cash > 0) || dispCash > cash * 3 || cash > dispCash * 3 || reducedMotion()) dispCash = cash;
   else dispCash += (cash - dispCash) * 0.35;
   const html = `
-    <span class="iv-res">💶 <b>${fmt(dispCash)}</b><small>${capHtml}</small> <small>(+${fmt(perSec)}/s)</small></span>
-    <span class="iv-res">😌 Comfort <b>${fmt(s.resources.comfort)}</b> <small>(bonus ×${fmt(lComfort)})</small></span>
+    <span class="iv-res" title="Comfort above what your current digs provide — every amenity adds to it, and a new check-in raises the bar">😌 Comfort <b>+${fmt(M.displayComfort(s))}</b> <small>(bonus ×${fmt(lComfort)})</small></span>
     ${showClout ? `<span class="iv-res">📣 Clout <b>${fmt(s.resources.clout)}</b></span>` : ''}
     ${showLegacy ? `<span class="iv-res">🏆 Legacy <b>${fmt(s.resources.legacy)}</b></span>` : ''}
     ${lDest > 1.001 ? `<span class="iv-res" aria-label="World Traveler destination bonus, times ${fmt(lDest)}">🌍 <b>×${fmt(lDest)}</b></span>` : ''}
@@ -202,6 +205,65 @@ function renderHeader(s) {
   setHTML(el('hdr'), html);
 }
 let dispCash = -1;
+// The wallet chip (redesign): cash + income + a mini fill bar, top right — the whole financial
+// picture is one tap away in the wallet modal (which replaced the Home bank card).
+function renderWalletChip(s) {
+  const b = el('walletBtn');
+  if (!b) return;
+  const cash = s.resources.cash;
+  if (dispCash < 0 || !(cash > 0) || dispCash > cash * 3 || cash > dispCash * 3 || reducedMotion()) dispCash = cash;
+  else dispCash += (cash - dispCash) * 0.35;
+  const cap = M.walletCap(s);
+  const pct = Number.isFinite(cap) ? clamp(100 * cash / cap, 0, 100) : 0;
+  const perSec = M.tierProd(s, 0) + M.savvyPassive(s);
+  const full = Number.isFinite(cap) && cash >= cap * 0.98;
+  setHTML(b, `<span class="iv-wallet-cash">💶 <b>${fmt(dispCash)}</b>${full ? ' ⚠️' : ''}</span>
+    <span class="iv-wallet-rate">+${fmt(perSec)}/s</span>
+    ${Number.isFinite(cap) ? `<span class="iv-wallet-bar"><i style="width:${pct.toFixed(1)}%"></i></span>` : ''}`);
+  b.classList.toggle('iv-wallet-full', full);
+}
+function openWallet() {
+  const m = el('walletModal');
+  if (!m) return;
+  renderBank(S);
+  m.hidden = false;
+  modalOpener = document.activeElement;
+  const target = m.querySelector('button, [tabindex]') || m;
+  try { target.focus(); } catch (_) {}
+}
+function closeWallet() {
+  const m = el('walletModal'); if (m) m.hidden = true;
+  if (modalOpener) { try { modalOpener.focus(); } catch (_) {} modalOpener = null; }
+}
+// The NEXT STEP square (redesign): the single most useful answer on the first screen —
+// what am I working toward, how close am I, and the button the moment it's ready.
+function renderNextStep(s) {
+  const box = el('nextStep');
+  if (!box) return;
+  const t = E.nextAccTier(s);
+  if (t >= DATA.accommodation.length) {
+    setHTML(box, `<div class="iv-next-label">NEXT</div><div class="iv-next-scene">🏝️</div>
+      <div class="iv-next-name">The horizon</div><div class="iv-sub">Top tier owned. Legacy awaits.</div>`);
+    return;
+  }
+  const gate = M.accUnlockComfort(t);
+  const floor = M.comfortFloor(s);
+  const comfortPct = clamp(100 * (s.resources.comfort - floor) / Math.max(1, gate - floor), 0, 100);
+  const gateOk = s.resources.comfort >= gate;
+  const cost = E.accCost(s);
+  const cashPct = clamp(100 * s.resources.cash / cost, 0, 100);
+  const name = DATA.accommodation[t].name;
+  const ready = gateOk && s.resources.cash >= cost;
+  setHTML(box, `<div class="iv-next-label">NEXT</div>
+    <div class="iv-next-scene">${(TIER_SCENES[t] || '🏨').slice(0, 4)}</div>
+    <div class="iv-next-name">${name}</div>
+    ${gateOk
+      ? `<div class="iv-next-meter" role="progressbar" aria-valuenow="${cashPct.toFixed(0)}" aria-valuemin="0" aria-valuemax="100" aria-label="Cash toward ${name}"><i class="iv-next-cash" style="width:${cashPct.toFixed(1)}%"></i></div>
+         <div class="iv-sub">💶 ${fmt(s.resources.cash)} / ${fmt(cost)}</div>`
+      : `<div class="iv-next-meter" role="progressbar" aria-valuenow="${comfortPct.toFixed(0)}" aria-valuemin="0" aria-valuemax="100" aria-label="Comfort toward ${name}"><i style="width:${comfortPct.toFixed(1)}%"></i></div>
+         <div class="iv-sub">😌 comfort ${comfortPct.toFixed(0)}%</div>`}
+    ${ready ? btn('buy-acc', '', 'Check in!', true, 'btn-primary') : ''}`);
+}
 function reducedMotion() {
   return typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches
     || document.documentElement.dataset.motion === 'reduced';
@@ -334,7 +396,7 @@ function renderStory(s) {
   const branchLabel = s.story.branch !== 'neutral' ? ` — <b>${esc(s.story.branch)}</b>` : '';
   // Task 2b: the current beat sits in the polaroid frame (white border, slight rotation — CSS only).
   setHTML(el('story'), `
-    <div class="iv-polaroid-frame">
+    <div class="iv-polaroid-frame${s.cloutPerks?.frame ? ' iv-frame-gold' : ''}">
       ${polaroidSceneHtml(latestBeat.id)}
       <div class="iv-beatnum">Entry ${latestBeat.id}${branchLabel} ${btn('open-diary', '', '📔 Diary', s.story.seen.length > 1, 'btn-link')}</div>
       <div class="iv-beattitle">${latest.title}</div>
@@ -548,7 +610,7 @@ function checkArrivalModals(s) {
   if (arrivalQueue.length && !modalIsOpen()) showEra(arrivalQueue.shift());
 }
 function modalIsOpen() {
-  return ['eraModal', 'diaryModal', 'offlineModal', 'passportModal'].some(id => { const m = el(id); return m && !m.hidden; });
+  return ['eraModal', 'diaryModal', 'offlineModal', 'passportModal', 'walletModal'].some(id => { const m = el(id); return m && !m.hidden; });
 }
 
 // The shed→island ladder panel (E05-S3-T1..T4): rather than dumping all 21 rows, this
@@ -814,30 +876,33 @@ function renderGenerators(s) {
   // plus a convenience "renovate cheapest" button over the SAME buyGenUpgrade path.
   const cheapest = E.cheapestGenUpgrade(s);
   const renoPct = (C.L_UPGRADE_RATE * 100).toFixed(0);
-  let rows = `<div class="iv-qty">Buy ${qtyBtns}</div>
-    <div class="iv-sub iv-chain-legend">🔗 higher tiers feed lower ones → D1 pays out cash</div>
-    <div class="iv-sub iv-upg-legend">🔧 Renovations ("Upg"): +${renoPct}% to that tier's own output per purchase, permanently
-      (L_upgrade = 1 + ${C.L_UPGRADE_RATE}·n) ${cheapest ? btn('buy-cheapest-upg', '', `Renovate cheapest <small>${fmt(cheapest.cost)}</small>`, afford(cheapest.cost)) : ''}</div>`;
+  let rows = `<div class="iv-qty">Buy ${qtyBtns}
+    ${cheapest ? btn('buy-cheapest-upg', '', `🔧 Renovate cheapest <small>${fmt(cheapest.cost)}</small>`, afford(cheapest.cost)) : ''}</div>`;
+  // Animated tiles (redesign): each line shows a PROGRESS-TO-AFFORD bar that fills as cash
+  // accumulates and triggers (pulses) the moment a buy is ready. Milestone level (bought/10)
+  // deepens the tile's color band and speeds its sheen — a glance says which lines are hot.
+  // Detail math (L_upgrade etc.) lives in the tooltip, not the row (audit 6.1).
   DATA.generators.forEach((g, k) => {
     if (!s.generators[k].unlocked) return;
     const st = s.generators[k];
     const qty = buyQty === 'max' ? E.genMaxQty(s, k) : buyQty;
     const cost = E.genCost(s, k, buyQty === 'max' ? Math.max(1, qty) : qty);
-    const mult = M.tierMultiplier(s, k);
+    const lvl = Math.min(4, Math.floor(st.bought / C.MILESTONE_STEP));
     const toDouble = C.MILESTONE_STEP - (st.bought % C.MILESTONE_STEP);
+    const canBuy = afford(cost) && qty > 0;
+    const pct = clamp(100 * s.resources.cash / Math.max(1e-9, cost), 0, 100);
+    const speed = Math.max(0.9, 3.2 - 0.55 * lvl - 0.2 * Math.min(4, st.upgrades)).toFixed(2);
     const upgCost = E.genUpgradeCost(s, k);
-    const upgMult = M.upgradeMult(st.upgrades);
-    rows += `<div class="iv-row">
-      <div class="iv-row-main" title="${g.flavor}">
-        <b>${genName(s, g)}</b> <small>×${st.count | 0}</small>
-        <div class="iv-sub">out ×${fmt(mult)} · next double in ${toDouble} · bought ${st.bought}</div>
-        <div class="iv-sub" aria-label="renovation layer: ${st.upgrades} bought, times ${fmt(upgMult)}">
-          🔧 L_upgrade ×${fmt(upgMult)} (${st.upgrades} reno${st.upgrades === 1 ? '' : 's'}) · next +${renoPct}%</div>
-        <div class="iv-flavor iv-gen-flavor">${g.flavor}</div>
-      </div>
-      <div class="iv-row-buy">
-        ${btn('buy-gen', `${k}|${buyQty}`, `Buy${buyQty === 'max' ? ` ×${qty}` : ''}<br><small>${fmt(cost)}</small>`, afford(cost) && qty > 0)}
-        ${btn('buy-gen-upg', k, `Upg<br><small>${fmt(upgCost)}</small>`, afford(upgCost), '', `+${renoPct}% to ${genName(s, g)}'s output — L_upgrade`)}
+    const tip = `${g.flavor} — output ×${fmt(M.tierMultiplier(s, k))}, renovations ×${fmt(M.upgradeMult(st.upgrades))} (${st.upgrades}), next milestone in ${toDouble} buys`;
+    rows += `<div class="iv-gen-tile iv-glvl-${lvl}${canBuy ? ' iv-can-buy' : ''}" style="--gen-anim:${speed}s" title="${tip}">
+      <div class="iv-gen-head"><b>${genName(s, g)}</b> <small>×${fmt(st.count | 0)}</small>
+        <span class="iv-gen-double" title="milestone: ×2 every ${C.MILESTONE_STEP} buys">⭐ ${toDouble} to ×2</span></div>
+      <div class="iv-gen-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct.toFixed(0)}"
+        aria-label="${fmt(s.resources.cash)} of ${fmt(cost)} toward the next ${genName(s, g)}">
+        <i style="width:${pct.toFixed(1)}%"></i></div>
+      <div class="iv-gen-actions">
+        ${btn('buy-gen', `${k}|${buyQty}`, `Buy${buyQty === 'max' ? ` ×${qty}` : ''} · ${fmt(cost)}`, canBuy, canBuy ? 'btn-primary' : '')}
+        ${btn('buy-gen-upg', k, `🔧 ${fmt(upgCost)}`, afford(upgCost), '', `Renovate: +${renoPct}% to ${genName(s, g)}'s output, permanently`)}
       </div></div>`;
   });
   setHTML(el('generators'), rows);
@@ -853,7 +918,10 @@ function comfortMeterHtml(s) {
     return `${bonus}<div class="iv-sub">Comfort ${fmt(s.resources.comfort)} — top tier owned, you're among the clouds ☁️</div>`;
   }
   const target = M.accUnlockComfort(t);
-  const pct = clamp(100 * s.resources.comfort / target, 0, 100);
+  // relative meter (the "born at 100%" fix): progress runs from your CURRENT tier's baseline
+  // to the next gate, so it starts low and every amenity/Body gain visibly moves it.
+  const floor = M.comfortFloor(s);
+  const pct = clamp(100 * (s.resources.comfort - floor) / Math.max(1, target - floor), 0, 100);
   const nextName = DATA.accommodation[t].name;
   // sun-meter (UX-plan §3): the comfort fill IS the sunshine, and a little sun rides its edge.
   return `${bonus}
@@ -861,7 +929,7 @@ function comfortMeterHtml(s) {
       aria-valuenow="${pct.toFixed(0)}" aria-label="Comfort progress toward ${nextName}">
       <i style="width:${pct.toFixed(1)}%"></i><em class="iv-sun-dot" style="left:${pct.toFixed(1)}%">☀️</em>
     </div>
-    <div class="iv-sub">Comfort ${fmt(s.resources.comfort)} / ${fmt(target)} → next: ${nextName}</div>`;
+    <div class="iv-sub">😌 +${fmt(M.displayComfort(s))} above your digs · ${pct.toFixed(0)}% to ${nextName}</div>`;
 }
 
 // Postcard scenes (UX-plan §3): one emoji composition per accommodation tier — the current tier
@@ -1342,6 +1410,18 @@ function renderCreator(s) {
   }
   html += '</div>';
 
+  // The Clout shop (8.5-push): clout finally buys things OUTSIDE its own loop — doors abroad,
+  // sponsor calls, and one golden frame. See config.CLOUT's voucher/spotlight/frame comment.
+  const cp = s.cloutPerks || { vouchers: 0, vouchersBought: 0, frame: false };
+  const vCost = E.voucherCost(s);
+  html += `<div class="iv-tag">spend your clout</div><div class="iv-amenities">
+    ${btn('clout-voucher', '', `🎟️ Travel voucher<br><small>−${(C.CLOUT.voucherOff * 100).toFixed(0)}% next destination · ${fmt(vCost)} 📣${cp.vouchers ? ` · ${cp.vouchers} held` : ''}</small>`,
+      s.resources.clout >= vCost && cp.vouchers < C.CLOUT.voucherMax, '', 'Your name opens doors abroad — one voucher discounts the next destination you buy')}
+    ${btn('clout-spotlight', '', `📞 Call a sponsor<br><small>roll an offer now · ${fmt(C.CLOUT.spotlightCost)} 📣</small>`,
+      s.resources.clout >= C.CLOUT.spotlightCost && !s.sponsors.active && !s.sponsors.offer, '', 'Skip the wait — a sponsor offer lands immediately')}
+    ${cp.frame ? '' : btn('clout-frame', '', `🖼️ The golden frame<br><small>forever · ${fmt(C.CLOUT.frameCost)} 📣</small>`,
+      s.resources.clout >= C.CLOUT.frameCost, '', 'Your story polaroid, framed in gold. Permanently. Pure pride.')}
+  </div>`;
   setHTML(el('creator'), html);
 }
 
@@ -2328,7 +2408,7 @@ function wireEvents() {
   document.addEventListener('keydown', ev => {
     const typing = ev.target && ev.target.matches && ev.target.matches('input, textarea, select');
     if (ev.key === 'Escape') {
-      for (const id of ['eraModal', 'diaryModal', 'offlineModal', 'passportModal']) {
+      for (const id of ['eraModal', 'diaryModal', 'offlineModal', 'passportModal', 'walletModal']) {
         const m = el(id);
         if (m && !m.hidden) {
           m.hidden = true;
@@ -2489,7 +2569,12 @@ function handle(action, arg, btnEl) {
       break;
     }
     case 'buy-acc': E.buyAccommodation(S); break;
-    case 'buy-bank': E.buyBankUpgrade(S); break;
+    case 'buy-bank': E.buyBankUpgrade(S); renderBank(S); break;
+    case 'open-wallet': openWallet(); break;
+    case 'clout-voucher': E.buyCloutVoucher(S); break;
+    case 'clout-spotlight': E.buyCloutSpotlight(S); break;
+    case 'clout-frame': E.buyCloutFrame(S); break;
+    case 'close-wallet': closeWallet(); break;
     case 'buy-dest': E.buyDestination(S, arg); break;
     case 'visit-dest': E.visitDestination(S, arg); break;
     case 'buy-transport': E.buyTransport(S, arg); break;

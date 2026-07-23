@@ -4819,5 +4819,45 @@ console.log('\n[109] Phase B instruments: branch parity, casual band, beat spaci
   ok(C.NGPLUS.gateScale > C.NGPLUS.incomeMult, 'NG+ gate scaling outpaces its income compensation (the world genuinely hardens)');
 }
 
+console.log('\n[110] 8.5-push: comfort progression gate, Clout shop, tree play-changers, offline market fairness');
+{
+  // ---- the tier-faded comfort gate: EARLY gates bind (the meter starts under 100% and moves)
+  const g = ST.newGame();
+  ok(M.displayComfort(g) === 0, 'a fresh shed shows Comfort +0 (relative display — squalor reads as squalor)');
+  ok(M.accScore(0) * C.COMFORT.wAcc < M.accUnlockComfort(1), 'tier 0 alone does NOT satisfy tier 1\'s gate — amenities must bridge it');
+  ok(Math.abs(M.accUnlockComfort(15) - M.accScore(15) * C.ACC.unlockFrac) < 1e-9, 'late tiers keep the legacy fraction (no unbridgeable wall)');
+
+  // ---- Clout shop: the loop opens (voucher discounts travel, then is consumed)
+  const cv = ST.newGame(); cv.resources.clout = 1e5; cv.resources.cash = 1e9; cv.bank.tier = 8;
+  const d0 = DATA.destinations[0].id;
+  const before = E.destCost(cv, d0);
+  ok(E.buyCloutVoucher(cv), 'a travel voucher is buyable with clout');
+  ok(Math.abs(E.destCost(cv, d0) - before * (1 - C.CLOUT.voucherOff)) < 1e-6 * before, 'a held voucher discounts the next destination');
+  ok(E.buyDestination(cv, d0) && cv.cloutPerks.vouchers === 0, 'buying the destination consumes the voucher');
+  ok(Math.abs(E.destCost(cv, DATA.destinations[1].id) / (E.destCost(cv, DATA.destinations[1].id))) === 1, 'sanity');
+  ok(E.buyCloutFrame(cv) && cv.cloutPerks.frame, 'the golden frame is a one-time clout purchase');
+
+  // ---- tree play-changers: exactly neutral at rank 0, real at rank 1+
+  const tp = ST.newGame();
+  const cap0 = M.walletCap(tp);
+  tp.ascension.tree.deep_pockets = 2;
+  ok(Math.abs(M.walletCap(tp) - cap0 * 1.96) < 1e-9 * cap0, 'Deep Pockets multiplies the wallet cap ×1.4/rank');
+  const ab = ST.newGame(); ab.ascension.tree.auto_banker = 1; ab.ascension.tree.legacy_investor = 1;
+  ab.stats.runSec = 200; ab.stats.lifetimeCashThisTree = 1e12;
+  ok(P.ascend(ab), 'fixture: auto-banker lineage ascends');
+  ok(ab.concierge.on === true && ab.concierge.whitelist.includes('bank'), 'Auto-Banker: the heir starts with the concierge on + bank whitelisted');
+  P.syncMilestoneStep(ST.newGame());
+
+  // ---- offline market fairness: a short event's mult is overlap-weighted in macro-steps
+  const om = ST.newGame();
+  om.market.phase = 'event'; om.market.mult = 5; om.market.eventStartSec = 0; om.market.expiresAtSec = 30;
+  om.paths.crypto.points = 1;   // crypto active so marketMult matters
+  const online = M.marketMult(om, DATA);
+  om._macroDt = 216;
+  const offline = M.marketMult(om, DATA);
+  om._macroDt = 0;
+  ok(offline < online && offline > 1, `offline macro-steps weight a 30s event by its overlap (online ×${online.toFixed(2)} → offline ×${offline.toFixed(2)})`);
+}
+
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);
 process.exit(fails === 0 ? 0 : 1);

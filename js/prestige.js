@@ -156,8 +156,18 @@ export function ascend(state, heir) {
   syncMilestoneStep(state);
   // new run boundary: snapshot the investor rank the heir STARTS with (see legacyPreview).
   state.ascension.investorAtRunStart = state.ascension.tree.legacy_investor || 0;
+  applyAutoBanker(state);
   state._notifications = [{ type: 'ascend', text: `✨ Ascended! +${gained} Legacy (total ${state.resources.legacy}).` }];
   return true;
+}
+
+// Auto-Banker (tree): heirs of a rank-1+ lineage start every run with the concierge switched
+// on and the bank category whitelisted — the "full wallet stalls an unattended run" failure
+// mode is permanently automated away once earned. Neutral without the node.
+function applyAutoBanker(state) {
+  if ((state.ascension?.tree?.auto_banker || 0) < 1) return;
+  state.concierge.on = true;
+  if (!state.concierge.whitelist.includes('bank')) state.concierge.whitelist.push('bank');
 }
 
 // ---------- skill tree ----------
@@ -297,6 +307,7 @@ export function startNgPlus(state) {
   syncMilestoneStep(state);
   // NG+ keeps the tree, but it IS a run boundary — re-snapshot the investor rank.
   state.ascension.investorAtRunStart = state.ascension.tree.legacy_investor || 0;
+  applyAutoBanker(state);
   state._notifications = [{ type: 'ascend', text: `🔄 New Game+${state.ngPlus}. The world is harder, the rewards richer. Again — but more.` }];
   return true;
 }
