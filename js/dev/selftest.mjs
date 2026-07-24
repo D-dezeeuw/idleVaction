@@ -34,7 +34,7 @@ import { fmt, fmtTime, rng } from '../util.js';
 import { runCurve, play } from './harness.mjs';
 
 // ---- QUIET FOUNDATION MODE (Living-World W5, docs/08) ------------------------------------
-// Every historical pin in this suite (the 39440s greedy golden, the 76800s casual contract,
+// Every historical pin in this suite (the 37445s greedy golden, the 76800s casual contract,
 // the [86] ascended bands, the [106]/[109] instruments, every per-section "goldens exact"
 // assert) measures the QUIET foundation — the deterministic fitted economy with the Trip
 // Events layer off. Shipping default is EVENTS.enabled:true (the living world), so the suite
@@ -862,18 +862,68 @@ console.log('\n[25] E05 beat 7 (One Star, Big Dreams) fires exactly at accTier 4
 // finite at huge Comfort (E06-S8-T4/S10-T1/T3/T4) ----------
 console.log('\n[26] E06 comfortMult (L_comfort): boundary values, no NaN, finite at extremes');
 {
+  // Above-floor Comfort refit (config.COMFORT.floorFrac=1, docs/05 §9.3): comfortMultiplier reads
+  // EFFECTIVE Comfort = max(0, Comfort − floorFrac·comfortFloor), where comfortFloor = accScore(tier)
+  // ·wAcc. These bare probes carry no accommodation, so comfortFloor defaults to accScore(0)·wAcc = 50
+  // — inputs at/below 50 clamp to L=1, and the snapshots below are the post-refit values (MULT 0.47,
+  // C0 8). The floorFrac=0 equivalence to the pre-refit formula is pinned in [26b] below.
   const probe = ST.newGame();
   probe._comfortCache = 0;
   ok(M.comfortMultiplier(probe) === 1, 'comfortMultiplier(0) == 1 exactly — no divide-by-zero with C0');
 
   const C0 = C.COMFORT.C0;
-  ok(approx(M.comfortMultiplier({ _comfortCache: C0 }), 1.1204119982655925), 'comfortMultiplier(C0) matches the golden snapshot');
-  ok(approx(M.comfortMultiplier({ _comfortCache: 10 * C0 }), 1.41655707406329), 'comfortMultiplier(10·C0) matches the golden snapshot');
-  ok(approx(M.comfortMultiplier({ _comfortCache: 100 * C0 }), 1.801728549513057), 'comfortMultiplier(100·C0) matches the golden snapshot');
+  ok(M.comfortMultiplier({ _comfortCache: C0 }) === 1, 'comfortMultiplier(C0=8) == 1 — below the tier-0 floor (50), effective Comfort clamps to 0');
+  ok(approx(M.comfortMultiplier({ _comfortCache: 10 * C0 }), 1.3180459965236873), 'comfortMultiplier(10·C0=80, above the floor) matches the post-refit golden snapshot');
+  ok(approx(M.comfortMultiplier({ _comfortCache: 100 * C0 }), 1.9289922327608515), 'comfortMultiplier(100·C0=800) matches the post-refit golden snapshot');
 
   const huge = M.comfortMultiplier({ _comfortCache: 1e18 });
   ok(Number.isFinite(huge) && huge > 1, `comfortMultiplier stays finite at huge Comfort (${fmt(huge)})`);
   ok(Number.isNaN(M.comfortMultiplier({ _comfortCache: -0 })) === false, 'comfortMultiplier never returns NaN at the zero edge');
+}
+
+// ---------- 26b. Above-floor Comfort refit (docs/05 §9.3): the income multiplier reads
+// player-EARNED (above-floor) Comfort while the tier GATE still reads TOTAL Comfort. Pins the
+// three load-bearing properties: the floorFrac=0 legacy escape hatch, tier-independent
+// above-floor behavior (no check-in penalty), and gate bridgeability. ----------
+console.log('\n[26b] above-floor Comfort refit: floorFrac escape hatch, above-floor income, gate reads total');
+{
+  // (a) floorFrac=0 ESCAPE HATCH: bit-identical to the pre-refit total-Comfort formula, at ANY tier.
+  const savedFF = C.COMFORT.floorFrac;
+  C.COMFORT.floorFrac = 0;
+  {
+    const s = ST.newGame(); s.accommodation.tier = 8; s._comfortCache = 5e5;
+    const legacy = 1 + C.COMFORT.MULT * Math.log10(1 + 5e5 / C.COMFORT.C0);
+    ok(M.comfortMultiplier(s) === legacy, 'floorFrac=0 ⇒ comfortMultiplier is BIT-IDENTICAL to the pre-refit total-Comfort formula (the regression escape hatch)');
+  }
+  C.COMFORT.floorFrac = savedFF;
+
+  // (b) ABOVE-FLOOR BEHAVIOR: at floorFrac=1 the accScore backbone cancels, so two states with the
+  // SAME above-floor Comfort but different tiers get the SAME income multiplier — a tier-up is
+  // neutral (never a penalty), and only player-earned Comfort (amenities/Body) moves income.
+  {
+    const lo = { _comfortCache: M.accScore(3) + 4000, accommodation: { tier: 3 } };
+    const hi = { _comfortCache: M.accScore(9) + 4000, accommodation: { tier: 9 } };
+    ok(approx(M.comfortMultiplier(lo), M.comfortMultiplier(hi)),
+      'floorFrac=1: equal above-floor Comfort ⇒ equal income multiplier regardless of tier (check-in is neutral, not a drop)');
+    const more = { _comfortCache: M.accScore(9) + 40000, accommodation: { tier: 9 } };
+    ok(M.comfortMultiplier(more) > M.comfortMultiplier(hi),
+      'more above-floor Comfort (amenities/Body) ⇒ strictly higher income multiplier — amenities are the live income lever now');
+  }
+
+  // (c) the GATE still reads TOTAL Comfort (unchanged): a state whose Comfort is pure accScore (no
+  // amenities) still clears the next tier's unlock gate — accScore self-satisfies (unlockFrac 0.33
+  // < 1/growth 0.385), so the above-floor refit CANNOT re-introduce the unbridgeable-wall failure.
+  {
+    const g = ST.newGame(); g.accommodation.tier = 12;
+    g._comfortCache = M.computeComfort(g, DATA);   // accScore(12) + wBody·0, NO amenities
+    ok(g._comfortCache >= M.accUnlockComfort(13),
+      'the tier GATE reads TOTAL Comfort: owning tier 12 (accScore alone) already clears tier 13 — bridgeability preserved');
+    const eff = Math.max(0, g._comfortCache - C.COMFORT.floorFrac * M.comfortFloor(g));
+    ok(M.comfortMultiplier(g) === 1 + C.COMFORT.MULT * Math.log10(1 + eff / C.COMFORT.C0),
+      'the INCOME multiplier reads ABOVE-FLOOR Comfort while the GATE reads TOTAL — the two roles are cleanly separated');
+    ok(M.accUnlockComfort(13) === M.accScore(13) * C.ACC.unlockFrac,
+      'accUnlockComfort is floorFrac-free (still accScore·frac) — the gate never sees the income-multiplier floor');
+  }
 }
 
 // ---------- 27. E06: breakfast/room cluster data validation + Comfort-gate bracketing
@@ -1939,9 +1989,13 @@ console.log('\n[55] E11 conciergeCandidates: whitelist filter + ROI ranking + ne
   const cashRate = M.tierProd(rk, 0) + M.savvyPassive(rk);
   const expectedGain = a => {
     const dComf = a.comfort * C.COMFORT.wAmen;
-    const comf = rk._comfortCache;
-    const L = 1 + C.COMFORT.MULT * Math.log10(1 + comf / C.COMFORT.C0);
-    const Lafter = 1 + C.COMFORT.MULT * Math.log10(1 + (comf + dComf) / C.COMFORT.C0);
+    // above-floor refit (docs/05 §9.3): the concierge prices bumps against the SAME effective
+    // (above-floor) base the shipped comfortMultiplier reads — mirrored here exactly.
+    const floorSub = C.COMFORT.floorFrac * M.comfortFloor(rk);
+    const eff = Math.max(0, rk._comfortCache - floorSub);
+    const effAfter = Math.max(0, rk._comfortCache + dComf - floorSub);
+    const L = 1 + C.COMFORT.MULT * Math.log10(1 + eff / C.COMFORT.C0);
+    const Lafter = 1 + C.COMFORT.MULT * Math.log10(1 + effAfter / C.COMFORT.C0);
     return cashRate * (Lafter - L) / L;
   };
   const list = E.conciergeCandidates(rk);
@@ -2234,7 +2288,7 @@ console.log('\n[62] E11 harness invariance: concierge OFF by default never moves
   // plausible number".
   const { islandAt, peakLog } = runCurve({ dt: 5, maxHours: 40 });
   ok(islandAt !== null, 'the harness still reaches the island (tier 20) within the cap');
-  ok(Math.abs(islandAt - 39440) < 1, `harness island time is UNCHANGED by E11 (got ${fmtTime(islandAt)}, expected ~10h57m20s / 39440s)`);
+  ok(Math.abs(islandAt - 37445) < 1, `harness island time is UNCHANGED by E11 (got ${fmtTime(islandAt)}, expected ~10h24m05s / 37445s)`);
   ok(peakLog < 290, `peak log10(cash) (${peakLog.toFixed(1)}) stays far under the double-overflow ceiling (~308)`);
 }
 
@@ -2425,7 +2479,7 @@ console.log('\n[68] E12 harness invariance: content/sponsors never touched by th
   ok(DATA.content.every(c => s.content[c.id].level === 0 && s.content[c.id].boosts === 0),
     "the harness never buys/boosts any content tier (not in its greedy policy) — Clout stays on the pre-E12 baseline formula");
   ok(s.sponsors.active === null, 'the harness never accepts a sponsor deal — no active multiplier ever appears in the max-speed run');
-  ok(Math.abs(islandAt - 39440) < 1, `harness island time is UNCHANGED by E12 (got ${fmtTime(islandAt)}, expected ~10h57m20s / 39440s — the committed-path baseline)`);
+  ok(Math.abs(islandAt - 37445) < 1, `harness island time is UNCHANGED by E12 (got ${fmtTime(islandAt)}, expected ~10h24m05s / 37445s — the committed-path baseline)`);
   ok(peakLog < 290, `peak log10(cash) (${peakLog.toFixed(1)}) stays far under the double-overflow ceiling`);
 
   ok(beatTime[14] !== undefined, 'Beat 14 (Going Viral) still fires within the harness run');
@@ -2788,7 +2842,7 @@ console.log('\n[80] E13 harness invariance: crypto gated off by default, fitted 
 
   const { islandAt, peakLog } = runCurve({ dt: 5, maxHours: 40 });
   ok(islandAt !== null, 'the harness still reaches the island (tier 20) within the cap');
-  ok(Math.abs(islandAt - 39440) < 1, `harness island time is UNCHANGED by E13 (got ${fmtTime(islandAt)}, expected ~10h57m20s / 39440s — the committed-path baseline)`);
+  ok(Math.abs(islandAt - 37445) < 1, `harness island time is UNCHANGED by E13 (got ${fmtTime(islandAt)}, expected ~10h24m05s / 37445s — the committed-path baseline)`);
   ok(peakLog < 290, `peak log10(cash) (${peakLog.toFixed(1)}) stays far under the double-overflow ceiling (~308)`);
 }
 
@@ -3244,7 +3298,7 @@ console.log('\n[89] E14 connoisseur: exclusivity ×, luxury discount, appreciati
   // ---- harness invariance: the committed-vlogger harness never engages the connoisseur
   // system, so the exclusivity/discount/appreciation/perk are all no-ops → island UNCHANGED.
   const { s: hs, islandAt, peakLog } = runCurve({ dt: 5, maxHours: 40 });
-  ok(Math.abs(islandAt - 39440) < 1, `harness island time is UNCHANGED by E14 (got ${fmtTime(islandAt)}, expected ~10h57m20s / 39440s — the committed-path baseline)`);
+  ok(Math.abs(islandAt - 37445) < 1, `harness island time is UNCHANGED by E14 (got ${fmtTime(islandAt)}, expected ~10h24m05s / 37445s — the committed-path baseline)`);
   ok(peakLog < 290, `peak log10(cash) (${peakLog.toFixed(1)}) stays far under the double-overflow ceiling`);
   ok([...DATA.collections.art, ...DATA.collections.wine].every(a => hs.collections[a.id].count === 0),
     'the harness never buys a single collection asset (not in its greedy policy)');
@@ -3496,7 +3550,7 @@ console.log('\n[90] E15 logistics: cars/slots/upkeep, logistics × gate invarian
   // ---- harness invariance: the committed-vlogger harness never buys/equips a car, so the
   // logistics ×, upkeep, fleet Comfort and traveler discount are all no-ops → island UNCHANGED.
   const { s: hs, islandAt, peakLog } = runCurve({ dt: 5, maxHours: 40 });
-  ok(Math.abs(islandAt - 39440) < 1, `harness island time is UNCHANGED by E15 (got ${fmtTime(islandAt)}, expected ~10h57m20s / 39440s — the committed-path baseline)`);
+  ok(Math.abs(islandAt - 37445) < 1, `harness island time is UNCHANGED by E15 (got ${fmtTime(islandAt)}, expected ~10h24m05s / 37445s — the committed-path baseline)`);
   ok(peakLog < 290, `peak log10(cash) (${peakLog.toFixed(1)}) stays far under the double-overflow ceiling`);
   ok(hs.vehicles.equipped.length === 0 && DATA.vehicles.every(c => hs.vehicles.owned[c.id].count === 0),
     'the harness never buys or equips a single car (not in its greedy policy)');
@@ -3664,7 +3718,7 @@ console.log('\n[91] E16 Sea Legs: boats/crew, sea-destination gating, marina inv
 
   // ---- harness invariance: the greedy vlogger never buys a boat/crew or a sea destination
   const { s: hs, islandAt, peakLog } = runCurve({ dt: 5, maxHours: 40 });
-  ok(Math.abs(islandAt - 39440) < 1, `harness island time is UNCHANGED by E16 (got ${fmtTime(islandAt)}, expected ~10h57m20s / 39440s — the committed-path baseline)`);
+  ok(Math.abs(islandAt - 37445) < 1, `harness island time is UNCHANGED by E16 (got ${fmtTime(islandAt)}, expected ~10h24m05s / 37445s — the committed-path baseline)`);
   ok(peakLog < 290, `peak log10(cash) (${peakLog.toFixed(1)}) stays far under the double-overflow ceiling`);
   ok(DATA.boats.every(b => hs.vehicles.boats[b.id].count === 0) && DATA.crew.every(c => hs.vehicles.crew[c.id].count === 0),
     'the harness never buys a boat or crew');
@@ -3759,7 +3813,7 @@ console.log('\n[92] E17 Wheels Up: jets, the logistics capstone, air-destination
 
   // ---- harness invariance: no jets, no capstone, no air destinations, no jet discount
   const { s: hs, islandAt, peakLog } = runCurve({ dt: 5, maxHours: 40 });
-  ok(Math.abs(islandAt - 39440) < 1, `harness island time is UNCHANGED by E17 (got ${fmtTime(islandAt)}, expected ~10h57m20s / 39440s — the committed-path baseline)`);
+  ok(Math.abs(islandAt - 37445) < 1, `harness island time is UNCHANGED by E17 (got ${fmtTime(islandAt)}, expected ~10h24m05s / 37445s — the committed-path baseline)`);
   ok(peakLog < 290, `peak log10(cash) (${peakLog.toFixed(1)}) stays under the ceiling`);
   ok(DATA.jets.every(j => hs.vehicles.jets[j.id].count === 0), 'the harness never buys a jet');
   ok(M.capstoneActive(hs, DATA) === false && M.jetTier(hs, DATA) === 0 && hs._logiCache === 1, 'the harness never lights the capstone (jetTier 0, _logiCache 1)');
@@ -3857,7 +3911,7 @@ console.log('\n[93] E18 Sail-Shaped Hotel: Taste gate on tiers 12/13, gold clust
 
   // ---- harness invariance: the Taste gate is cleared by the greedy player's passive Taste
   const { islandAt, peakLog } = runCurve({ dt: 5, maxHours: 40 });
-  ok(Math.abs(islandAt - 39440) < 1, `harness island time is UNCHANGED by E18 (got ${fmtTime(islandAt)}, expected 39440s — the Taste gate is cleared by passive Taste)`);
+  ok(Math.abs(islandAt - 37445) < 1, `harness island time is UNCHANGED by E18 (got ${fmtTime(islandAt)}, expected 37445s — the Taste gate is cleared by passive Taste)`);
   ok(peakLog < 290, `peak log10(cash) (${peakLog.toFixed(1)}) stays under the ceiling`);
 
   // ---- the Taste gate: tier 12 blocked below tasteGate even at huge Comfort; open at/above
@@ -3902,7 +3956,7 @@ console.log('\n[94] E19 At Your Service: the butler, payroll sink, bounded auto-
 
   // ---- harness invariance: the greedy player never hires, so payroll 0 + no automation
   const { s: hs, islandAt, peakLog } = runCurve({ dt: 5, maxHours: 40 });
-  ok(Math.abs(islandAt - 39440) < 1, `harness island time is UNCHANGED by E19 (got ${fmtTime(islandAt)}, expected 39440s — the butler is off by default)`);
+  ok(Math.abs(islandAt - 37445) < 1, `harness island time is UNCHANGED by E19 (got ${fmtTime(islandAt)}, expected 37445s — the butler is off by default)`);
   ok(peakLog < 290, `peak log10(cash) (${peakLog.toFixed(1)}) stays under the ceiling`);
   ok(hs.staff.butler.hired === false && M.payrollTotal(hs, DATA) === 0, 'the harness never hires the butler (payroll 0 throughout)');
 
@@ -3966,7 +4020,7 @@ console.log('\n[95] E20 The Whole Household: staff roles, morale softcap, L_staf
 
   // ---- harness invariance: no staff hired ⇒ L_staff 1, payroll 0
   const { s: hs, islandAt } = runCurve({ dt: 5, maxHours: 40 });
-  ok(Math.abs(islandAt - 39440) < 1, `harness island time is UNCHANGED by E20 (got ${fmtTime(islandAt)}, expected 39440s — no staff hired)`);
+  ok(Math.abs(islandAt - 37445) < 1, `harness island time is UNCHANGED by E20 (got ${fmtTime(islandAt)}, expected 37445s — no staff hired)`);
   ok(hs._staffMult === 1 && DATA.staff.every(d => !hs.staff[d.id].hired), 'the harness hires no staff (L_staff 1 throughout)');
 
   // ---- morale softcap: bounded, monotone
@@ -4068,11 +4122,17 @@ console.log('\n[96] E21 Seven Stars: Seven-Star Touches cluster, gated exclusivi
   ok(E.beatCopy(con, beat22) === beat22.variants.connoisseur, 'a connoisseur build gets the connoisseur beat-22 variant');
   ok(beat21.requires.accTier === 14 && beat22.requires.comfort === 3e8, 'beats 21/22 keep their neutral gates (the 26-beat harness pin is untouched)');
 
-  // ---- harness invariance: the greedy ROI player buys none of the dominated Touches
+  // ---- harness invariance: E21's content is neutral (the baseline island moved 39440→37445
+  // for the whole suite in the above-floor Comfort refit, docs/05 §9.3 — not from E21).
   const { s: hs, islandAt } = runCurve({ dt: 5, maxHours: 40 });
-  ok(Math.abs(islandAt - 39440) < 1, `harness island time is UNCHANGED by E21 (got ${fmtTime(islandAt)}, expected 39440s — luxury Touches fail the ROI payback test)`);
-  ok(SEVEN.every(id => hs.amenities[id].level === 0), 'the harness never buys a Seven-Star Touch (dominated cosmetic, exclusivity gate shut)');
-  ok((hs._exclCache ?? 0) === 0, 'the harness ends with exclusivity 0 (connoisseur lane never engaged)');
+  ok(Math.abs(islandAt - 37445) < 1, `harness island time matches the refit baseline (got ${fmtTime(islandAt)}, expected 37445s)`);
+  // Post-refit BEHAVIOR CHANGE: the Seven-Star Touches were "dominated cosmetics" (skipped by the
+  // ROI payback test) only because Comfort income was accScore-swamped. With the income multiplier
+  // now reading above-floor Comfort, their Comfort is ROI-positive, so the greedy bot DOES buy them.
+  ok(SEVEN.some(id => hs.amenities[id].level > 0), 'the harness now BUYS Seven-Star Touches — above-floor Comfort makes them ROI-positive (were dominated cosmetics)');
+  // The GATE invariant that E21 actually guards is untouched: tag:luxury exclusivity spillover is
+  // connoisseur-gated, so a vlogger harness owning Seven-Star Touches still earns 0 exclusivity.
+  ok(M.connoisseurActive(hs) === false && (hs._exclCache ?? 0) === 0, 'the harness stays non-connoisseur ⇒ those Touches add 0 exclusivity (the gate is shut)');
 }
 
 console.log('\n[97] E22 A Bungalow of One\'s Own: owned property, persistent Comfort floor, owner-pride ×, invariance');
@@ -4136,7 +4196,7 @@ console.log('\n[97] E22 A Bungalow of One\'s Own: owned property, persistent Com
 
   // ---- harness invariance: the greedy ROI player never buys a deed ⇒ island unchanged
   const { s: hs, islandAt } = runCurve({ dt: 5, maxHours: 40 });
-  ok(Math.abs(islandAt - 39440) < 1, `harness island time is UNCHANGED by E22 (got ${fmtTime(islandAt)}, expected 39440s — the deed is opt-in, ladder stays Comfort-gated)`);
+  ok(Math.abs(islandAt - 37445) < 1, `harness island time is UNCHANGED by E22 (got ${fmtTime(islandAt)}, expected 37445s — the deed is opt-in, ladder stays Comfort-gated)`);
   ok(M.ownedPropertyCount(hs) === 0 && M.propertyScore(hs, DATA) === 0, 'the harness ends owning no property (propertyScore 0 throughout)');
   ok(M.ownerPrideMult(hs) === 1, 'the harness income is never touched by owner-pride (×1 throughout)');
 }
@@ -4216,7 +4276,7 @@ console.log('\n[98] E23 Villa Vita: grounds mega-clusters, estate wing, property
 
   // ---- harness invariance: no property, no estate staff ⇒ L_estate 1, island unchanged
   const { s: hs, islandAt } = runCurve({ dt: 5, maxHours: 40 });
-  ok(Math.abs(islandAt - 39440) < 1, `harness island time is UNCHANGED by E23 (got ${fmtTime(islandAt)}, expected 39440s — the estate wing is opt-in)`);
+  ok(Math.abs(islandAt - 37445) < 1, `harness island time is UNCHANGED by E23 (got ${fmtTime(islandAt)}, expected 37445s — the estate wing is opt-in)`);
   ok(M.estateSynergy(hs, DATA) === 1 && (hs._estateMult ?? 1) === 1, 'the harness ends with L_estate 1 (grounds/estate never engaged)');
   ok(DATA.staff.filter(d => d.estate).every(d => !hs.staff[d.id].hired), 'the harness hires no estate staff');
 }
@@ -4272,7 +4332,7 @@ console.log('\n[99] E24 Where the Rich Hide: premium destinations, set-collectio
 
   // ---- harness invariance: never owns a premium destination ⇒ set bonus 1, island unchanged
   const { s: hs, islandAt } = runCurve({ dt: 5, maxHours: 40 });
-  ok(Math.abs(islandAt - 39440) < 1, `harness island time is UNCHANGED by E24 (got ${fmtTime(islandAt)}, expected 39440s — premium gate needs property/exclusivity)`);
+  ok(Math.abs(islandAt - 37445) < 1, `harness island time is UNCHANGED by E24 (got ${fmtTime(islandAt)}, expected 37445s — premium gate needs property/exclusivity)`);
   ok(M.premiumDestOwned(hs, DATA) === 0 && M.destSetMult(0) === 1, 'the harness owns no premium destination (set bonus 1 throughout)');
   ok(premiums.every(d => !E.destUnlocked(hs, d.id)), 'no premium destination ever unlocks for the harness (0 property, 0 exclusivity)');
 }
@@ -4401,7 +4461,7 @@ console.log('\n[101] E26 Who You Become: skill-tree audit — branches, requires
   const empty = ST.newGame();
   ok(M.treeIncomeMult(empty) === 1, 'an empty tree gives treeIncomeMult 1 (L_tree neutral)');
   const { s: hs, islandAt } = runCurve({ dt: 5, maxHours: 40 });
-  ok(Math.abs(islandAt - 39440) < 1, `harness island time is UNCHANGED by E26 (got ${fmtTime(islandAt)}, expected 39440s — run 1 has no tree)`);
+  ok(Math.abs(islandAt - 37445) < 1, `harness island time is UNCHANGED by E26 (got ${fmtTime(islandAt)}, expected 37445s — run 1 has no tree)`);
   ok(Object.keys(hs.ascension.tree).length === 0 && M.treeIncomeMult(hs) === 1, 'the harness (run 1) never buys a tree node');
 }
 
@@ -4465,7 +4525,7 @@ console.log('\n[102] E27 The Island Listing: multi-currency purchase, relocation
 
   // ---- harness invariance: never owns the island (0 legacy, never sees beat 28)
   const { s: hs, islandAt } = runCurve({ dt: 5, maxHours: 40 });
-  ok(Math.abs(islandAt - 39440) < 1, `harness island time is UNCHANGED by E27 (got ${fmtTime(islandAt)}, expected 39440s — the island needs Legacy the harness never has)`);
+  ok(Math.abs(islandAt - 37445) < 1, `harness island time is UNCHANGED by E27 (got ${fmtTime(islandAt)}, expected 37445s — the island needs Legacy the harness never has)`);
   ok(hs.island.owned === false && M.islandMult(hs) === 1, 'the harness never buys the island (L_island 1 throughout)');
   ok(E.islandListingUnlocked(hs) === false, 'the listing never even appears for the harness (0 legacy, no beat 28)');
 }
@@ -4522,7 +4582,7 @@ console.log('\n[103] E28 Building Paradise: island buildings, guest income, upke
 
   // ---- harness invariance: never owns the island ⇒ no buildings, no guest income
   const { s: hs, islandAt } = runCurve({ dt: 5, maxHours: 40 });
-  ok(Math.abs(islandAt - 39440) < 1, `harness island time is UNCHANGED by E28 (got ${fmtTime(islandAt)}, expected 39440s — no island ⇒ no resort)`);
+  ok(Math.abs(islandAt - 37445) < 1, `harness island time is UNCHANGED by E28 (got ${fmtTime(islandAt)}, expected 37445s — no island ⇒ no resort)`);
   ok(hs.island.owned === false && M.guestIncomeRaw(hs, DATA) === 0 && M.buildingComfortTotal(hs, DATA) === 0, 'the harness builds nothing (guest income + building Comfort 0)');
   ok(E.accUnlocked(hs) === false || hs.accommodation.tier < 21, 'the harness never climbs past tier 20 (tier 21 needs the island)');
 }
@@ -4588,7 +4648,7 @@ console.log('\n[104] E29 Empire of Leisure: Legend prestige-2, meta-meta shop, N
 
   // ---- harness invariance: never Legends or NG+s
   const { s: hs, islandAt } = runCurve({ dt: 5, maxHours: 40 });
-  ok(Math.abs(islandAt - 39440) < 1, `harness island time is UNCHANGED by E29 (got ${fmtTime(islandAt)}, expected 39440s — no Legend, no NG+)`);
+  ok(Math.abs(islandAt - 37445) < 1, `harness island time is UNCHANGED by E29 (got ${fmtTime(islandAt)}, expected 37445s — no Legend, no NG+)`);
   ok((hs.legend?.count || 0) === 0 && (hs.ngPlus || 0) === 0 && M.computeLegendMult(hs, DATA) === 1 && M.ngPlusIncomeMult(hs) === 1, 'the harness never Legends or NG+s (L_legend 1, NG+ mults 1)');
 }
 
@@ -4638,14 +4698,14 @@ console.log('\n[105] E30 Legends of Leisure: achievements/collections, seasonal,
   P.ascend(rec);
   ok(rec.achievements.unlocked.the_island === true, 'the trophy record survives ascension (permanent)');
 
-  // ---- THE GOLDEN FILE: the fitted greedy-optimal curve is locked (E30-S8). island 39440s, 26
+  // ---- THE GOLDEN FILE: the fitted greedy-optimal curve is locked (E30-S8). island 37445s, 26
   // beats monotone, peak log10 bounded, and every E30 layer neutral for the harness.
   const { s: hs, beatTime, islandAt, peakLog } = runCurve({ dt: 5, maxHours: 40 });
-  ok(Math.abs(islandAt - 39440) < 1, `GOLDEN: island (tier 20) at 39440s (got ${fmtTime(islandAt)})`);
+  ok(Math.abs(islandAt - 37445) < 1, `GOLDEN: island (tier 20) at 37445s (got ${fmtTime(islandAt)})`);
   const beats = Object.keys(beatTime).map(Number).sort((a, b) => a - b);
   ok(beats.length === 26 && beats[beats.length - 1] === 26, 'GOLDEN: the greedy harness reaches exactly 26 monotone beats');
   ok(peakLog < 13.5 && peakLog < 290, `GOLDEN: peak log10(cash) ${peakLog.toFixed(1)} stays well under the 1e290 BigNumber threshold (doubles suffice)`);
-  // golden beat-time snapshot (a few anchors — the whole curve is pinned by the 39440 island above)
+  // golden beat-time snapshot (a few anchors — the whole curve is pinned by the 37445 island above)
   ok(Math.abs(beatTime[1] - 0) < 1 && beatTime[18] < beatTime[22] && beatTime[22] < beatTime[26], 'GOLDEN: beat ordering is monotone (1 → 18 → 22 → 26)');
   ok(M.computeAchieveMult(hs, DATA) === 1 && M.seasonalMult(hs, DATA) === 1, 'GOLDEN: L_achieve + seasonal are 1 for the harness (E30 is fully opt-in)');
 }
@@ -4705,10 +4765,10 @@ console.log('\n[107] demo runner prestige layer: Legacy/Legend spending, ascensi
   ok(lg.legend.points < 20 && (lg.legend.perks.eternal_tan || 0) >= 2, `legend points spent across the perk list (${lg.legend.points} left, tan rank ${lg.legend.perks.eternal_tan})`);
 
   // ---- ascension integration: 12h of the ascension-loop scenario covers island → ascend →
-  // spend → generation 2 (the refit greedy core reaches tier 20 at ~10h57m).
+  // spend → generation 2 (the refit greedy core reaches tier 20 at ~10h24m post-Comfort-refit).
   const asc = runScenario(getScenario('ascension-loop'), { dt: 5, maxHours: 14 });
   ok(asc.final.ascensions === 1, `ascension-loop ascends exactly once in 14h (got ${asc.final.ascensions})`);
-  ok(asc.islandAt !== null && asc.islandAt > 38000 && asc.islandAt < 41000, `island time recorded despite the same-step reset (${fmtTime(asc.islandAt)})`);
+  ok(asc.islandAt !== null && asc.islandAt > 36000 && asc.islandAt < 39000, `island time recorded despite the same-step reset (${fmtTime(asc.islandAt)})`);
   const tierIdx = asc.events.findIndex(e => e.type === 'tier' && e.tier === 20);
   const ascIdx = asc.events.findIndex(e => e.type === 'ascend');
   ok(tierIdx >= 0 && ascIdx > tierIdx, 'event order: tier 20 logged before the ascension that resets it');
@@ -4803,12 +4863,21 @@ console.log('\n[109] Phase B instruments: branch parity, casual band, beat spaci
   for (const [b, t] of Object.entries(times)) ok(t !== null, `${b} reaches the island (${t === null ? 'never' : fmtTime(t)})`);
   const spread = Math.max(...Object.values(times)) / Math.min(...Object.values(times));
   console.log(`    → parity spread ×${spread.toFixed(2)} (vlogger ${fmtTime(times.vlogger)} · traveler ${fmtTime(times.traveler)} · connoisseur ${fmtTime(times.connoisseur)} · crypto ${fmtTime(times.crypto)})`);
-  // Phase-C FITTED pins (exact — deterministic engine + fixed policies). The refit closed the
-  // audit's ×2.28 spread to ×1.37: every branch inside ±20% of the vlogger baseline.
-  ok(Math.abs(times.vlogger - 39440) <= 120, `vlogger pin ≈ golden 39440s / 10h57m20s (got ${times.vlogger})`);
-  ok(Math.abs(times.traveler - 38025) <= 300, `traveler fitted pin ~10h34m (got ${fmtTime(times.traveler)})`);
-  ok(Math.abs(times.connoisseur - 32095) <= 300, `connoisseur fitted pin ~8h55m (got ${fmtTime(times.connoisseur)})`);
-  ok(Math.abs(times.crypto - 43705) <= 300, `crypto fitted pin ~12h08m (got ${fmtTime(times.crypto)})`);
+  // FITTED pins (exact — deterministic engine + fixed policies). RE-PINNED by the above-floor
+  // Comfort refit (docs/05 §9.3): the income multiplier now reads player-EARNED Comfort, which
+  // lifted the connoisseur's L_comfort edge over the vlogger from ~×1.05 to ~×1.56 (collections
+  // feed above-floor Comfort) and pushed the branch to 0.73× — OUT of the Phase-C ±20-25%
+  // parity contract. Rather than widening the band, the SAME lever Phase-C already used reins
+  // it back: EXCLUSIVITY.rate 0.45→0.22 (branch-gated — exclusivity is 0 for every other
+  // branch, so only the connoisseur pin moves). The branch keeps the full new comfort edge and
+  // stays fastest, at its pre-refit relative position. vlogger 37445 · traveler 36080 (0.96×) ·
+  // connoisseur 30900 (0.825×) · crypto 41495 (1.11×) — spread ×1.34 (was ×1.37).
+  ok(Math.abs(times.vlogger - 37445) <= 120, `vlogger pin ≈ golden 37445s / 10h24m05s (got ${times.vlogger})`);
+  ok(Math.abs(times.traveler - 36080) <= 300, `traveler fitted pin ~10h01m (got ${fmtTime(times.traveler)})`);
+  ok(Math.abs(times.connoisseur - 30900) <= 300, `connoisseur fitted pin ~8h35m — the comfort branch, fastest but inside the parity band (got ${fmtTime(times.connoisseur)})`);
+  ok(Math.abs(times.crypto - 41495) <= 300, `crypto fitted pin ~11h32m (got ${fmtTime(times.crypto)})`);
+  // Parity band: the Phase-C contract, unchanged — fast edge 0.80 (connoisseur 0.825×), slow
+  // edge 1.25 (crypto 1.11×).
   for (const [b, t] of Object.entries(times))
     ok(t >= times.vlogger * 0.8 && t <= times.vlogger * 1.25, `branch parity: ${b} within ±20-25% of the vlogger baseline`);
 
@@ -4892,7 +4961,7 @@ console.log('\n[111] Living-World W1: shared effects registry + Trip Events + Va
     'CONFIG.EVENTS.enabled:false alone keeps Trip Events fully dark — cursor 0, effects empty, goat null, even after heavy ticking');
   ok(neutral.weather.id === 'sunny' && neutral.weather.cursor === 0, 'Vacation Weather (same gate) never advances past its seeded sunny default either');
   const { islandAt: neutralIsland } = runCurve({ dt: 5, maxHours: 40 });
-  ok(Math.abs(neutralIsland - 39440) < 1, `harness island time is UNCHANGED by Living-World W1 (got ${fmtTime(neutralIsland)}, expected 39440s)`);
+  ok(Math.abs(neutralIsland - 37445) < 1, `harness island time is UNCHANGED by Living-World W1 (got ${fmtTime(neutralIsland)}, expected 37445s)`);
 
   // ---- (c) effectsMult cap property: several ×10 entries of the SAME kind still cap the
   // product at config.EFFECTS.maxMult (the registry works whether or not the scheduler is on).
@@ -4984,7 +5053,7 @@ console.log('\n[112] Living-World W2: Sunscreen Boosts + Splurge Moments — pla
 
   // ---- (a) goldens untouched: reuse the existing pin helpers ([109]'s runCurve/runScenario pattern)
   const { islandAt: greedyIsland } = runCurve({ dt: 5, maxHours: 40 });
-  ok(Math.abs(greedyIsland - 39440) < 1, `harness island time is UNCHANGED by Living-World W2 (got ${fmtTime(greedyIsland)}, expected 39440s)`);
+  ok(Math.abs(greedyIsland - 37445) < 1, `harness island time is UNCHANGED by Living-World W2 (got ${fmtTime(greedyIsland)}, expected 37445s)`);
   const { runScenario } = await import('./demo.mjs');
   const { getScenario } = await import('./scenarios.mjs');
   const cas = runScenario(getScenario('casual-tourist'), { dt: 5, maxHours: 26 });
@@ -5116,7 +5185,7 @@ console.log('\n[113] Living-World W3: Souvenir Stand + Ascension Challenges + Le
 
   // ---- (a) goldens untouched: reuse the existing pin helpers ([109]/[111]/[112]'s runCurve/runScenario pattern)
   const { islandAt: greedyIsland113 } = runCurve({ dt: 5, maxHours: 40 });
-  ok(Math.abs(greedyIsland113 - 39440) < 1, `harness island time is UNCHANGED by Living-World W3 (got ${fmtTime(greedyIsland113)}, expected 39440s)`);
+  ok(Math.abs(greedyIsland113 - 37445) < 1, `harness island time is UNCHANGED by Living-World W3 (got ${fmtTime(greedyIsland113)}, expected 37445s)`);
   const { runScenario: runScenario113 } = await import('./demo.mjs');
   const { getScenario: getScenario113, runAscensionChallenger } = await import('./scenarios.mjs');
   const cas113 = runScenario113(getScenario113('casual-tourist'), { dt: 5, maxHours: 26 });
@@ -5127,8 +5196,12 @@ console.log('\n[113] Living-World W3: Souvenir Stand + Ascension Challenges + Le
   const neu = ST.newGame();
   ok(neu.challenge.active === null, 'fixture: a fresh game has no active challenge');
   neu._comfortCache = 5e8;
-  const oldComfort = 1 + C.COMFORT.MULT * Math.log10(1 + neu._comfortCache / C.COMFORT.C0);
-  ok(M.comfortMultiplier(neu) === oldComfort, 'comfortMultiplier is bit-identical to the pre-W3 formula with no active challenge');
+  // reference formula updated for the above-floor refit (docs/05 §9.3): the challenge-free
+  // comfortMultiplier now reads effective (above-floor) Comfort. neu is a fresh game (tier 0 ⇒
+  // floor accScore(0)·wAcc = 50), so this stays the exact identity when no challenge is active.
+  const effNeu = Math.max(0, neu._comfortCache - C.COMFORT.floorFrac * M.comfortFloor(neu));
+  const oldComfort = 1 + C.COMFORT.MULT * Math.log10(1 + effNeu / C.COMFORT.C0);
+  ok(M.comfortMultiplier(neu) === oldComfort, 'comfortMultiplier is bit-identical to the challenge-free above-floor formula with no active challenge');
 
   const oldWalletCap = M.bankCapAt(neu.bank.tier) * Math.pow(1.4, neu.ascension?.tree?.deep_pockets || 0);
   ok(M.walletCap(neu) === oldWalletCap, 'walletCap is bit-identical to the pre-W3 formula with no active challenge');
@@ -5167,7 +5240,10 @@ console.log('\n[113] Living-World W3: Souvenir Stand + Ascension Challenges + Le
   {
     const { s } = withChallenge('rainy_season');
     s._comfortCache = 5e8;
-    const raw = C.COMFORT.MULT * Math.log10(1 + s._comfortCache / C.COMFORT.C0);
+    // raw uses effective (above-floor) Comfort now — see the above-floor refit note above (fresh
+    // game ⇒ tier-0 floor 50); Rainy Season still halves the multiplier's EXCESS over 1.
+    const effS = Math.max(0, s._comfortCache - C.COMFORT.floorFrac * M.comfortFloor(s));
+    const raw = C.COMFORT.MULT * Math.log10(1 + effS / C.COMFORT.C0);
     ok(approx(M.comfortMultiplier(s), 1 + 0.5 * raw), 'Rainy Season: L_comfort → 1 + 0.5·(L−1)');
   }
   {
@@ -5331,7 +5407,7 @@ console.log('\n[114] Living-World W4 (presentation): Trophy Road plumbing, Petra
 {
   // ---- (a) goldens exact: reuse the existing pin helpers ([109]/[111]/[112]/[113]'s pattern)
   const { islandAt: greedyIsland114 } = runCurve({ dt: 5, maxHours: 40 });
-  ok(Math.abs(greedyIsland114 - 39440) < 1, `harness island time is UNCHANGED by Living-World W4 (got ${fmtTime(greedyIsland114)}, expected 39440s)`);
+  ok(Math.abs(greedyIsland114 - 37445) < 1, `harness island time is UNCHANGED by Living-World W4 (got ${fmtTime(greedyIsland114)}, expected 37445s)`);
   const { runScenario: runScenario114 } = await import('./demo.mjs');
   const { getScenario: getScenario114 } = await import('./scenarios.mjs');
   const cas114 = runScenario114(getScenario114('casual-tourist'), { dt: 5, maxHours: 26 });
@@ -5457,13 +5533,13 @@ console.log('\n[115] Living-World W5: flip live, quiet pins unmoved, living band
 
     // (b) greedy-living: exact on the default stream; events can only help; tight across seeds.
     const gLive = runCurve({ dt: 5, maxHours: 30 });
-    ok(Math.abs(gLive.islandAt - 38970) < 1, `greedy-living island exactly 38970s / 10h49m30s on the default seed (got ${fmtTime(gLive.islandAt)})`);
-    ok(gLive.islandAt < 39440, 'greedy-living is FASTER than the quiet golden (events can only help a bot that never taps)');
-    ok(gLive.islandAt > 39440 * 0.90, 'greedy-living stays within 10% of the quiet golden (events help modestly, never explosively)');
+    ok(Math.abs(gLive.islandAt - 36960) < 1, `greedy-living island exactly 36960s / 10h16m00s on the default seed (got ${fmtTime(gLive.islandAt)})`);
+    ok(gLive.islandAt < 37445, 'greedy-living is FASTER than the quiet golden (events can only help a bot that never taps)');
+    ok(gLive.islandAt > 37445 * 0.90, 'greedy-living stays within 10% of the quiet golden (events help modestly, never explosively)');
     ok(gLive.peakLog < 290, `greedy-living peak log10 ${gLive.peakLog.toFixed(1)} far under the 1e290 policy ceiling`);
     for (const seed of [1, 2]) {
       const r = runScenario(getScenario('greedy-vlogger'), { dt: 10, maxHours: 30, snapshotSec: 7200, seed });
-      ok(r.islandAt !== null && Math.abs(r.islandAt - gLive.islandAt) < 39440 * 0.04,
+      ok(r.islandAt !== null && Math.abs(r.islandAt - gLive.islandAt) < 37445 * 0.04,
         `greedy-living seed ${seed} within ±4% of the default-stream pin (got ${fmtTime(r.islandAt)})`);
     }
 
@@ -5507,7 +5583,7 @@ console.log('\n[115] Living-World W5: flip live, quiet pins unmoved, living band
     // the foundation underneath the living world is bit-identical to the pre-W5 economy.
     C.EVENTS.enabled = false;
     const gQuiet = runCurve({ dt: 5, maxHours: 30 });
-    ok(Math.abs(gQuiet.islandAt - 39440) < 1, `quiet foundation still exactly 39440s under the flip (got ${fmtTime(gQuiet.islandAt)})`);
+    ok(Math.abs(gQuiet.islandAt - 37445) < 1, `quiet foundation still exactly 37445s under the flip (got ${fmtTime(gQuiet.islandAt)})`);
   } finally {
     C.EVENTS.enabled = false;   // the suite's quiet-mode contract (header note) holds to the end
   }

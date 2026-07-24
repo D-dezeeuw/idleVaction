@@ -151,9 +151,31 @@ export const CONFIG = {
 
   // ---- comfort (UNBOUNDED sum; the log multiplier softcaps its *effect*) ----
   COMFORT: {
-    C0: 100,                // scale for the log multiplier
-    MULT: 0.4,              // strength of L_comfort
+    C0: 8,                  // scale for the log multiplier (was 100 — lowered in the
+                            // above-floor refit so the now-small effectiveComfort still
+                            // yields a healthy L_comfort; see floorFrac below).
+    MULT: 0.47,             // strength of L_comfort (was 0.4 — raised to compensate for the
+                            // income the floor subtraction removes; refit lever, docs/05 §9.3).
     wAcc: 1.0, wAmen: 1.0, wBody: 8.0,
+    // floorFrac (the "Comfort = active participation" refit): the INCOME multiplier reads
+    //   effectiveComfort = max(0, Comfort − floorFrac · comfortFloor(state))
+    // where comfortFloor = accScore(tier)·wAcc — the passive backbone every tier purchase
+    // grants for free. The GATE (accUnlockComfort / accUnlocked) still reads TOTAL Comfort,
+    // so late-tier bridgeability (unlockFrac 0.33 < 1/growth 0.385) is untouched — this knob
+    // ONLY moves the income multiplier's base, never a gate. A continuous knob, not a boolean:
+    //   · 0   ⇒ effectiveComfort = Comfort ⇒ BIT-IDENTICAL to the pre-refit income multiplier
+    //          (the escape hatch — pinned in selftest as the legacy equivalence).
+    //   · 1   ⇒ effectiveComfort = Comfort − accScore·wAcc = exactly displayComfort (amenTerm +
+    //          bodyTerm) — pure active participation, what the UI already shows the player.
+    // WHY 1: at high tiers accScore dwarfs amenTerm by ~1000×, so ANY residual (1−floorFrac)·
+    // accScore swamps amenity spend (measured: at tier 15 a real amenity moves income +0.007%
+    // at φ=0, +0.07% at φ=0.9, and only clears ≥1% at φ≳0.999). Only φ=1 makes marginal amenity
+    // value meaningful across the whole run (tier 15: +5.5%). And φ=1 is ALSO the no-penalty
+    // point: at check-in accScore rises by the SAME amount in both Comfort and the subtracted
+    // floor, so ΔeffectiveComfort = (1−φ)·wAcc·Δaccscore = 0 — a tier-up neither drops nor
+    // inflates the income multiplier, it just stops being free. The recurring active loop is
+    // that L_comfort now grows ONLY from amenities/Body, never from climbing the rented ladder.
+    floorFrac: 1.0,
     // E22 owned property (a NEW ComfortRaw term, w_prop·propertyScore). propertyScore is 0 with
     // nothing owned, so `... + wProp·0` is bit-identical to the pre-E22 sum (x+0 exact in IEEE754)
     // and the fitted 29705s island cannot drift — the greedy harness never buys a deed.
@@ -513,7 +535,17 @@ export const CONFIG = {
   // whenever the connoisseur system is inactive, so the harness is unaffected.
   // Fitted (probe: a committed connoisseur mid-Act-II) to a ~1.5–3× global × — comparable to
   // the other lanes, never dominant (E14-S8-T1/S10-T10).
-  EXCLUSIVITY: { rate: 0.45, E0: 7, softExp: 0.7, setBonus: 0.25, branchBonus: 0.25 },
+  // rate 0.45 → 0.22 (above-floor Comfort refit, docs/05 §9.3): the SAME parity lever the
+  // Phase-C refit already used to rein this branch into the ±20-25% band ("exclusivity
+  // reined, rate 0.45" → connoisseur 0.82×). The refit handed the branch a second, bigger
+  // edge — collections' Comfort is now fully above-floor, lifting its L_comfort advantage
+  // over the vlogger from ~×1.05 to ~×1.56 at the island — which pushed it to 0.73× and out
+  // of the parity contract. Trimming rate (the branch-gated knob: exclusivity is 0 for every
+  // other branch, so vlogger/traveler/crypto/casual pins are bit-identical) gives back part
+  // of the OLD edge (L_excl ~×1.9 → ~×1.44 at the island) instead of widening the band:
+  // connoisseur re-lands at 0.825× vlogger (30900s), matching its pre-refit 0.82× position
+  // while KEEPING the full new comfort edge. Selftest [109] pins the result.
+  EXCLUSIVITY: { rate: 0.22, E0: 7, softExp: 0.7, setBonus: 0.25, branchBonus: 0.25 },
 
   // APPRECIATION: art/wine quietly grow in stored value while held. value =
   // boughtValue·(1 + appreciationRate·globalRate)^ageYears, ageYears = age(game-seconds)/

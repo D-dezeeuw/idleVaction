@@ -2481,13 +2481,21 @@ export function buyBankUpgrade(state) {
 // conciergeCandidates below — this is what stops the concierge from ever leaking cash
 // into a dominated/cosmetic purchase, the exact anti-pattern the ROI harness itself
 // exists to prevent.
+// Above-floor Comfort refit (config.COMFORT.floorFrac, docs/05 §9.3): price the bump against
+// the SAME effective (above-floor) base the shipped comfortMultiplier reads. Reading the raw
+// TOTAL here would keep the OLD accScore-dominated model: at mid/high tiers ΔL would look
+// vanishing, every amenity would fail the payback gate, and the concierge/butler would refuse
+// the now-primary active income lane — the auto-buyer's model must never diverge from the
+// income math it is budgeting for.
 function conciergeAmenityGainPerSec(state, a, cashRate) {
   if (cashRate <= 0) return 0;
   const dComf = a.comfort * C.COMFORT.wAmen;
   if (dComf <= 0) return 0;
-  const comf = state._comfortCache;
-  const L = 1 + C.COMFORT.MULT * Math.log10(1 + comf / C.COMFORT.C0);
-  const Lafter = 1 + C.COMFORT.MULT * Math.log10(1 + (comf + dComf) / C.COMFORT.C0);
+  const floorSub = C.COMFORT.floorFrac * M.comfortFloor(state);
+  const eff = Math.max(0, state._comfortCache - floorSub);
+  const effAfter = Math.max(0, state._comfortCache + dComf - floorSub);
+  const L = 1 + C.COMFORT.MULT * Math.log10(1 + eff / C.COMFORT.C0);
+  const Lafter = 1 + C.COMFORT.MULT * Math.log10(1 + effAfter / C.COMFORT.C0);
   return cashRate * (Lafter - L) / L;
 }
 const CONCIERGE_AMENITY_HORIZON_SEC = 1800; // same payback horizon dev/harness.mjs uses

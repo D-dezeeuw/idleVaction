@@ -325,3 +325,66 @@ exact on the default stream (events only help a bot that can't tap goats; seed s
 < ±1%), casual-living the seed-panel bands above, booster ≤ 20% ahead of casual ([112]),
 honeymoon/challenge bands unchanged ([113]). `GOLDEN` in js/dev/report.mjs carries all of
 it for the dashboard; the committed sample report is regenerated with seeds {1,2}.
+
+### §9.3 — The above-floor Comfort refit (2026-07-24): Comfort becomes active participation
+
+**The problem.** Comfort's income multiplier `L_comfort = 1 + MULT·log10(1 + C/C0)` read
+**TOTAL** Comfort, whose sum is dominated by `w_acc·accScore(tier)` — the accommodation backbone
+the player gets *free and automatically* with every tier purchase. Active amenity spend was noise
+against that passive backbone: measured marginal value of buying a real amenity was **+1.5% income
+at tier 8, +0.07% at tier 12, +0.006% at tier 15, +0.0003% at tier 18** — economically pointless.
+The UI already displayed the *above-floor* amount (`displayComfort = Comfort − comfortFloor`),
+so the number the player was told mattered was exactly the one the math ignored.
+
+**The fix (one choke point).** `math.comfortMultiplier` now reads
+`effectiveComfort = max(0, Comfort − floorFrac·comfortFloor)`, `comfortFloor = accScore·w_acc`,
+with a new `COMFORT.floorFrac`. The **gate** (`accUnlockComfort`/`accUnlocked`) is untouched — it
+still reads TOTAL Comfort, so late-tier bridgeability (`unlockFrac 0.33 < 1/growth 0.385`) is
+preserved and the tier-~15 unbridgeable wall cannot return. `floorFrac` is a continuous knob:
+`0` ⇒ bit-identical to the pre-refit multiplier (the regression escape hatch, pinned in
+selftest [26b]); `1` ⇒ the multiplier reads exactly `displayComfort` (amenities + Body).
+
+**Why floorFrac = 1.** At high tiers `accScore` dwarfs earned Comfort by ~1000×, so *any* residual
+`(1−floorFrac)·accScore` swamps amenity spend (measured at tier 15: a real amenity moves income
++0.007% at φ=0, +0.07% at φ=0.9, and only clears ≥1% at φ≳0.999). Only φ=1 makes marginal amenity
+value meaningful across the run. And φ=1 is *also* the no-penalty point: at check-in `accScore`
+rises by the same amount in both `Comfort` and the subtracted floor, so
+`ΔeffectiveComfort = (1−φ)·w_acc·Δaccscore = 0` — **a tier-up neither drops nor inflates the income
+multiplier** (measured per-tier check-in drop: 0.000%). The recurring active loop is that
+`L_comfort` now grows only from amenity/Body investment, never from climbing the rented ladder.
+
+**Re-fit (`COMFORT`: `MULT 0.4→0.47`, `C0 100→8`, `floorFrac 0→1`, `wAmen` unchanged).** Subtracting
+the floor removes income, so `MULT`/`C0` were raised/lowered to compensate. Measured, greedy quiet:
+
+| metric | before (φ=0) | after (φ=1, MULT 0.47, C0 8) |
+|---|---|---|
+| marginal value of a real amenity, tier 8 / 12 / 15 / 18 | 1.5% / 0.07% / 0.006% / 0.0003% | **10.2% / 5.5% / 2.2% / 0.7%** |
+| greedy island (quiet) | 39440s (10h57m) | **37445s (10h24m)** — in the 6–12h band |
+| casual-tourist island (quiet, dt5) | 76800s (21h20m) | **76800s (21h20m)** — unchanged, in 18–22h |
+| casual-living 5-seed median (dt10) | ~19h40m | **21h20m** (panel [21h00m, 22h20m], in [18h,22h]) |
+| greedy-living (default stream) | 38970s | **36960s** |
+| peak log10(cash) | 12.9 | 12.9 (log softcap intact — no cash-power term added) |
+| 26 monotone beats | yes | yes |
+| engaged-vs-ignoring island-time gap (amenity ROI-buyer vs gate-only buyer) | +113% | **+204%** (and unbounded late — L_comfort has no cap, unlike L_amenity's ×5) |
+
+**Amenity supply** (now the load-bearing lane) was audited per accommodation band: owned amenity
+Comfort is a small fraction of unlocked supply at every tier (incl. the historically-thin 4–8
+band — unlocked rows 51→82, supply 266K→945K vs owned 0.8K→9.4K), so no band starves the
+above-floor curve; it grows smoothly 341 → 1.16M across the run.
+
+**Branch parity held — the connoisseur reined via its own lever, not a wider band.** The refit
+lifted the connoisseur's L_comfort edge over the vlogger from ~×1.05 to ~×1.56 at the island
+(collections feed above-floor Comfort), pushing the branch to 0.73× the vlogger baseline — out of
+the Phase-C ±20-25% parity contract (§9.1). The response re-applies the SAME lever §9.1 already
+used for this exact branch ("connoisseur's exclusivity reined"): `EXCLUSIVITY.rate 0.45→0.22`
+(L_excl at the island ~×1.9 → ~×1.44). The knob is branch-gated — exclusivity is 0 for every
+other branch — so only the connoisseur pin moves, and the branch keeps the full new comfort edge:
+it stays the fastest, at its pre-refit relative position. Vlogger 37445 · traveler 36080 (0.96×) ·
+connoisseur 30900 (0.825×, was 0.82× pre-refit) · crypto 41495 (1.11×), spread ×1.34 (was ×1.37);
+the [109] band stays [0.80, 1.25]. The greedy harness now ROI-buys the former "dominated cosmetic"
+luxury amenities (e.g. Seven-Star Touches) — that's the intended consequence, and their
+exclusivity spillover stays connoisseur-gated (harness exclusivity 0). The concierge/butler's
+amenity ROI model (engine.conciergeAmenityGainPerSec) prices against the same above-floor base as
+the shipped multiplier, so automation budgets the lane the way the income math actually pays it.
+Ascended-run band ([86]) holds (run2 = 0.90× run1). Pins re-pinned in selftest
+[26]/[26b]/[62]…[115] with inline rationale; the pre-refit 39440s curve remains in git history.
