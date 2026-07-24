@@ -5,6 +5,8 @@ import { ORIGIN } from './data/story.js';
 import * as M from './math.js';
 import * as E from './engine.js';
 import * as P from './prestige.js';
+import * as AU from './audio.js';
+import { buildPostcard } from './postcard.js';
 import { fmt, fmtTime, clamp, setNotation } from './util.js';
 
 let S = null;                 // live state ref (stable across ascension)
@@ -17,7 +19,7 @@ let hooks = {};               // { save, exportSave, importSave, hardReset }
 // future stays hidden). The player sees one focused screen at a time. activeTab/seenTabs are
 // transient (reset to Home on reload) — a deliberate light touch, no save-schema change.
 const TABS = [
-  { id: 'home',   label: 'Home',   icon: '🏨', cards: ['amenitiesCard', 'poolCard', 'beachCard', 'wellnessCard', 'conciergeCard', 'propertyCard', 'islandListingCard'] },
+  { id: 'home',   label: 'Home',   icon: '🏨', cards: ['eventsCard', 'boostsCard', 'petraCard', 'amenitiesCard', 'poolCard', 'beachCard', 'wellnessCard', 'conciergeCard', 'propertyCard', 'islandListingCard', 'souvenirCard'] },
   { id: 'income', label: 'Income', icon: '💶', cards: ['generatorsCard', 'creatorCard', 'cryptoCard', 'collectionCard', 'staffCard'] },
   { id: 'travel', label: 'Travel', icon: '🌍', cards: ['destCard', 'transportCard', 'garageCard', 'marinaCard', 'hangarCard'] },
   { id: 'growth', label: 'Growth', icon: '💪', cards: ['skillsCard', 'pathsCard'] },
@@ -59,6 +61,7 @@ const expandedAmenTags = new Set();
 
 export function bind(state, h) {
   S = state; hooks = h; restoreTabs(state); wireEvents();
+  AU.bindAudio(state);
   // Measure the topbar into --iv-topbar-h so the sticky tab bar docks BELOW it instead of
   // painting over the cash HUD (the topbar wraps to variable heights on narrow screens).
   const topbar = document.getElementById('topbar');
@@ -68,7 +71,7 @@ export function bind(state, h) {
     sync();
   }
 }
-export function setState(state) { S = state; restoreTabs(state); }
+export function setState(state) { S = state; restoreTabs(state); AU.bindAudio(state); }
 
 const $ = sel => document.querySelector(sel);
 const el = id => document.getElementById(id);
@@ -90,6 +93,8 @@ const CARD_RENDERERS = {
   hangarCard: renderHangar, staffCard: renderStaff, propertyCard: renderProperty,
   islandListingCard: renderIslandListing, legendCard: renderLegend, achievementsCard: renderAchievements,
   skillsCard: renderSkills, pathsCard: renderPaths, ascensionCard: renderAscension, treeCard: renderTree,
+  eventsCard: renderEvents, boostsCard: renderBoosts, souvenirCard: renderSouvenirs,
+  petraCard: renderPetra,
 };
 let lastFullSweep = 0;
 export function render(state) {
@@ -102,6 +107,12 @@ export function render(state) {
   renderOnboarding(state);
   renderNotifications(state);
   renderStory(state);
+  // Splurge Moments (Living-World W2): outside the tab-card system (like renderStory above) so a
+  // pending choice is never missed just because another tab is active.
+  renderSplurge(state);
+  // Legacy Honeymoon (Living-World W3, docs/08 point 8): same "never missed regardless of tab"
+  // treatment as the splurge card above.
+  renderHoneymoon(state);
   // The accommodation card lives in the always-visible story row (not a tab panel), so it
   // renders every frame like the story card — setHTML's identical-write guard keeps it cheap.
   renderAccommodation(state);
@@ -114,6 +125,7 @@ export function render(state) {
     if (full || (active && active.cards.includes(cardId))) fn(state);
   }
   renderEnergyMini(state);
+  renderGoat(state);
   // progressive disclosure: gate the panels that used to be always-on, then (re)build the tab bar
   // from what's actually unlocked. Runs LAST so it reads every render*()'s freshly-set hidden state.
   applyCardReveals(state);
@@ -203,6 +215,7 @@ function renderHeader(s) {
     ${showLegacy ? `<span class="iv-res">🏆 Legacy <b>${fmt(s.resources.legacy)}</b></span>` : ''}
     ${lDest > 1.001 ? `<span class="iv-res" aria-label="World Traveler destination bonus, times ${fmt(lDest)}">🌍 <b>×${fmt(lDest)}</b></span>` : ''}
     ${combo > 1.01 ? `<span class="iv-res">🔥 Combo ×${combo.toFixed(2)}</span>` : ''}
+    ${weatherChipHtml(s)}
   `;
   setHTML(el('hdr'), html);
 }
@@ -352,6 +365,225 @@ function polaroidSceneHtml(beatId) {
     : `<div class="iv-polaroid-photo" aria-hidden="true">${emoji}</div>`;
 }
 
+// ---------- Trip Events + Vacation Weather + The Golden Goat (Living-World W1) ----------
+// Reveal gate: mirrors engine.eventsTick's own early-return EXACTLY (config.EVENTS.enabled —
+// this wave's shipped `false` — AND the player's own settings toggle AND the story-beat gate),
+// so nothing here can ever render before the mechanism itself is switched on (the reveal
+// doctrine: the future — and, this wave, the WHOLE feature — stays hidden).
+function eventsRevealed(s) {
+  return C.EVENTS.enabled && s.settings.events && s.story.beat >= C.EVENTS.minBeat;
+}
+const TRIP_EVENT_LOG_SHOWN = 5;
+// Home-tab banner: any LIVE timed effect (income/tap/destSale windows) with a name + countdown,
+// plus a short "recent trip events" list — mirrors renderCrypto's "recent market moves" style.
+// The Sound of Summer (Living-World W4, docs/08 point 12): jingle() on a Trip Event's banner
+// FIRST appearing (the live-effect count growing) — tracked as a module var since this render fn
+// has no other place to remember "was one live last render".
+let lastLiveEventCount = 0;
+function renderEvents(s) {
+  const card = el('eventsCard');
+  const reveal = eventsRevealed(s);
+  if (card) card.hidden = !reveal;
+  if (!reveal) { if (el('events')) el('events').innerHTML = ''; return; }
+
+  const live = (s.effects || []).filter(e => e.endsAt > s.stats.runSec);
+  if (live.length > lastLiveEventCount) AU.jingle();
+  lastLiveEventCount = live.length;
+  let html = '';
+  if (live.length) {
+    for (const e of live) {
+      const row = DATA.events.find(r => r.id === e.id);
+      const remain = Math.max(0, e.endsAt - s.stats.runSec);
+      html += `<div class="iv-event-banner">${row ? esc(row.name) : esc(e.id)} — ×${fmt(e.mult)} · ${fmtTime(remain)} left</div>`;
+    }
+  } else {
+    html += `<div class="iv-sub">Nothing brewing right now — the next twist could land any time.</div>`;
+  }
+  if (s.events.log && s.events.log.length) {
+    html += '<div class="iv-tag">recent trip events</div>';
+    for (const e of s.events.log.slice(0, TRIP_EVENT_LOG_SHOWN)) {
+      const row = DATA.events.find(r => r.id === e.id);
+      const detail = e.amount ? ` (+${fmt(e.amount)})` : e.mult ? ` (×${e.mult}, ${e.dur}s)` : '';
+      html += `<div class="iv-sub">${fmtTime(e.t)} — ${row ? esc(row.name) : esc(e.id)}${detail}</div>`;
+    }
+  }
+  setHTML(el('events'), html);
+}
+
+// Vacation Weather HUD chip: folded into renderHeader's chip row below, same reveal gate as the
+// events banner above. Display + event-mix bias ONLY (config.WEATHER's comment) — reads
+// state.weather.id but never affects any income math itself.
+function weatherChipHtml(s) {
+  if (!eventsRevealed(s)) return '';
+  const row = DATA.weatherStates.find(w => w.id === s.weather.id) || DATA.weatherStates[0];
+  return `<span class="iv-res" aria-label="Weather: ${esc(row.name)}">${esc(row.name)}</span>`;
+}
+
+// ---------- Sunscreen Boosts (Living-World W2, docs/08 point 4) ----------
+// Reveal gate mirrors engine.boostsRevealed exactly (story.beat >= config.BOOSTS.minBeat) — no
+// separate master switch needed (unlike Trip Events): every path in is player-initiated.
+function announceBoosts(text) {
+  const live = el('boostsAnnounce');
+  if (live) live.textContent = text;
+}
+function announceSplurge(text) {
+  const live = el('splurgeAnnounce');
+  if (live) live.textContent = text;
+}
+// Souvenir Stand (Living-World W3, docs/08 point 6): mirrors announceBoosts/announceSplurge exactly.
+function announceSouvenirs(text) {
+  const live = el('souvenirAnnounce');
+  if (live) live.textContent = text;
+}
+// a brief pulse on the just-activated row (mirrors pulseEnergy/pulseConcierge's "pulse until a
+// timestamp" convention exactly), reduced-motion gated in CSS (.iv-boost-flash).
+let boostPulseId = null, boostPulseUntil = 0;
+function pulseBoost(id) { boostPulseId = id; boostPulseUntil = Date.now() + 700; }
+function boostKindLabel(kind) {
+  return kind === 'income' ? 'income' : kind === 'clout' ? 'Clout' : kind === 'skillxp' ? 'skill XP' : kind;
+}
+function renderBoosts(s) {
+  const card = el('boostsCard');
+  const reveal = E.boostsRevealed(s);
+  if (card) card.hidden = !reveal;
+  if (!reveal) { if (el('boosts')) el('boosts').innerHTML = ''; return; }
+  const pulsing = Date.now() < boostPulseUntil;
+  let html = '';
+  for (const b of DATA.boosts) {
+    const cost = E.boostCost(s, b.id);
+    const readyAt = E.boostReadyAt(s, b.id);
+    const cooling = s.stats.runSec < readyAt;
+    const live = (s.effects || []).find(e => e.id === `boost_${b.id}` && e.endsAt > s.stats.runSec);
+    let sub, label;
+    if (live) { sub = `Active — ${fmtTime(Math.max(0, live.endsAt - s.stats.runSec))} left`; label = 'Active'; }
+    else if (cooling) { sub = `Cooling down — ready in ${fmtTime(readyAt - s.stats.runSec)}`; label = 'Cooling down'; }
+    else { sub = `Costs ${fmt(cost)} (${Math.round(b.costWalletFrac * 100)}% of your wallet cap)`; label = `Activate (${fmt(cost)})`; }
+    const enabled = !cooling && !live && s.resources.cash >= cost;
+    const flash = pulsing && boostPulseId === b.id ? ' iv-boost-flash' : '';
+    html += `<div class="iv-boost-row${flash}">
+      <div class="iv-boost-head">${b.emoji} <b>${esc(b.name)}</b> — ×${b.mult} ${boostKindLabel(b.kind)} for ${b.durationSec}s</div>
+      <div class="iv-sub">${esc(b.desc)}</div>
+      <div class="iv-boost-actions">${btn('activate-boost', b.id, label, enabled)}<span class="iv-sub">${sub}</span></div>
+    </div>`;
+  }
+  setHTML(el('boosts'), html);
+}
+
+// ---------- Splurge Moments (Living-World W2, docs/08 point 5) ----------
+// No separate reveal gate — a pending card IS the reveal (engine.checkSplurges only ever sets
+// state.splurges.pending when a moment's trigger has come true), so this just mirrors that flag.
+function renderSplurge(s) {
+  const card = el('splurgeCard');
+  const pending = s.splurges && s.splurges.pending;
+  if (!pending) { if (card) card.hidden = true; if (el('splurge')) el('splurge').innerHTML = ''; return; }
+  const m = E.splurgeData(pending.id);
+  if (card) card.hidden = !m;
+  if (!m) { if (el('splurge')) el('splurge').innerHTML = ''; return; }
+  const left = Math.max(0, pending.expiresAt - s.stats.runSec);
+  setHTML(el('splurge'), `
+    <div class="iv-splurge-head">${m.emoji} <b>${esc(m.title)}</b></div>
+    <div class="iv-sub">${esc(m.desc)}</div>
+    <div class="iv-splurge-choices">
+      ${btn('splurge-choose', 'a', esc(m.a.label))}
+      ${btn('splurge-choose', 'b', esc(m.b.label))}
+    </div>
+    <div class="iv-sub">…or walk past — ${fmtTime(left)} left before the moment passes on its own.</div>`);
+}
+
+// ---------- Legacy Honeymoon (Living-World W3, docs/08 point 8) ----------
+// A plain countdown banner, outside the tab-card system (mirrors renderSplurge above) — the
+// registry entry IS the reveal (prestige.ascend always pushes it), so this just mirrors state.
+function renderHoneymoon(s) {
+  const b = el('honeymoonBanner');
+  if (!b) return;
+  const e = (s.effects || []).find(x => x.id === 'honeymoon' && x.endsAt > s.stats.runSec);
+  if (!e) { b.hidden = true; return; }
+  b.hidden = false;
+  b.textContent = `💞 Inheritance high ×${fmt(e.mult)} — ${fmtTime(Math.max(0, e.endsAt - s.stats.runSec))} left`;
+}
+
+// ---------- Souvenir Stand (Living-World W3, docs/08 point 6) ----------
+// The reveal doctrine: the FIRST souvenir IS the reveal (state.souvenirs.count > 0) — no separate
+// story-beat gate, mirroring renderSplurge/the boost card's "the mechanism firing is the unlock".
+function renderSouvenirs(s) {
+  const card = el('souvenirCard');
+  const sv = s.souvenirs;
+  const reveal = !!(sv && sv.count > 0);
+  if (card) card.hidden = !reveal;
+  if (!reveal) { if (el('souvenir')) el('souvenir').innerHTML = ''; return; }
+  const cap = M.walletCap(s);
+  const fillPct = cap > 0 ? Math.round(clamp(sv.overflowAcc / cap, 0, 1) * 100) : 0;
+  let html = `<div class="iv-sub">🧳 Souvenirs: <b>${fmt(sv.count)}</b> · shelf perk ×<b>${M.souvenirMultiplier(s).toFixed(3)}</b> on all income</div>`;
+  html += `<div class="iv-sub">Wallet overflow fills the next souvenir: ${fillPct}%</div>`;
+  html += `<div class="iv-amenities">`;
+  for (const item of DATA.souvenirs) {
+    const owned = E.souvenirOwned(s, item.id);
+    const canBuy = !owned && sv.count >= item.cost;
+    const sub = owned ? 'On the shelf' : item.kind === 'perk' ? `+${(item.mult * 100).toFixed(0)}% income perk` : 'Pure flavor — no mechanical effect';
+    html += `<div class="iv-btn iv-content-item" title="${esc(item.desc)}">
+      <b>${item.emoji} ${esc(item.name)}</b> <small>${sub}</small>
+      <div class="iv-row-buy">${btn('buy-souvenir', item.id, owned ? 'Owned' : `${item.cost} 🧳`, canBuy, 'btn-primary')}</div>
+    </div>`;
+  }
+  html += '</div>';
+  setHTML(el('souvenir'), html);
+}
+
+// The Golden Goat: a floating button, invisible unless engine.goatVisible says one is actually
+// out. Its wander/bounce animation is entirely CSS-gated behind prefers-reduced-motion (game.css
+// '.iv-goat-btn', same convention as every other animated element in this file).
+function renderGoat(s) {
+  const b = el('goatBtn');
+  if (b) b.hidden = !E.goatVisible(s);
+}
+function showGoatPopup(gain) {
+  const btnEl = el('goatBtn');
+  if (!btnEl || !(gain > 0)) return;
+  const rect = btnEl.getBoundingClientRect();
+  const pop = document.createElement('span');
+  pop.className = 'iv-goat-pop';
+  pop.textContent = `+${fmt(gain)}`;
+  pop.style.left = `${rect.left + rect.width / 2}px`;
+  pop.style.top = `${rect.top}px`;
+  document.body.appendChild(pop);
+  setTimeout(() => pop.remove(), 700);
+}
+
+// ---------- Petra, the Pace Ghost (Living-World W4, docs/08 point 10) ----------
+// DISPLAY-ONLY: reads DATA.petra (js/data/petra.js) + the player's own accommodation.tier/
+// stats.runSec — never touches income math. Revealed once story.beat >= 4 (E.petraRevealed),
+// mirroring the boosts card's reveal-gate convention.
+// the tier Petra herself has reached by a given elapsed runSec (the highest tier whose recorded
+// tierTimes entry is <= runSec) — a small linear scan over a ~20-row table, cheap enough per render.
+function petraTierAt(runSec) {
+  let tier = 0;
+  for (const k of Object.keys(DATA.petra.tierTimes)) {
+    const t = Number(k);
+    if (DATA.petra.tierTimes[k] <= runSec && t > tier) tier = t;
+  }
+  return tier;
+}
+function renderPetra(s) {
+  const card = el('petraCard');
+  const reveal = E.petraRevealed(s);
+  if (card) card.hidden = !reveal;
+  if (!reveal) { if (el('petra')) el('petra').innerHTML = ''; return; }
+  const runSec = s.stats.runSec;
+  const myTier = s.accommodation.tier;
+  const petraNow = petraTierAt(runSec);
+  const petraTierName = (DATA.accommodation[petraNow] || DATA.accommodation[0]).name;
+  let line;
+  if (myTier >= petraNow) {
+    const petraNowTime = DATA.petra.tierTimes[petraNow] ?? 0;
+    const lead = Math.max(0, runSec - petraNowTime);
+    line = `Petra's just reaching <b>${esc(petraTierName)}</b>; you got there ${fmtTime(lead)} ago ✈️`;
+  } else {
+    const petraTime = DATA.petra.tierTimes[petraNow];
+    line = `Petra's ahead — she hit <b>${esc(petraTierName)}</b> at ${fmtTime(petraTime)}`;
+  }
+  setHTML(el('petra'), `<div class="iv-sub">🧳 ${esc(DATA.petra.name)}: ${line}. <span class="iv-tag">${esc(DATA.petra.flavor)}</span></div>`);
+}
+
 function renderStory(s) {
   const latestBeat = DATA.story.filter(b => s.story.seen.includes(b.id)).slice(-1)[0] || DATA.story[0];
   // branch-flavored copy (E13 Task D, "Whale Watching"): swaps in latestBeat.variants[branch]
@@ -375,7 +607,45 @@ function renderStory(s) {
       <div class="iv-beattitle">${latest.title}</div>
       <div class="iv-beattext">${latest.text}</div>
       ${choiceHtml}
+      <div class="iv-postcard-actions">${btn('send-postcard', '', '📮 Send a postcard', true, 'btn-link')}</div>
     </div>`);
+}
+
+// ---------- Postcards Home (Living-World W4, docs/08 point 11) ----------
+// buildPostcard (postcard.js) does all the text generation, pure and DOM-free; this is just the
+// clipboard plumbing + the confirmation toast. navigator.clipboard is the happy path; a hidden
+// textarea + execCommand('copy') is the fallback for older/insecure contexts (mirrors the
+// 'copy-save' handler's fallback shape, just without a pre-existing textarea in the DOM).
+function legacyCopy(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.focus(); ta.select();
+  try { document.execCommand('copy'); } catch (_) {}
+  document.body.removeChild(ta);
+}
+function copyTextWithFallback(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    return navigator.clipboard.writeText(text).catch(() => legacyCopy(text));
+  }
+  return Promise.resolve(legacyCopy(text));
+}
+// a small standalone toast (NOT routed through the engine-notification toastQueue — that queue
+// only flushes when a FRESH engine notification also drained this frame, see renderNotifications'
+// early return — so a pure UI-side confirmation like this gets its own tiny, identical-looking one).
+function showLocalToast(text) {
+  const box = el('notifs');
+  if (!box) return;
+  const d = document.createElement('div');
+  d.className = 'iv-notif iv-info';
+  d.textContent = text;
+  box.prepend(d);
+  setTimeout(() => d.remove(), 4000);
+}
+function sendPostcard() {
+  const text = buildPostcard(S);
+  copyTextWithFallback(text).then(() => showLocalToast('📮 Postcard copied — wish they were here'));
 }
 
 // ---------- the Travel Diary (UX-plan §3/§6) ----------
@@ -2312,6 +2582,35 @@ function renderLegend(s) {
   setHTML(el('legend'), html);
 }
 
+// ---------- Ascension Challenges (Living-World W3, docs/08 point 7) ----------
+// The small "active challenge" banner shown at the top of the Ascension card while a run has one
+// embarked — '' the rest of the time (a plain ascension, every run before this wave).
+function challengeBannerHtml(s) {
+  const active = s.challenge && s.challenge.active;
+  if (!active) return '';
+  const row = DATA.challenges.find(c => c.id === active);
+  if (!row) return '';
+  return `<div class="iv-event-banner">${row.emoji} Active challenge: <b>${esc(row.name)}</b> — reach ` +
+    `${esc(DATA.accommodation[row.goalTier]?.name || `tier ${row.goalTier}`)} to complete it and mint a permanent Keepsake ` +
+    `(+${(row.reward.mult * 100).toFixed(0)}% income).</div>`;
+}
+// The picker shown inside the retirement (ascend) era-modal below — a list of the 5, each with
+// desc/reward and a ✓ badge once completed (a completed challenge stays selectable — replaying it
+// just re-lives the handicap, the reward was already banked permanently).
+function challengePickerHtml(s) {
+  let html = `<div class="iv-tag">optional: embark a challenge</div>`;
+  html += `<label class="iv-btn iv-content-item"><input type="radio" name="challengePick" value="" checked> No challenge — a plain ascension</label>`;
+  for (const c of DATA.challenges) {
+    const done = !!(s.challenge?.completed?.[c.id]);
+    html += `<label class="iv-btn iv-content-item">
+      <input type="radio" name="challengePick" value="${c.id}"> ${c.emoji} <b>${esc(c.name)}</b>${done ? ' <span aria-label="completed">✓</span>' : ''}
+      <div class="iv-sub">${esc(c.desc)}</div>
+      <div class="iv-sub"><small>Reward: permanent +${(c.reward.mult * 100).toFixed(0)}% income (a Keepsake) on reaching tier ${c.goalTier}</small></div>
+    </label>`;
+  }
+  return html;
+}
+
 function renderAscension(s) {
   const preview = P.legacyPreview(s);
   const can = P.canAscend(s);
@@ -2325,6 +2624,7 @@ function renderAscension(s) {
   const L = s.lineage || { name: '', generation: 1, album: [] };
   const who = L.name ? esc(L.name) : 'this tourist';
   el('ascension').innerHTML = `
+    ${challengeBannerHtml(s)}
     <div>🕯️ <b>${who}</b> can retire now — shed the old self, wipe the trip, and pass on the <b>inheritance</b>.</div>
     <div class="iv-sub">Generation ${L.generation} · run time ${fmtTime(s.stats.runSec)} · retirements so far: ${s.ascension.count} · ${btn('name-lineage', '', L.name ? 'Rename ✏️' : 'Name this tourist ✏️', true)}</div>
     <div>Retire &amp; inherit → <b>+${fmt(preview)} Legacy</b> ${btn('ascend', '', 'Retire 🕯️', can)}</div>
@@ -2450,6 +2750,11 @@ function wireEvents() {
         const lbl = el(`staffBudgetVal_${id}`);
         if (lbl) lbl.textContent = `${t.value}%`;
       }
+    } else if (t.dataset.slider === 'sound-volume') {
+      // The Sound of Summer (Living-World W4, docs/08 point 12): the Menu's volume dial.
+      (S.settings.sound ||= { on: true, volume: 0.35 }).volume = Number(t.value) / 100;
+      const lbl = el('soundVolVal');
+      if (lbl) lbl.textContent = `${t.value}%`;
     }
   });
   // on release, blur the slider so its card unfreezes and resumes normal rendering.
@@ -2475,12 +2780,25 @@ function handle(action, arg, btnEl) {
       break;
     }
     case 'set-qty': S.ui.bulkMode = arg === 'max' ? 'max' : Number(arg); break;
-    case 'buy-gen': { const [k, q] = arg.split('|'); E.buyGenerator(S, Number(k), q === 'max' ? 'max' : Number(q)); break; }
+    case 'buy-gen': {
+      const [k, q] = arg.split('|');
+      const ki = Number(k);
+      // The Sound of Summer (Living-World W4, docs/08 point 12): the milestone chime pitch-steps
+      // with magnitude — a plain buy gets the quieter purchase blip instead.
+      const stepBefore = Math.floor((S.generators[ki]?.bought || 0) / C.MILESTONE_STEP);
+      const ok = E.buyGenerator(S, ki, q === 'max' ? 'max' : Number(q));
+      if (ok) {
+        const stepAfter = Math.floor(S.generators[ki].bought / C.MILESTONE_STEP);
+        stepAfter > stepBefore ? AU.chime(stepAfter) : AU.blip();
+      }
+      break;
+    }
     case 'buy-gen-upg': E.buyGenUpgrade(S, Number(arg)); break;
     case 'buy-cheapest-upg': E.buyCheapestGenUpgrade(S); break;
     case 'buy-amenity': {
       const a = E.amenityData(arg);
       const bought = E.buyAmenity(S, arg);
+      if (bought) AU.blip();   // The Sound of Summer (Living-World W4, docs/08 point 12)
       if (bought && a.tag === 'pool') {
         announcePool(`Bought ${a.name} (+${fmt(a.comfort)} Comfort)`);
         showSplashPopup(btnEl);
@@ -2494,6 +2812,13 @@ function handle(action, arg, btnEl) {
         announceWellness(`Bought ${a.name} (+${fmt(a.comfort)} Comfort)`);
         showSplashPopup(btnEl, '💪');
       }
+      break;
+    }
+    // Souvenir Stand (Living-World W3, docs/08 point 6): the shelf — generic afford-gated flow.
+    case 'buy-souvenir': {
+      const item = E.souvenirData(arg);
+      const ok = E.buySouvenir(S, arg);
+      if (ok && item) announceSouvenirs(`${item.emoji} ${item.name} — added to the shelf.`);
       break;
     }
     case 'buy-training': {
@@ -2537,6 +2862,19 @@ function handle(action, arg, btnEl) {
       if (ok) { const d = E.sponsorData(arg); announceCreator(`Sponsor deal accepted: ${d.name} — Clout ×${d.mult} for ${d.durationSec}s.`); }
       break;
     }
+    case 'activate-boost': {
+      const ok = E.activateBoost(S, arg);
+      if (ok) { const b = E.boostData(arg); pulseBoost(arg); announceBoosts(`${b.name} activated — ×${b.mult} for ${b.durationSec}s.`); }
+      break;
+    }
+    case 'splurge-choose': {
+      const pending = S.splurges && S.splurges.pending;
+      const m = pending && E.splurgeData(pending.id);
+      const opt = m && arg && m[arg];
+      const ok = E.chooseSplurge(S, arg);
+      if (ok && opt) announceSplurge(`${m.emoji} ${opt.label}`);
+      break;
+    }
     case 'concierge-toggle': S.concierge.on = !S.concierge.on; break;
     case 'concierge-budget': S.concierge.budgetFrac = Number(arg); break;
     case 'concierge-reserve': {
@@ -2550,7 +2888,7 @@ function handle(action, arg, btnEl) {
       if (i >= 0) wl.splice(i, 1); else wl.push(arg);
       break;
     }
-    case 'buy-acc': E.buyAccommodation(S); break;
+    case 'buy-acc': if (E.buyAccommodation(S)) AU.fanfare(); break;   // tier-up celebrate (docs/08 point 12)
     case 'buy-bank': E.buyBankUpgrade(S); renderBank(S); break;
     case 'open-wallet': openWallet(); break;
     case 'clout-voucher': E.buyCloutVoucher(S); break;
@@ -2605,14 +2943,19 @@ function handle(action, arg, btnEl) {
         <div class="iv-beattext">The inheritance: <b>+${fmt(P.legacyPreview(S))} Legacy</b>. The trip resets. Who you've become does not.</div>
         <label class="iv-sub" for="heirName">Name the heir <small>(optional)</small></label>
         <input id="heirName" type="text" maxlength="24" placeholder="${esc(P.defaultName(nextGen))}" autocomplete="off">
+        ${challengePickerHtml(S)}
         <div class="iv-era-actions">${btn('ascend-go', '', 'Retire & inherit 🕯️', true, 'btn-primary')} ${btn('era-close', '', 'Not yet')}</div>`);
       break;
     }
     case 'ascend-go': {
       const input = el('heirName');
       const heir = { name: (input && input.value) || '' };
+      // Ascension Challenges (Living-World W3, docs/08 point 7): the picker's selection, or
+      // undefined for "No challenge" (a plain ascension — every existing flow's default).
+      const picked = document.querySelector('input[name="challengePick"]:checked');
+      const challengeId = picked && picked.value ? picked.value : undefined;
       closeEra();
-      if (P.ascend(S, heir)) setState(S);
+      if (P.ascend(S, heir, { challengeId })) { setState(S); AU.swell(); }   // docs/08 point 12
       break;
     }
     // E29 Legend prestige-2 + meta-meta shop + New Game+
@@ -2659,6 +3002,9 @@ function handle(action, arg, btnEl) {
     }
     case 'respec-go': closeEra(); P.respec(S); break;
     case 'click': { const gain = E.click(S); showTapPopup(gain); if (gain > 0) { pulseEnergy(); pulseCombo(); } break; }
+    // The Golden Goat (Living-World W1): tapGoat is itself idempotent once hidden (pays 0),
+    // so a stray double-click can't double-pay — showGoatPopup only fires on a real payout.
+    case 'tap-goat': { const gain = E.tapGoat(S); showGoatPopup(gain); if (gain > 0) AU.bleat(); break; }
     // UX-plan R8: the ⚙️ drawer — dev tools exist only when a dev asks for them.
     case 'toggle-devtools': devToolsOpen = !devToolsOpen; renderControls(S); break;
     // UX-plan §6.4: per-tag amenity lists collapse to 3; this chip expands/collapses a tag.
@@ -2736,6 +3082,14 @@ function handle(action, arg, btnEl) {
     case 'opt-motion': S.settings.motion = (S.settings.motion === 'reduced' ? 'auto' : 'reduced');
       document.documentElement.dataset.motion = S.settings.motion === 'reduced' ? 'reduced' : ''; renderControls(S); break;
     case 'opt-toasts': S.settings.toastDensity = (S.settings.toastDensity === 'important' ? 'all' : 'important'); renderControls(S); break;
+    // Living-World W1: the player's own Trip Events toggle. Only ever rendered (see
+    // renderControls) once CONFIG.EVENTS.enabled is true — no dead toggle for an inert feature.
+    case 'opt-events': S.settings.events = !S.settings.events; renderControls(S); break;
+    // The Sound of Summer (Living-World W4, docs/08 point 12): the Menu's on/off toggle
+    // (the volume slider lives on the shared 'input' listener, mirrors concierge/staff dials).
+    case 'opt-sound': (S.settings.sound ||= { on: true, volume: 0.35 }).on = !S.settings.sound.on; renderControls(S); break;
+    // Postcards Home (Living-World W4, docs/08 point 11): the Menu's copy of the Story card's button.
+    case 'send-postcard': sendPostcard(); break;
     case 'save': hooks.save(); break;
     case 'dismiss-offline': hideOfflineSummary(); break;
   }
@@ -2810,6 +3164,8 @@ export function renderControls(state) {
   const notation = state.settings.notation || 'suffix';
   const motion = state.settings.motion || 'auto';
   const toasts = state.settings.toastDensity || 'all';
+  // The Sound of Summer (Living-World W4, docs/08 point 12): the Menu's toggle + volume dial.
+  const sound = state.settings.sound || { on: true, volume: 0.35 };
   const menu = devToolsOpen ? `
     <span class="iv-devtools">
       <span class="iv-tag">save</span>
@@ -2820,6 +3176,13 @@ export function renderControls(state) {
       ${btn('opt-notation', '', `№ ${notation === 'sci' ? 'Scientific' : 'Suffix (K/M/B)'}`, true, '', 'Toggle number notation')}
       ${btn('opt-motion', '', `${motion === 'reduced' ? '🧘 Motion: reduced' : '✨ Motion: auto'}`, true, '', 'Reduce animations')}
       ${btn('opt-toasts', '', `${toasts === 'important' ? '🔕 Toasts: important only' : '🔔 Toasts: all'}`, true, '', 'Toast density')}
+      ${C.EVENTS.enabled ? btn('opt-events', '', `${state.settings.events ? '🍹 Trip Events: on' : '🍹 Trip Events: off'}`, true, '', 'Happy hours, windfalls, and the odd wandering goat') : ''}
+      ${btn('opt-sound', '', `${sound.on ? '🔊 Sound: on' : '🔇 Sound: off'}`, true, '', 'Buy blips, milestone chimes, the goat, and more')}
+      <span class="iv-speed">Volume
+        <input id="soundVolInput" type="range" min="0" max="100" step="5" value="${Math.round(sound.volume * 100)}"
+          data-slider="sound-volume" style="width:100px" aria-label="Sound volume">
+        <span id="soundVolVal">${Math.round(sound.volume * 100)}%</span></span>
+      ${btn('send-postcard', '', '📮 Send a postcard')}
       <span class="iv-tag">pace (dev)</span>
       <span class="iv-speed">Speed <b>${state.settings.gameSpeed}×</b>: ${speeds}
         <input id="speedInput" type="number" min="0" step="1" value="${state.settings.gameSpeed}"

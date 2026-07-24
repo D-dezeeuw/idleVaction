@@ -106,7 +106,11 @@ export function newGame() {
 
   return {
     version: C.SAVE_VERSION,
-    meta: { createdAt: 0, lastSaved: 0, lastSeen: 0, playtimeMs: 0, runStartSec: 0 },
+    // streak (Postcards Home, Living-World W4, docs/08-living-world.md point 11): a gentle,
+    // NO-PENALTY day-streak stamp — lastDay (a local 'YYYY-MM-DD' string) + count, updated once on
+    // load (main.js, via state.updateStreak). A missed day just restarts the count silently — no
+    // loss, no nag, never read by any income path. Cosmetic bookkeeping only.
+    meta: { createdAt: 0, lastSaved: 0, lastSeen: 0, playtimeMs: 0, runStartSec: 0, streak: { lastDay: '', count: 0 } },
     // energy (E10 "Body & Soul"): starts at a full tank (base energyMax at Body level 0)
     // — an optional clicker-fuel resource, see config.ENERGY / math.energyMax.
     resources: { cash: 15, comfort: 0, clout: 0, legacy: 0, energy: C.ENERGY.base },
@@ -128,6 +132,68 @@ export function newGame() {
     bank: { tier: 0 },
     market: { seed: C.MARKET.seed, cursor: 0, phase: 'calm', eventId: null, mult: 1,
       nextEventT: 0, expiresAtSec: 0, eventStartSec: 0, eventLog: [], totalEvents: 0 },
+    // ---- Living-World W1: shared timed-effects registry + Trip Events + Vacation Weather +
+    // The Golden Goat (docs/08-living-world.md points 1/2/3) ----
+    // effects: the shared registry (config.EFFECTS/math.effectsMult/engine.addEffect) — empty
+    // until something adds to it. Entries are { id, kind, mult, endsAt, durationSec }: the extra
+    // `durationSec` (beyond the docs/08 plan's { id, kind, mult, endsAt }) is what lets
+    // math.effectsMult replicate the crypto market's offline overlap-weighting fairness
+    // (math.marketMult, eacdc70) — it needs each entry's ORIGINAL window length, not just its
+    // absolute end time, to weight a short window's × down when a coarse offline macro-step
+    // spans past it. Run-scoped like market/crypto (NOT in prestige.ascend's keep-list), so
+    // every ascension starts with a clean slate, same as everything else here.
+    effects: [],
+    // events: the seeded Trip Events scheduler's own state — mirrors state.market's shape
+    // exactly (seed/cursor/nextAt). engine.eventsTick is a no-op until config.EVENTS.enabled +
+    // settings.events + beat >= EVENTS.minBeat all hold (this wave ships enabled:false), so a
+    // fresh game/the harness never advance cursor past 0 and log stays empty. `log` is a ring
+    // buffer (cap 20) of recently-fired rows, for the UI's "recent trip events" list.
+    events: { seed: C.EVENTS.seed, cursor: 0, nextAt: 0, log: [] },
+    // weather: seeded ambient flavor, gated behind the SAME eventsTick() early return — shares
+    // events.seed (its own cursor namespace, see engine.weatherTick). 'sunny' (tapMult/
+    // energyRegenMult both 1) is the neutral default it never advances past for a fresh game.
+    weather: { id: 'sunny', nextAt: 0, cursor: 0 },
+    // goat: null until a `goat`-kind Trip Event spawns one ({ visibleUntil, taps }) — see
+    // engine.goatVisible/tapGoat. Mirrors island.purchasedAt/market.eventId's nullable-
+    // placeholder convention (state.js coerceTypes' comment: null in the fresh shape ⇒ skip
+    // type-checking this key, since its real shape varies by whether a goat is currently out).
+    goat: null,
+    // boosts (Living-World W2 "Sunscreen Boosts", docs/08 point 4): player-fired timed
+    // multipliers on the shared effects registry. cooldowns[id] is the runSec each boost is next
+    // activatable — absent/0 ⇒ ready immediately. engine.activateBoost is the ONLY way in, so a
+    // fresh newGame() (and the harness, which never calls it) leave this empty — the fitted
+    // island/casual goldens cannot move. RUN-SCOPED like effects/events/goat: the ascension hard
+    // reset (prestige.ascend's Object.assign(state, newGame())) wipes it with the rest of the
+    // run, exactly the same mechanism (fresh isn't in the explicit keep-list) — no extra code.
+    boosts: { cooldowns: {} },
+    // splurges (Living-World W2 "Splurge Moments", docs/08 point 5): the current pending
+    // two-option card ({ id, expiresAt } or null) + which way each already-triggered moment
+    // resolved ('a'|'b'|'expired'). engine.checkSplurges/chooseSplurge are the only writers; the
+    // harness never chooses, so every card it triggers resolves 'expired' — a pure no-op — and
+    // the fitted goldens cannot move. RUN-SCOPED like boosts (same reset mechanism, no extra code).
+    splurges: { pending: null, resolved: {} },
+    // souvenirs (Living-World W3 "Souvenir Stand", docs/08 point 6): the keepsake currency —
+    // count is BOTH the mint target (wallet overflow + first destination visits, engine.gainCash/
+    // visitDestination) AND the spend target (engine.buySouvenir), exactly like state.resources.
+    // legacy/the tree. overflowAcc is the running unbanked-overflow accumulator that mints +1
+    // souvenir every time it crosses the CURRENT wallet cap (config.SOUVENIR.maxPerTick per call).
+    // owned[id] = true once a shelf item (data/souvenirs.js) is bought — permanent, never re-buyable.
+    // META: this whole slice is in prestige.ascend's keep-list (survives ascension — "away time is
+    // never worthless again"); it is NOT kept by legendReset (wiped like the tree/Legacy, the
+    // meta-meta-layer-stays-clean rule). Minting is pure bookkeeping — a count, never cash — so it
+    // cannot itself move any income path; only owning a 'perk' shelf item can (math.souvenirMultiplier),
+    // and the harness/casual-tourist bots never buy shelf items, so the fitted goldens are unmoved.
+    souvenirs: { count: 0, overflowAcc: 0, owned: {} },
+    // challenge (Living-World W3 "Ascension Challenges", docs/08 point 7): `active` is the
+    // currently-embarked handicap's id (or null) — RUN-SCOPED, set post-reset by prestige.ascend's
+    // optional { challengeId } and cleared on completion; `mods` is the resolved data-row mods
+    // object CACHED at ascend-time (math.challengeMod reads it, so math.js never needs to import
+    // data/challenges.js — mirrors the state._pathBonus cache convention). `completed` is META
+    // (survives ascension, wiped by legendReset like souvenirs above) — once true for an id, that
+    // Keepsake reward is permanent (math.keepsakeMultiplier). Every key is neutral/empty for a
+    // fresh game and every existing scenario (nothing calls ascend with a challengeId), so the
+    // fitted goldens are unmoved.
+    challenge: { active: null, mods: {}, completed: {} },
     // homeBase (E27): 'mainland' until the private island is bought, then 'island' — a permanent
     // meta fact (carried across ascension by prestige.ascend) even as the run's tier resets.
     accommodation: { tier: 0, owned: [0], homeBase: 'mainland' },
@@ -204,13 +270,26 @@ export function newGame() {
     // visited — reloads return them there instead of re-lighting every "new" pulse.
     ui: { bulkMode: 1, activeTab: 'home', seenTabs: ['home'] },
     // notation/motion/toastDensity (Phase D / audit 6.10): the Menu's display options.
+    // events (Living-World W1): the player's OWN intent toggle — the master switch stays
+    // CONFIG.EVENTS.enabled this wave (shipped false), so this being true by default cannot
+    // itself turn Trip Events on for anyone; it only matters once the balance wave flips the
+    // config flag, at which point a player can still opt back out from the Menu.
+    // sound (The Sound of Summer, Living-World W4, docs/08 point 12): a dependency-free WebAudio
+    // synth (js/audio.js) reads this master on/volume — inert (every cue a no-op) outside a
+    // browser, so this setting has zero effect in Node/the harness/selftest. Defaults to a quiet,
+    // present cue set; the Menu gains a toggle + volume slider next to motion/notation.
     settings: { gameSpeed: C.DEFAULT_GAME_SPEED, offlineEnabled: true, debug: false,
-      notation: 'suffix', motion: 'auto', toastDensity: 'all' },
+      notation: 'suffix', motion: 'auto', toastDensity: 'all', events: true,
+      sound: { on: true, volume: 0.35 } },
     stats: { lifetimeCash: 0, lifetimeCashThisTree: 0, bestComfort: 0, totalClicks: 0, runSec: 0,
       tapWindowSec: 0, tapWindowCount: 0, overflowLost: 0,
       // E29: cumulative Legacy ever earned across ALL ascensions — the √-base for legendGain.
       // Survives the Legend reset (it is the record the next layer telescopes on). 0 for the harness.
-      totalLegacyEverEarned: 0 },
+      totalLegacyEverEarned: 0,
+      // goatsGreeted (Living-World W1): a run-scoped lifetime counter, like totalClicks — resets
+      // each ascension along with the rest of `stats`. 0 for a fresh game/the harness (Trip
+      // Events gated off ⇒ no goat is ever spawned, let alone tapped).
+      goatsGreeted: 0 },
     // transient caches (not strictly needed in save, recomputed each tick). _exclCache is
     // the connoisseur exclusivity score (E14) — a derived cache like _comfortCache, so no
     // persisted state.exclusivity is needed (S9-T1 satisfied by the cache); backfill adds it
@@ -222,6 +301,12 @@ export function newGame() {
     _comfortCache: 0, _destCache: 1, _combo: 1, _comboTimer: 0, _pathBonus: {}, _exclCache: 0, _logiCache: 1, _staffMult: 1, _estateMult: 1, _legendMult: 1, _achieveMult: 1, _seasonalMult: 1,
     // L_amenity per-scope sums (Phase-C refit) — neutral zeros ⇒ the layer reads exactly 1.
     _amenCache: { all: 0, social: 0 },
+    // L_souvenir / L_keepsake per-tick sums (Living-World W3, docs/08 points 6/7) — neutral zeros
+    // ⇒ both layers read exactly 1, mirroring _amenCache/_achieveMult's convention exactly.
+    _souvCache: 0, _keepsakeCache: 0,
+    // L_trophy per-tick sum (Trophy Road plumbing, Living-World W4, docs/08 point 9) — neutral
+    // zero ⇒ the layer reads exactly 1, mirroring _souvCache/_keepsakeCache's convention exactly.
+    _trophyCache: 0,
   };
 }
 
@@ -250,6 +335,9 @@ export function migrate(s) {
   // a save that predates the crypto market entirely (no `market` key at all) — captured
   // BEFORE backfill() below fills it in with the shared default seed (E13-S9-T2).
   const hadMarket = s.market !== undefined;
+  // a save that predates Trip Events (Living-World W1) — captured BEFORE backfill() below fills
+  // it in with the shared default seed, mirroring hadMarket exactly.
+  const hadEvents = s.events !== undefined;
   // captured BEFORE backfill: a pre-snapshot save's investor rank was legitimately held, so
   // grandfather it as the run-start rank rather than zeroing an honest player's bonus.
   const hadInvestorSnap = s.ascension && s.ascension.investorAtRunStart !== undefined;
@@ -290,6 +378,23 @@ export function migrate(s) {
   // leaving every migrated save on the same shared default seed — the first (and so
   // far only) seeded-RNG state the codebase ships, so no other field has this pattern.
   if (!hadMarket) s.market.seed = (s.meta.createdAt || Date.now()) >>> 0;
+  // reseed Trip Events (+ Vacation Weather, which reads this SAME seed) from THIS save's own
+  // creation time, exactly like market.seed above — a save from before Living-World W1 doesn't
+  // silently share the default CONFIG.EVENTS.seed with every other migrated save.
+  if (!hadEvents) s.events.seed = (s.meta.createdAt || Date.now()) >>> 0;
+  // accommodation tier clamp (backlog close-out, flagged at E05-S9-T10): a hand-edited or
+  // cross-version save can carry a tier past the end of the ladder (or negative/NaN — the
+  // type coercion above already forces a number, this forces the RANGE). An out-of-range
+  // tier crashes every accScore/ladder render downstream, so pin it inside the shipped
+  // ladder; ownedTiers is rebuilt to match so the two can never disagree.
+  const maxTier = DATA.accommodation.length - 1;
+  if (!(s.accommodation.tier >= 0)) s.accommodation.tier = 0;
+  if (s.accommodation.tier > maxTier) s.accommodation.tier = maxTier;
+  s.accommodation.tier = Math.floor(s.accommodation.tier);
+  if (!Array.isArray(s.accommodation.ownedTiers) || !s.accommodation.ownedTiers.length
+      || Math.max(...s.accommodation.ownedTiers) > maxTier) {
+    s.accommodation.ownedTiers = Array.from({ length: s.accommodation.tier + 1 }, (_, i) => i);
+  }
   // bank grandfathering: a save from before the wallet cap existed (backfilled to
   // tier 0 above) may already hold far more cash than the Soggy Money Belt allows.
   // The inflow clamp (engine.gainCash) never confiscates, but it WOULD silently
@@ -395,21 +500,39 @@ function stripStrings(obj, depth = 0) {
 // serialized (Phase F / audit 5.3: they used to bloat every save and export).
 const stripTransients = (k, v) => (k.startsWith('_') ? undefined : v);
 
-export function save(state) {
+// Backup rotation (backlog close-out, flagged at E01-S9-T9/E05-S9): every save first rotates
+// the CURRENT stored blob into `SAVE_KEY.backup`, so at any moment the backup holds the
+// last-known-good previous save. load() falls back to it when the primary is missing or
+// corrupt (a torn write, a crashed tab, an over-quota partial). The optional `storage`
+// parameter exists ONLY so the Node selftest can exercise this with a Map-backed fake —
+// browser call sites pass nothing and get localStorage exactly as before.
+const BACKUP_SUFFIX = '.backup';
+const defaultStorage = () => (typeof localStorage !== 'undefined' ? localStorage : null);
+
+export function save(state, storage = defaultStorage()) {
   state.meta.lastSaved = Date.now();
   state.meta.lastSeen = Date.now();
+  if (!storage) return false;
   try {
-    localStorage.setItem(C.SAVE_KEY, JSON.stringify(state, stripTransients));
+    const prev = storage.getItem(C.SAVE_KEY);
+    if (prev) { try { storage.setItem(C.SAVE_KEY + BACKUP_SUFFIX, prev); } catch (e) { /* backup is best-effort */ } }
+    storage.setItem(C.SAVE_KEY, JSON.stringify(state, stripTransients));
     return true;
   } catch (e) { console.warn('save failed', e); return false; }
 }
 
-export function load() {
+export function load(storage = defaultStorage()) {
+  if (!storage) return null;
+  const parse = raw => migrate(JSON.parse(raw));
   try {
-    const raw = localStorage.getItem(C.SAVE_KEY);
-    if (!raw) return null;
-    return migrate(JSON.parse(raw));
-  } catch (e) { console.warn('load failed', e); return null; }
+    const raw = storage.getItem(C.SAVE_KEY);
+    if (raw) return parse(raw);
+  } catch (e) { console.warn('primary save unreadable — trying the backup', e); }
+  try {
+    const rawB = storage.getItem(C.SAVE_KEY + BACKUP_SUFFIX);
+    if (rawB) { console.warn('recovered from the rotating backup save'); return parse(rawB); }
+  } catch (e) { console.warn('backup save unreadable too', e); }
+  return null;
 }
 
 export function exportSave(state) {
@@ -425,7 +548,38 @@ export function importSave(str) {
   } catch (e) { return null; }
 }
 
-export function hardReset() {
-  try { localStorage.removeItem(C.SAVE_KEY); } catch (e) {}
+export function hardReset(storage = defaultStorage()) {
+  // clears the backup too — a hard reset that a later corrupt write could silently
+  // "recover" from would resurrect the very save the player asked to destroy.
+  try { storage && storage.removeItem(C.SAVE_KEY); } catch (e) {}
+  try { storage && storage.removeItem(C.SAVE_KEY + BACKUP_SUFFIX); } catch (e) {}
   return newGame();
+}
+
+// ---- day-streak (Postcards Home, Living-World W4, docs/08-living-world.md point 11) ----
+// A gentle, NO-PENALTY stamp: local calendar date, not wall-clock hours, so "played a little every
+// day" is what's tracked, not "played every 24h on the dot". Pure — takes `now` as a parameter
+// (defaults to `new Date()`) so it's deterministic and unit-testable without mocking the clock.
+export function localDateStr(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+// updateStreak(state, now): idempotent same-day (calling it twice in one day changes nothing),
+// increments on a genuine consecutive day, and silently RESTARTS (never zeroes-with-a-nag) on any
+// gap — a missed day just means tomorrow's play starts a fresh count of 1, same as a first-ever
+// visit. Called once on load (main.js) — never in the tick loop, so it can't be gamed by leaving
+// the tab open past midnight mid-session. Never read by any income path.
+export function updateStreak(state, now = new Date()) {
+  const streak = state.meta.streak || (state.meta.streak = { lastDay: '', count: 0 });
+  const today = localDateStr(now);
+  if (streak.lastDay === today) return streak;              // same-day: idempotent no-op
+  if (streak.lastDay) {
+    const prevMs = new Date(streak.lastDay + 'T00:00:00').getTime();
+    const todayMs = new Date(today + 'T00:00:00').getTime();
+    const gapDays = Math.round((todayMs - prevMs) / 86400000);
+    streak.count = gapDays === 1 ? streak.count + 1 : 1;     // consecutive day: +1; any other gap: restart
+  } else {
+    streak.count = 1;                                        // first-ever visit
+  }
+  streak.lastDay = today;
+  return streak;
 }

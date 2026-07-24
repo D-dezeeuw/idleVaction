@@ -19,11 +19,30 @@ import { validateIsland } from '../data/island.js';
 import { validateLegend } from '../data/legend.js';
 import { validateAchievements } from '../data/achievements.js';
 import { validateSeasonal } from '../data/seasonal.js';
+import { validateEvents } from '../data/events.js';
+import { validateBoosts } from '../data/boosts.js';
+import { validateSplurges } from '../data/splurges.js';
+import { validateSouvenirs } from '../data/souvenirs.js';
+import { validateChallenges } from '../data/challenges.js';
+import { validatePetra } from '../data/petra.js';
+import { buildPostcard } from '../postcard.js';
+import * as AU from '../audio.js';
 import { fmt, fmtTime, rng } from '../util.js';
 // E11 harness-invariance guard ([62] below): importing runCurve does NOT auto-run the
 // harness's own report() — that's guarded behind `process.argv[1].endsWith('harness.mjs')`,
 // which is false when node's entry point is THIS file.
 import { runCurve, play } from './harness.mjs';
+
+// ---- QUIET FOUNDATION MODE (Living-World W5, docs/08) ------------------------------------
+// Every historical pin in this suite (the 39440s greedy golden, the 76800s casual contract,
+// the [86] ascended bands, the [106]/[109] instruments, every per-section "goldens exact"
+// assert) measures the QUIET foundation — the deterministic fitted economy with the Trip
+// Events layer off. Shipping default is EVENTS.enabled:true (the living world), so the suite
+// pins the flag down ONCE here; section [115] — the living-band instruments — flips it on
+// locally (and restores it) to measure the living distribution on top of the same foundation.
+// This is the W5 outcome in one line: the foundation never moved; the living layer is guarded
+// as a distribution around it.
+C.EVENTS.enabled = false;
 
 let fails = 0;
 const ok = (cond, msg) => { if (!cond) { console.error('  ✗ FAIL:', msg); fails++; } else console.log('  ✓', msg); };
@@ -4859,7 +4878,694 @@ console.log('\n[110] 8.5-push: comfort progression gate, Clout shop, tree play-c
   ok(offline < online && offline > 1, `offline macro-steps weight a 30s event by its overlap (online ×${online.toFixed(2)} → offline ×${offline.toFixed(2)})`);
 }
 
-console.log('\n[111] hostel-bunks fix: beat 4 gates on the ACTUAL check-in (accTier 2), not Comfort');
+console.log('\n[111] Living-World W1: shared effects registry + Trip Events + Vacation Weather + The Golden Goat — quiet-mode mechanics (the suite pins EVENTS off — header note), deterministic once flipped on');
+{
+  ok(validateEvents(), 'validateEvents() passes on the shipped EVENTS/WEATHER_STATES rosters');
+  ok(C.EVENTS.enabled === false, 'CONFIG.EVENTS.enabled ships false this wave — the neutrality gate');
+
+  // ---- (d) neutrality: even with the OTHER two gate conditions satisfied (story beat + the
+  // player's own settings toggle), CONFIG.EVENTS.enabled:false alone keeps the scheduler dark.
+  const neutral = ST.newGame();
+  neutral.story.beat = 10; neutral.settings.events = true;
+  for (let i = 0; i < 2000; i++) E.tick(neutral, 5);   // ~2h47m of sim time
+  ok(neutral.events.cursor === 0 && neutral.effects.length === 0 && neutral.goat === null,
+    'CONFIG.EVENTS.enabled:false alone keeps Trip Events fully dark — cursor 0, effects empty, goat null, even after heavy ticking');
+  ok(neutral.weather.id === 'sunny' && neutral.weather.cursor === 0, 'Vacation Weather (same gate) never advances past its seeded sunny default either');
+  const { islandAt: neutralIsland } = runCurve({ dt: 5, maxHours: 40 });
+  ok(Math.abs(neutralIsland - 39440) < 1, `harness island time is UNCHANGED by Living-World W1 (got ${fmtTime(neutralIsland)}, expected 39440s)`);
+
+  // ---- (c) effectsMult cap property: several ×10 entries of the SAME kind still cap the
+  // product at config.EFFECTS.maxMult (the registry works whether or not the scheduler is on).
+  const capped = ST.newGame();
+  for (let i = 0; i < 5; i++) E.addEffect(capped, { id: `stack_${i}`, kind: 'income', mult: 10, durationSec: 100 });
+  ok(capped.effects.length === 5, 'addEffect adds distinct ids as distinct entries');
+  const stackedMult = M.effectsMult(capped, 'income');
+  ok(stackedMult <= C.EFFECTS.maxMult + 1e-9, `5 stacked ×10 income entries (raw product 1e5) still cap at EFFECTS.maxMult (got ×${stackedMult.toFixed(2)})`);
+  ok(M.effectsMult(capped, 'tap') === 1, 'the cap is PER KIND — a kind with no live entries reads exactly 1');
+  E.addEffect(capped, { id: 'stack_0', kind: 'income', mult: 2, durationSec: 50 });   // same id, new mult
+  ok(capped.effects.length === 5 && capped.effects.find(e => e.id === 'stack_0').mult === 2,
+    'addEffect REPLACES an existing entry with the same id rather than stacking a duplicate');
+
+  // ---- (f) expired effects prune: an entry past its endsAt is gone after the next tick
+  // (engine.pruneEffects, called at the top of tick() before anything reads the registry).
+  const pr = ST.newGame();
+  E.addEffect(pr, { id: 'short_lived', kind: 'tap', mult: 3, durationSec: 5 });
+  ok(pr.effects.length === 1, 'addEffect registers the entry');
+  pr.stats.runSec += 10;   // fast-forward PAST endsAt without a tick
+  E.tick(pr, 1);
+  ok(pr.effects.length === 0, 'an expired entry is pruned by the very next tick');
+
+  // ---- (e) tapGoat respects walletRoom: a nearly-full wallet bounds the payout to the room
+  // actually free, never the full income-scaled formula.
+  const goatState = ST.newGame();
+  goatState.generators[0].count = 1e6;   // real income so incomeRate > 0 (mirrors [85]'s "strong D1 income" fixture)
+  goatState.bank.tier = 5;
+  goatState.resources.cash = M.walletCap(goatState) - 1;   // 1 of room left
+  goatState.goat = { visibleUntil: goatState.stats.runSec + C.GOAT.visibleSec, taps: 0 };
+  ok(E.goatVisible(goatState), 'a freshly-spawned, unexpired goat reads as visible');
+  const room = M.walletRoom(goatState);
+  const banked = E.tapGoat(goatState);
+  ok(banked <= room + 1e-6, `tapGoat never banks more than the wallet's free room (banked ${banked.toFixed(4)} <= room ${room.toFixed(4)})`);
+  ok(!E.goatVisible(goatState) && goatState.stats.goatsGreeted === 1, 'tapping hides the goat immediately and increments stats.goatsGreeted');
+  ok(E.tapGoat(goatState) === 0, 'tapping an already-hidden goat pays nothing');
+  const untapped = ST.newGame();
+  untapped.goat = { visibleUntil: untapped.stats.runSec - 1, taps: 0 };   // already expired, never tapped
+  ok(!E.goatVisible(untapped), 'an expired, untapped goat just reads as no longer visible — no penalty, it wandered off');
+
+  // ---- (a)/(b): temporarily flip the scheduler on to test its determinism + offline parity —
+  // restored to the shipped false at the end of this block.
+  C.EVENTS.enabled = true;
+  // (a) determinism: the SAME seed draws the IDENTICAL event + weather sequence across two
+  // independent replays (mirrors test [81]'s crypto-market determinism check).
+  const seedEvState = () => {
+    const s = ST.newGame();
+    s.events.seed = 909090;
+    s.story.beat = C.EVENTS.minBeat;   // past the story gate
+    return s;
+  };
+  const runA = seedEvState();
+  for (let i = 0; i < 4000; i++) E.tick(runA, 5);
+  const runB = seedEvState();
+  for (let i = 0; i < 4000; i++) E.tick(runB, 5);
+  ok(runA.events.cursor > 0, 'enabling Trip Events actually draws (this determinism check is not vacuous)');
+  ok(runA.events.cursor === runB.events.cursor, 'the SAME seed draws the IDENTICAL number of Trip Events cursor steps');
+  ok(JSON.stringify(runA.events.log) === JSON.stringify(runB.events.log), 'the SAME seed fires the IDENTICAL event sequence (the log ring buffer matches exactly)');
+  ok(runA.weather.cursor === runB.weather.cursor && runA.weather.id === runB.weather.id, 'the SAME seed rolls the IDENTICAL weather sequence too');
+
+  // (b) offline vs online parity: a manual macro-step loop and applyOffline produce IDENTICAL
+  // outcomes for the SAME elapsed time (mirrors test [81]'s exact applyOffline-vs-manual pattern).
+  const seedEvState2 = () => {
+    const s = ST.newGame();
+    s.events.seed = 424242;
+    s.story.beat = C.EVENTS.minBeat;
+    s.settings.offlineEnabled = true;
+    return s;
+  };
+  const manual = seedEvState2();
+  const viaOffline = ST.migrate(JSON.parse(JSON.stringify(seedEvState2())));
+  const elapsedMs = 3600 * 1000;   // 1h away
+  const capH = C.OFFLINE_CAP_H + 2 * (manual.ascension.tree.iron_const || 0);
+  const total = Math.min(elapsedMs, capH * 3600 * 1000) / 1000;
+  const step = total / C.OFFLINE_STEPS;
+  for (let i = 0; i < C.OFFLINE_STEPS; i++) E.tick(manual, step);
+  const rep = E.applyOffline(viaOffline, elapsedMs);
+  ok(rep && rep.seconds > 0, 'applyOffline returns a report for a real elapsed gap');
+  ok(manual.events.cursor === viaOffline.events.cursor, 'manual macro-step loop and applyOffline draw the IDENTICAL number of seeded Trip Events draws');
+  ok(approx(manual.resources.cash, viaOffline.resources.cash, 1e-6), 'manual macro-step loop and applyOffline produce IDENTICAL cash for identical elapsed time (the offline overlap-weighting is deterministic, not approximate)');
+
+  C.EVENTS.enabled = false;   // restore the shipped default — nothing after this point should rely on it being on
+}
+
+console.log('\n[112] Living-World W2: Sunscreen Boosts + Splurge Moments — player-fired/choice-gated, neutral by construction (no kill-switch needed)');
+{
+  // ---- (g) dev schema guards wired next to validateEvents everywhere it runs (this file + harness.mjs)
+  ok(validateBoosts(), 'validateBoosts() passes on the shipped BOOSTS roster');
+  ok(validateSplurges(), 'validateSplurges() passes on the shipped SPLURGES roster + effect vocabulary');
+
+  // ---- (a) goldens untouched: reuse the existing pin helpers ([109]'s runCurve/runScenario pattern)
+  const { islandAt: greedyIsland } = runCurve({ dt: 5, maxHours: 40 });
+  ok(Math.abs(greedyIsland - 39440) < 1, `harness island time is UNCHANGED by Living-World W2 (got ${fmtTime(greedyIsland)}, expected 39440s)`);
+  const { runScenario } = await import('./demo.mjs');
+  const { getScenario } = await import('./scenarios.mjs');
+  const cas = runScenario(getScenario('casual-tourist'), { dt: 5, maxHours: 26 });
+  ok(Math.abs(cas.islandAt - 76800) <= 1200, `casual-tourist pin UNMOVED by Living-World W2 (got ${fmtTime(cas.islandAt)})`);
+
+  // ---- fixtures: a real D1 income stream so cash/xp/clout deltas are measurable (mirrors [111]'s
+  // goat fixture's "strong D1 income" comment).
+  const mkFixture = () => {
+    const s = ST.newGame();
+    s.generators[0].count = 1e6;
+    s.bank.tier = 8;
+    return s;
+  };
+
+  // ---- (b) activateBoost: reveal gate, debit, capped effect, cooldown, refuse-while-cooling
+  const bs = mkFixture();
+  ok(!E.activateBoost(bs, 'splash_out'), 'activateBoost refuses before BOOSTS.minBeat (a fresh game starts at beat 1)');
+  bs.story.beat = C.BOOSTS.minBeat;
+  bs.resources.cash = M.walletCap(bs);
+  const cashBefore = bs.resources.cash;
+  const cost = E.boostCost(bs, 'splash_out');
+  ok(E.activateBoost(bs, 'splash_out'), 'activateBoost succeeds once revealed + affordable');
+  ok(approx(bs.resources.cash, cashBefore - cost, 1e-9), `activateBoost debits EXACTLY costWalletFrac·walletCap (spent ${fmt(cost)})`);
+  ok(M.effectsMult(bs, 'income') > 1 && M.effectsMult(bs, 'income') <= C.EFFECTS.maxMult + 1e-9,
+    `the boost's effect is live and capped by the shared registry (×${M.effectsMult(bs, 'income').toFixed(2)})`);
+  bs.resources.cash = M.walletCap(bs);
+  ok(!E.activateBoost(bs, 'splash_out'), 'activateBoost refuses while cooling down (even fully affordable again)');
+  bs.stats.runSec += E.boostData('splash_out').cooldownSec + 1;
+  ok(E.activateBoost(bs, 'splash_out'), 'activateBoost is ready again once the cooldown elapses (game-time, deterministic)');
+
+  // ---- (c) skillxp/clout kinds multiply ONLY their own stream, never tierProd/runtimeMult
+  // directly (the "safe class" contract — see engine.trickleXp/buyTraining's comments). A SINGLE
+  // tick isolates this cleanly: cash for tick N is computed from skill LEVELS as they stood at
+  // the end of tick N-1 (refreshSkillLevels only runs after that tick's cash is already banked),
+  // so a lone tick from identical fresh states can never show a boosted-XP feedback into cash —
+  // that would take a second tick, and body/savvy XP DOES legitimately feed Comfort/income a tick
+  // later (the existing, intended skill↔economy coupling — not something this wave changes).
+  const skBase = mkFixture(), skBoost = mkFixture();
+  E.addEffect(skBoost, { id: 'boost_deep_focus', kind: 'skillxp', mult: 5, durationSec: 100 });
+  E.tick(skBase, 1); E.tick(skBoost, 1);
+  ok(approx(skBase.resources.cash, skBoost.resources.cash, 1e-9), 'a live skillxp-kind effect (Deep Focus) leaves THIS TICK\'s cash/income completely unchanged');
+  ok(approx(skBoost.skills.charisma.xp, skBase.skills.charisma.xp * 5, 1e-6), 'a skillxp-kind effect multiplies the XP trickle by EXACTLY its mult (×5)');
+
+  const clBase = mkFixture(), clBoost = mkFixture();
+  E.addEffect(clBoost, { id: 'boost_camera_day', kind: 'clout', mult: 3, durationSec: 100 });
+  for (let i = 0; i < 10; i++) { E.tick(clBase, 1); E.tick(clBoost, 1); }
+  ok(approx(clBase.resources.cash, clBoost.resources.cash, 1e-9), 'a live clout-kind effect (Camera Day) ALSO leaves cash/income completely unchanged');
+  ok(approx(clBoost.resources.clout, clBase.resources.clout * 3, 1e-6), 'a clout-kind effect multiplies Clout accrual by EXACTLY its mult (×3)');
+
+  // ---- training XP also sees the skillxp boost (engine.buyTraining, not just the idle trickle)
+  const trBoost = mkFixture(); trBoost.resources.cash = 1e6;
+  E.addEffect(trBoost, { id: 'boost_deep_focus', kind: 'skillxp', mult: 5, durationSec: 100 });
+  const xpBeforeTrain = trBoost.skills.charisma.xp;
+  ok(E.buyTraining(trBoost, 'train_charisma'), 'fixture: a training purchase succeeds while Deep Focus is live');
+  const trainRow = DATA.training.find(t => t.id === 'train_charisma');
+  ok(approx(trBoost.skills.charisma.xp - xpBeforeTrain, trainRow.xp * 5, 1e-6), 'buyTraining\'s XP grant ALSO scales by the live skillxp boost (×5)');
+
+  // ---- (d) splurge triggers fire once; an ignored (expired) card is a BIT-IDENTICAL no-op
+  // versus a control run where the same moment is pre-resolved (so it can never fire there).
+  const withSplurge = mkFixture(); withSplurge.accommodation.tier = 6;   // first_pool_day's trigger
+  const control = mkFixture(); control.accommodation.tier = 6;
+  control.splurges.resolved.first_pool_day = 'expired';   // pre-resolved: checkSplurges skips it forever
+  const firstPool = DATA.splurges.find(m => m.id === 'first_pool_day');
+  E.tick(withSplurge, 1); E.tick(control, 1);
+  ok(withSplurge.splurges.pending && withSplurge.splurges.pending.id === 'first_pool_day',
+    'the tier-6 trigger fires the first_pool_day splurge the moment it is eligible');
+  ok(control.splurges.pending === null, 'control fixture: pre-resolved, so it never becomes pending');
+  const totalSec = firstPool.expireSec + 5;
+  for (let t = 0; t < totalSec; t++) { E.tick(withSplurge, 1); E.tick(control, 1); }
+  ok(withSplurge.splurges.pending === null && withSplurge.splurges.resolved.first_pool_day === 'expired',
+    'left untouched, the card resolves "expired" on its own once its window elapses');
+  ok(approx(withSplurge.resources.cash, control.resources.cash, 1e-9), 'an ignored splurge is a BIT-IDENTICAL no-op — cash matches a control run where it never even triggers');
+  ok(approx(withSplurge.resources.comfort, control.resources.comfort, 1e-9), '...Comfort matches too');
+  ok(withSplurge.skills.body.xp === control.skills.body.xp, '...and skill XP matches too, down to the exact float');
+
+  // ---- (d cont'd) choosing an option applies its bounded effects (both the keepsake and the splurge)
+  const chB = mkFixture(); chB.accommodation.tier = 6;
+  E.tick(chB, 1);
+  ok(chB.splurges.pending && chB.splurges.pending.id === 'first_pool_day', 'fixture: first_pool_day is pending');
+  const bodyXpBefore = chB.skills.body.xp;
+  ok(!E.chooseSplurge(chB, 'x'), 'chooseSplurge rejects a side that is neither "a" nor "b"');
+  ok(E.chooseSplurge(chB, 'b'), 'chooseSplurge(b) — the keepsake — applies while pending');
+  ok(approx(chB.skills.body.xp, bodyXpBefore + firstPool.b.effects.xp.amount, 1e-9), 'option b grants EXACTLY its xp amount');
+  ok(chB.splurges.pending === null && chB.splurges.resolved.first_pool_day === 'b', 'choosing resolves the splurge and clears pending');
+  ok(!E.chooseSplurge(chB, 'a'), 'a resolved splurge cannot be re-chosen (nothing pending)');
+
+  const chA = mkFixture(); chA.accommodation.tier = 6;
+  E.tick(chA, 1);
+  const capBefore = M.walletCap(chA);
+  chA.resources.cash = capBefore;
+  ok(E.chooseSplurge(chA, 'a'), 'chooseSplurge(a) — the splurge — applies while pending');
+  const expectedDebit = firstPool.a.effects.costWalletFrac * capBefore;
+  ok(approx(chA.resources.cash, capBefore - expectedDebit, 1e-9), 'option a debits EXACTLY costWalletFrac·walletCap');
+  ok(M.effectsMult(chA, 'income') > 1 && M.effectsMult(chA, 'income') <= C.EFFECTS.maxMult + 1e-9,
+    'option a\'s timedMult is live on the shared, capped effects registry');
+
+  // ---- (e) boosts + splurges are RUN-SCOPED: an ascension resets both, same mechanism as
+  // state.events/state.effects (prestige.ascend's Object.assign(state, newGame())).
+  const az = mkFixture();
+  az.story.beat = C.BOOSTS.minBeat; az.resources.cash = M.walletCap(az);
+  ok(E.activateBoost(az, 'splash_out'), 'fixture: a boost is activated (sets a cooldown)');
+  az.accommodation.tier = 6;
+  E.tick(az, 1);
+  ok(Object.keys(az.boosts.cooldowns).length > 0, 'fixture: a boost cooldown is on record');
+  ok(az.splurges.pending !== null, 'fixture: a splurge is pending');
+  az.stats.runSec = 200; az.stats.lifetimeCashThisTree = 1e12;   // clears P.canAscend (mirrors [110]'s ascend fixture)
+  ok(P.ascend(az), 'fixture ascends');
+  ok(Object.keys(az.boosts.cooldowns).length === 0, 'ascension resets boost cooldowns');
+  ok(az.splurges.pending === null && Object.keys(az.splurges.resolved).length === 0, 'ascension resets pending + resolved splurges');
+
+  // ---- (f) casual-booster lands the island FASTER than plain casual-tourist, but by no more
+  // than ~20% (a provisional band — the balance wave fits the real one with multi-seed sweeps).
+  const casB = runScenario(getScenario('casual-booster'), { dt: 5, maxHours: 26 });
+  ok(casB.islandAt !== null, `casual-booster reaches the island (${fmtTime(casB.islandAt)})`);
+  console.log(`    → casual-booster island ${fmtTime(casB.islandAt)} vs casual-tourist ${fmtTime(cas.islandAt)}`);
+  ok(casB.islandAt <= cas.islandAt, `casual-booster is NO SLOWER than plain casual-tourist (${fmtTime(casB.islandAt)} <= ${fmtTime(cas.islandAt)})`);
+  ok(casB.islandAt >= cas.islandAt * 0.80, `casual-booster is faster by no more than ~20% (provisional band) (${fmtTime(casB.islandAt)} >= ${fmtTime(cas.islandAt * 0.80)})`);
+
+  // casual-ascetic (the keepsake-only control lane): sanity-check it runs and reaches the island.
+  const casAsc = runScenario(getScenario('casual-ascetic'), { dt: 5, maxHours: 26 });
+  ok(casAsc.islandAt !== null, `casual-ascetic reaches the island (${fmtTime(casAsc.islandAt)}, always takes the keepsake option)`);
+}
+
+console.log('\n[113] Living-World W3: Souvenir Stand + Ascension Challenges + Legacy Honeymoon — the meta loop, run 1 untouched');
+{
+  // ---- (i) dev schema guards wired next to validateEvents/validateBoosts/validateSplurges (this file + harness.mjs)
+  ok(validateSouvenirs(), 'validateSouvenirs() passes on the shipped SOUVENIRS roster');
+  ok(validateChallenges(), 'validateChallenges() passes on the shipped CHALLENGES roster');
+
+  // ---- (a) goldens untouched: reuse the existing pin helpers ([109]/[111]/[112]'s runCurve/runScenario pattern)
+  const { islandAt: greedyIsland113 } = runCurve({ dt: 5, maxHours: 40 });
+  ok(Math.abs(greedyIsland113 - 39440) < 1, `harness island time is UNCHANGED by Living-World W3 (got ${fmtTime(greedyIsland113)}, expected 39440s)`);
+  const { runScenario: runScenario113 } = await import('./demo.mjs');
+  const { getScenario: getScenario113, runAscensionChallenger } = await import('./scenarios.mjs');
+  const cas113 = runScenario113(getScenario113('casual-tourist'), { dt: 5, maxHours: 26 });
+  ok(Math.abs(cas113.islandAt - 76800) <= 1200, `casual-tourist pin UNMOVED by Living-World W3 (got ${fmtTime(cas113.islandAt)})`);
+
+  // ---- (b) no-challenge identity: EVERY consumer is bit-identical to a pre-W3 formula copy when
+  // state.challenge.active is null (a fresh newGame(), and every existing scenario/save).
+  const neu = ST.newGame();
+  ok(neu.challenge.active === null, 'fixture: a fresh game has no active challenge');
+  neu._comfortCache = 5e8;
+  const oldComfort = 1 + C.COMFORT.MULT * Math.log10(1 + neu._comfortCache / C.COMFORT.C0);
+  ok(M.comfortMultiplier(neu) === oldComfort, 'comfortMultiplier is bit-identical to the pre-W3 formula with no active challenge');
+
+  const oldWalletCap = M.bankCapAt(neu.bank.tier) * Math.pow(1.4, neu.ascension?.tree?.deep_pockets || 0);
+  ok(M.walletCap(neu) === oldWalletCap, 'walletCap is bit-identical to the pre-W3 formula with no active challenge');
+
+  const savvyState = ST.newGame(); savvyState.skills.savvy.level = 10; savvyState.stats.lifetimeCash = 1e10;
+  const oldSavvy = savvyState.skills.savvy.level * C.SAVVY_YIELD * Math.sqrt(Math.max(0, savvyState.stats.lifetimeCash));
+  ok(M.savvyPassive(savvyState) === oldSavvy, 'savvyPassive is bit-identical to the pre-W3 formula with no active challenge');
+
+  const cryState = ST.newGame(); cryState.crypto.holdings[DATA.crypto.coins[0].id] = 100; cryState.paths.crypto.points = 10;
+  let cryBase = 0; for (const c of DATA.crypto.coins) cryBase += (cryState.crypto.holdings[c.id] || 0) * c.yieldPerUnit;
+  const oldYield = cryBase * (C.MARKET.yieldScale || 1) * M.pathMult(cryState.paths.crypto.points) * (1 + M.pathBonus(cryState, 'yieldMult')) * M.marketMult(cryState, DATA);
+  ok(M.cryptoYieldPerSec(cryState, DATA) === oldYield, 'cryptoYieldPerSec is bit-identical to the pre-W3 formula with no active challenge');
+
+  const amenState = ST.newGame();
+  const amenRow = DATA.amenities[0];
+  const ag = amenRow.costGrowth || C.AMENITY.growthDefault;
+  const alvl = amenState.amenities[amenRow.id].level;
+  const alux = amenRow.tag === 'luxury' ? M.luxuryCostMult(amenState) : 1;
+  const oldAmenCost = amenRow.costBase * (C.AMENITY.costScale || 1) * Math.pow(ag, alvl) * (1 - M.pathBonus(amenState, 'amenityDiscount')) * alux * M.commsCostMult(amenState);
+  ok(E.amenityCost(amenState, amenRow.id) === oldAmenCost, 'engine.amenityCost is bit-identical to the pre-W3 formula with no active challenge');
+
+  // concierge/staff automation tick gates: a plain fixture (no challenge) DOES auto-buy — the
+  // Skeleton Crew no-op tested in (c) below is a genuine gate, not "nothing was affordable".
+  const autoControl = ST.newGame();
+  autoControl.concierge.on = true; autoControl.resources.cash = 1e9; autoControl.generators[0].count = 1000;
+  for (let i = 0; i < 5; i++) E.tick(autoControl, C.CONCIERGE.intervalSec + 1);
+  ok(autoControl.concierge.totalBought > 0, 'control: with no active challenge, the concierge auto-buys as before (identity path)');
+
+  // ---- (c) each challenge's mod applies at its one choke point
+  const withChallenge = id => {
+    const s = ST.newGame();
+    const row = DATA.challenges.find(c => c.id === id);
+    s.challenge = { active: row.id, mods: { ...row.mods }, completed: {} };
+    return { s, row };
+  };
+  {
+    const { s } = withChallenge('rainy_season');
+    s._comfortCache = 5e8;
+    const raw = C.COMFORT.MULT * Math.log10(1 + s._comfortCache / C.COMFORT.C0);
+    ok(approx(M.comfortMultiplier(s), 1 + 0.5 * raw), 'Rainy Season: L_comfort → 1 + 0.5·(L−1)');
+  }
+  {
+    const { s } = withChallenge('lost_luggage');
+    const plain = ST.newGame();
+    ok(approx(E.amenityCost(s, amenRow.id), E.amenityCost(plain, amenRow.id) * 3), 'Lost Luggage: amenity costs ×3');
+  }
+  {
+    const { s } = withChallenge('budget_airline');
+    const plain = ST.newGame();
+    ok(approx(M.walletCap(s), M.walletCap(plain) * 0.5), 'Budget Airline: wallet caps ×0.5');
+  }
+  {
+    const { s } = withChallenge('cash_only');
+    s.skills.savvy.level = 10; s.stats.lifetimeCash = 1e10;
+    ok(M.savvyPassive(s) === 0, 'Cash Only: savvyPassive is exactly 0');
+    s.crypto.holdings[DATA.crypto.coins[0].id] = 100;
+    ok(M.cryptoYieldPerSec(s, DATA) === 0, 'Cash Only: cryptoYieldPerSec is exactly 0 too (the SAME passiveMult key)');
+  }
+  {
+    const { s } = withChallenge('skeleton_crew');
+    s.concierge.on = true; s.resources.cash = 1e9; s.generators[0].count = 1000;
+    for (let i = 0; i < 5; i++) E.tick(s, C.CONCIERGE.intervalSec + 1);
+    ok(s.concierge.totalBought === 0, 'Skeleton Crew: the concierge never auto-buys despite being ON');
+    s.staff.butler.hired = true;
+    s.staff.butler.policy.autoBuy = true;
+    s.staff.butler.policy.categories = ['amenity'];
+    const amenBefore = Object.values(s.amenities).reduce((n, a) => n + a.level, 0);
+    for (let i = 0; i < 20; i++) E.tick(s, 5);
+    const amenAfter = Object.values(s.amenities).reduce((n, a) => n + a.level, 0);
+    ok(amenAfter === amenBefore, 'Skeleton Crew: hired-staff auto-buy never purchases either (payroll/morale still run)');
+  }
+
+  // ---- (d) souvenir minting: overflow accumulator mints exactly at cap crossings, maxPerTick
+  // honored, first-visit mints once.
+  {
+    const s = ST.newGame();
+    const cap = M.walletCap(s);
+    s.resources.cash = cap;
+    const before = s.souvenirs.count;
+    E.gainCash(s, cap * 1.5);
+    ok(s.souvenirs.count === before + 1, 'gainCash mints exactly 1 souvenir when overflow crosses the current wallet cap once');
+    ok(approx(s.souvenirs.overflowAcc, cap * 0.5), 'the remainder (below the next cap crossing) stays in overflowAcc');
+  }
+  {
+    const s = ST.newGame();
+    const cap = M.walletCap(s);
+    s.resources.cash = cap;
+    E.gainCash(s, cap * 10);
+    ok(s.souvenirs.count === C.SOUVENIR.maxPerTick, `minting is capped at SOUVENIR.maxPerTick (${C.SOUVENIR.maxPerTick}) per gainCash call`);
+    ok(s.souvenirs.overflowAcc > 0, 'excess overflow beyond maxPerTick is never lost — it just waits in the accumulator');
+  }
+  {
+    const s = ST.newGame();
+    const d = DATA.destinations[0];
+    s.destinations[d.id].owned = true;
+    const before = s.souvenirs.count;
+    ok(E.visitDestination(s, d.id), 'first visit succeeds');
+    ok(s.souvenirs.count === before + 1, 'the FIRST visitDestination mints exactly 1 souvenir');
+    const afterFirst = s.souvenirs.count;
+    ok(E.visitDestination(s, d.id), 'a second visit still succeeds (repeatable action)');
+    ok(s.souvenirs.count === afterFirst, 'a SECOND visit to the same destination mints nothing more');
+  }
+
+  // ---- (e) L_souvenir/L_keepsake caps bind
+  {
+    const s = ST.newGame();
+    for (const item of DATA.souvenirs) if (item.kind === 'perk') s.souvenirs.owned[item.id] = true;
+    s._souvCache = M.computeSouvenirPerkSum(s, DATA);
+    const rawSum = DATA.souvenirs.filter(i => i.kind === 'perk').reduce((n, i) => n + i.mult, 0);
+    ok(approx(s._souvCache, rawSum), 'computeSouvenirPerkSum sums every OWNED perk mult (pride items contribute nothing)');
+    ok(approx(M.souvenirMultiplier(s), 1 + Math.min(C.SOUVENIR.xCap - 1, rawSum)), 'L_souvenir binds at config.SOUVENIR.xCap');
+  }
+  {
+    const s = ST.newGame();
+    for (const c of DATA.challenges) s.challenge.completed[c.id] = true;
+    s._keepsakeCache = M.computeKeepsakeSum(s, DATA);
+    const rawSum = DATA.challenges.reduce((n, c) => n + c.reward.mult, 0);
+    ok(approx(s._keepsakeCache, rawSum), 'computeKeepsakeSum sums every COMPLETED reward');
+    ok(approx(M.keepsakeMultiplier(s), 1 + Math.min(C.KEEPSAKE.xCap - 1, rawSum)), 'L_keepsake binds at config.KEEPSAKE.xCap');
+  }
+  {
+    const s = ST.newGame();
+    E.tick(s, 1);
+    ok(M.souvenirMultiplier(s) === 1 && M.keepsakeMultiplier(s) === 1, 'a fresh game/tick reads BOTH new layers at exactly 1 (nothing owned/completed)');
+  }
+
+  // ---- (f) keep-list audit: souvenirs.count/owned + challenge.completed cross ascend;
+  // challenge.active does NOT persist a plain ascension's identity (it's re-set from the new
+  // selection); ALL of it is wiped by legendReset. Honeymoon is live right after ascend, expired
+  // after durationSec.
+  {
+    const s = ST.newGame();
+    s.stats.runSec = 200;
+    s.stats.lifetimeCashThisTree = 1e12;   // clears P.canAscend (mirrors [86]/[110]'s ascend fixtures)
+    s.souvenirs.count = 7;
+    s.souvenirs.owned.shot_glass = true;
+    s.challenge.completed.rainy_season = true;
+    ok(P.canAscend(s), 'fixture: eligible to ascend');
+    ok(P.ascend(s, undefined, { challengeId: 'lost_luggage' }), 'ascend succeeds with a challenge selected');
+    ok(s.souvenirs.count === 7 && s.souvenirs.owned.shot_glass === true, 'souvenirs.count/owned CROSS ascension — META (docs/08 point 6)');
+    ok(s.challenge.completed.rainy_season === true, 'challenge.completed CROSSES ascension — META (docs/08 point 7)');
+    ok(s.challenge.active === 'lost_luggage', 'challenge.active is RUN-scoped: re-set post-reset from the NEW selection');
+
+    const honeymoon = (s.effects || []).find(e => e.id === 'honeymoon');
+    ok(!!honeymoon && honeymoon.endsAt > s.stats.runSec, 'the honeymoon effect is present right after ascend');
+    ok(approx(M.effectsMult(s, 'income'), Math.min(C.EFFECTS.maxMult, C.HONEYMOON.mult)), 'the honeymoon income effect reads the configured mult, capped by the shared registry');
+    s.stats.runSec += C.HONEYMOON.durationSec + 1;
+    E.tick(s, 1);   // pruneEffects runs at the top of tick()
+    ok(M.effectsMult(s, 'income') === 1, 'the honeymoon effect has expired after durationSec');
+
+    // legendReset: the meta-meta layer stays clean — souvenirs + challenge.completed are wiped,
+    // mirroring the tree/Legacy wipe exactly (they are NOT in legendReset's keep-list).
+    s.ascension.count = 3;               // meets LEGEND.minAscensions
+    s.stats.totalLegacyEverEarned = 1e6; // clears legendGain >= 1
+    ok(P.canLegend(s), 'fixture: eligible to Legend');
+    ok(P.legendReset(s), 'legendReset succeeds');
+    ok(s.souvenirs.count === 0 && Object.keys(s.souvenirs.owned).length === 0, 'legendReset WIPES souvenirs — never crosses the meta-meta layer');
+    ok(s.challenge.active === null && Object.keys(s.challenge.completed).length === 0, 'legendReset WIPES challenge.completed too');
+  }
+
+  // ---- (g) [86]-style band re-check: honeymoon live, the SAME design contract ([86]'s ≥8h floor
+  // + 0.85-1.10× plateau band) — reusing play()/P.ascend() exactly like [86], not a new policy.
+  {
+    const hb = ST.newGame();
+    for (let t = 0; t <= 40 * 3600 && hb.accommodation.tier < 20; t += 5) { E.tick(hb, 5); play(hb); }
+    ok(hb.accommodation.tier >= 20, '[113g] fixture reaches the island');
+    const run1 = hb.stats.runSec;
+    ok(P.canAscend(hb) && P.ascend(hb), '[113g] ascend succeeds (a plain ascension — honeymoon still applies unconditionally)');
+    ok((hb.effects || []).some(e => e.id === 'honeymoon'), '[113g] the honeymoon effect is live for this ascended run');
+    for (;;) {
+      let best = null;
+      for (const n of DATA.tree) if (P.canBuyNode(hb, n.id)) { const c = P.treeCost(hb, n.id); if (!best || c < best.c) best = { id: n.id, c }; }
+      if (!best) break;
+      P.buyNode(hb, best.id);
+    }
+    for (let t = 0; t <= 40 * 3600 && hb.accommodation.tier < 20; t += 5) { E.tick(hb, 5); play(hb); }
+    ok(hb.accommodation.tier >= 20, '[113g] ascended run also reaches the island with honeymoon live');
+    const run2 = hb.stats.runSec;
+    console.log(`    → [113g] run1 ${fmtTime(run1)}, run2 (honeymoon live) ${fmtTime(run2)} — band [${fmtTime(run1 * 0.85)}, ${fmtTime(run1 * 1.10)}]`);
+    ok(run2 >= 8 * 3600, `[113g] [86]'s ≥8h floor holds with honeymoon live (got ${fmtTime(run2)})`);
+    ok(run2 >= run1 * 0.85 && run2 <= run1 * 1.10, `[113g] [86]'s 0.85-1.10× plateau band holds with honeymoon live (got ${fmtTime(run2)} vs band [${fmtTime(run1 * 0.85)}, ${fmtTime(run1 * 1.10)}])`);
+  }
+
+  // ---- (h) completability probe: ascension-challenger at coarse dt reaches its second island
+  // within 14h of game time per generation, for at least the first two CHALLENGED generations
+  // (generation 0 — run 1 — never has one active, per the "run 1 untouched" contract).
+  {
+    const sc = getScenario113('ascension-challenger');
+    const { genIslandSec } = runAscensionChallenger(sc, { dt: 10, maxHours: 100 });
+    console.log(`    → ascension-challenger generation islands (sec from each gen's own start): ${genIslandSec.map(fmtTime).join(', ')}`);
+    ok(genIslandSec.length >= 3, `ascension-challenger reaches at least 3 islands (gens 0/1/2) inside the 100h probe horizon (got ${genIslandSec.length})`);
+    if (genIslandSec.length >= 3) {
+      ok(genIslandSec[1] <= 14 * 3600, `the FIRST challenged generation (${DATA.challenges[0].name}) reaches its island within 14h (got ${fmtTime(genIslandSec[1])})`);
+      ok(genIslandSec[2] <= 14 * 3600, `the SECOND challenged generation (${DATA.challenges[1].name}) reaches its island within 14h (got ${fmtTime(genIslandSec[2])})`);
+    }
+  }
+}
+
+console.log('\n[114] Living-World W4 (presentation): Trophy Road plumbing, Petra the Pace Ghost, Postcards Home, day-streak, audio — all display-only or zeroed this wave, goldens bit-identical');
+{
+  // ---- (a) goldens exact: reuse the existing pin helpers ([109]/[111]/[112]/[113]'s pattern)
+  const { islandAt: greedyIsland114 } = runCurve({ dt: 5, maxHours: 40 });
+  ok(Math.abs(greedyIsland114 - 39440) < 1, `harness island time is UNCHANGED by Living-World W4 (got ${fmtTime(greedyIsland114)}, expected 39440s)`);
+  const { runScenario: runScenario114 } = await import('./demo.mjs');
+  const { getScenario: getScenario114 } = await import('./scenarios.mjs');
+  const cas114 = runScenario114(getScenario114('casual-tourist'), { dt: 5, maxHours: 26 });
+  ok(Math.abs(cas114.islandAt - 76800) <= 1200, `casual-tourist pin UNMOVED by Living-World W4 (got ${fmtTime(cas114.islandAt)})`);
+
+  // ---- (b) Trophy Road plumbing (docs/08 point 9): L_trophy is EXACTLY 1 with every shipped
+  // trophyReward at 0/absent, folds into the stack the same way L_souvenir/L_keepsake do, and the
+  // validator enforces the new opposite-gated invariant against LOCALLY-constructed bad rows —
+  // never mutating the real, shared ACHIEVEMENTS array (or the DATA object built from it).
+  ok(DATA.achievements.every(a => (a.trophyReward || 0) === 0), 'every shipped achievement carries trophyReward 0 (or omits it) this wave');
+  const trophyRun = ST.newGame(); trophyRun.accommodation.tier = 20; trophyRun.stats.bestComfort = 1e9; trophyRun.stats.lifetimeCash = 1e6;
+  E.evaluateAchievements(trophyRun);
+  ok(M.computeTrophySum(trophyRun, DATA) === 0, 'computeTrophySum is exactly 0 with every shipped trophyReward at 0');
+  ok(M.trophyMultiplier(trophyRun) === 1, 'trophyMultiplier reads exactly 1 with a 0 sum (state._trophyCache defaults to 0)');
+  const stk114 = ST.newGame(); stk114.generators[0].bought = 20; stk114.generators[0].count = 20;
+  const m0_114 = M.tierMultiplier(stk114, 0); stk114._trophyCache = 0.1;
+  ok(approx(M.tierMultiplier(stk114, 0) / m0_114, 1.1), 'tierMultiplier scales by exactly the L_trophy cache (clean global factor, folded beside L_souvenir/L_keepsake)');
+  stk114._trophyCache = 5;   // way over cap
+  ok(approx(M.trophyMultiplier(stk114), C.TROPHY.xCap), 'L_trophy is bounded at config.TROPHY.xCap regardless of the summed cache');
+
+  const goodRow = { id: 'x1', name: 'X', desc: 'd', metric: 'accTier', threshold: 1, reward: 0, meta: false, trophyReward: 0.01 };
+  ok(validateAchievements([goodRow]), 'validateAchievements accepts a small in-run trophyReward on a non-meta row');
+  const metaWithTrophy = { id: 'x2', name: 'X', desc: 'd', metric: 'ascensionCount', threshold: 1, reward: 0.02, meta: true, trophyReward: 0.01 };
+  let threwMeta = false;
+  try { validateAchievements([metaWithTrophy]); } catch (e) { threwMeta = true; }
+  ok(threwMeta, 'validateAchievements REJECTS a meta row carrying trophyReward');
+  const overCap = { id: 'x3', name: 'X', desc: 'd', metric: 'accTier', threshold: 1, reward: 0, meta: false, trophyReward: C.TROPHY.maxPer + 0.01 };
+  let threwCap = false;
+  try { validateAchievements([overCap]); } catch (e) { threwCap = true; }
+  ok(threwCap, 'validateAchievements REJECTS an in-run row above TROPHY.maxPer');
+  ok(validateAchievements(), 'validateAchievements() still passes on the REAL shipped ACHIEVEMENTS roster (untouched by the local bad-row checks above)');
+
+  // ---- (c) Petra, the Pace Ghost (docs/08 point 10): the committed data/petra.js validates, and
+  // its islandAt matches the casual-tourist pin (the pin-consistency guard); checkPetra is
+  // display-only, one-shot per tier, gated behind beat >= 4.
+  ok(validatePetra(), 'validatePetra() passes on the committed data/petra.js');
+  ok(Math.abs(DATA.petra.islandAt - 76800) <= 1200, `Petra's islandAt (${fmtTime(DATA.petra.islandAt)}) is within tolerance of the casual-tourist pin`);
+  ok(DATA.petra.name === 'Petra' && !!DATA.petra.flavor, 'Petra carries a name + a flavor line');
+  const petraFast = ST.newGame();
+  petraFast.story.beat = 4; petraFast.accommodation.tier = 1; petraFast.stats.runSec = 1;   // WAY before Petra's tier-1 time
+  E.checkPetra(petraFast);
+  ok(petraFast.story.flags.petraTier_1 === true, 'checkPetra sets a one-shot per-tier flag');
+  ok(E.drainNotifications(petraFast).some(n => /Beat Petra/.test(n.text)), 'arriving before Petra fires a celebratory toast');
+  const petraSlow = ST.newGame();
+  petraSlow.story.beat = 4; petraSlow.accommodation.tier = 1; petraSlow.stats.runSec = DATA.petra.tierTimes[1] + 1000;   // after Petra
+  E.checkPetra(petraSlow);
+  ok(petraSlow.story.flags.petraTier_1 === true && !E.drainNotifications(petraSlow).some(n => /Beat Petra/.test(n.text)),
+    'arriving AFTER Petra still flags the tier (one-shot) but fires no toast');
+  const petraHidden = ST.newGame();
+  ok(!E.petraRevealed(petraHidden), 'Petra stays hidden before story beat 4');
+  petraHidden.accommodation.tier = 1; petraHidden.stats.runSec = 1;
+  E.checkPetra(petraHidden);
+  ok(!petraHidden.story.flags.petraTier_1, 'checkPetra is a no-op before the reveal gate (never sets the flag)');
+
+  // ---- (d) Postcards Home (docs/08 point 11): buildPostcard never throws and reports every
+  // documented field for a mid-game fixture — no URLs, no HTML.
+  let threwPostcard = false;
+  try { buildPostcard(ST.newGame()); } catch (e) { threwPostcard = true; }
+  ok(!threwPostcard, 'buildPostcard never throws on a fresh newGame()');
+  const mid = ST.newGame();
+  mid.meta.playtimeMs = 3 * 86400000 + 3600000;   // day 4
+  mid.accommodation.tier = 6;
+  mid.story.branch = 'vlogger';
+  mid.achievements.unlocked.first_star = true;
+  mid.souvenirs.count = 4;
+  mid.stats.goatsGreeted = 2;
+  mid.ascension.count = 1;
+  mid.lineage.name = 'Willem';
+  mid.meta.streak = { lastDay: '2026-07-23', count: 3 };
+  const card = buildPostcard(mid);
+  ok(/Day 4/.test(card), 'buildPostcard reports the trip day, derived from meta.playtimeMs');
+  ok(card.includes(DATA.accommodation[6].name), 'buildPostcard reports the current accommodation name');
+  ok(/billions|thousands|millions|small change|trillions|sense/.test(card), 'buildPostcard phrases the cash magnitude in human words, never a raw log10 exponent');
+  ok(card.includes('Luxury Vlogging Backpacker'), "buildPostcard reports the committed path's name");
+  ok(/Trophies earned: 1/.test(card), 'buildPostcard counts unlocked trophies');
+  ok(/Souvenirs collected: 4/.test(card), 'buildPostcard reports souvenirs collected');
+  ok(/Goats greeted: 2/.test(card), 'buildPostcard reports goats greeted');
+  ok(/Ascensions: 1/.test(card) && card.includes('Willem'), "buildPostcard reports ascensions + the dynasty name");
+  ok(/Day-streak: 3/.test(card), 'buildPostcard includes the day-streak once count >= 2');
+  ok(!card.includes('<') && !card.includes('>'), 'buildPostcard emits no HTML');
+  ok(!/https?:\/\//.test(card), 'buildPostcard emits no URLs');
+  const noStreak = ST.newGame(); noStreak.meta.streak = { lastDay: '2026-07-23', count: 1 };
+  ok(!/Day-streak/.test(buildPostcard(noStreak)), 'buildPostcard omits the streak line when count < 2');
+
+  // ---- (e) audio (docs/08 point 12): imports cleanly in Node (no window/AudioContext ⇒ inert —
+  // hasAudio false), and every exported cue is a callable no-op.
+  for (const fn of ['blip', 'chime', 'fanfare', 'bleat', 'jingle', 'swell']) ok(typeof AU[fn] === 'function', `audio.${fn} is exported`);
+  AU.bindAudio(ST.newGame());
+  let audioThrew = false;
+  try { AU.blip(); AU.chime(3); AU.fanfare(); AU.bleat(); AU.jingle(); AU.swell(); } catch (e) { audioThrew = true; }
+  ok(!audioThrew, 'every audio cue runs as a callable no-op in Node (no window/AudioContext)');
+
+  // ---- (f) streak (docs/08 point 11): same-day idempotent, next-day increments, any other gap
+  // silently restarts the count (no penalty, no nag).
+  const sk = ST.newGame();
+  ST.updateStreak(sk, new Date(2026, 6, 20));
+  ok(sk.meta.streak.count === 1 && sk.meta.streak.lastDay === '2026-07-20', 'first-ever visit starts the streak at 1');
+  ST.updateStreak(sk, new Date(2026, 6, 20, 23, 0));   // later the SAME day
+  ok(sk.meta.streak.count === 1, 'a second update the same day is idempotent');
+  ST.updateStreak(sk, new Date(2026, 6, 21, 1, 0));    // the very next day
+  ok(sk.meta.streak.count === 2, 'a consecutive day increments the streak');
+  ST.updateStreak(sk, new Date(2026, 6, 25));          // a 4-day gap
+  ok(sk.meta.streak.count === 1, 'a gap silently RESTARTS the count (no penalty flag, no nag)');
+}
+
+// ---------- [115] Living-World W5: the flip + the living-band instruments ----------
+// The one wave allowed to measure with the living layer ON. The W5 measured outcome
+// (docs/05 §9): the QUIET pins never moved; greedy-living is exactly pinnable per seed
+// (cadence-0 play is smooth — events only help, ≈ −1.2%, spread < ±1%); casual-living is
+// inherently DISTRIBUTIONAL (the 20-min act cadence turns stream luck into ±1.5-3h of
+// chaotic arrival spread — measured 16h20m–23h00m over 7 seeds), so casual is guarded as a
+// seed-panel median band, never a single-stream pin. Trophy Road's income layer ships ZERO
+// (any felt persistent layer re-rolls the chaos — the measured decision in
+// data/achievements.js); its payout is souvenir bounties, asserted here.
+console.log('\n[115] Living-World W5: flip live, quiet pins unmoved, living bands + trophy souvenirs');
+{
+  const { runScenario } = await import('./demo.mjs');
+  const { getScenario } = await import('./scenarios.mjs');
+  C.EVENTS.enabled = true;
+  try {
+    // (a) the shipped default IS the living world (this suite quiets it only for foundation pins)
+    ok(C.EVENTS.enabled === true, 'shipping default: CONFIG.EVENTS.enabled is true (the deck is live for players)');
+
+    // (b) greedy-living: exact on the default stream; events can only help; tight across seeds.
+    const gLive = runCurve({ dt: 5, maxHours: 30 });
+    ok(Math.abs(gLive.islandAt - 38970) < 1, `greedy-living island exactly 38970s / 10h49m30s on the default seed (got ${fmtTime(gLive.islandAt)})`);
+    ok(gLive.islandAt < 39440, 'greedy-living is FASTER than the quiet golden (events can only help a bot that never taps)');
+    ok(gLive.islandAt > 39440 * 0.90, 'greedy-living stays within 10% of the quiet golden (events help modestly, never explosively)');
+    ok(gLive.peakLog < 290, `greedy-living peak log10 ${gLive.peakLog.toFixed(1)} far under the 1e290 policy ceiling`);
+    for (const seed of [1, 2]) {
+      const r = runScenario(getScenario('greedy-vlogger'), { dt: 10, maxHours: 30, snapshotSec: 7200, seed });
+      ok(r.islandAt !== null && Math.abs(r.islandAt - gLive.islandAt) < 39440 * 0.04,
+        `greedy-living seed ${seed} within ±4% of the default-stream pin (got ${fmtTime(r.islandAt)})`);
+    }
+
+    // (c) casual-living: the seed-panel DISTRIBUTION contract. Median of the 5-seed panel in
+    // [18h, 22h]; every stream inside the hard rails [15h30m, 23h30m]. dt 10 keeps the panel
+    // affordable; arrival is cadence-quantized (multiples of 1200s) so dt does not blur it.
+    const panel = [];
+    for (const seed of [null, 1, 2, 5, 7]) {
+      const r = runScenario(getScenario('casual-tourist'), { dt: 10, maxHours: 40, snapshotSec: 7200, seed });
+      ok(r.islandAt !== null, `casual-living seed ${seed} reaches the island at all`);
+      if (r.islandAt !== null) panel.push(r.islandAt);
+    }
+    panel.sort((a, b) => a - b);
+    const median = panel[Math.floor(panel.length / 2)];
+    ok(median >= 18 * 3600 && median <= 22 * 3600, `casual-living 5-seed median inside [18h, 22h] (got ${fmtTime(median)})`);
+    ok(panel[0] >= 15.5 * 3600, `casual-living fastest stream ≥ 15h30m (got ${fmtTime(panel[0])})`);
+    ok(panel[panel.length - 1] <= 23.5 * 3600, `casual-living slowest stream ≤ 23h30m (got ${fmtTime(panel[panel.length - 1])})`);
+
+    // (d) the event deck's long-run expectation stays modest: replay the income-window rows'
+    // weighted mult·duration against the mean gap — the analytic E[uplift] the sizes were
+    // fitted to (windows only; windfalls are separately bounded by walletRoom/incomeRate).
+    const rows = DATA.events.filter(r => r.kind === 'income_window');
+    const wTot = DATA.events.reduce((t, r) => t + r.weight, 0);
+    const meanGap = (C.EVENTS.everyRange[0] + C.EVENTS.everyRange[1]) / 2;
+    const extraPerCycle = rows.reduce((t, r) => t + (r.weight / wTot) * (r.mult - 1) * r.durationSec, 0);
+    const uplift = extraPerCycle / meanGap;
+    ok(uplift > 0.005 && uplift < 0.06, `income-window E[uplift] ≈ ${(uplift * 100).toFixed(1)}% stays in the fitted (0.5%, 6%) window`);
+
+    // (e) Trophy Road pays souvenirs, not income: L_trophy is exactly 1 (no row carries
+    // trophyReward — the measured W5 decision) and an unlocking trophy mints its bounty once.
+    ok(DATA.achievements.every(a => !(a.trophyReward > 0)), 'no achievement carries a positive trophyReward (the measured W5 decision)');
+    const ts = ST.newGame();
+    ts.stats.lifetimeCash = 1e3;                       // crosses first_grand (souvenirs: 1)
+    E.evaluateAchievements(ts);
+    ok(M.trophyMultiplier(ts) === 1, 'L_trophy is exactly 1 with the shipped roster');
+    ok(ts.souvenirs.count === 1 && ts.achievements.unlocked.first_grand === true, 'unlocking an in-run trophy mints its souvenir bounty');
+    E.evaluateAchievements(ts);
+    ok(ts.souvenirs.count === 1, 'the bounty mints once ever (already-unlocked trophies never re-mint)');
+
+    // (f) quiet-vs-living seam: turning the deck back off restores the exact quiet golden —
+    // the foundation underneath the living world is bit-identical to the pre-W5 economy.
+    C.EVENTS.enabled = false;
+    const gQuiet = runCurve({ dt: 5, maxHours: 30 });
+    ok(Math.abs(gQuiet.islandAt - 39440) < 1, `quiet foundation still exactly 39440s under the flip (got ${fmtTime(gQuiet.islandAt)})`);
+  } finally {
+    C.EVENTS.enabled = false;   // the suite's quiet-mode contract (header note) holds to the end
+  }
+}
+
+// ---------- [116] backlog close-out: pricing hoist, backup rotation, tier clamp, savvy decision ----------
+// The docs/coverage.md "deferred balance-tuner backlog" resolved (2026-07-24): the E05-era
+// genUpgradeCost 50/8 literals hoisted to CONFIG.GEN_UPGRADE (value-identical, pinned here);
+// the E01/E05 corrupt-save backup rotation + accommodation tier-clamp implemented in
+// state.js; savvyPassive's placement OUTSIDE the multiplier stack recorded as the standing
+// design decision (the W5 sweeps re-proved the arc cannot absorb persistent multiplicative
+// coupling — see docs/05 §9.2 — so Savvy × L_comfort stays rejected).
+console.log('\n[116] backlog close-out: GEN_UPGRADE hoist, save-backup rotation, tier clamp, savvy placement');
+{
+  // (a) the hoist is value-identical to the old inline literals
+  const s = ST.newGame();
+  s.generators[0].upgrades = 3;
+  const expected = C.GEN.base[0] * 50 * Math.pow(8, 3) * M.commsCostMult(s);
+  ok(Math.abs(E.genUpgradeCost(s, 0) - expected) < 1e-9, 'genUpgradeCost via CONFIG.GEN_UPGRADE is bit-identical to the old 50·8^n literals');
+  ok(C.GEN_UPGRADE.costMult === 50 && C.GEN_UPGRADE.growth === 8, 'GEN_UPGRADE ships the de-facto-fitted values unchanged');
+
+  // (b) backup rotation: save twice → the backup holds the PREVIOUS save; corrupt primary →
+  // load falls back; hardReset clears both. Map-backed fake storage (the param exists for this).
+  const store = new Map();
+  const fake = { getItem: k => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, v), removeItem: k => store.delete(k) };
+  const s1 = ST.newGame(); s1.resources.cash = 111;
+  ST.save(s1, fake);
+  ok(store.has(C.SAVE_KEY) && !store.has(C.SAVE_KEY + '.backup'), 'first save writes the primary only (nothing to rotate yet)');
+  const s2 = ST.newGame(); s2.resources.cash = 222;
+  ST.save(s2, fake);
+  ok(JSON.parse(store.get(C.SAVE_KEY + '.backup')).resources.cash === 111, 'second save rotates the previous blob into .backup');
+  store.set(C.SAVE_KEY, '{corrupt json!!!');
+  const recovered = ST.load(fake);
+  ok(recovered !== null && recovered.resources.cash === 111, 'a corrupt primary falls back to the last-known-good backup');
+  ST.hardReset(fake);
+  ok(!store.has(C.SAVE_KEY) && !store.has(C.SAVE_KEY + '.backup'), 'hardReset clears the primary AND the backup (no resurrection)');
+
+  // (c) tier clamp on migrate: out-of-range/garbage tiers pin inside the shipped ladder
+  const maxTier = DATA.accommodation.length - 1;
+  const high = ST.newGame(); high.accommodation.tier = 99; high.accommodation.ownedTiers = [0, 99];
+  const hm = ST.migrate(JSON.parse(JSON.stringify(high)));
+  ok(hm.accommodation.tier === maxTier, `an over-range tier clamps to the ladder top (${maxTier})`);
+  ok(Math.max(...hm.accommodation.ownedTiers) <= maxTier, 'ownedTiers is rebuilt inside the ladder');
+  const low = ST.newGame(); low.accommodation.tier = -3;
+  ok(ST.migrate(JSON.parse(JSON.stringify(low))).accommodation.tier === 0, 'a negative tier clamps to 0');
+
+  // (d) the savvy decision: the formula snapshot — sqrt(lifetimeCash)-scaled, challenge-modded,
+  // and NOT multiplied by L_comfort (the standing design decision this section records).
+  const sv = ST.newGame();
+  sv.skills.savvy.level = 4; sv.stats.lifetimeCash = 1e6;
+  sv._comfortCache = 1e9;   // enormous Comfort — must NOT leak into the passive
+  const passive = M.savvyPassive(sv);
+  ok(Math.abs(passive - 4 * C.SAVVY_YIELD * 1000) < 1e-9, 'savvyPassive = level·YIELD·sqrt(lifetimeCash), unchanged, with no L_comfort coupling');
+}
+
+// [117] landed on main as "[111]" concurrently with the Living-World chain — renumbered in
+// this merge (the Living-World waves own [111]-[116]); the tests are byte-identical otherwise.
+console.log('\n[117] hostel-bunks fix: beat 4 gates on the ACTUAL check-in (accTier 2), not Comfort');
 {
   // ---- the regression: Comfort well past the old 200 gate, still living at the motel —
   // the diary must NOT narrate a hostel check-in that hasn't happened.

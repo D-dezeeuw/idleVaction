@@ -79,6 +79,14 @@ export const CONFIG = {
   // style. NOT a second multiplier: accommodation itself has no separate upgrade layer
   // (that would double-count against this one — see docs/coverage.md E05 notes).
   L_UPGRADE_RATE: 0.5,
+  // Renovation PRICING (backlog close-out, 2026-07-24 — the "genUpgradeCost 50/8" item):
+  // cost = GEN.base[k] · costMult · growth^upgradesBought · commsCostMult. These two numbers
+  // were inline literals in engine.genUpgradeCost since E03 — hoisted here VALUE-IDENTICAL
+  // per the house rule (every balance number lives in config, never in engine code); selftest
+  // [116] pins the equivalence. They are de facto FITTED: the Phase-C refit measured and
+  // pinned the whole economy around them, so tuning them now is a balance-tuner change like
+  // any other GEN.* constant.
+  GEN_UPGRADE: { costMult: 50, growth: 8 },
 
   // ---- amenities (the small-wins engine) ----
   // xRate/xCap (Phase-C refit): the L_amenity income layer. Every amenity row has carried
@@ -311,6 +319,125 @@ export const CONFIG = {
     branchBoomBonus: 0.25,
     maxCrashDamp: 0.95,
   },
+
+  // ---- shared timed-effects registry (Living-World W1 infrastructure) ----
+  // state.effects: [{ id, kind, mult, endsAt, durationSec }] — the substrate every later
+  // "timed flat ×" mechanism reuses (Trip Events here; Sunscreen Boosts/Splurge Moments/Legacy
+  // Honeymoon in later waves, docs/08 §"safety classes"). math.effectsMult(state, kind)
+  // multiplies together every LIVE entry of one kind and hard-caps the PRODUCT at maxMult — a
+  // bounded flat × with a duration bound, never a power of cash (the same safe class as L_dest,
+  // docs/math-proof.md §3/§4). maxMult only ever bounds the EFFECTS portion of engine.runtimeMult
+  // — Second Wind's own ×5 window is folded in OUTSIDE this cap and is completely unchanged.
+  // Empty state.effects (every fresh game, and the harness — Trip Events never fires for it,
+  // see EVENTS below) ⇒ effectsMult returns exactly 1, so the fitted island/casual goldens
+  // cannot move from this registry existing.
+  EFFECTS: { maxMult: 5 },
+
+  // ---- Trip Events: the serendipity deck (Living-World W1, plan point 1) ----
+  // A seeded scheduler (engine.eventsTick), drawing from data/events.js's EVENTS table via the
+  // EXACT marketTick pattern (util.rng(state.events.seed, state.events.cursor++), game-time only
+  // — offline replay is bit-identical to online since applyOffline replays the SAME tick()).
+  // NEUTRALITY GATE (W1 shipped enabled:false; W5 flipped it true after fitting): engine.eventsTick's body is
+  // `if (!C.EVENTS.enabled || !state.settings.events || state.story.beat < C.EVENTS.minBeat) return;`
+  // — so a fresh newGame() and the harness (which never reaches beat 3, let alone flips a
+  // config flag) draw NOTHING, ever: state.events.cursor stays 0, state.effects stays [],
+  // state.goat stays null, state.weather never advances — the fitted island/casual goldens
+  // cannot move. The @balance-tuner flips `enabled` once the deck is fitted (docs/08 W5).
+  //   minBeat         — story gate: events don't start rolling until the player has enough
+  //                      context (beat 3) to understand what just happened.
+  //   everyRange      — game-seconds of calm between one event ending/firing and the next
+  //                      being drawn (mirrors config.MARKET.eventEveryRange).
+  //   windfallRoomFrac/windfallSecs — a `windfall`-kind row always pays
+  //                      min(walletRoom·windfallRoomFrac, incomeRate·windfallSecs), banked through
+  //                      engine.gainCash like every other inflow — bounded by BOTH the wallet's
+  //                      free room and a capped multiple of the player's own current income, so it
+  //                      scales with the player without ever being a fixed-cash exploit.
+  //   seed            — default seed; state.js migrate() reseeds existing saves from
+  //                      meta.createdAt (the crypto-market precedent).
+  // W5 FLIP + FIT (2026-07-24): enabled:true — the deck is live for every player. Sizing was
+  // fitted empirically against multi-seed persona sweeps (docs/05 §9's W5 entry): the W1
+  // provisional sizes collapsed casual 21h20m → 16h20m (attribution: windfalls −3h40m, income
+  // windows −2h40m), so the fit keeps event FREQUENCY (the felt cadence, ~every 8-12 min) and
+  // trims event SIZE — windfalls pay ≤ 15s of income (was 45) bounded by 8% of wallet room
+  // (was 25%); the window rows in data/events.js carry smaller mult·duration products.
+  // FITTED RESULT (selftest [115]): the QUIET foundation pins are untouched (39440s / 76800s,
+  // events off — the foundation never moved through the whole Living-World pass); the LIVING
+  // greedy curve lands 38970s on the default seed (events can only help, ≈ −1.2%, seed spread
+  // < ±1%); the LIVING casual arc is inherently DISTRIBUTIONAL — the persona's 20-min decision
+  // cadence turns event-stream luck into ±1.5-3h of arrival spread (16h20m–23h00m measured over
+  // 7 seeds, median ≈ 19h40m) — so casual is guarded as a seed-panel median band, never a
+  // single-stream pin. That distribution is the design now: a living trip, not a timetable.
+  EVENTS: { enabled: true, minBeat: 3, everyRange: [420, 840], windfallRoomFrac: 0.08, windfallSecs: 15, seed: 4242 },
+
+  // ---- Vacation Weather (Living-World W1, plan point 3) ----
+  // Seeded ambient flavor (engine's weatherTick, called from inside eventsTick — same gate, no
+  // separate one) — 5 states in data/events.js's WEATHER_STATES, each carrying an `eventBias`
+  // (nudges which EVENTS rows draw more/less often while that weather is live) and flavor-only
+  // tapMult/energyRegenMult scalars read ONLY in engine.click / the energy-regen tick line —
+  // NEVER tierProd/computeComfort/any unlock check — so weather cannot move the income stack by
+  // construction. It shares state.events.seed (its own cursor lives in state.weather.cursor) —
+  // see engine.weatherTick's disjoint-cursor-namespace comment for why the two never collide.
+  WEATHER: { everyRange: [180, 480] },
+
+  // ---- The Golden Goat (Living-World W1, plan point 2) ----
+  // A rare `goat`-kind EVENTS row sets state.goat = { visibleUntil, taps } — engine.goatVisible/
+  // tapGoat read it. Untapped, it just expires (visibleUntil elapses, no cleanup needed). Tapping
+  // pays min(walletRoom, incomeRate·rewardSecs) through gainCash — same bounded-by-wallet-and-
+  // income shape as the windfall row above. The harness never taps (E10's established contract),
+  // so the goat is harness-neutral even once Trip Events is enabled.
+  GOAT: { visibleSec: 20, rewardSecs: 90 },
+
+  // ---- Sunscreen Boosts (Living-World W2, docs/08-living-world.md point 4) ----
+  // Player-FIRED timed multipliers on the SAME shared effects registry as Trip Events —
+  // engine.activateBoost is the ONLY way in. UNLIKE Trip Events (config.EVENTS.enabled), this
+  // needs no master kill-switch: every path into it is player-initiated, the cost is paid UP
+  // FRONT (a plain cash subtract, never gainCash), and the payoff is a bounded flat × through
+  // the SAME hard-capped registry (config.EFFECTS.maxMult) — never a power of cash. A fresh
+  // newGame() and the harness (which never calls activateBoost) are unaffected by construction,
+  // so the fitted island/casual goldens cannot move whether or not this block even exists.
+  //   minBeat — reveal gate only (mirrors EVENTS.minBeat): the Sunscreen Boosts card stays
+  //             hidden until the player has enough context to understand what it does. Per-boost
+  //             kind/mult/durationSec/cooldownSec/costWalletFrac live in data/boosts.js (the
+  //             sponsor-deal precedent: content-specific numbers live on the row, not here).
+  BOOSTS: { minBeat: 5 },
+
+  // ---- Souvenir Stand (Living-World W3, docs/08-living-world.md point 6) ----
+  // Wallet overflow + first destination visits mint a keepsake currency (state.souvenirs) that
+  // SURVIVES ascension (docs/08 point 6: "away time is never worthless again" — the Egg-Inc
+  // generosity beat). Minting is PURE bookkeeping — a count, never cash — so it cannot itself
+  // move any income path; only spending souvenirs on a shelf item can (data/souvenirs.js), and the
+  // harness/casual-tourist bots never buy shelf items, so L_souvenir stays exactly 1 for every
+  // pinned golden. SAFETY CLASS: L_souvenir = 1 + min(xCap−1, Σ owned perk mults) over a FIXED,
+  // finite roster — the same bounded-additive-layer class as L_amenity/L_dest (docs/math-proof.md
+  // §3/§4), never a power of cash.
+  //   xCap        — hard ceiling on the souvenir-shop income layer (≤ ×1.25 total).
+  //   maxPerTick  — the overflow-accumulator mint cap PER engine.gainCash call: a coarse offline
+  //                 macro-step can dump enormous single-call overflow (§11's lump), so minting is
+  //                 capped at this many souvenirs per call regardless of how much overflow
+  //                 accumulated — the accumulator itself is never reset beyond what was minted, so
+  //                 the next call just continues where this one left off (no souvenirs lost, only
+  //                 rate-limited — "no fountain," never "no souvenir").
+  SOUVENIR: { xCap: 1.25, maxPerTick: 2 },
+
+  // ---- Ascension Challenges (Living-World W3, docs/08-living-world.md point 7) ----
+  // From ascension 1 on, the player may optionally embark a run with one handicap (data/
+  // challenges.js's CHALLENGES roster) via prestige.ascend's optional { challengeId } — run 1 can
+  // never have one active (only selectable AT an ascension), so the harness/goldens are untouched.
+  // Completing a challenge (reaching its goalTier) mints a permanent Keepsake perk: L_keepsake =
+  // 1 + min(xCap−1, Σ completed rewards) — the SAME bounded-additive-layer class as L_souvenir
+  // above, over the same fixed 5-row roster (max Σ = 5×0.06 = 0.30 = xCap−1 at full completion).
+  KEEPSAKE: { xCap: 1.3 },
+
+  // ---- Legacy Honeymoon (Living-World W3, docs/08-living-world.md point 8) ----
+  // Ascending grants a decaying income surge through the SAME shared timed-effects registry
+  // Trip Events/Sunscreen Boosts use (config.EFFECTS/math.effectsMult/engine.addEffect) — prestige
+  // *feels* explosive while the registry's own hard product cap (EFFECTS.maxMult 5) and Second
+  // Wind's separate ×5 window both stay completely untouched (this rides the SAME 'income' kind
+  // stream as Trip Events' Happy Hour, so the two would multiply together and hit the shared cap
+  // if they ever overlapped — by design, not a bug). Conservative first-pass values (W5 finalizes):
+  // measured to keep the ascended-run band contract (selftest [86]: every ascension ≥ 8h, the
+  // early-faster/late-slower parabola) green with margin — see selftest [113g]'s measured numbers.
+  HONEYMOON: { mult: 3, durationSec: 480 },
 
   // ---- connoisseur economy (E14 "Acquired Taste"): OPT-IN, gated-off-by-default ----
   // The whole Old-Money Aesthete lane (exclusivity ×, luxury discount, appreciation, the
@@ -585,6 +712,20 @@ export const CONFIG = {
   // 100% completion never trivializes NG+. In-run milestone trophies carry reward 0 (harness-safe);
   // only meta/collection achievements carry the ×. seasonalMultCap bounds the live-ops nudge.
   ACHIEVE: { rewardCap: 0.75, seasonalMultCap: 1.1 },
+
+  // ---- Trophy Road plumbing (Living-World W4, docs/08-living-world.md point 9) ----
+  // A NEW bounded additive layer, separate from L_achieve: in-run (non-meta) achievement rows may
+  // now carry an OPTIONAL `trophyReward` (data/achievements.js) that feeds L_trophy = 1 + min(xCap−1,
+  // Σ trophyReward of unlocked in-run trophies) — math.computeTrophySum/trophyMultiplier, cached
+  // per-tick as state._trophyCache (engine.tick), folded into math.tierMultiplier beside
+  // L_souvenir/L_keepsake. THIS WAVE every trophyReward ships 0 (or is simply absent ⇒ 0 via
+  // `a.trophyReward || 0`), so L_trophy is EXACTLY 1 for every existing run/scenario and the
+  // goldens are bit-identical — this is PLUMBING ONLY. The balance wave (W5) is the one deliberate
+  // golden-mover: it sizes real trophyReward values on a subset of the 57 trophies and re-pins.
+  //   xCap    — hard ceiling on the trophy-road income layer (≤ ×1.25 total, same bound as SOUVENIR).
+  //   maxPer  — the per-trophy cap validateAchievements enforces on any non-zero trophyReward, so no
+  //             single trophy can ever dominate the layer (mirrors SOUVENIRS' per-item ≤0.05 bound).
+  TROPHY: { xCap: 1.25, maxPer: 0.02 },
 
   // ---- pacing / QA (NEVER used to balance — only to pace/test) ----
   // gameSpeed multiplies simulated time in the loop. 1 = natural course; the high presets +

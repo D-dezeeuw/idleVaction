@@ -2,7 +2,7 @@
 import { CONFIG as C } from './config.js';
 import { DATA } from './data/index.js';
 import * as M from './math.js';
-import { bulkCost, maxAffordable, clamp, rng, fmt } from './util.js';
+import { bulkCost, maxAffordable, clamp, rng, fmt, fmtTime } from './util.js';
 
 // ---------- notifications (drained by UI) ----------
 function notify(state, type, text) {
@@ -31,7 +31,8 @@ export function gainCash(state, amount) {
   // the Legacy metric is credited in run-1-equivalent (gate-deflated) cash so the
   // ascension gate can't inflate the prestige payout — see math.ascCashNorm.
   state.stats.lifetimeCashThisTree += banked / M.ascCashNorm(state);
-  state.stats.overflowLost += amount - banked;
+  const overflow = amount - banked;
+  state.stats.overflowLost += overflow;
   // one-shot "wallet full" nudge per account tier: fires the first time THIS tier's
   // wallet overflows, tracked in story.flags (the generic already-fired bag) so it
   // can't re-spam every tick while the player shops the wallet up and down the cap.
@@ -42,20 +43,55 @@ export function gainCash(state, amount) {
       notify(state, 'warn', `💼 Your ${DATA.bank[state.bank.tier].name} is full — income is overflowing. Upgrade your account.`);
     }
   }
+  // Souvenir Stand minting (Living-World W3, docs/08 point 6): overflow lost to a full wallet
+  // is never JUST lost anymore — see mintSouvenirsFromOverflow's comment for the mint rule.
+  if (overflow > 0) mintSouvenirsFromOverflow(state, overflow);
   return banked;
+}
+
+// Mint souvenirs from unbanked wallet overflow (docs/08 point 6): accumulate `overflow` into
+// state.souvenirs.overflowAcc, then mint +1 souvenir every time the accumulator crosses the
+// CURRENT wallet cap, subtracting the cap each time — repeated while it still crosses, but
+// capped at config.SOUVENIR.maxPerTick mints PER CALL so one huge offline-macro-step overflow
+// can't fountain souvenirs (the accumulator simply keeps the remainder for the next call — no
+// souvenir is ever lost, minting is only rate-limited). Minting is pure bookkeeping — a count —
+// and touches no cash/multiplier, so it cannot itself move any pinned golden.
+function mintSouvenirsFromOverflow(state, overflow) {
+  const sv = state.souvenirs;
+  sv.overflowAcc += overflow;
+  let minted = 0;
+  while (minted < C.SOUVENIR.maxPerTick) {
+    const cap = M.walletCap(state);
+    if (!(cap > 0) || sv.overflowAcc < cap) break;
+    sv.overflowAcc -= cap;
+    sv.count++;
+    minted++;
+  }
+  if (minted > 0) notify(state, 'unlock', `🎁 Overflow becomes a souvenir! (+${minted}, now ${sv.count})`);
 }
 
 // ---------- runtime (non-pure) multiplier: Second Wind window ----------
 function runtimeMult(state) {
   const rank = state.ascension.tree.second_wind || 0;
-  if (rank > 0 && state.stats.runSec < 300 * rank) return 5;
-  return 1;
+  const secondWind = (rank > 0 && state.stats.runSec < 300 * rank) ? 5 : 1;
+  // Trip Events (Living-World W1): timed `income_window` rows (Happy Hour/Golden Hour) fold in
+  // here through the shared effects registry — M.effectsMult already caps its OWN product at
+  // config.EFFECTS.maxMult, so Second Wind's ×5 stays OUTSIDE that cap (unchanged behavior).
+  // Exactly 1 with an empty state.effects (every fresh game, and the harness — Trip Events is
+  // gated off by default, see config.EVENTS), so the fitted island/casual goldens cannot move.
+  return secondWind * M.effectsMult(state, 'income');
 }
 
 // ---------- the tick ----------
 export function tick(state, dt) {
   state.stats.runSec += dt;
   state.meta.playtimeMs += dt * 1000;
+
+  // 0) drop any expired timed effect (Living-World W1 registry) BEFORE anything below reads
+  // M.effectsMult — mirrors marketTick's own "expire back to calm first" ordering, so a window
+  // that closed exactly this tick reads as gone for the whole tick (never a stale partial
+  // credit). Empty/absent state.effects (every fresh game, the harness) is an instant no-op.
+  pruneEffects(state);
 
   // 1) refresh path-stage, comfort + destination caches (feed the multiplier stack) —
   // _pathBonus first: computeComfort reads the connoisseur stage scalars from it.
@@ -95,6 +131,15 @@ export function tick(state, dt) {
   evaluateAchievements(state);
   state._achieveMult = M.computeAchieveMult(state, DATA);
   state._seasonalMult = M.seasonalMult(state, DATA);
+  // Living-World W3 (docs/08 points 6/7): L_souvenir/L_keepsake per-tick sums — recomputed like
+  // _amenCache/_achieveMult, both exactly 0 (⇒ ×1) for a fresh game/the harness.
+  state._souvCache = M.computeSouvenirPerkSum(state, DATA);
+  state._keepsakeCache = M.computeKeepsakeSum(state, DATA);
+  // Trophy Road plumbing (Living-World W4, docs/08 point 9): L_trophy's per-tick sum, recomputed
+  // right after evaluateAchievements() above (so a trophy unlocked THIS tick is already counted) —
+  // mirrors _souvCache/_keepsakeCache exactly. Every shipped trophyReward is 0 this wave, so this
+  // stays 0 (⇒ ×1) for every existing run.
+  state._trophyCache = M.computeTrophySum(state, DATA);
 
   const rt = runtimeMult(state);
 
@@ -117,6 +162,10 @@ export function tick(state, dt) {
   // the fitted ~8h26m island time cannot move. marketMult scales ONLY this yield, never
   // savvyPassive/tierProd above (opt-in volatility, never a base-income effect).
   marketTick(state);
+  // Trip Events + Vacation Weather (Living-World W1 "the serendipity deck"): the SAME seeded-
+  // scheduler pattern as marketTick, one tick step later — gated off by default (config.EVENTS),
+  // see eventsTick's own comment for the full neutrality contract.
+  eventsTick(state);
   const cryptoYield = M.cryptoYieldPerSec(state, DATA) * dt;
   cashGain += cryptoYield;
   state.crypto.lifetimeYield += cryptoYield;
@@ -151,9 +200,12 @@ export function tick(state, dt) {
 
   // 5a) energy regen (E10 "Body & Soul"): optional clicker fuel, Body-scaled tank +
   // regen — never read by tierProd/tierMultiplier, so it cannot affect idle income or
-  // pacing (the harness never taps; see math.energyMax/energyRegenRate).
+  // pacing (the harness never taps; see math.energyMax/energyRegenRate). Vacation Weather's
+  // energyRegenMult flavors the regen rate only (weatherRow's 'sunny' default is exactly 1,
+  // so a fresh game/the harness — which never rolls away from 'sunny' — are unaffected).
   state.resources.energy = clamp(
-    (state.resources.energy || 0) + M.energyRegenRate(state) * dt, 0, M.energyMax(state));
+    (state.resources.energy || 0) + M.energyRegenRate(state) * weatherRow(state).energyRegenMult * dt,
+    0, M.energyMax(state));
 
   // 5b) Transport upkeep (E04-S2-T8) drains cash while a ride is active; clamped so it
   // never goes negative, offline included (both just call tick()). NOTE: the traveler
@@ -180,9 +232,14 @@ export function tick(state, dt) {
   checkUnlocks(state);
   checkAmenityUnlocks(state);
   checkVignettes(state);
+  // Splurge Moments (Living-World W2, docs/08 point 5): time-boxed choice-card bookkeeping —
+  // resolves an expired pending card (a pure no-op) and/or opens the next eligible one. Placed
+  // alongside checkVignettes (the other "fires once per run at a threshold" family).
+  checkSplurges(state);
   checkNpcUnlocks(state);
   checkDestinationReveals(state);
   checkStory(state);
+  checkPetra(state);
   checkComfortOnline(state);
   checkPoolTease(state);
   checkWellnessReveal(state);
@@ -280,11 +337,15 @@ function decayCombo(state, dt) {
 
 function trickleXp(state, cashGain, dt) {
   const s = state.skills;
-  s.charisma.xp += cashGain * 0.02;
-  s.comms.xp    += cashGain * 0.015;
-  s.savvy.xp    += cashGain * 0.012;
-  s.taste.xp    += cashGain * 0.006;
-  s.body.xp     += state._comfortCache * dt * 0.02;
+  // Sunscreen Boosts' Deep Focus (Living-World W2, docs/08 point 4): a timed 'skillxp' entry on
+  // the shared effects registry folds in here ONLY (never tierProd/comfort) — exactly 1 with an
+  // empty registry (every fresh game, the harness), so the pre-W2 trickle is bit-identical.
+  const boost = M.effectsMult(state, 'skillxp');
+  s.charisma.xp += cashGain * 0.02 * boost;
+  s.comms.xp    += cashGain * 0.015 * boost;
+  s.savvy.xp    += cashGain * 0.012 * boost;
+  s.taste.xp    += cashGain * 0.006 * boost;
+  s.body.xp     += state._comfortCache * dt * 0.02 * boost;
 }
 
 function refreshSkillLevels(state) {
@@ -591,9 +652,17 @@ export function checkRichHide(state) {
 export function visitDestination(state, id) {
   const d = destData(id);
   if (!d || !state.destinations[id].owned) return false;
+  const firstVisit = state.destinations[id].visits === 0;
   state.destinations[id].visits++;
   gainCash(state, C.DEST.visitYield);
   addPathPoints(state, 'traveler', C.DEST.visitPathPoints);
+  // Souvenir Stand (Living-World W3, docs/08 point 6): the FIRST visit to each destination mints
+  // one souvenir (a keepsake from the trip) — a plain count bump, income-inert like every other
+  // mint (see gainCash's mintSouvenirsFromOverflow).
+  if (firstVisit) {
+    state.souvenirs.count++;
+    notify(state, 'unlock', `🧳 A souvenir from ${d.name} — your first visit.`);
+  }
   return true;
 }
 // tier-1 rides (bus/train): cash check + add to owned, then switch the active slot —
@@ -784,7 +853,7 @@ export function buyGenerator(state, k, qty) {
 }
 
 export function genUpgradeCost(state, k) {
-  return C.GEN.base[k] * 50 * Math.pow(8, state.generators[k].upgrades) * M.commsCostMult(state);
+  return C.GEN.base[k] * C.GEN_UPGRADE.costMult * Math.pow(C.GEN_UPGRADE.growth, state.generators[k].upgrades) * M.commsCostMult(state);
 }
 export function buyGenUpgrade(state, k) {
   const cost = genUpgradeCost(state, k);
@@ -822,7 +891,9 @@ export function amenityCost(state, id) {
   const lux = a.tag === 'luxury' ? M.luxuryCostMult(state) : 1;
   // costScale (Phase-C refit): one knob scaling the whole catalog's price level against the
   // refitted economy — the 186 data rows keep their relative spacing untouched. 1 = legacy.
-  return a.costBase * (C.AMENITY.costScale || 1) * Math.pow(g, lvl) * (1 - M.pathBonus(state, 'amenityDiscount')) * lux * M.commsCostMult(state);
+  // Ascension Challenges' Lost Luggage (Living-World W3, docs/08 point 7): triples every amenity
+  // price. challengeMod defaults to 1 with no active challenge — bit-identical to before.
+  return a.costBase * (C.AMENITY.costScale || 1) * Math.pow(g, lvl) * (1 - M.pathBonus(state, 'amenityDiscount')) * lux * M.commsCostMult(state) * M.challengeMod(state, 'amenityCostMult');
 }
 export function amenityUnlocked(state, id) {
   const a = amenityData(id);
@@ -861,7 +932,9 @@ export function buyTraining(state, id) {
   if (state.resources.cash < cost) return false;
   state.resources.cash -= cost;
   state.training[id].bought++;
-  state.skills[t.skill].xp += t.xp;
+  // Deep Focus (Living-World W2): the SAME 'skillxp' effectsMult factor as trickleXp's idle
+  // trickle — exactly ×1 with an empty registry, so a training buy's XP is bit-identical pre-W2.
+  state.skills[t.skill].xp += t.xp * M.effectsMult(state, 'skillxp');
   refreshSkillLevels(state);
   return true;
 }
@@ -1196,6 +1269,298 @@ export function checkWhaleWatching(state) {
   addPathPoints(state, 'crypto', WHALE_WATCH_PATH_BONUS);
   refreshSkillLevels(state);
   notify(state, 'celebrate', '🐋 Whale Watching: you clocked the pattern before the chart did. Savvy sharpens — the market, ever so slightly, notices you noticing.');
+}
+
+// ---------- Trip Events + Vacation Weather + The Golden Goat (Living-World W1) ----------
+// docs/08-living-world.md points 1/2/3. The shared timed-effects registry (config.EFFECTS,
+// math.effectsMult/engine.addEffect) is this wave's substrate; Trip Events is its first tenant.
+
+// addEffect: replaces an existing entry with the SAME id rather than stacking it (re-rolling
+// Happy Hour while one is already live refreshes its own window instead of a second copy
+// compounding on top) — every caller (eventsTick today; boosts/splurges/honeymoon later,
+// docs/08 waves 2-3) just calls this, never searches state.effects itself.
+export function addEffect(state, { id, kind, mult, durationSec }) {
+  const list = (state.effects ||= []);
+  const i = list.findIndex(e => e.id === id);
+  const entry = { id, kind, mult, endsAt: state.stats.runSec + durationSec, durationSec };
+  if (i >= 0) list[i] = entry; else list.push(entry);
+}
+// drop every entry whose window has already closed — called once per tick (see tick's step 0)
+// so state.effects never grows unbounded and a save never serializes a stale expired entry.
+// A no-op whenever the registry is empty (every fresh game, the harness).
+function pruneEffects(state) {
+  const list = state.effects;
+  if (!list || !list.length) return;
+  state.effects = list.filter(e => e.endsAt > state.stats.runSec);
+}
+
+// current cash income rate (€/s) — mirrors engine.tick's own cashGain accumulation (tier-0
+// production + Savvy passive + crypto yield + guest income), just without the ·dt. Used ONLY to
+// SIZE flavor payouts (Trip Events' `windfall` rows, the Golden Goat) against the player's own
+// economy so a payout always feels proportional — NOT part of the pinned multiplier stack itself.
+function currentIncomeRate(state) {
+  const rt = runtimeMult(state);
+  return M.tierProd(state, 0) * rt + M.savvyPassive(state) * cryptoSavvyPerk(state)
+       + M.cryptoYieldPerSec(state, DATA) + M.guestIncomeRaw(state, DATA) * rt;
+}
+
+// the live weather row (data/events.js WEATHER_STATES) — falls back to the first row ('sunny',
+// tapMult/energyRegenMult both 1) if state.weather.id ever fails to match, so a lookup miss can
+// never break a tap or the energy tick. 'sunny' is also the seeded DEFAULT until weatherTick
+// actually rolls something else, so a fresh game/the harness (which never trips the gate below)
+// always read the neutral row.
+function weatherRow(state) {
+  return DATA.weatherStates.find(w => w.id === state.weather.id) || DATA.weatherStates[0];
+}
+
+// weighted draw over DATA.events via the seeded, pure util.rng — mirrors pickMarketEvent exactly
+// (consumes one state.events.cursor slot). The live weather's eventBias (data/events.js) nudges
+// specific rows' weight up/down while that weather holds — pure event-MIX flavor, not an income
+// effect of its own.
+function pickEventRow(state) {
+  const rows = DATA.events;
+  const bias = weatherRow(state).eventBias || {};
+  const weightOf = r => r.weight * (bias[r.id] || 1);
+  const totalWeight = rows.reduce((s, r) => s + weightOf(r), 0);
+  const roll = rng(state.events.seed, state.events.cursor++) * totalWeight;
+  let acc = 0;
+  for (const r of rows) { acc += weightOf(r); if (roll <= acc) return r; }
+  return rows[rows.length - 1];
+}
+
+const EVENTS_LOG_MAX = 20;
+function logTripEvent(state, entry) {
+  const log = (state.events.log ||= []);
+  log.unshift(entry);
+  if (log.length > EVENTS_LOG_MAX) log.length = EVENTS_LOG_MAX;
+}
+
+// apply a drawn EVENTS row — one branch per kind (data/events.js's schema comment). Every cash
+// path routes through gainCash (the wallet cap), never a side door.
+function applyEvent(state, row) {
+  switch (row.kind) {
+    case 'income_window':
+      addEffect(state, { id: row.id, kind: 'income', mult: row.mult, durationSec: row.durationSec });
+      notify(state, 'unlock', `${row.name} — income ×${row.mult} for ${row.durationSec}s!`);
+      logTripEvent(state, { id: row.id, kind: row.kind, t: state.stats.runSec, mult: row.mult, dur: row.durationSec });
+      break;
+    case 'tap_window':
+      addEffect(state, { id: row.id, kind: 'tap', mult: row.mult, durationSec: row.durationSec });
+      notify(state, 'unlock', `${row.name} — tap value ×${row.mult} for ${row.durationSec}s!`);
+      logTripEvent(state, { id: row.id, kind: row.kind, t: state.stats.runSec, mult: row.mult, dur: row.durationSec });
+      break;
+    case 'dest_sale':
+      addEffect(state, { id: row.id, kind: 'destSale', mult: row.mult, durationSec: row.durationSec });
+      notify(state, 'unlock', `${row.name} — destinations ×${row.mult} for ${row.durationSec}s!`);
+      logTripEvent(state, { id: row.id, kind: row.kind, t: state.stats.runSec, mult: row.mult, dur: row.durationSec });
+      break;
+    case 'windfall': {
+      // config.EVENTS sizes EVERY windfall row the same bounded way — a flat fraction of
+      // wallet room, capped by a bounded multiple of current income (never a fixed-cash
+      // exploit; scales with the player). Always routed through gainCash.
+      const amount = Math.min(M.walletRoom(state) * C.EVENTS.windfallRoomFrac,
+        currentIncomeRate(state) * C.EVENTS.windfallSecs);
+      const banked = gainCash(state, amount);
+      notify(state, 'celebrate', `${row.name} — +${fmt(banked)}!`);
+      logTripEvent(state, { id: row.id, kind: row.kind, t: state.stats.runSec, amount: banked });
+      break;
+    }
+    case 'goat':
+      state.goat = { visibleUntil: state.stats.runSec + C.GOAT.visibleSec, taps: 0 };
+      notify(state, 'unlock', `${row.name} — a goat has wandered onto the property!`);
+      logTripEvent(state, { id: row.id, kind: row.kind, t: state.stats.runSec });
+      break;
+  }
+}
+
+// Vacation Weather's OWN seeded cursor namespace — shares state.events.seed (one RNG stream per
+// save, not two) but a DISJOINT slot range (offset below), so weather's draws never collide with
+// eventsTick's OWN state.events.cursor draws (the exact math.marketBaselineJitter vs.
+// engine.marketTick disjoint-namespace trick, offset 1e6 there — a different, equally-arbitrary
+// offset here). The two streams stay disjoint because eventsTick's OWN cursor draws at most 2
+// slots per fired event (state.events.cursor++ once per draw + once per gap roll) at least
+// EVENTS.everyRange[0]=360s apart — even a multi-thousand-hour save could never advance
+// state.events.cursor anywhere near this offset, so it can never collide with weather's range.
+const WEATHER_CURSOR_OFFSET = 5_000_000;
+function weatherTick(state) {
+  const w = state.weather;
+  if (state.stats.runSec < w.nextAt) return;
+  const rows = DATA.weatherStates;
+  const totalWeight = rows.reduce((s, r) => s + r.weight, 0);
+  const pickRoll = rng(state.events.seed, WEATHER_CURSOR_OFFSET + w.cursor++) * totalWeight;
+  let acc = 0, picked = rows[rows.length - 1];
+  for (const r of rows) { acc += r.weight; if (pickRoll <= acc) { picked = r; break; } }
+  w.id = picked.id;
+  const gapRoll = rng(state.events.seed, WEATHER_CURSOR_OFFSET + w.cursor++);
+  const [lo, hi] = C.WEATHER.everyRange;
+  w.nextAt = state.stats.runSec + lo + gapRoll * (hi - lo);
+}
+
+// The seeded Trip Events scheduler (docs/08 point 1) — a pure function of (state.events.seed,
+// state.events.cursor, state.stats.runSec), exactly mirroring engine.marketTick, so it is
+// trivially reproducible online or replayed offline through the SAME tick() loop applyOffline
+// already drives (no separate offline code path exists to drift).
+//
+// NEUTRALITY GATE: the entire body below is this one early return — a fresh newGame() and the
+// harness (which never reaches beat 3, let alone flips config.EVENTS.enabled) draw NOTHING,
+// ever: state.events.cursor stays 0, state.effects stays [], state.goat stays null,
+// state.weather never advances past its seeded 'sunny' default — the fitted island/casual
+// goldens cannot move. config.EVENTS.enabled ships false this wave; the balance wave flips it.
+function eventsTick(state) {
+  if (!C.EVENTS.enabled || !state.settings.events || state.story.beat < C.EVENTS.minBeat) return;
+  const ev = state.events;
+  if (state.stats.runSec >= ev.nextAt) {
+    applyEvent(state, pickEventRow(state));
+    const gapRoll = rng(ev.seed, ev.cursor++);
+    const [lo, hi] = C.EVENTS.everyRange;
+    ev.nextAt = state.stats.runSec + lo + gapRoll * (hi - lo);
+  }
+  // Weather rolls behind the SAME gate (docs/08 point 3: "gated behind the same EVENTS
+  // enabled/minBeat gate") — called from inside this function rather than duplicating the
+  // condition at the tick() call site.
+  weatherTick(state);
+}
+
+// ---------- The Golden Goat (docs/08 point 2) ----------
+// visible iff a goat has been spawned (a `goat`-kind EVENTS row fired) AND its window hasn't
+// elapsed. Untapped, it just goes false on its own once visibleUntil passes — no cleanup needed.
+export function goatVisible(state) {
+  return !!(state.goat && state.stats.runSec < state.goat.visibleUntil);
+}
+// tapping pays min(walletRoom, incomeRate·rewardSecs) through gainCash — bounded by BOTH the
+// wallet's free room and a capped multiple of current income, same shape as the windfall row.
+// The harness never taps (E10's established contract), so the goat is harness-neutral even once
+// Trip Events is enabled.
+export function tapGoat(state) {
+  if (!goatVisible(state)) return 0;
+  const amount = Math.min(M.walletRoom(state), currentIncomeRate(state) * C.GOAT.rewardSecs);
+  const banked = gainCash(state, amount);
+  state.stats.goatsGreeted = (state.stats.goatsGreeted || 0) + 1;
+  state.goat.visibleUntil = 0;   // hide immediately — a tapped goat doesn't linger
+  notify(state, 'celebrate', `🐐 The goat is delighted — +${fmt(banked)} in appreciation (and one good ear-scratch).`);
+  return banked;
+}
+
+// ---------- Petra, the Pace Ghost (Living-World W4, docs/08 point 10) ----------
+// DISPLAY-ONLY — checkPetra never touches cash/multipliers/unlocks, only story.flags (a one-shot
+// per tier, mirroring checkParadise's flag convention) and a notification (mirrors every other
+// checkX's `notify` call). Revealed once the player has enough context (beat 4, "1-Star Hotel" —
+// the first real arrival), same reveal-gate shape as Sunscreen Boosts (config.BOOSTS.minBeat).
+export function petraRevealed(state) { return state.story.beat >= 4; }
+// Fires a one-shot toast the FIRST time the player's OWN accommodation tier lands strictly BEFORE
+// Petra's own casual-tourist arrival time at that same tier (data/petra.js's tierTimes, generated
+// by js/dev/petra-gen.mjs) — "beat Petra there". Flag-gated per tier so it can never re-fire on
+// reload/re-tick; silent (no toast, still flags it so the check isn't repeated) when Petra either
+// beat the player there or hasn't recorded that tier at all.
+export function checkPetra(state) {
+  if (!petraRevealed(state)) return;
+  const t = state.accommodation.tier;
+  const petraT = DATA.petra.tierTimes[t];
+  if (petraT === undefined) return;
+  const flagKey = `petraTier_${t}`;
+  if (state.story.flags[flagKey]) return;
+  state.story.flags[flagKey] = true;
+  if (state.stats.runSec < petraT) {
+    const lead = petraT - state.stats.runSec;
+    notify(state, 'celebrate', `✈️ Beat Petra to ${DATA.accommodation[t].name} by ${fmtTime(lead)}!`);
+  }
+}
+
+// ---------- Sunscreen Boosts (Living-World W2, docs/08 point 4) ----------
+// Player-FIRED timed multipliers on the SAME shared effects registry Trip Events uses (W1) — see
+// data/boosts.js for the roster. UNLIKE Trip Events, this needs no config.EVENTS-style master
+// kill-switch: activateBoost is the ONLY way in, the cost is paid UP FRONT (never an inflow — a
+// plain cash subtract, mirroring buyContentBoost's shape), and the payoff is a bounded flat ×
+// through the SAME capped registry. A fresh newGame() and the harness (which never calls
+// activateBoost) are unaffected by construction, so the fitted island/casual goldens cannot move.
+// Cooldowns are tracked in GAME-TIME (state.stats.runSec), so offline replay is deterministic —
+// no wall-clock is ever consulted.
+export function boostData(id) { return DATA.boosts.find(b => b.id === id); }
+export function boostsRevealed(state) { return state.story.beat >= C.BOOSTS.minBeat; }
+// the runSec at which this boost is next activatable (0/absent ⇒ ready right now).
+export function boostReadyAt(state, id) { return state.boosts.cooldowns[id] || 0; }
+export function boostCost(state, id) {
+  const b = boostData(id);
+  return b.costWalletFrac * M.walletCap(state);
+}
+export function activateBoost(state, id) {
+  const b = boostData(id);
+  if (!b || !boostsRevealed(state)) return false;
+  if (state.stats.runSec < boostReadyAt(state, id)) return false;
+  const cost = boostCost(state, id);
+  if (state.resources.cash < cost) return false;
+  state.resources.cash -= cost;   // up-front debit — never gainCash (that path is inflow-only)
+  addEffect(state, { id: `boost_${id}`, kind: b.kind, mult: b.mult, durationSec: b.durationSec });
+  state.boosts.cooldowns[id] = state.stats.runSec + b.cooldownSec;
+  notify(state, 'boost', `${b.emoji} ${b.name} — ×${b.mult} for ${b.durationSec}s!`);
+  return true;
+}
+
+// ---------- Splurge Moments (Living-World W2, docs/08 point 5) ----------
+// Two-option choice cards (data/splurges.js SPLURGES) scattered across the story/tier arc.
+// checkSplurges (called from tick, alongside checkVignettes) resolves an already-pending card's
+// expiry FIRST — a pure no-op, since ignoring a splurge is always the neutral baseline (docs/08's
+// "expiry = no-op" contract) — then, with nothing pending, fires the first not-yet-resolved
+// trigger that has come true (each moment fires AT MOST ONCE per run: `resolved` never clears).
+// chooseSplurge is the ONLY way an option's effects ever apply; the harness never calls it, so
+// every splurge it triggers simply expires, and the fitted island/casual goldens cannot move.
+export function checkSplurges(state) {
+  const sp = state.splurges;
+  if (sp.pending && state.stats.runSec >= sp.pending.expiresAt) {
+    sp.resolved[sp.pending.id] = 'expired';
+    sp.pending = null;
+  }
+  if (sp.pending) return;   // one card at a time
+  for (const m of DATA.splurges) {
+    if (sp.resolved[m.id]) continue;
+    if (!splurgeTriggerMet(state, m.trigger)) continue;
+    sp.pending = { id: m.id, expiresAt: state.stats.runSec + m.expireSec };
+    notify(state, 'splurge', `${m.emoji} ${m.title} — a moment to decide.`);
+    break;
+  }
+}
+function splurgeTriggerMet(state, trig) {
+  if (trig.beat !== undefined) return state.story.beat >= trig.beat;
+  if (trig.tier !== undefined) return state.accommodation.tier >= trig.tier;
+  return false;
+}
+export function splurgeData(id) { return DATA.splurges.find(m => m.id === id); }
+// Apply the chosen option's bounded effects (data/splurges.js's validateSplurges enforces the
+// vocabulary) — every branch below is an existing, already-audited primitive (addEffect/
+// addPathPoints/gainCash/refreshSkillLevels), nothing new is invented for this wave.
+export function chooseSplurge(state, side) {
+  const sp = state.splurges;
+  if (!sp.pending || (side !== 'a' && side !== 'b')) return false;
+  const m = splurgeData(sp.pending.id);
+  if (!m) { sp.pending = null; return false; }
+  const opt = m[side];
+  const eff = opt.effects || {};
+  if (eff.costWalletFrac) {
+    state.resources.cash = Math.max(0, state.resources.cash - eff.costWalletFrac * M.walletCap(state));
+  }
+  if (eff.timedMult) {
+    addEffect(state, { id: `splurge_${m.id}`, kind: eff.timedMult.kind, mult: eff.timedMult.mult, durationSec: eff.timedMult.durationSec });
+  }
+  if (eff.xp) {
+    state.skills[eff.xp.skill].xp += eff.xp.amount;
+    refreshSkillLevels(state);
+  }
+  // pathPoints has no target field (docs/08's bounded vocabulary) — it banks into whichever
+  // road the life has already committed to, via addPathPoints's own pathReceives gate; 'neutral'
+  // isn't a real path id, so pre-commitment this is explicitly skipped (a pure no-op).
+  if (eff.pathPoints && state.story.branch !== 'neutral') {
+    addPathPoints(state, state.story.branch, eff.pathPoints);
+  }
+  if (eff.cash) {
+    gainCash(state, eff.cash.walletFrac * M.walletRoom(state));
+  }
+  if (eff.energyFull) {
+    state.resources.energy = M.energyMax(state);
+  }
+  sp.resolved[m.id] = side;
+  sp.pending = null;
+  notify(state, 'splurge', `${m.emoji} ${opt.label}`);
+  return true;
 }
 
 // ---------- connoisseur collections: art/wine appreciating assets (E14 "Acquired Taste") ----------
@@ -1706,7 +2071,20 @@ export function evaluateAchievements(state) {
     if (u[a.id]) continue;
     if (stateMetric(state, a.metric) >= a.threshold) {
       u[a.id] = true;
-      notify(state, 'celebrate', `🏆 Achievement: ${a.name} — ${a.desc}${a.reward > 0 ? ` (+${(a.reward * 100).toFixed(0)}% income)` : ''}`);
+      // Trophy Road (docs/08 point 9, W5 fit): an in-run trophy's FELT payout is a souvenir
+      // bounty (a.souvenirs — spendable in the W3 Souvenir Stand, capped at L_souvenir ≤ 1.25),
+      // not income power: the W5 sweeps measured the casual arc amplifying any persistent
+      // income layer ~2× into arrival time (a Σ0.107 trophy layer alone collapsed casual
+      // 20h00m → 16h00m), so trophyReward stays garnish-sized (Σ 0.037) and the reward the
+      // player can actually FEEL is the currency. Minting here is once-ever per trophy — the
+      // achievements record survives ascension (E30 keep-list) and souvenirs are meta (W3),
+      // so offline/ascension replay can never double-mint. Bots never spend souvenirs, so
+      // this cannot move the fitted arcs.
+      if (a.souvenirs > 0 && state.souvenirs) state.souvenirs.count += a.souvenirs;
+      const bits = [];
+      if (a.reward > 0) bits.push(`+${(a.reward * 100).toFixed(0)}% income`);
+      if (a.souvenirs > 0) bits.push(`+${a.souvenirs} souvenir${a.souvenirs > 1 ? 's' : ''} 🎁`);
+      notify(state, 'celebrate', `🏆 Achievement: ${a.name} — ${a.desc}${bits.length ? ` (${bits.join(', ')})` : ''}`);
     }
   }
 }
@@ -1762,6 +2140,10 @@ function staffInterval(state, st) {
 // categories). Shared reserve floor so no role starves payroll; returns the item names bought.
 function runStaffAutoBuy(state, def, st, payroll) {
   if (!st.policy.autoBuy || !st.policy.categories.length) return [];
+  // Ascension Challenges' Skeleton Crew (Living-World W3, docs/08 point 7): the SAME
+  // 'automationMult' key conciergeTick reads — disables staff auto-buy too (payroll/morale keep
+  // running; only the AUTOMATION is off). challengeMod defaults to 1 with no active challenge.
+  if (!(M.challengeMod(state, 'automationMult') > 0)) return [];
   st.tickAccum = (st.tickAccum || 0);
   if (st.tickAccum < staffInterval(state, st)) return [];
   st.tickAccum = 0;
@@ -2020,6 +2402,40 @@ export function buyAccommodation(state) {
     notify(state, 'celebrate', '👑 The Ultra Penthouse — the crowning room above the sail. The elevator needs your fingerprint. So does the view.');
     addPathPoints(state, 'connoisseur', 1);
   }
+  checkChallengeCompletion(state, t);
+  return true;
+}
+
+// ---------- Ascension Challenges completion (Living-World W3, docs/08 point 7) ----------
+// Fires the tick a run first reaches its ACTIVE challenge's goalTier (called from
+// buyAccommodation, the only place a tier-up lands). Mints the permanent Keepsake reward
+// (state.challenge.completed[id] — META, survives ascension, wiped only by legendReset like
+// souvenirs), then clears `active`/`mods` so the rest of the run (and any content after this
+// point) plays out unhandicapped — the challenge is DONE, its reward already banked. A no-op
+// with no active challenge (every existing run/scenario), so buyAccommodation stays bit-identical.
+function checkChallengeCompletion(state, tier) {
+  const ch = state.challenge;
+  if (!ch || !ch.active) return;
+  const row = DATA.challenges.find(c => c.id === ch.active);
+  if (!row || tier < row.goalTier) return;
+  ch.completed[row.id] = true;
+  ch.active = null;
+  ch.mods = {};
+  state._keepsakeCache = M.computeKeepsakeSum(state, DATA);
+  notify(state, 'celebrate', `🏆 Challenge complete: ${row.name}! A Keepsake joins your collection — permanent +${(row.reward.mult * 100).toFixed(0)}% income, forever.`);
+}
+
+// ---------- Souvenir Stand: the shelf (Living-World W3, docs/08 point 6) ----------
+export function souvenirData(id) { return DATA.souvenirs.find(s => s.id === id); }
+export function souvenirOwned(state, id) { return !!state.souvenirs.owned[id]; }
+export function buySouvenir(state, id) {
+  const item = souvenirData(id);
+  if (!item || souvenirOwned(state, id)) return false;
+  if (state.souvenirs.count < item.cost) return false;
+  state.souvenirs.count -= item.cost;
+  state.souvenirs.owned[id] = true;
+  if (item.kind === 'perk') state._souvCache = M.computeSouvenirPerkSum(state, DATA);
+  notify(state, 'unlock', `${item.emoji} ${item.name} — added to the shelf.`);
   return true;
 }
 
@@ -2202,6 +2618,10 @@ function conciergeInterval(state) {
 // (E11-S10-T6).
 export function conciergeTick(state, dt) {
   if (!state.concierge.on) return;
+  // Ascension Challenges' Skeleton Crew (Living-World W3, docs/08 point 7): automationMult 0
+  // disables the concierge entirely for the run (manual purchases are never blocked — only the
+  // AUTOMATION). challengeMod defaults to 1 with no active challenge, so this line is a no-op.
+  if (!(M.challengeMod(state, 'automationMult') > 0)) return;
   state.concierge.tickAccum += dt;
   let iters = 0;
   while (state.concierge.tickAccum >= C.CONCIERGE.intervalSec && iters++ < 2000) {
@@ -2261,6 +2681,11 @@ export function click(state) {
   } else {
     gain = baseGain * C.ENERGY.tapFloorFrac;
   }
+  // Trip Events' `tap_window` rows + Vacation Weather's tapMult flavor (Living-World W1): both
+  // scoped to tap cash ONLY, never tierProd/tierMultiplier (the harness never taps — E10's
+  // established contract), so neither can move idle pacing. Weather's 'sunny' default and an
+  // empty effects registry are both exactly 1, so a fresh game's tap value is unchanged.
+  gain *= weatherRow(state).tapMult * M.effectsMult(state, 'tap');
   // taps bank through the wallet cap too — returns what actually landed, so the
   // "+N" popup never claims cash a full wallet refused.
   return gainCash(state, gain);

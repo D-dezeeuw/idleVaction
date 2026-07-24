@@ -10,6 +10,11 @@ let state = ST.load() || ST.newGame();
 // re-apply Faster Metabolism (config knob is not persisted)
 syncMilestoneStep(state);
 
+// Postcards Home's day-streak (Living-World W4, docs/08 point 11): a gentle, no-penalty stamp —
+// updated once per load (never in the tick loop, so it can't be gamed by an open tab past
+// midnight). Same-day reloads are idempotent; a missed day just silently restarts the count.
+ST.updateStreak(state);
+
 // offline catch-up — guarded: a throw here must degrade to "no offline lump", never a dead page.
 if (state.meta.lastSeen) {
   try {

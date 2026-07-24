@@ -41,11 +41,44 @@
     <section class="iv-card" id="accCard"><h3 id="accTitle">🏨 Accommodation</h3><div id="accommodation"></div></section>
   </div>
 
+  <!-- Splurge Moments (Living-World W2): sits outside the tab system, like the story strip, so a
+       time-boxed choice card is never missed just because another tab is open. Hidden whenever
+       nothing is pending — see ui.renderSplurge (it IS the reveal, no separate gate). -->
+  <div id="splurgeCard" class="iv-card iv-splurge-card" hidden>
+    <div id="splurgeAnnounce" class="iv-sr-only" aria-live="polite"></div>
+    <div id="splurge"></div>
+  </div>
+
+  <!-- Legacy Honeymoon (Living-World W3, docs/08 point 8): a decaying post-ascension income
+       surge through the shared effects registry — hidden unless it's live. Sits outside the tab
+       system, like the splurge card above, so it's never missed regardless of active tab. -->
+  <div id="honeymoonBanner" class="iv-event-banner" hidden></div>
+
   <!-- Tab bar (rendered by ui.renderTabs — only tabs with unlocked content appear: the future stays hidden). -->
   <nav id="tabbar" class="iv-tabbar" role="tablist" aria-label="Sections"></nav>
 
   <main id="tabpanels">
     <div class="iv-tabpanel iv-grid" data-tab="home" role="tabpanel">
+      <!-- Trip Events banner (Living-World W1): hidden while CONFIG.EVENTS.enabled is false
+           (this wave's shipped default) or before story beat 3 — see ui.eventsRevealed. -->
+      <section class="iv-card iv-wide" id="eventsCard" hidden>
+        <h3>🍹 Trip Events</h3>
+        <div id="eventsAnnounce" class="iv-sr-only" aria-live="polite"></div>
+        <div id="events"></div>
+      </section>
+      <!-- Sunscreen Boosts (Living-World W2): hidden until story.beat >= BOOSTS.minBeat — see
+           ui.boostsRevealed. Player-fired timed multipliers on the shared effects registry. -->
+      <section class="iv-card iv-wide" id="boostsCard" hidden>
+        <h3>🧴 Sunscreen Boosts</h3>
+        <div id="boostsAnnounce" class="iv-sr-only" aria-live="polite"></div>
+        <div id="boosts"></div>
+      </section>
+      <!-- Petra, the Pace Ghost (Living-World W4, docs/08 point 10): display-only pace-compare
+           strip, hidden until story.beat >= 4 — see ui.renderPetra / E.petraRevealed. -->
+      <section class="iv-card" id="petraCard" hidden>
+        <h3>🧳 Petra</h3>
+        <div id="petra"></div>
+      </section>
       <section class="iv-card iv-wide" id="amenitiesCard"><h3>🛎️ Amenities <small>(small wins)</small></h3><div id="amenities"></div></section>
       <section class="iv-card iv-wide" id="poolCard" hidden>
         <h3>🏊 Poolside</h3>
@@ -76,6 +109,13 @@
         <h3>🏝️ The Island Listing</h3>
         <div id="islandListingAnnounce" class="iv-sr-only" aria-live="polite"></div>
         <div id="islandListing"></div>
+      </section>
+      <!-- Souvenir Stand (Living-World W3, docs/08 point 6): the first souvenir IS the reveal —
+           hidden until state.souvenirs.count > 0. See ui.renderSouvenirs. -->
+      <section class="iv-card iv-wide" id="souvenirCard" hidden>
+        <h3>🎁 Souvenir Stand</h3>
+        <div id="souvenirAnnounce" class="iv-sr-only" aria-live="polite"></div>
+        <div id="souvenir"></div>
       </section>
     </div>
 
@@ -198,6 +238,11 @@
       <div id="passportBody"></div>
     </div>
   </div>
+
+  <!-- The Golden Goat (Living-World W1): a floating button, hidden unless engine.goatVisible
+       says a `goat`-kind Trip Event actually spawned one — see ui.renderGoat. -->
+  <button id="goatBtn" class="iv-goat-btn" type="button" hidden
+    aria-label="A goat wandered by — greet it!" data-action="tap-goat">🐐</button>
 
   <!-- ES modules; served over HTTPS by GitHub Pages. For LOCAL testing use a server
        (npm run serve) — file:// blocks module loading. -->

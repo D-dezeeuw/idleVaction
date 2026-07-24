@@ -43,8 +43,15 @@ local tools; GitHub Pages serves the static files directly.
 ```bash
 npm test          # js/dev/selftest.mjs — asserts economy growth, ladder, ascension, save, offline
 npm run harness   # js/dev/harness.mjs  — prints the ~20h pacing curve (island time, peak magnitude)
-npm run serve     # python3 -m http.server 8080 — play locally at http://localhost:8080
+npm run demo      # js/dev/demo.mjs     — scripted strategy playthroughs (see the header for flags)
+npm run report    # js/dev/report.mjs   — scenario suite → tools/dashboard/data/report.json
+npm run serve     # python3 -m http.server 8080 — play at :8080, dashboard at /tools/dashboard/
 ```
+
+For any change that touches pacing, generate a report and eyeball the **simulation
+dashboard** (progression vs the golden line/bands, per-tier deviation, paths, skills —
+`docs/09-sim-dashboard.md`) before and after; the selftest pins enforce, the dashboard
+explains.
 
 **Definition of done for any change:** `npm test` is green, and if you touched any balance
 constant (`GEN.*`, `COMFORT.*`, `MILESTONE_*`, `ACC.*`, `LEGACY_*`), `npm run harness` still

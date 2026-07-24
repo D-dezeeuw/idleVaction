@@ -2,7 +2,7 @@
 // completionist meta: a trophy for reaching milestones, and a small permanent income × for the
 // meta/collection accomplishments.
 //
-// ACHIEVEMENT shape: { id, name, desc, metric, threshold, reward, meta }
+// ACHIEVEMENT shape: { id, name, desc, metric, threshold, reward, meta, trophyReward? }
 //   · metric/threshold — unlocked when `stateMetric(state, metric) >= threshold` (engine, pure).
 //   · reward — the income × bonus fed into L_achieve (1 + Σ rewards). SMALL (×1.01–1.05).
 //   · meta — true iff the metric requires a META action (ascension / legend / island / NG+ /
@@ -10,20 +10,39 @@
 //     in-run milestone (comfort/cash/tier — things the greedy harness reaches) has reward 0. The
 //     harness never performs a meta action, so it unlocks only reward-0 trophies ⇒ L_achieve stays
 //     exactly 1 ⇒ the fitted 29705s island time is unmoved. (validated in data + selftest.)
+//   · trophyReward — Trophy Road plumbing (Living-World W4, docs/08-living-world.md point 9): an
+//     OPTIONAL second, SEPARATE income bonus feeding a NEW layer, L_trophy (math.trophyMultiplier —
+//     1 + min(config.TROPHY.xCap−1, Σ)), folded into the stack beside L_achieve/L_souvenir/
+//     L_keepsake. THE CONTRACT (mirrors the reward-0-unless-meta invariant above, one field over):
+//     trophyReward is allowed ONLY on IN-RUN (non-meta) rows — the opposite gating of `reward` —
+//     and every value ships ≤ config.TROPHY.maxPer. W5 MEASURED DECISION (2026-07-24): every row
+//     ships WITHOUT trophyReward (absent ⇒ 0 ⇒ L_trophy exactly 1). The W5 sweeps showed the
+//     fitted casual arc cannot absorb ANY felt persistent income layer: a Σ0.107 layer collapsed
+//     casual 20h00m → 16h00m, and even Σ0.037 garnish re-rolled the chaotic cadence-quantized
+//     arrival by hours (docs/05 §9's W5 entry has the full distribution tables). The machinery,
+//     caps, and validator contract stay shipped for a future economy that CAN absorb it; the
+//     FELT trophy payout is `souvenirs` instead:
+//   · souvenirs — Trophy Road's real reward (W5): a one-time souvenir bounty minted by
+//     engine.evaluateAchievements when the trophy unlocks (once ever — the achievements record
+//     and the souvenir purse are both meta, so ascension/offline replay can never double-mint).
+//     IN-RUN rows only, integer 1–5. Spendable in the W3 Souvenir Stand (L_souvenir hard-capped
+//     at ×1.25, and the harness bots never spend) — so the bounty is dopamine + player-directed
+//     opt-in power, never an arc-moving income layer.
 //
 // In-run milestones are RECOGNITION (a trophy, a stat), not power; the completionist × comes from
 // the meta layer — the players who prestige, collect, and go long.
+import { CONFIG as C } from '../config.js';
 
 export const ACHIEVEMENTS = [
   // --- in-run milestones (reward 0 — cosmetic trophies the harness can reach) ---
-  { id: 'first_star',    name: 'One Whole Star',      desc: 'Reach a 1-star hotel.',           metric: 'accTier',     threshold: 4,     reward: 0, meta: false },
-  { id: 'poolside',      name: 'Making a Splash',     desc: 'Reach a hotel with a pool.',       metric: 'accTier',     threshold: 6,     reward: 0, meta: false },
-  { id: 'five_star',     name: 'Five-Star Frame',     desc: 'Reach a 5-star hotel.',            metric: 'accTier',     threshold: 9,     reward: 0, meta: false },
-  { id: 'sail_hotel',    name: 'Shaped Like a Sail',  desc: 'Reach the sail-shaped hotel.',     metric: 'accTier',     threshold: 12,    reward: 0, meta: false },
-  { id: 'the_island',    name: 'The Dot Is You',      desc: 'Reach the Private Island tier.',   metric: 'accTier',     threshold: 20,    reward: 0, meta: false },
-  { id: 'comfy',         name: 'Genuinely Comfy',     desc: 'Reach Comfort 1,000,000.',         metric: 'bestComfort', threshold: 1e6,   reward: 0, meta: false },
-  { id: 'very_comfy',    name: 'Absurdly Comfy',      desc: 'Reach Comfort 1,000,000,000.',     metric: 'bestComfort', threshold: 1e9,   reward: 0, meta: false },
-  { id: 'first_million', name: 'First Million',       desc: 'Earn €1,000,000 lifetime.',        metric: 'lifetimeCash',threshold: 1e6,   reward: 0, meta: false },
+  { id: 'first_star',    name: 'One Whole Star',      desc: 'Reach a 1-star hotel.',           metric: 'accTier',     threshold: 4,     reward: 0, souvenirs: 1, meta: false },
+  { id: 'poolside',      name: 'Making a Splash',     desc: 'Reach a hotel with a pool.',       metric: 'accTier',     threshold: 6,     reward: 0, souvenirs: 1, meta: false },
+  { id: 'five_star',     name: 'Five-Star Frame',     desc: 'Reach a 5-star hotel.',            metric: 'accTier',     threshold: 9,     reward: 0, souvenirs: 1, meta: false },
+  { id: 'sail_hotel',    name: 'Shaped Like a Sail',  desc: 'Reach the sail-shaped hotel.',     metric: 'accTier',     threshold: 12,    reward: 0, souvenirs: 1, meta: false },
+  { id: 'the_island',    name: 'The Dot Is You',      desc: 'Reach the Private Island tier.',   metric: 'accTier',     threshold: 20,    reward: 0, souvenirs: 3, meta: false },
+  { id: 'comfy',         name: 'Genuinely Comfy',     desc: 'Reach Comfort 1,000,000.',         metric: 'bestComfort', threshold: 1e6,   reward: 0, souvenirs: 1, meta: false },
+  { id: 'very_comfy',    name: 'Absurdly Comfy',      desc: 'Reach Comfort 1,000,000,000.',     metric: 'bestComfort', threshold: 1e9,   reward: 0, souvenirs: 1, meta: false },
+  { id: 'first_million', name: 'First Million',       desc: 'Earn €1,000,000 lifetime.',        metric: 'lifetimeCash',threshold: 1e6,   reward: 0, souvenirs: 1, meta: false },
 
   // --- meta accomplishments (reward > 0 — the completionist ×; the harness never reaches these) ---
   { id: 'first_ascend',  name: 'Letting Go',          desc: 'Ascend for the first time.',       metric: 'ascensionCount', threshold: 1,  reward: 0.02, meta: true },
@@ -39,35 +58,35 @@ export const ACHIEVEMENTS = [
   // are RECOGNITION (reward 0 — the harness may reach them); meta rows use harness-unreachable
   // systems and carry the small completionist ×, still curved by ACHIEVE.rewardCap. ---
   // the ladder
-  { id: 'checkout',      name: 'Checkout Time',       desc: 'Leave the shed behind.',            metric: 'accTier',     threshold: 1,   reward: 0, meta: false },
-  { id: 'own_door',      name: 'A Door of One\'s Own', desc: 'Reach the private room.',          metric: 'accTier',     threshold: 3,   reward: 0, meta: false },
-  { id: 'boutique',      name: 'Boutique & Bougie',   desc: 'Reach the boutique retreat.',       metric: 'accTier',     threshold: 8,   reward: 0, meta: false },
-  { id: 'seven_stars',   name: 'Off the Scale',       desc: 'Reach the seven-star tier.',        metric: 'accTier',     threshold: 14,  reward: 0, meta: false },
-  { id: 'own_walls',     name: 'My Gate. My Squeak.', desc: 'Own the bungalow.',                 metric: 'accTier',     threshold: 16,  reward: 0, meta: false },
-  { id: 'villa_vita',    name: 'Villa Vita',          desc: 'Reach the private villa.',          metric: 'accTier',     threshold: 18,  reward: 0, meta: false },
+  { id: 'checkout',      name: 'Checkout Time',       desc: 'Leave the shed behind.',            metric: 'accTier',     threshold: 1,   reward: 0, souvenirs: 1, meta: false },
+  { id: 'own_door',      name: 'A Door of One\'s Own', desc: 'Reach the private room.',          metric: 'accTier',     threshold: 3,   reward: 0, souvenirs: 1, meta: false },
+  { id: 'boutique',      name: 'Boutique & Bougie',   desc: 'Reach the boutique retreat.',       metric: 'accTier',     threshold: 8,   reward: 0, souvenirs: 1, meta: false },
+  { id: 'seven_stars',   name: 'Off the Scale',       desc: 'Reach the seven-star tier.',        metric: 'accTier',     threshold: 14,  reward: 0, souvenirs: 1, meta: false },
+  { id: 'own_walls',     name: 'My Gate. My Squeak.', desc: 'Own the bungalow.',                 metric: 'accTier',     threshold: 16,  reward: 0, souvenirs: 1, meta: false },
+  { id: 'villa_vita',    name: 'Villa Vita',          desc: 'Reach the private villa.',          metric: 'accTier',     threshold: 18,  reward: 0, souvenirs: 1, meta: false },
   // money
-  { id: 'first_grand',   name: 'The First Thousand',  desc: 'Earn €1,000 lifetime.',             metric: 'lifetimeCash', threshold: 1e3,  reward: 0, meta: false },
-  { id: 'billionaire',   name: 'A Thousand Millions', desc: 'Earn €1B lifetime.',                metric: 'lifetimeCash', threshold: 1e9,  reward: 0, meta: false },
-  { id: 'trillionaire',  name: 'Guilders Were Smaller', desc: 'Earn €1T lifetime.',              metric: 'lifetimeCash', threshold: 1e12, reward: 0, meta: false },
-  { id: 'money_belt',    name: 'Beyond the Money Belt', desc: 'Reach bank tier 5.',              metric: 'bankTier',    threshold: 5,   reward: 0, meta: false },
-  { id: 'numberless',    name: 'Nearly Numberless',   desc: 'Reach bank tier 15.',               metric: 'bankTier',    threshold: 15,  reward: 0, meta: false },
+  { id: 'first_grand',   name: 'The First Thousand',  desc: 'Earn €1,000 lifetime.',             metric: 'lifetimeCash', threshold: 1e3,  reward: 0, souvenirs: 1, meta: false },
+  { id: 'billionaire',   name: 'A Thousand Millions', desc: 'Earn €1B lifetime.',                metric: 'lifetimeCash', threshold: 1e9,  reward: 0, souvenirs: 1, meta: false },
+  { id: 'trillionaire',  name: 'Guilders Were Smaller', desc: 'Earn €1T lifetime.',              metric: 'lifetimeCash', threshold: 1e12, reward: 0, souvenirs: 3, meta: false },
+  { id: 'money_belt',    name: 'Beyond the Money Belt', desc: 'Reach bank tier 5.',              metric: 'bankTier',    threshold: 5,   reward: 0, souvenirs: 1, meta: false },
+  { id: 'numberless',    name: 'Nearly Numberless',   desc: 'Reach bank tier 15.',               metric: 'bankTier',    threshold: 15,  reward: 0, souvenirs: 3, meta: false },
   // the trip
-  { id: 'four_stamps',   name: 'Four Brochures',      desc: 'Own 4 destinations.',               metric: 'destOwned',   threshold: 4,   reward: 0, meta: false },
-  { id: 'well_stamped',  name: 'A Well-Stamped Book', desc: 'Own 8 destinations.',               metric: 'destOwned',   threshold: 8,   reward: 0, meta: false },
-  { id: 'act_one',       name: 'Act One, Survived',   desc: 'Live 10 story beats.',              metric: 'beatsSeen',   threshold: 10,  reward: 0, meta: false },
-  { id: 'the_long_road', name: 'The Long Road',       desc: 'Live 22 story beats.',              metric: 'beatsSeen',   threshold: 22,  reward: 0, meta: false },
+  { id: 'four_stamps',   name: 'Four Brochures',      desc: 'Own 4 destinations.',               metric: 'destOwned',   threshold: 4,   reward: 0, souvenirs: 1, meta: false },
+  { id: 'well_stamped',  name: 'A Well-Stamped Book', desc: 'Own 8 destinations.',               metric: 'destOwned',   threshold: 8,   reward: 0, souvenirs: 1, meta: false },
+  { id: 'act_one',       name: 'Act One, Survived',   desc: 'Live 10 story beats.',              metric: 'beatsSeen',   threshold: 10,  reward: 0, souvenirs: 1, meta: false },
+  { id: 'the_long_road', name: 'The Long Road',       desc: 'Live 22 story beats.',              metric: 'beatsSeen',   threshold: 22,  reward: 0, souvenirs: 1, meta: false },
   // comfort & things
-  { id: 'small_wins',    name: 'It\'s the Little Things', desc: 'Own 25 amenities.',            metric: 'amenOwned',   threshold: 25,  reward: 0, meta: false },
-  { id: 'many_things',   name: 'Fully Amenitized',    desc: 'Own 75 amenities.',                 metric: 'amenOwned',   threshold: 75,  reward: 0, meta: false },
-  { id: 'all_things',    name: 'The Catalog, Cleared', desc: 'Own 150 amenities.',               metric: 'amenOwned',   threshold: 150, reward: 0, meta: false },
-  { id: 'komfort',       name: 'Comfort, With a K',   desc: 'Reach Comfort 1,000.',              metric: 'bestComfort', threshold: 1e3, reward: 0, meta: false },
-  { id: 'cloud_soft',    name: 'Professionally Relaxed', desc: 'Reach Comfort 1,000,000,000,000.', metric: 'bestComfort', threshold: 1e12, reward: 0, meta: false },
+  { id: 'small_wins',    name: 'It\'s the Little Things', desc: 'Own 25 amenities.',            metric: 'amenOwned',   threshold: 25,  reward: 0, souvenirs: 1, meta: false },
+  { id: 'many_things',   name: 'Fully Amenitized',    desc: 'Own 75 amenities.',                 metric: 'amenOwned',   threshold: 75,  reward: 0, souvenirs: 1, meta: false },
+  { id: 'all_things',    name: 'The Catalog, Cleared', desc: 'Own 150 amenities.',               metric: 'amenOwned',   threshold: 150, reward: 0, souvenirs: 3, meta: false },
+  { id: 'komfort',       name: 'Comfort, With a K',   desc: 'Reach Comfort 1,000.',              metric: 'bestComfort', threshold: 1e3, reward: 0, souvenirs: 1, meta: false },
+  { id: 'cloud_soft',    name: 'Professionally Relaxed', desc: 'Reach Comfort 1,000,000,000,000.', metric: 'bestComfort', threshold: 1e12, reward: 0, souvenirs: 3, meta: false },
   // the grind
-  { id: 'hundred_buys',  name: 'A Hundred Purchases', desc: 'Buy 100 income units.',             metric: 'genBought',   threshold: 100, reward: 0, meta: false },
-  { id: 'well_rounded',  name: 'Well-Rounded Tourist', desc: 'Reach 25 total skill levels.',     metric: 'skillLevels', threshold: 25,  reward: 0, meta: false },
-  { id: 'renaissance',   name: 'Renaissance Lounger', desc: 'Reach 60 total skill levels.',      metric: 'skillLevels', threshold: 60,  reward: 0, meta: false },
-  { id: 'tap_tap',       name: 'Odd Jobs, Odder Hours', desc: 'Tap 500 times.',                  metric: 'clicks',      threshold: 500, reward: 0, meta: false },
-  { id: 'carpal_sunnel', name: 'Umbrella Elbow',      desc: 'Tap 5,000 times.',                  metric: 'clicks',      threshold: 5000, reward: 0, meta: false },
+  { id: 'hundred_buys',  name: 'A Hundred Purchases', desc: 'Buy 100 income units.',             metric: 'genBought',   threshold: 100, reward: 0, souvenirs: 1, meta: false },
+  { id: 'well_rounded',  name: 'Well-Rounded Tourist', desc: 'Reach 25 total skill levels.',     metric: 'skillLevels', threshold: 25,  reward: 0, souvenirs: 1, meta: false },
+  { id: 'renaissance',   name: 'Renaissance Lounger', desc: 'Reach 60 total skill levels.',      metric: 'skillLevels', threshold: 60,  reward: 0, souvenirs: 3, meta: false },
+  { id: 'tap_tap',       name: 'Odd Jobs, Odder Hours', desc: 'Tap 500 times.',                  metric: 'clicks',      threshold: 500, reward: 0, souvenirs: 1, meta: false },
+  { id: 'carpal_sunnel', name: 'Umbrella Elbow',      desc: 'Tap 5,000 times.',                  metric: 'clicks',      threshold: 5000, reward: 0, souvenirs: 3, meta: false },
   // wheels, hulls, wings (harness never buys — honest meta, tiny rewards)
   { id: 'first_keys',    name: 'Keys to Something',   desc: 'Own your first vehicle.',           metric: 'fleetOwned',  threshold: 1,   reward: 0.01, meta: true },
   { id: 'a_fleet',       name: 'A Modest Armada',     desc: 'Own 10 vehicles, hulls or wings.',  metric: 'fleetOwned',  threshold: 10,  reward: 0.02, meta: true },
@@ -93,10 +112,14 @@ export const ACHIEVEMENTS = [
 
 export function achievementDef(id) { return ACHIEVEMENTS.find(a => a.id === id); }
 
-export function validateAchievements() {
+// `list` defaults to the shipped ACHIEVEMENTS roster (every existing call site — harness.mjs,
+// selftest.mjs's report-time checks — passes no argument, so behavior is unchanged); the optional
+// override lets selftest [114] exercise the trophyReward invariant against LOCALLY-constructed bad
+// rows without ever mutating the real, shared ACHIEVEMENTS array (or the DATA object built from it).
+export function validateAchievements(list = ACHIEVEMENTS) {
   const errors = [];
   const seen = new Set();
-  for (const a of ACHIEVEMENTS) {
+  for (const a of list) {
     if (seen.has(a.id)) errors.push(`duplicate achievement id: ${a.id}`);
     seen.add(a.id);
     for (const k of ['id', 'name', 'desc', 'metric']) if (typeof a[k] !== 'string' || !a[k]) errors.push(`${a.id}: "${k}" must be a non-empty string`);
@@ -105,6 +128,22 @@ export function validateAchievements() {
     if (typeof a.meta !== 'boolean') errors.push(`${a.id}: meta must be a boolean`);
     // THE INVARIANT: a positive reward is allowed ONLY on meta achievements (harness never reaches them).
     if (a.reward > 0 && !a.meta) errors.push(`${a.id}: a positive reward requires meta:true (in-run trophies must be reward 0 to keep the fitted run invariant)`);
+    // Trophy Road plumbing (Living-World W4, docs/08 point 9): the SECOND, opposite-gated
+    // invariant — trophyReward is the in-run counterpart of `reward` above, so it may appear ONLY
+    // on non-meta rows (meta rows already have their own income lever via `reward`), and every
+    // value must stay within the per-trophy cap so no single trophy can dominate L_trophy.
+    if (a.trophyReward !== undefined) {
+      if (typeof a.trophyReward !== 'number' || !(a.trophyReward >= 0)) errors.push(`${a.id}: trophyReward must be a number >= 0`);
+      if (a.meta) errors.push(`${a.id}: trophyReward is for IN-RUN rows only (meta:false) — meta rows carry power via "reward" instead`);
+      else if (a.trophyReward > C.TROPHY.maxPer + 1e-9) errors.push(`${a.id}: trophyReward (${a.trophyReward}) exceeds config.TROPHY.maxPer (${C.TROPHY.maxPer})`);
+    }
+    // Trophy Road's felt payout (W5): souvenir bounties are in-run-only, small positive integers —
+    // the same gating as trophyReward, because a meta row minting currency would double-dip with
+    // its own `reward` lever.
+    if (a.souvenirs !== undefined) {
+      if (!Number.isInteger(a.souvenirs) || a.souvenirs < 1 || a.souvenirs > 5) errors.push(`${a.id}: souvenirs must be an integer 1–5 (got ${a.souvenirs})`);
+      if (a.meta) errors.push(`${a.id}: souvenirs bounties are for IN-RUN rows only (meta:false)`);
+    }
   }
   if (errors.length) throw new Error('validateAchievements() failed:\n' + errors.join('\n'));
   return true;

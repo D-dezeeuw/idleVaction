@@ -21,6 +21,12 @@ import { BUILDINGS } from './island.js';
 import { LEGEND_PERKS } from './legend.js';
 import { ACHIEVEMENTS } from './achievements.js';
 import { SEASONAL } from './seasonal.js';
+import { EVENTS, WEATHER_STATES } from './events.js';
+import { BOOSTS } from './boosts.js';
+import { SPLURGES } from './splurges.js';
+import { SOUVENIRS } from './souvenirs.js';
+import { CHALLENGES } from './challenges.js';
+import { PETRA } from './petra.js';
 
 export const DATA = {
   generators: GENERATORS,
@@ -82,4 +88,27 @@ export const DATA = {
   achievements: ACHIEVEMENTS,
   // seasonal (E30): rotating live-ops destinations, a small bounded × gated on owning the island.
   seasonal: SEASONAL,
+  // Trip Events + Vacation Weather (Living-World W1, docs/08 points 1/3): the seeded serendipity
+  // deck + ambient weather. validateEvents lives in data/events.js, imported directly by the dev
+  // harness/selftest (same convention as validateBank/validatePaths/…). Neutral by default —
+  // config.EVENTS.enabled ships false this wave, so engine.eventsTick never draws either table.
+  events: EVENTS,
+  weatherStates: WEATHER_STATES,
+  // Sunscreen Boosts + Splurge Moments (Living-World W2, docs/08 points 4/5): player-fired timed
+  // multipliers + two-option choice cards, both on the SAME shared effects registry Trip Events
+  // uses. validateBoosts/validateSplurges live in their own data files, imported directly by the
+  // dev harness/selftest (same convention as validateBank/validatePaths/validateEvents/…).
+  boosts: BOOSTS,
+  splurges: SPLURGES,
+  // Souvenir Stand + Ascension Challenges (Living-World W3, docs/08 points 6/7): the shelf roster
+  // spent with the souvenirs currency, and the 5-row handicap-run roster prestige.ascend validates
+  // against. validateSouvenirs/validateChallenges live in their own data files, imported directly
+  // by the dev harness/selftest (same convention as validateBoosts/validateSplurges/…).
+  souvenirs: SOUVENIRS,
+  challenges: CHALLENGES,
+  // Petra, the Pace Ghost (Living-World W4, docs/08 point 10): the casual-tourist golden curve,
+  // baked as flat data by js/dev/petra-gen.mjs (GENERATED — do not hand-edit data/petra.js).
+  // DISPLAY-ONLY, never read by any income path. validatePetra lives in data/petra.js, imported
+  // directly by the dev harness/selftest (same convention as validateBoosts/validateSouvenirs/…).
+  petra: PETRA,
 };

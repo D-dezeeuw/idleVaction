@@ -499,3 +499,38 @@ div.iv-passport-stamp.iv-stamp-empty { padding: 5px 2px; border-radius: 8px; }
 
 /* the golden frame (Clout shop, pure pride) */
 .iv-polaroid-frame.iv-frame-gold { box-shadow: 0 0 0 3px #ffc800, 0 4px 18px rgba(255, 200, 0, .35); }
+
+/* ---- Living-World W1: Trip Events banner + The Golden Goat (both hidden while
+   CONFIG.EVENTS.enabled is false — this wave's shipped default) ---- */
+.iv-event-banner { border-radius: 12px; padding: 5px 8px; margin-bottom: 6px; font-size: .8rem;
+  font-weight: bold; background: var(--iv-sun-tint); border: 1px solid var(--iv-sun); color: var(--iv-ink); }
+/* Legacy Honeymoon (Living-World W3, docs/08 point 8): a top-level banner (mirrors the
+   splurge card's own explicit [hidden] override, outside the tab system). */
+.iv-event-banner[hidden] { display: none; }
+
+.iv-goat-btn { position: fixed; bottom: 74px; right: 14px; z-index: 7; width: 52px; height: 52px;
+  border-radius: 50%; border: 2px solid var(--iv-sun); background: var(--iv-card); font-size: 1.6rem;
+  line-height: 1; cursor: pointer; box-shadow: var(--iv-shadow); animation: goatwander 2.4s ease-in-out infinite; }
+.iv-goat-btn[hidden] { display: none; }
+@keyframes goatwander { 0%, 100% { transform: translateY(0) rotate(-4deg); } 50% { transform: translateY(-6px) rotate(4deg); } }
+@media (prefers-reduced-motion: reduce) { .iv-goat-btn { animation: none; } }
+:root[data-motion="reduced"] .iv-goat-btn { animation: none; }
+
+.iv-goat-pop { position: fixed; transform: translate(-50%, -100%); color: var(--iv-green-text);
+  font-weight: bold; font-size: .9rem; pointer-events: none; z-index: 8; animation: tapfloat .7s ease-out forwards; }
+@media (prefers-reduced-motion: reduce) { .iv-goat-pop { animation: none; opacity: 0; } }
+:root[data-motion="reduced"] .iv-goat-pop { animation: none; opacity: 0; }
+
+/* ---- Living-World W2: Sunscreen Boosts + Splurge Moments (both hidden until their own
+   reveal condition, no master switch — see docs/08 points 4/5) ---- */
+.iv-boost-row { border: 1px solid var(--iv-line); border-radius: 12px; padding: 8px 10px; margin-bottom: 8px; }
+.iv-boost-head { font-size: .88rem; margin-bottom: 2px; }
+.iv-boost-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+.iv-boost-flash { animation: conciergepulse .7s ease 1; }
+@media (prefers-reduced-motion: reduce) { .iv-boost-flash { animation: none; } }
+:root[data-motion="reduced"] .iv-boost-flash { animation: none; }
+
+.iv-splurge-card { width: calc(100% - 24px); max-width: 1076px; margin: 0 auto 12px; }
+.iv-splurge-card[hidden] { display: none; }
+.iv-splurge-head { font-size: .95rem; margin-bottom: 2px; }
+.iv-splurge-choices { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
