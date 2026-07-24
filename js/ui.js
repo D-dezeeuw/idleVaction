@@ -584,31 +584,27 @@ function renderPetra(s) {
   setHTML(el('petra'), `<div class="iv-sub">🧳 ${esc(DATA.petra.name)}: ${line}. <span class="iv-tag">${esc(DATA.petra.flavor)}</span></div>`);
 }
 
+// The story collapses to a slim bar that opens the Travel Diary (which still shows every
+// entry, chronologically, exactly as before) — the full polaroid no longer sits on the home
+// screen. The one exception is a pending branch choice (beat 6): that's a one-time decision,
+// so it stays visible inline rather than being buried behind a diary tap. The postcard-share
+// action (Living-World W4) moves alongside the bar — its natural new home now that the full
+// entry text no longer renders on Home.
 function renderStory(s) {
-  const latestBeat = DATA.story.filter(b => s.story.seen.includes(b.id)).slice(-1)[0] || DATA.story[0];
-  // branch-flavored copy (E13 Task D, "Whale Watching"): swaps in latestBeat.variants[branch]
-  // when one exists — see engine.beatCopy.
-  const latest = E.beatCopy(s, latestBeat);
-  let choiceHtml = '';
+  let html = `<div class="iv-story-bar-row">
+    <button class="iv-story-bar" data-action="open-diary" aria-label="Open your travel diary">
+      <span aria-hidden="true">📖</span><span>The story so far…</span><span class="iv-story-bar-arrow" aria-hidden="true">›</span>
+    </button>
+    ${btn('send-postcard', '', '📮', true, 'iv-story-postcard', 'Send a postcard')}
+  </div>`;
   const choiceBeat = DATA.story.find(b => b.choice && s.story.seen.includes(b.id) && s.story.branch === 'neutral');
   if (choiceBeat) {
-    choiceHtml = '<div class="iv-choices">' +
-      choiceBeat.choices.map(c => btn('story-choice', `${choiceBeat.id}|${c.set}`, c.label)).join(' ') +
-      '</div>';
+    html += `<div class="iv-choice-strip">
+      <div class="iv-choice-prompt">${esc(choiceBeat.title)}</div>
+      <div class="iv-choices">${choiceBeat.choices.map(c => btn('story-choice', `${choiceBeat.id}|${c.set}`, c.label)).join(' ')}</div>
+    </div>`;
   }
-  // R1 (UX-plan §2): never reveal the total beat count — the trip's length is part of the mystery.
-  // The branch line only appears once a branch is chosen (before that it's just "the trip so far").
-  const branchLabel = s.story.branch !== 'neutral' ? ` — <b>${esc(s.story.branch)}</b>` : '';
-  // Task 2b: the current beat sits in the polaroid frame (white border, slight rotation — CSS only).
-  setHTML(el('story'), `
-    <div class="iv-polaroid-frame${s.cloutPerks?.frame ? ' iv-frame-gold' : ''}">
-      ${polaroidSceneHtml(latestBeat.id)}
-      <div class="iv-beatnum">Entry ${latestBeat.id}${branchLabel} ${btn('open-diary', '', '📔 Diary', s.story.seen.length > 1, 'btn-link')}</div>
-      <div class="iv-beattitle">${latest.title}</div>
-      <div class="iv-beattext">${latest.text}</div>
-      ${choiceHtml}
-      <div class="iv-postcard-actions">${btn('send-postcard', '', '📮 Send a postcard', true, 'btn-link')}</div>
-    </div>`);
+  setHTML(el('story'), html);
 }
 
 // ---------- Postcards Home (Living-World W4, docs/08 point 11) ----------

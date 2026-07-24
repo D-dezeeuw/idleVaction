@@ -457,12 +457,27 @@ div.iv-passport-stamp.iv-stamp-empty { padding: 5px 2px; border-radius: 8px; }
 .iv-wallet-chip.iv-wallet-full { border-color: var(--iv-red-text); }
 .iv-wallet-chip.iv-wallet-full .iv-wallet-bar i { background: var(--iv-red-text); }
 
-/* the story + accommodation row: two columns EVERYWHERE, mobile included — "where am I"
-   and "where I live / what's next" share the first screen (per design direction). The old
-   narrow NEXT square is gone; the accommodation card (postcard + ladder) sits right. */
-.iv-story-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; align-items: stretch; }
+/* the story + accommodation row: stacked (story bar on top, current digs below). */
+.iv-story-row { display: flex; flex-direction: column; gap: 10px; }
 /* the ladder's cash-toward-cost meter (shown once the Comfort gate is met) */
 .iv-cash-meter i { background: var(--iv-green); }
+
+/* the collapsed story bar: a slim tappable strip that opens the Travel Diary — replaces the
+   old full polaroid card on the home screen (the diary itself still shows every entry). The
+   postcard-share action sits beside it, its own small square button. */
+.iv-story-bar-row { display: flex; gap: 8px; align-items: stretch; }
+.iv-story-bar { display: flex; align-items: center; gap: 8px; flex: 1 1 auto; background: var(--iv-card);
+  border: 1px solid var(--iv-line); border-radius: 14px; padding: 10px 14px; box-shadow: var(--iv-shadow);
+  cursor: pointer; font-family: 'Nunito', sans-serif; font-size: .88rem; font-weight: 700;
+  color: var(--iv-ink); text-align: left; }
+.iv-story-bar:hover { border-color: var(--iv-pink); }
+.iv-story-bar-arrow { margin-left: auto; color: var(--iv-sub); }
+.iv-story-postcard { flex: 0 0 auto; font-size: 1rem; padding: 0 14px; }
+/* the branch-choice prompt (beat 6): stays inline and visible even though the story card
+   collapsed — it's a one-time decision, not something to bury behind the diary tap. */
+.iv-choice-strip { background: var(--iv-card); border: 1px solid var(--iv-pink); border-radius: 14px;
+  padding: 10px 14px; box-shadow: var(--iv-shadow); }
+.iv-choice-prompt { font-weight: 700; margin-bottom: 6px; }
 
 /* animated generator tiles: progress-to-afford bars; milestone level deepens the color band
    and speeds the sheen (--gen-anim, set per tile from bought/upgrades). */
