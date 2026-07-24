@@ -79,6 +79,14 @@ export const CONFIG = {
   // style. NOT a second multiplier: accommodation itself has no separate upgrade layer
   // (that would double-count against this one — see docs/coverage.md E05 notes).
   L_UPGRADE_RATE: 0.5,
+  // Renovation PRICING (backlog close-out, 2026-07-24 — the "genUpgradeCost 50/8" item):
+  // cost = GEN.base[k] · costMult · growth^upgradesBought · commsCostMult. These two numbers
+  // were inline literals in engine.genUpgradeCost since E03 — hoisted here VALUE-IDENTICAL
+  // per the house rule (every balance number lives in config, never in engine code); selftest
+  // [116] pins the equivalence. They are de facto FITTED: the Phase-C refit measured and
+  // pinned the whole economy around them, so tuning them now is a balance-tuner change like
+  // any other GEN.* constant.
+  GEN_UPGRADE: { costMult: 50, growth: 8 },
 
   // ---- amenities (the small-wins engine) ----
   // xRate/xCap (Phase-C refit): the L_amenity income layer. Every amenity row has carried

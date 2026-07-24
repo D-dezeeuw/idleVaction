@@ -372,6 +372,19 @@ export function migrate(s) {
   // creation time, exactly like market.seed above — a save from before Living-World W1 doesn't
   // silently share the default CONFIG.EVENTS.seed with every other migrated save.
   if (!hadEvents) s.events.seed = (s.meta.createdAt || Date.now()) >>> 0;
+  // accommodation tier clamp (backlog close-out, flagged at E05-S9-T10): a hand-edited or
+  // cross-version save can carry a tier past the end of the ladder (or negative/NaN — the
+  // type coercion above already forces a number, this forces the RANGE). An out-of-range
+  // tier crashes every accScore/ladder render downstream, so pin it inside the shipped
+  // ladder; ownedTiers is rebuilt to match so the two can never disagree.
+  const maxTier = DATA.accommodation.length - 1;
+  if (!(s.accommodation.tier >= 0)) s.accommodation.tier = 0;
+  if (s.accommodation.tier > maxTier) s.accommodation.tier = maxTier;
+  s.accommodation.tier = Math.floor(s.accommodation.tier);
+  if (!Array.isArray(s.accommodation.ownedTiers) || !s.accommodation.ownedTiers.length
+      || Math.max(...s.accommodation.ownedTiers) > maxTier) {
+    s.accommodation.ownedTiers = Array.from({ length: s.accommodation.tier + 1 }, (_, i) => i);
+  }
   // bank grandfathering: a save from before the wallet cap existed (backfilled to
   // tier 0 above) may already hold far more cash than the Soggy Money Belt allows.
   // The inflow clamp (engine.gainCash) never confiscates, but it WOULD silently
@@ -477,21 +490,39 @@ function stripStrings(obj, depth = 0) {
 // serialized (Phase F / audit 5.3: they used to bloat every save and export).
 const stripTransients = (k, v) => (k.startsWith('_') ? undefined : v);
 
-export function save(state) {
+// Backup rotation (backlog close-out, flagged at E01-S9-T9/E05-S9): every save first rotates
+// the CURRENT stored blob into `SAVE_KEY.backup`, so at any moment the backup holds the
+// last-known-good previous save. load() falls back to it when the primary is missing or
+// corrupt (a torn write, a crashed tab, an over-quota partial). The optional `storage`
+// parameter exists ONLY so the Node selftest can exercise this with a Map-backed fake —
+// browser call sites pass nothing and get localStorage exactly as before.
+const BACKUP_SUFFIX = '.backup';
+const defaultStorage = () => (typeof localStorage !== 'undefined' ? localStorage : null);
+
+export function save(state, storage = defaultStorage()) {
   state.meta.lastSaved = Date.now();
   state.meta.lastSeen = Date.now();
+  if (!storage) return false;
   try {
-    localStorage.setItem(C.SAVE_KEY, JSON.stringify(state, stripTransients));
+    const prev = storage.getItem(C.SAVE_KEY);
+    if (prev) { try { storage.setItem(C.SAVE_KEY + BACKUP_SUFFIX, prev); } catch (e) { /* backup is best-effort */ } }
+    storage.setItem(C.SAVE_KEY, JSON.stringify(state, stripTransients));
     return true;
   } catch (e) { console.warn('save failed', e); return false; }
 }
 
-export function load() {
+export function load(storage = defaultStorage()) {
+  if (!storage) return null;
+  const parse = raw => migrate(JSON.parse(raw));
   try {
-    const raw = localStorage.getItem(C.SAVE_KEY);
-    if (!raw) return null;
-    return migrate(JSON.parse(raw));
-  } catch (e) { console.warn('load failed', e); return null; }
+    const raw = storage.getItem(C.SAVE_KEY);
+    if (raw) return parse(raw);
+  } catch (e) { console.warn('primary save unreadable — trying the backup', e); }
+  try {
+    const rawB = storage.getItem(C.SAVE_KEY + BACKUP_SUFFIX);
+    if (rawB) { console.warn('recovered from the rotating backup save'); return parse(rawB); }
+  } catch (e) { console.warn('backup save unreadable too', e); }
+  return null;
 }
 
 export function exportSave(state) {
@@ -507,8 +538,11 @@ export function importSave(str) {
   } catch (e) { return null; }
 }
 
-export function hardReset() {
-  try { localStorage.removeItem(C.SAVE_KEY); } catch (e) {}
+export function hardReset(storage = defaultStorage()) {
+  // clears the backup too — a hard reset that a later corrupt write could silently
+  // "recover" from would resurrect the very save the player asked to destroy.
+  try { storage && storage.removeItem(C.SAVE_KEY); } catch (e) {}
+  try { storage && storage.removeItem(C.SAVE_KEY + BACKUP_SUFFIX); } catch (e) {}
   return newGame();
 }
 

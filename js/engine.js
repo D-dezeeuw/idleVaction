@@ -853,7 +853,7 @@ export function buyGenerator(state, k, qty) {
 }
 
 export function genUpgradeCost(state, k) {
-  return C.GEN.base[k] * 50 * Math.pow(8, state.generators[k].upgrades) * M.commsCostMult(state);
+  return C.GEN.base[k] * C.GEN_UPGRADE.costMult * Math.pow(C.GEN_UPGRADE.growth, state.generators[k].upgrades) * M.commsCostMult(state);
 }
 export function buyGenUpgrade(state, k) {
   const cost = genUpgradeCost(state, k);

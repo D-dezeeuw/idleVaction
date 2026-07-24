@@ -5513,5 +5513,55 @@ console.log('\n[115] Living-World W5: flip live, quiet pins unmoved, living band
   }
 }
 
+// ---------- [116] backlog close-out: pricing hoist, backup rotation, tier clamp, savvy decision ----------
+// The docs/coverage.md "deferred balance-tuner backlog" resolved (2026-07-24): the E05-era
+// genUpgradeCost 50/8 literals hoisted to CONFIG.GEN_UPGRADE (value-identical, pinned here);
+// the E01/E05 corrupt-save backup rotation + accommodation tier-clamp implemented in
+// state.js; savvyPassive's placement OUTSIDE the multiplier stack recorded as the standing
+// design decision (the W5 sweeps re-proved the arc cannot absorb persistent multiplicative
+// coupling — see docs/05 §9.2 — so Savvy × L_comfort stays rejected).
+console.log('\n[116] backlog close-out: GEN_UPGRADE hoist, save-backup rotation, tier clamp, savvy placement');
+{
+  // (a) the hoist is value-identical to the old inline literals
+  const s = ST.newGame();
+  s.generators[0].upgrades = 3;
+  const expected = C.GEN.base[0] * 50 * Math.pow(8, 3) * M.commsCostMult(s);
+  ok(Math.abs(E.genUpgradeCost(s, 0) - expected) < 1e-9, 'genUpgradeCost via CONFIG.GEN_UPGRADE is bit-identical to the old 50·8^n literals');
+  ok(C.GEN_UPGRADE.costMult === 50 && C.GEN_UPGRADE.growth === 8, 'GEN_UPGRADE ships the de-facto-fitted values unchanged');
+
+  // (b) backup rotation: save twice → the backup holds the PREVIOUS save; corrupt primary →
+  // load falls back; hardReset clears both. Map-backed fake storage (the param exists for this).
+  const store = new Map();
+  const fake = { getItem: k => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, v), removeItem: k => store.delete(k) };
+  const s1 = ST.newGame(); s1.resources.cash = 111;
+  ST.save(s1, fake);
+  ok(store.has(C.SAVE_KEY) && !store.has(C.SAVE_KEY + '.backup'), 'first save writes the primary only (nothing to rotate yet)');
+  const s2 = ST.newGame(); s2.resources.cash = 222;
+  ST.save(s2, fake);
+  ok(JSON.parse(store.get(C.SAVE_KEY + '.backup')).resources.cash === 111, 'second save rotates the previous blob into .backup');
+  store.set(C.SAVE_KEY, '{corrupt json!!!');
+  const recovered = ST.load(fake);
+  ok(recovered !== null && recovered.resources.cash === 111, 'a corrupt primary falls back to the last-known-good backup');
+  ST.hardReset(fake);
+  ok(!store.has(C.SAVE_KEY) && !store.has(C.SAVE_KEY + '.backup'), 'hardReset clears the primary AND the backup (no resurrection)');
+
+  // (c) tier clamp on migrate: out-of-range/garbage tiers pin inside the shipped ladder
+  const maxTier = DATA.accommodation.length - 1;
+  const high = ST.newGame(); high.accommodation.tier = 99; high.accommodation.ownedTiers = [0, 99];
+  const hm = ST.migrate(JSON.parse(JSON.stringify(high)));
+  ok(hm.accommodation.tier === maxTier, `an over-range tier clamps to the ladder top (${maxTier})`);
+  ok(Math.max(...hm.accommodation.ownedTiers) <= maxTier, 'ownedTiers is rebuilt inside the ladder');
+  const low = ST.newGame(); low.accommodation.tier = -3;
+  ok(ST.migrate(JSON.parse(JSON.stringify(low))).accommodation.tier === 0, 'a negative tier clamps to 0');
+
+  // (d) the savvy decision: the formula snapshot — sqrt(lifetimeCash)-scaled, challenge-modded,
+  // and NOT multiplied by L_comfort (the standing design decision this section records).
+  const sv = ST.newGame();
+  sv.skills.savvy.level = 4; sv.stats.lifetimeCash = 1e6;
+  sv._comfortCache = 1e9;   // enormous Comfort — must NOT leak into the passive
+  const passive = M.savvyPassive(sv);
+  ok(Math.abs(passive - 4 * C.SAVVY_YIELD * 1000) < 1e-9, 'savvyPassive = level·YIELD·sqrt(lifetimeCash), unchanged, with no L_comfort coupling');
+}
+
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);
 process.exit(fails === 0 ? 0 : 1);

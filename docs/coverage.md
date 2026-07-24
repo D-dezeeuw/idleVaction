@@ -818,12 +818,17 @@ end to end (peak 11.3 ≪ the 1e290 BigNumber threshold). Every commit is signed
 - **Audited:** 3,000 / 3,000 tasks (E01–E30) — present 936, done-now 1,490, superseded 574. ✅ **COMPLETE**
 - **Remaining:** 0 tasks.
 
-### Deferred balance-tuner backlog (for a consolidated retune, latest at E30)
-- **`savvyPassive()` not ×`L_comfort`** (E06-S7-T4) — a flat sqrt-scaled additive term outside
-  the multiplier stack; whether Comfort should boost it is a design call.
-- **`genUpgradeCost` `50`/`8` constants** (E05) — pre-existing renovation cost curve, never revisited.
-- **Amenity `xMult`/`xScope` fields are schema-only** — declared on every cluster but never read
-  by `math.js`; wiring them in is a multiplier-stack change (deferred).
+### Deferred balance-tuner backlog — ✅ CLOSED (2026-07-24, Living-World W5/W6; selftest [116])
+- **`savvyPassive()` not ×`L_comfort`** (E06-S7-T4) — **RESOLVED: stays OUTSIDE the stack, by
+  decision.** The W5 sweeps re-proved the fitted casual arc cannot absorb persistent
+  multiplicative coupling (docs/05 §9.2 — even a Σ0.037 trophy layer re-rolled arrivals by
+  hours); Comfort×Savvy would be exactly that class. Recorded in selftest [116d].
+- **`genUpgradeCost` `50`/`8` constants** (E05) — **RESOLVED: hoisted to `CONFIG.GEN_UPGRADE`**
+  (value-identical, [116a] pins the equivalence); de facto fitted since Phase C.
+- **E01/E05 deferred save-safety gaps** — **RESOLVED: rotating `.backup` save + corrupt-primary
+  fallback and the accommodation tier-clamp on migrate** landed in state.js ([116b]/[116c]).
+- **~~Amenity `xMult`/`xScope` fields are schema-only~~ → RESOLVED (Phase-C refit):** the
+  `L_amenity` layer is live (`AMENITY.xRate 0.6, xCap 5.0`) — see docs/05 §9.1.
 - **~~Drift watch~~ → RESOLVED (post-E07): harness is now ROI-aware.** The old harness bought
   *every* amenity (completionist), so cosmetic amenities inflated the "optimal" island and it
   crept 17h54m→19h11m. The balance-tuner switched it to ROI-aware buying: true speed-optimal
@@ -831,7 +836,8 @@ end to end (peak 11.3 ≪ the 1e290 BigNumber threshold). Every commit is signed
   it 15s / 0.05% vs 43m on the old policy). New guard (`docs/05` §9): island **~6–12h**, 26 beats
   monotone, peak `log10` ≪ 290. Escalate `@balance-tuner` only for a *genuine economy* change
   (new generator tiers, destination `L_dest`, comfort/cost curves) — **not** for amenities.
-- **⭐ HIGH-PRIORITY finding — amenity `xMult`/`xScope` are DORMANT** (never read by `math.js`/
+- **~~⭐ HIGH-PRIORITY finding — amenity `xMult`/`xScope` are DORMANT~~ → RESOLVED (Phase-C
+  refit activated the layer exactly as planned below; docs/05 §9.1):** (never read by `math.js`/
   `engine.js`). Amenities' only income effect is their `comfort` weight (log-softcapped, and
   dominated by `accScore`), so "small wins" are currently a mild *net drag* on a speed-run. The
   epics repeatedly spec `xMult` (E02–E07 all mark it "superseded: schema-only"). **Planned:** a
