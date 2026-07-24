@@ -551,10 +551,17 @@ export function accUnlockComfort(tier) {
   // Tier-faded unlock fraction (the "Comfort actually progresses" fix): EARLY tiers use the
   // higher unlockFracEarly, so owning tier t does NOT auto-satisfy tier t+1's gate — the gap
   // must be bridged by amenities/Body and the check-in meter genuinely fills (it used to be
-  // born at 100%: unlockFrac 0.33 < 1/ACC.growth meant the gate could never bind). The
-  // fraction fades back to the legacy unlockFrac by mid-game because amenity Comfort is a
-  // fixed catalog while tier gaps grow ×ACC.growth — a flat raise measured as an unbridgeable
-  // wall at tier ~15 (island unreached in 40h). Early: felt progression. Late: unchanged.
+  // born at 100%: unlockFrac 0.33 < 1/ACC.growth meant the gate could never bind). The early
+  // fraction is deliberately steep (0.55 ⇒ owning tier t supplies only ~70% of the next gate,
+  // ratio 1/(2.6·frac) = 0.699, vs 0.855 before), and the meter's fill band widens ×2.53 —
+  // a felt-display change; for amenity-buying players the gate itself still clears passively
+  // (see config.ACC for the measured ceiling of this knob: pushing it further stalls the
+  // casual persona at tier 5, not just the pathological one). The fraction fades back to the
+  // legacy unlockFrac by mid-game because amenity Comfort is a fixed catalog while tier gaps
+  // grow ×ACC.growth — a flat raise measured as an unbridgeable wall at tier ~15 (island
+  // unreached in 40h). So the late gate stays at 0.385-safe unlockFrac (no wall, any
+  // playstyle). Early: felt, binding progression. Late: unchanged. Fitted so both harness
+  // goldens (greedy/casual) are unmoved.
   const a = C.ACC;
   const early = a.unlockFracEarly ?? a.unlockFrac;
   const until = a.fracEarlyTiers ?? 0, fade = a.fracFadeTiers || 1;
