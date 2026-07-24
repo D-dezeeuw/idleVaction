@@ -372,12 +372,19 @@ Comfort is a small fraction of unlocked supply at every tier (incl. the historic
 band — unlocked rows 51→82, supply 266K→945K vs owned 0.8K→9.4K), so no band starves the
 above-floor curve; it grows smoothly 341 → 1.16M across the run.
 
-**Branch parity re-pinned.** The comfort/luxury branch (connoisseur — collections feed above-floor
-Comfort) legitimately moves to the fast edge (0.82× → **0.73×** the vlogger baseline); the parity
-band's fast bound widens 0.80→0.70 accordingly (slow edge 1.25× unchanged; crypto 1.11×). Vlogger
-37445 · traveler 36080 (0.96×) · connoisseur 27350 (0.73×) · crypto 41495 (1.11×), spread ×1.52.
-The greedy harness now ROI-buys the former "dominated cosmetic" luxury amenities (e.g. Seven-Star
-Touches) — that's the intended consequence, and their exclusivity spillover stays connoisseur-gated
-(harness exclusivity 0). Ascended-run band ([86]) holds (run2 = 0.90× run1). Pins re-pinned in
-selftest [26]/[26b]/[62]…[115] with inline rationale; the pre-refit 39440s curve remains in git
-history.
+**Branch parity held — the connoisseur reined via its own lever, not a wider band.** The refit
+lifted the connoisseur's L_comfort edge over the vlogger from ~×1.05 to ~×1.56 at the island
+(collections feed above-floor Comfort), pushing the branch to 0.73× the vlogger baseline — out of
+the Phase-C ±20-25% parity contract (§9.1). The response re-applies the SAME lever §9.1 already
+used for this exact branch ("connoisseur's exclusivity reined"): `EXCLUSIVITY.rate 0.45→0.22`
+(L_excl at the island ~×1.9 → ~×1.44). The knob is branch-gated — exclusivity is 0 for every
+other branch — so only the connoisseur pin moves, and the branch keeps the full new comfort edge:
+it stays the fastest, at its pre-refit relative position. Vlogger 37445 · traveler 36080 (0.96×) ·
+connoisseur 30900 (0.825×, was 0.82× pre-refit) · crypto 41495 (1.11×), spread ×1.34 (was ×1.37);
+the [109] band stays [0.80, 1.25]. The greedy harness now ROI-buys the former "dominated cosmetic"
+luxury amenities (e.g. Seven-Star Touches) — that's the intended consequence, and their
+exclusivity spillover stays connoisseur-gated (harness exclusivity 0). The concierge/butler's
+amenity ROI model (engine.conciergeAmenityGainPerSec) prices against the same above-floor base as
+the shipped multiplier, so automation budgets the lane the way the income math actually pays it.
+Ascended-run band ([86]) holds (run2 = 0.90× run1). Pins re-pinned in selftest
+[26]/[26b]/[62]…[115] with inline rationale; the pre-refit 39440s curve remains in git history.

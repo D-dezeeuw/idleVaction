@@ -1989,9 +1989,13 @@ console.log('\n[55] E11 conciergeCandidates: whitelist filter + ROI ranking + ne
   const cashRate = M.tierProd(rk, 0) + M.savvyPassive(rk);
   const expectedGain = a => {
     const dComf = a.comfort * C.COMFORT.wAmen;
-    const comf = rk._comfortCache;
-    const L = 1 + C.COMFORT.MULT * Math.log10(1 + comf / C.COMFORT.C0);
-    const Lafter = 1 + C.COMFORT.MULT * Math.log10(1 + (comf + dComf) / C.COMFORT.C0);
+    // above-floor refit (docs/05 §9.3): the concierge prices bumps against the SAME effective
+    // (above-floor) base the shipped comfortMultiplier reads — mirrored here exactly.
+    const floorSub = C.COMFORT.floorFrac * M.comfortFloor(rk);
+    const eff = Math.max(0, rk._comfortCache - floorSub);
+    const effAfter = Math.max(0, rk._comfortCache + dComf - floorSub);
+    const L = 1 + C.COMFORT.MULT * Math.log10(1 + eff / C.COMFORT.C0);
+    const Lafter = 1 + C.COMFORT.MULT * Math.log10(1 + effAfter / C.COMFORT.C0);
     return cashRate * (Lafter - L) / L;
   };
   const list = E.conciergeCandidates(rk);
@@ -4860,19 +4864,22 @@ console.log('\n[109] Phase B instruments: branch parity, casual band, beat spaci
   const spread = Math.max(...Object.values(times)) / Math.min(...Object.values(times));
   console.log(`    → parity spread ×${spread.toFixed(2)} (vlogger ${fmtTime(times.vlogger)} · traveler ${fmtTime(times.traveler)} · connoisseur ${fmtTime(times.connoisseur)} · crypto ${fmtTime(times.crypto)})`);
   // FITTED pins (exact — deterministic engine + fixed policies). RE-PINNED by the above-floor
-  // Comfort refit (docs/05 §9.3): the income multiplier now reads player-EARNED Comfort, so the
-  // comfort/luxury branch (connoisseur — collections feed above-floor Comfort) legitimately moves
-  // to the FAST edge (was 0.82× the vlogger baseline, now 0.73×), while the others stay near
-  // vlogger. vlogger 37445 · traveler 36080 (0.96×) · connoisseur 27350 (0.73×) · crypto 41495
-  // (1.11×) — spread ×1.52 (was ×1.37).
+  // Comfort refit (docs/05 §9.3): the income multiplier now reads player-EARNED Comfort, which
+  // lifted the connoisseur's L_comfort edge over the vlogger from ~×1.05 to ~×1.56 (collections
+  // feed above-floor Comfort) and pushed the branch to 0.73× — OUT of the Phase-C ±20-25%
+  // parity contract. Rather than widening the band, the SAME lever Phase-C already used reins
+  // it back: EXCLUSIVITY.rate 0.45→0.22 (branch-gated — exclusivity is 0 for every other
+  // branch, so only the connoisseur pin moves). The branch keeps the full new comfort edge and
+  // stays fastest, at its pre-refit relative position. vlogger 37445 · traveler 36080 (0.96×) ·
+  // connoisseur 30900 (0.825×) · crypto 41495 (1.11×) — spread ×1.34 (was ×1.37).
   ok(Math.abs(times.vlogger - 37445) <= 120, `vlogger pin ≈ golden 37445s / 10h24m05s (got ${times.vlogger})`);
   ok(Math.abs(times.traveler - 36080) <= 300, `traveler fitted pin ~10h01m (got ${fmtTime(times.traveler)})`);
-  ok(Math.abs(times.connoisseur - 27350) <= 300, `connoisseur fitted pin ~7h36m — the comfort branch, now fastest (got ${fmtTime(times.connoisseur)})`);
+  ok(Math.abs(times.connoisseur - 30900) <= 300, `connoisseur fitted pin ~8h35m — the comfort branch, fastest but inside the parity band (got ${fmtTime(times.connoisseur)})`);
   ok(Math.abs(times.crypto - 41495) <= 300, `crypto fitted pin ~11h32m (got ${fmtTime(times.crypto)})`);
-  // Parity band: the refit intentionally rewards the comfort-focused branch, so the fast-edge
-  // bound widens to 0.70 (connoisseur sits at 0.73×); the slow edge stays 1.25× (crypto 1.11×).
+  // Parity band: the Phase-C contract, unchanged — fast edge 0.80 (connoisseur 0.825×), slow
+  // edge 1.25 (crypto 1.11×).
   for (const [b, t] of Object.entries(times))
-    ok(t >= times.vlogger * 0.70 && t <= times.vlogger * 1.25, `branch parity: ${b} within the [0.70, 1.25]× vlogger band (comfort branch at the fast edge)`);
+    ok(t >= times.vlogger * 0.8 && t <= times.vlogger * 1.25, `branch parity: ${b} within ±20-25% of the vlogger baseline`);
 
   // ---- the ~20h contract (docs/05): the casual-tourist persona (20-min check-ins + a 10%
   // flavor budget, scenarios.mjs) IS the player the claim was always about. FITTED to the band.

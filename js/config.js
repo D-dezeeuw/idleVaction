@@ -535,7 +535,17 @@ export const CONFIG = {
   // whenever the connoisseur system is inactive, so the harness is unaffected.
   // Fitted (probe: a committed connoisseur mid-Act-II) to a ~1.5–3× global × — comparable to
   // the other lanes, never dominant (E14-S8-T1/S10-T10).
-  EXCLUSIVITY: { rate: 0.45, E0: 7, softExp: 0.7, setBonus: 0.25, branchBonus: 0.25 },
+  // rate 0.45 → 0.22 (above-floor Comfort refit, docs/05 §9.3): the SAME parity lever the
+  // Phase-C refit already used to rein this branch into the ±20-25% band ("exclusivity
+  // reined, rate 0.45" → connoisseur 0.82×). The refit handed the branch a second, bigger
+  // edge — collections' Comfort is now fully above-floor, lifting its L_comfort advantage
+  // over the vlogger from ~×1.05 to ~×1.56 at the island — which pushed it to 0.73× and out
+  // of the parity contract. Trimming rate (the branch-gated knob: exclusivity is 0 for every
+  // other branch, so vlogger/traveler/crypto/casual pins are bit-identical) gives back part
+  // of the OLD edge (L_excl ~×1.9 → ~×1.44 at the island) instead of widening the band:
+  // connoisseur re-lands at 0.825× vlogger (30900s), matching its pre-refit 0.82× position
+  // while KEEPING the full new comfort edge. Selftest [109] pins the result.
+  EXCLUSIVITY: { rate: 0.22, E0: 7, softExp: 0.7, setBonus: 0.25, branchBonus: 0.25 },
 
   // APPRECIATION: art/wine quietly grow in stored value while held. value =
   // boughtValue·(1 + appreciationRate·globalRate)^ageYears, ageYears = age(game-seconds)/
