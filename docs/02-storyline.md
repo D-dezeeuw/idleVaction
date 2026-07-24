@@ -56,7 +56,7 @@ reset (`docs/04 §1b` has the fiction↔mechanics mapping and the cosmetic-only 
 | 1 | *Rain Check* | new game | Netherlands intro; first cash trickle; the shed | 1 |
 | 2 | *Guests With Six Legs* | Comfort ≥ C1 | fumigation upgrade; first amenity | 2 |
 | 3 | *Checkout Time* | Acc tier ≥ 1 | leave the shed → the motel; travel unlocked | 2–3 |
-| 4 | *The Hostel Bunk* | Comfort ≥ C3 | social tiers seed; meet recurring NPCs | 3 |
+| 4 | *The Hostel Bunk* | Acc tier ≥ 2 | social tiers seed; meet recurring NPCs | 3 |
 | 5 | *First Passport Stamp* | own 1 destination | World-Traveler seed; transport tier | 4 |
 | 6 | *Wi-Fi & Ambition* | Clout > 0 OR Savvy > 0 | **branch seeds**: camera vs. wallet vs. wine | 4–5 |
 | 7 | *One Star, Big Dreams* | Acc tier ≥ 4 | 1-star hotel; amenities bloom | 5 |
