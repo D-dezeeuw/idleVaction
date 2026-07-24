@@ -20,13 +20,21 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 export const GOLDEN = {
-  // the greedy-optimal harness pin: island (accommodation tier 20) time, selftest [105]
+  // QUIET foundation pins (events off — the deterministic fitted economy, selftest [105]/[109]).
+  // W5 outcome: these never moved through the whole Living-World pass.
   greedyIslandSec: 39440, greedyTolSec: 120,
-  // the casual-tourist ~20h contract pin, selftest [109]
   casualIslandSec: 76800, casualTolSec: 1200,
+  // LIVING pins/bands (events on — the shipping default; selftest [115]): greedy is exactly
+  // pinnable per stream (cadence-0 play is smooth); casual is DISTRIBUTIONAL — the persona's
+  // 20-min cadence turns stream luck into ±1.5-3h of arrival spread, so its contract is a
+  // seed-panel median band, never a single-stream pin.
+  greedyLivingIslandSec: 38970,
+  casualLivingMedianBandSec: [18 * 3600, 22 * 3600],
+  casualLivingRailsSec: [15.5 * 3600, 23.5 * 3600],
   // the docs/05 §9 guard band for a greedy island under any accepted retune
   greedyBandSec: [6 * 3600, 12 * 3600],
-  // the casual contract band (docs/08 W5): 18h–23h
+  // the casual contract band (docs/08 W5): 18h–23h — applies to the quiet pin and the
+  // living seed-panel MEDIAN (individual living streams are judged by the rails above)
   casualBandSec: [18 * 3600, 23 * 3600],
   // which run id anchors the deviation views (must be in the suite)
   baselineId: 'greedy-vlogger',
@@ -34,8 +42,9 @@ export const GOLDEN = {
   peakLog10Max: 290,
 };
 
-// default suite: baseline + the ~20h persona + the three branch lanes + the prestige loop
-const DEFAULT_SUITE = ['greedy-vlogger', 'casual-tourist', 'greedy-traveler',
+// default suite: baseline + the ~20h persona + the boost persona (the living layer's A/B) +
+// the three branch lanes + the prestige loop
+const DEFAULT_SUITE = ['greedy-vlogger', 'casual-tourist', 'casual-booster', 'greedy-traveler',
   'greedy-crypto', 'greedy-connoisseur', 'ascension-loop'];
 
 // 4-significant-digit rounding keeps the committed sample JSON small without losing

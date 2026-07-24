@@ -52,9 +52,11 @@ pace against**, and **sound**.
 - **W2 — player agency:** Sunscreen Boosts + Splurge Moments on the registry, neutral.
 - **W3 — meta loop:** Souvenir Stand + Ascension Challenges + Legacy Honeymoon, neutral.
 - **W4 — presentation:** Trophy Road plumbing (rewards 0), Petra ghost, Postcards, audio.
-- **W5 — the flip (@balance-tuner):** turn all knobs on, fit with multi-seed scenario
-  sweeps, size Trophy Road, re-pin goldens once, land the band instruments, update
-  docs/05 §9 + math-proof appendix. Reviewed on the **simulation dashboard**
+- **W5 — the flip:** ✅ DONE (2026-07-24, docs/05 §9.2). Outcome beat the plan: the quiet
+  foundation pins never moved (zero re-pin); events fitted small-but-frequent; Trophy Road
+  pays souvenir bounties instead of income (the measured decision — the casual arc cannot
+  absorb any felt persistent layer); casual-living is guarded as a seed-panel distribution
+  (selftest [115]). Reviewed on the **simulation dashboard**
   (`docs/09-sim-dashboard.md`, `npm run report` → `tools/dashboard/`): quiet-vs-living
   runs across seeds, per-tier deviation vs the pre-flip baseline, band verdicts — then
   regenerate the committed sample report and the `GOLDEN` block in the same commit as

@@ -28,9 +28,12 @@
 //     carries 1/1, so a fresh game's tap value and energy regen are completely unchanged even
 //     though the lookup always runs (income-neutral BY CONSTRUCTION, docs/08 point 3).
 export const EVENTS = [
-  { id: 'happy_hour', name: '🍹 Happy Hour', weight: 30, kind: 'income_window', mult: 2, durationSec: 90,
+  // W5 fit note: window sizes are deliberately small — the casual arc converts persistent
+  // income uplift into arrival-time savings at ~2× (docs/05 §9's W5 entry), so the deck's
+  // long-run E[uplift] is held near +2% and the FEEL comes from frequency + variety, not size.
+  { id: 'happy_hour', name: '🍹 Happy Hour', weight: 30, kind: 'income_window', mult: 1.5, durationSec: 60,
     desc: 'The poolside bar declares two-for-one. Somehow this also applies to your income.' },
-  { id: 'golden_hour', name: '🌅 Golden Hour', weight: 10, kind: 'income_window', mult: 3, durationSec: 45,
+  { id: 'golden_hour', name: '🌅 Golden Hour', weight: 10, kind: 'income_window', mult: 2.5, durationSec: 30,
     desc: 'The light turns perfect, and so, briefly, does the exchange rate.' },
   { id: 'generous_tourist', name: '💶 A Generous Tip', weight: 22, kind: 'windfall',
     desc: 'A fellow tourist mistakes you for the concierge and tips lavishly. You do not correct them.' },

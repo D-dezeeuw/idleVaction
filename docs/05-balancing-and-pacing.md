@@ -290,3 +290,38 @@ once) closed them. What changed, mechanism by mechanism:
 
 Full decision log: `.claude/context/refit-log.md`. The pre-refit curve (island 29705s) remains
 in git history; every number above is pinned in selftest [2b]/[86]/[105]/[109].
+
+### §9.2 — The Living-World W5 flip (2026-07-24): the foundation never moved
+
+The Living-World pass (docs/08) landed twelve mechanics in four neutral waves, then W5
+flipped the one master switch (`EVENTS.enabled: true`) and fitted the layer with multi-seed
+persona sweeps (`npm run report -- --seeds …`, reviewed on the docs/09 dashboard). Three
+measured findings decided the fit:
+
+1. **The casual arc amplifies persistent income into arrival time ~2×, chaotically.** The
+   W1 provisional event sizes collapsed casual 21h20m → 16h20m (attribution: windfalls
+   −3h40m, income windows −2h40m). Worse, the persona's 20-minute act cadence quantizes
+   decisions, so ANY small persistent perturbation re-rolls the whole trajectory between
+   attractor basins hours apart. The fitted response: keep event **frequency** (felt cadence
+   ~8–12 min), shrink event **size** (`windfallRoomFrac 0.25→0.08`, `windfallSecs 45→15`,
+   happy hour ×2/90s→×1.5/60s, golden hour ×3/45s→×2.5/30s, `everyRange [360,720]→[420,840]`;
+   income-window E[uplift] ≈ 1.6%).
+2. **Trophy Road cannot pay income.** Even a Σ0.037 garnish layer re-rolled the chaos
+   (Σ0.107 moved casual 20h00m → 16h00m outright). The measured decision: every
+   `trophyReward` ships absent (L_trophy exactly 1 — machinery, caps and validator contract
+   stay for a future economy that can absorb it) and trophies mint **souvenir bounties**
+   instead (47 across the 33 in-run trophies — spendable in the W3 stand, `L_souvenir`
+   hard-capped ×1.25, bots never spend ⇒ arc-inert).
+3. **The living casual arc is a distribution, not a timetable.** Quiet is deterministic
+   (21h20m on every seed); living spreads 16h20m–23h00m over 7 seeds (median ≈ 19h40m at
+   dt 5) — events can even *slow* a stream by tempting the bot into worse purchase order.
+   The contract is therefore distributional (selftest [115]): 5-seed panel median in
+   [18h, 22h], every stream inside [15h30m, 23h30m].
+
+**Pins after W5** — the quiet foundation is *bit-identical to pre-W5* (greedy 39440s /
+10h57m20s, casual 76800s / 21h20m — the suite runs in quiet mode, header note in
+selftest.mjs): **zero re-pin was needed**. The living layer adds: greedy-living **38970s**
+exact on the default stream (events only help a bot that can't tap goats; seed spread
+< ±1%), casual-living the seed-panel bands above, booster ≤ 20% ahead of casual ([112]),
+honeymoon/challenge bands unchanged ([113]). `GOLDEN` in js/dev/report.mjs carries all of
+it for the dashboard; the committed sample report is regenerated with seeds {1,2}.

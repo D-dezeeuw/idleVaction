@@ -329,7 +329,7 @@ export const CONFIG = {
   // A seeded scheduler (engine.eventsTick), drawing from data/events.js's EVENTS table via the
   // EXACT marketTick pattern (util.rng(state.events.seed, state.events.cursor++), game-time only
   // — offline replay is bit-identical to online since applyOffline replays the SAME tick()).
-  // NEUTRALITY GATE (this wave ships enabled:false): engine.eventsTick's entire body is
+  // NEUTRALITY GATE (W1 shipped enabled:false; W5 flipped it true after fitting): engine.eventsTick's body is
   // `if (!C.EVENTS.enabled || !state.settings.events || state.story.beat < C.EVENTS.minBeat) return;`
   // — so a fresh newGame() and the harness (which never reaches beat 3, let alone flips a
   // config flag) draw NOTHING, ever: state.events.cursor stays 0, state.effects stays [],
@@ -346,7 +346,20 @@ export const CONFIG = {
   //                      scales with the player without ever being a fixed-cash exploit.
   //   seed            — default seed; state.js migrate() reseeds existing saves from
   //                      meta.createdAt (the crypto-market precedent).
-  EVENTS: { enabled: false, minBeat: 3, everyRange: [360, 720], windfallRoomFrac: 0.25, windfallSecs: 45, seed: 4242 },
+  // W5 FLIP + FIT (2026-07-24): enabled:true — the deck is live for every player. Sizing was
+  // fitted empirically against multi-seed persona sweeps (docs/05 §9's W5 entry): the W1
+  // provisional sizes collapsed casual 21h20m → 16h20m (attribution: windfalls −3h40m, income
+  // windows −2h40m), so the fit keeps event FREQUENCY (the felt cadence, ~every 8-12 min) and
+  // trims event SIZE — windfalls pay ≤ 15s of income (was 45) bounded by 8% of wallet room
+  // (was 25%); the window rows in data/events.js carry smaller mult·duration products.
+  // FITTED RESULT (selftest [115]): the QUIET foundation pins are untouched (39440s / 76800s,
+  // events off — the foundation never moved through the whole Living-World pass); the LIVING
+  // greedy curve lands 38970s on the default seed (events can only help, ≈ −1.2%, seed spread
+  // < ±1%); the LIVING casual arc is inherently DISTRIBUTIONAL — the persona's 20-min decision
+  // cadence turns event-stream luck into ±1.5-3h of arrival spread (16h20m–23h00m measured over
+  // 7 seeds, median ≈ 19h40m) — so casual is guarded as a seed-panel median band, never a
+  // single-stream pin. That distribution is the design now: a living trip, not a timetable.
+  EVENTS: { enabled: true, minBeat: 3, everyRange: [420, 840], windfallRoomFrac: 0.08, windfallSecs: 15, seed: 4242 },
 
   // ---- Vacation Weather (Living-World W1, plan point 3) ----
   // Seeded ambient flavor (engine's weatherTick, called from inside eventsTick — same gate, no

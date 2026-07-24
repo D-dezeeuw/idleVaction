@@ -33,6 +33,17 @@ import { fmt, fmtTime, rng } from '../util.js';
 // which is false when node's entry point is THIS file.
 import { runCurve, play } from './harness.mjs';
 
+// ---- QUIET FOUNDATION MODE (Living-World W5, docs/08) ------------------------------------
+// Every historical pin in this suite (the 39440s greedy golden, the 76800s casual contract,
+// the [86] ascended bands, the [106]/[109] instruments, every per-section "goldens exact"
+// assert) measures the QUIET foundation — the deterministic fitted economy with the Trip
+// Events layer off. Shipping default is EVENTS.enabled:true (the living world), so the suite
+// pins the flag down ONCE here; section [115] — the living-band instruments — flips it on
+// locally (and restores it) to measure the living distribution on top of the same foundation.
+// This is the W5 outcome in one line: the foundation never moved; the living layer is guarded
+// as a distribution around it.
+C.EVENTS.enabled = false;
+
 let fails = 0;
 const ok = (cond, msg) => { if (!cond) { console.error('  ✗ FAIL:', msg); fails++; } else console.log('  ✓', msg); };
 // The story spacing valve (config.STORY_VALVE_SEC) rations beats to one per window. Unit tests
@@ -4867,7 +4878,7 @@ console.log('\n[110] 8.5-push: comfort progression gate, Clout shop, tree play-c
   ok(offline < online && offline > 1, `offline macro-steps weight a 30s event by its overlap (online ×${online.toFixed(2)} → offline ×${offline.toFixed(2)})`);
 }
 
-console.log('\n[111] Living-World W1: shared effects registry + Trip Events + Vacation Weather + The Golden Goat — neutral by default (CONFIG.EVENTS.enabled: false), deterministic once flipped on');
+console.log('\n[111] Living-World W1: shared effects registry + Trip Events + Vacation Weather + The Golden Goat — quiet-mode mechanics (the suite pins EVENTS off — header note), deterministic once flipped on');
 {
   ok(validateEvents(), 'validateEvents() passes on the shipped EVENTS/WEATHER_STATES rosters');
   ok(C.EVENTS.enabled === false, 'CONFIG.EVENTS.enabled ships false this wave — the neutrality gate');
@@ -5424,6 +5435,82 @@ console.log('\n[114] Living-World W4 (presentation): Trophy Road plumbing, Petra
   ok(sk.meta.streak.count === 2, 'a consecutive day increments the streak');
   ST.updateStreak(sk, new Date(2026, 6, 25));          // a 4-day gap
   ok(sk.meta.streak.count === 1, 'a gap silently RESTARTS the count (no penalty flag, no nag)');
+}
+
+// ---------- [115] Living-World W5: the flip + the living-band instruments ----------
+// The one wave allowed to measure with the living layer ON. The W5 measured outcome
+// (docs/05 §9): the QUIET pins never moved; greedy-living is exactly pinnable per seed
+// (cadence-0 play is smooth — events only help, ≈ −1.2%, spread < ±1%); casual-living is
+// inherently DISTRIBUTIONAL (the 20-min act cadence turns stream luck into ±1.5-3h of
+// chaotic arrival spread — measured 16h20m–23h00m over 7 seeds), so casual is guarded as a
+// seed-panel median band, never a single-stream pin. Trophy Road's income layer ships ZERO
+// (any felt persistent layer re-rolls the chaos — the measured decision in
+// data/achievements.js); its payout is souvenir bounties, asserted here.
+console.log('\n[115] Living-World W5: flip live, quiet pins unmoved, living bands + trophy souvenirs');
+{
+  const { runScenario } = await import('./demo.mjs');
+  const { getScenario } = await import('./scenarios.mjs');
+  C.EVENTS.enabled = true;
+  try {
+    // (a) the shipped default IS the living world (this suite quiets it only for foundation pins)
+    ok(C.EVENTS.enabled === true, 'shipping default: CONFIG.EVENTS.enabled is true (the deck is live for players)');
+
+    // (b) greedy-living: exact on the default stream; events can only help; tight across seeds.
+    const gLive = runCurve({ dt: 5, maxHours: 30 });
+    ok(Math.abs(gLive.islandAt - 38970) < 1, `greedy-living island exactly 38970s / 10h49m30s on the default seed (got ${fmtTime(gLive.islandAt)})`);
+    ok(gLive.islandAt < 39440, 'greedy-living is FASTER than the quiet golden (events can only help a bot that never taps)');
+    ok(gLive.islandAt > 39440 * 0.90, 'greedy-living stays within 10% of the quiet golden (events help modestly, never explosively)');
+    ok(gLive.peakLog < 290, `greedy-living peak log10 ${gLive.peakLog.toFixed(1)} far under the 1e290 policy ceiling`);
+    for (const seed of [1, 2]) {
+      const r = runScenario(getScenario('greedy-vlogger'), { dt: 10, maxHours: 30, snapshotSec: 7200, seed });
+      ok(r.islandAt !== null && Math.abs(r.islandAt - gLive.islandAt) < 39440 * 0.04,
+        `greedy-living seed ${seed} within ±4% of the default-stream pin (got ${fmtTime(r.islandAt)})`);
+    }
+
+    // (c) casual-living: the seed-panel DISTRIBUTION contract. Median of the 5-seed panel in
+    // [18h, 22h]; every stream inside the hard rails [15h30m, 23h30m]. dt 10 keeps the panel
+    // affordable; arrival is cadence-quantized (multiples of 1200s) so dt does not blur it.
+    const panel = [];
+    for (const seed of [null, 1, 2, 5, 7]) {
+      const r = runScenario(getScenario('casual-tourist'), { dt: 10, maxHours: 40, snapshotSec: 7200, seed });
+      ok(r.islandAt !== null, `casual-living seed ${seed} reaches the island at all`);
+      if (r.islandAt !== null) panel.push(r.islandAt);
+    }
+    panel.sort((a, b) => a - b);
+    const median = panel[Math.floor(panel.length / 2)];
+    ok(median >= 18 * 3600 && median <= 22 * 3600, `casual-living 5-seed median inside [18h, 22h] (got ${fmtTime(median)})`);
+    ok(panel[0] >= 15.5 * 3600, `casual-living fastest stream ≥ 15h30m (got ${fmtTime(panel[0])})`);
+    ok(panel[panel.length - 1] <= 23.5 * 3600, `casual-living slowest stream ≤ 23h30m (got ${fmtTime(panel[panel.length - 1])})`);
+
+    // (d) the event deck's long-run expectation stays modest: replay the income-window rows'
+    // weighted mult·duration against the mean gap — the analytic E[uplift] the sizes were
+    // fitted to (windows only; windfalls are separately bounded by walletRoom/incomeRate).
+    const rows = DATA.events.filter(r => r.kind === 'income_window');
+    const wTot = DATA.events.reduce((t, r) => t + r.weight, 0);
+    const meanGap = (C.EVENTS.everyRange[0] + C.EVENTS.everyRange[1]) / 2;
+    const extraPerCycle = rows.reduce((t, r) => t + (r.weight / wTot) * (r.mult - 1) * r.durationSec, 0);
+    const uplift = extraPerCycle / meanGap;
+    ok(uplift > 0.005 && uplift < 0.06, `income-window E[uplift] ≈ ${(uplift * 100).toFixed(1)}% stays in the fitted (0.5%, 6%) window`);
+
+    // (e) Trophy Road pays souvenirs, not income: L_trophy is exactly 1 (no row carries
+    // trophyReward — the measured W5 decision) and an unlocking trophy mints its bounty once.
+    ok(DATA.achievements.every(a => !(a.trophyReward > 0)), 'no achievement carries a positive trophyReward (the measured W5 decision)');
+    const ts = ST.newGame();
+    ts.stats.lifetimeCash = 1e3;                       // crosses first_grand (souvenirs: 1)
+    E.evaluateAchievements(ts);
+    ok(M.trophyMultiplier(ts) === 1, 'L_trophy is exactly 1 with the shipped roster');
+    ok(ts.souvenirs.count === 1 && ts.achievements.unlocked.first_grand === true, 'unlocking an in-run trophy mints its souvenir bounty');
+    E.evaluateAchievements(ts);
+    ok(ts.souvenirs.count === 1, 'the bounty mints once ever (already-unlocked trophies never re-mint)');
+
+    // (f) quiet-vs-living seam: turning the deck back off restores the exact quiet golden —
+    // the foundation underneath the living world is bit-identical to the pre-W5 economy.
+    C.EVENTS.enabled = false;
+    const gQuiet = runCurve({ dt: 5, maxHours: 30 });
+    ok(Math.abs(gQuiet.islandAt - 39440) < 1, `quiet foundation still exactly 39440s under the flip (got ${fmtTime(gQuiet.islandAt)})`);
+  } finally {
+    C.EVENTS.enabled = false;   // the suite's quiet-mode contract (header note) holds to the end
+  }
 }
 
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);

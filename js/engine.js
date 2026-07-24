@@ -2071,7 +2071,20 @@ export function evaluateAchievements(state) {
     if (u[a.id]) continue;
     if (stateMetric(state, a.metric) >= a.threshold) {
       u[a.id] = true;
-      notify(state, 'celebrate', `🏆 Achievement: ${a.name} — ${a.desc}${a.reward > 0 ? ` (+${(a.reward * 100).toFixed(0)}% income)` : ''}`);
+      // Trophy Road (docs/08 point 9, W5 fit): an in-run trophy's FELT payout is a souvenir
+      // bounty (a.souvenirs — spendable in the W3 Souvenir Stand, capped at L_souvenir ≤ 1.25),
+      // not income power: the W5 sweeps measured the casual arc amplifying any persistent
+      // income layer ~2× into arrival time (a Σ0.107 trophy layer alone collapsed casual
+      // 20h00m → 16h00m), so trophyReward stays garnish-sized (Σ 0.037) and the reward the
+      // player can actually FEEL is the currency. Minting here is once-ever per trophy — the
+      // achievements record survives ascension (E30 keep-list) and souvenirs are meta (W3),
+      // so offline/ascension replay can never double-mint. Bots never spend souvenirs, so
+      // this cannot move the fitted arcs.
+      if (a.souvenirs > 0 && state.souvenirs) state.souvenirs.count += a.souvenirs;
+      const bits = [];
+      if (a.reward > 0) bits.push(`+${(a.reward * 100).toFixed(0)}% income`);
+      if (a.souvenirs > 0) bits.push(`+${a.souvenirs} souvenir${a.souvenirs > 1 ? 's' : ''} 🎁`);
+      notify(state, 'celebrate', `🏆 Achievement: ${a.name} — ${a.desc}${bits.length ? ` (${bits.join(', ')})` : ''}`);
     }
   }
 }
