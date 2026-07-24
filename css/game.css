@@ -281,6 +281,14 @@ h1, h2, h3, .iv-beattitle { font-family: 'Fredoka', 'Nunito', system-ui, sans-se
 }
 @keyframes postcardcrossfade { from { opacity: .15; } to { opacity: 1; } }
 
+/* the postcard PREVIEW (era-modal takeover, "send a postcard"): the tier art above, styled like
+   a postcard's written back below — a dashed card, a tilted stamp in the corner, message text
+   preserving the generated line breaks. */
+.iv-postcard-back { position: relative; text-align: left; background: var(--iv-well);
+  border: 1px dashed var(--iv-line); border-radius: 10px; padding: 12px 40px 12px 14px; margin: 10px 0; }
+.iv-postcard-stamp { position: absolute; top: 8px; right: 10px; font-size: 1.5rem; transform: rotate(12deg); opacity: .85; }
+.iv-postcard-message { font-size: .82rem; line-height: 1.6; white-space: pre-line; }
+
 /* passport stamps: owned destinations sit inked-and-rotated; unowned = a dotted empty slot */
 .iv-stamp { transform: rotate(-2deg); border: 2px solid var(--iv-green); }
 .iv-stamp:nth-child(even) { transform: rotate(1.5deg); }
