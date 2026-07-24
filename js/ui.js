@@ -595,7 +595,7 @@ function renderStory(s) {
     <button class="iv-story-bar" data-action="open-diary" aria-label="Open your travel diary">
       <span aria-hidden="true">📖</span><span>The story so far…</span><span class="iv-story-bar-arrow" aria-hidden="true">›</span>
     </button>
-    ${btn('send-postcard', '', '📮', true, 'iv-story-postcard', 'Send a postcard')}
+    ${btn('open-postcard', '', '📮', true, 'iv-story-postcard', 'Send a postcard')}
   </div>`;
   const choiceBeat = DATA.story.find(b => b.choice && s.story.seen.includes(b.id) && s.story.branch === 'neutral');
   if (choiceBeat) {
@@ -643,6 +643,24 @@ function sendPostcard() {
   const text = buildPostcard(S);
   copyTextWithFallback(text).then(() => showLocalToast('📮 Postcard copied — wish they were here'));
 }
+// The postcard PREVIEW (era-modal takeover, same shell every big moment uses): the current
+// accommodation tier's own postcard art (postcardSceneHtml — the exact image the ladder card
+// shows) plus the generated text, so "send a postcard" actually looks like one instead of being
+// a silent clipboard write. Copying is now an explicit button inside, not the click itself.
+function postcardPreviewHtml(s) {
+  const t = s.accommodation.tier;
+  const acc = DATA.accommodation[t];
+  const text = buildPostcard(s);
+  return `
+    ${postcardSceneHtml(t)}
+    <h3>📮 Postcard from ${esc(acc.name)}</h3>
+    <div class="iv-postcard-back">
+      <span class="iv-postcard-stamp" aria-hidden="true">✈️</span>
+      <div class="iv-postcard-message">${esc(text)}</div>
+    </div>
+    <div class="iv-era-actions">${btn('copy-postcard', '', '📋 Copy text')} ${btn('era-close', '', 'Close', true, 'btn-primary')}</div>`;
+}
+function openPostcardPreview() { showEra(postcardPreviewHtml(S)); }
 
 // ---------- the Travel Diary (UX-plan §3/§6) ----------
 // Every beat the player has LIVED, as dated journal pages — chronological, branch-flavored
@@ -3085,7 +3103,8 @@ function handle(action, arg, btnEl) {
     // (the volume slider lives on the shared 'input' listener, mirrors concierge/staff dials).
     case 'opt-sound': (S.settings.sound ||= { on: true, volume: 0.35 }).on = !S.settings.sound.on; renderControls(S); break;
     // Postcards Home (Living-World W4, docs/08 point 11): the Menu's copy of the Story card's button.
-    case 'send-postcard': sendPostcard(); break;
+    case 'open-postcard': openPostcardPreview(); break;
+    case 'copy-postcard': sendPostcard(); break;
     case 'save': hooks.save(); break;
     case 'dismiss-offline': hideOfflineSummary(); break;
   }
@@ -3178,7 +3197,7 @@ export function renderControls(state) {
         <input id="soundVolInput" type="range" min="0" max="100" step="5" value="${Math.round(sound.volume * 100)}"
           data-slider="sound-volume" style="width:100px" aria-label="Sound volume">
         <span id="soundVolVal">${Math.round(sound.volume * 100)}%</span></span>
-      ${btn('send-postcard', '', '📮 Send a postcard')}
+      ${btn('open-postcard', '', '📮 Send a postcard')}
       <span class="iv-tag">pace (dev)</span>
       <span class="iv-speed">Speed <b>${state.settings.gameSpeed}×</b>: ${speeds}
         <input id="speedInput" type="number" min="0" step="1" value="${state.settings.gameSpeed}"
