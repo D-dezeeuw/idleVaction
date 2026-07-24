@@ -29,22 +29,20 @@ import { fmt, fmtTime } from '../util.js';
 
 // ---- ROI-aware amenity buying (the max-speed player, not a completionist) ----
 // A speed-optimal player buys an amenity ONLY when it earns its cost back, or when Comfort is
-// the thing literally gating the next accommodation tier. Amenities have exactly one income
-// effect: they add to the (unbounded) Comfort sum, which raises the GLOBAL multiplier
-// L_comfort = 1 + COMFORT.MULT·log10(1 + Comfort/C0). (The `xMult`/`xScope` fields in the
-// amenity data are dormant — never read by math.js/engine.js — so Comfort is the whole story.)
-// That effect is (a) logarithmic in Comfort and (b) swamped by the accommodation ladder's own
-// accScore, which dominates Comfort at every tier — so most amenities are effectively cosmetic
-// for income. The OLD policy bought one level of EVERY affordable amenity each step: a
-// completionist, not the "max-speed, LOWER-bound" player this harness claims to measure. That
-// both OVERSTATED optimal island time and, worse, made it drift with amenity COUNT — every new
-// cluster leaked more reinvestment cash into low-ROI Comfort regardless of unit price (E03→E07:
-// island crept 17h54m→19h11m). The payback test below fixes both: a dominated/cosmetic amenity
-// has a vanishing ΔL_comfort/L_comfort, hence an effectively infinite payback, so it is skipped
-// — which means ADDING such an amenity to the data cannot move the reported island. The horizon
-// is deliberately generous (a Comfort boost is permanent, lasting the whole multi-hour run), yet
-// the measured island is insensitive to it: ROI-good amenities are cheap (bought at any horizon)
-// and ROI-bad ones fail at every horizon (island ≈ constant for horizons 30s–30min in testing).
+// the thing literally gating the next accommodation tier. An amenity's income effect is two
+// bounded layers: it adds to the Comfort sum → the GLOBAL L_comfort, and (level ≥ 1) it joins
+// the additive L_amenity layer via its xMult. Since the above-floor refit (config.COMFORT.
+// floorFrac), L_comfort reads EFFECTIVE Comfort = max(0, Comfort − floorFrac·accScore·wAcc),
+// so this ROI test must price amenities against the SAME effective base the shipped
+// comfortMultiplier uses — otherwise the bot would read the (huge, accScore-dominated) TOTAL
+// Comfort, see a vanishing ΔL, and skip every amenity, mis-measuring the economy as a stall.
+// Under floorFrac=1 the effective base is the player-earned Comfort (amenTerm+bodyTerm), which
+// an amenity moves by a MEANINGFUL fraction at every tier — so amenities are now a real, priced
+// reinvestment lane, not the cosmetic cash-leak they were pre-refit. The OLD policy bought one
+// level of EVERY affordable amenity each step (a completionist); the payback test below keeps the
+// bot honest — it buys an amenity iff the marginal €/s from its effective-Comfort bump (plus its
+// L_amenity share) repays its cost within the horizon. The horizon is deliberately generous (a
+// Comfort boost is permanent, lasting the whole multi-hour run).
 const AMENITY_PAYBACK_HORIZON_SEC = 1800;
 
 // worth buying this level of amenity `a`? cashRate = current €/s cash income.
@@ -62,9 +60,14 @@ export function amenityWorthBuying(s, a, cashRate) {
   if (cashRate <= 0) return false;
   const dComf = a.comfort * C.COMFORT.wAmen;   // this level's Comfort contribution
   if (dComf <= 0) return false;
+  // Price the Comfort bump against the SAME above-floor effective base comfortMultiplier reads
+  // (config.COMFORT.floorFrac) — total Comfort would be accScore-dominated and hide the gain.
   const comf = s._comfortCache;
-  const L = 1 + C.COMFORT.MULT * Math.log10(1 + comf / C.COMFORT.C0);
-  const Lafter = 1 + C.COMFORT.MULT * Math.log10(1 + (comf + dComf) / C.COMFORT.C0);
+  const floorSub = C.COMFORT.floorFrac * M.comfortFloor(s);
+  const eff = Math.max(0, comf - floorSub);
+  const effAfter = Math.max(0, comf + dComf - floorSub);
+  const L = 1 + C.COMFORT.MULT * Math.log10(1 + eff / C.COMFORT.C0);
+  const Lafter = 1 + C.COMFORT.MULT * Math.log10(1 + effAfter / C.COMFORT.C0);
   let gainPerSec = cashRate * (Lafter - L) / L;
   // L_amenity income layer (Phase-C refit): the FIRST level of an xMult amenity also joins the
   // additive income layer — include that marginal gain so the greedy bot prices activated

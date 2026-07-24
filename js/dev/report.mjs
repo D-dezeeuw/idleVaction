@@ -21,14 +21,15 @@ import { dirname } from 'node:path';
 
 export const GOLDEN = {
   // QUIET foundation pins (events off — the deterministic fitted economy, selftest [105]/[109]).
-  // W5 outcome: these never moved through the whole Living-World pass.
-  greedyIslandSec: 39440, greedyTolSec: 120,
+  // Re-pinned by the above-floor Comfort refit (docs/05 §9.3): greedy 39440→37445 (the income
+  // multiplier now reads player-earned above-floor Comfort); casual UNMOVED at 76800.
+  greedyIslandSec: 37445, greedyTolSec: 120,
   casualIslandSec: 76800, casualTolSec: 1200,
   // LIVING pins/bands (events on — the shipping default; selftest [115]): greedy is exactly
   // pinnable per stream (cadence-0 play is smooth); casual is DISTRIBUTIONAL — the persona's
   // 20-min cadence turns stream luck into ±1.5-3h of arrival spread, so its contract is a
   // seed-panel median band, never a single-stream pin.
-  greedyLivingIslandSec: 38970,
+  greedyLivingIslandSec: 36960,
   casualLivingMedianBandSec: [18 * 3600, 22 * 3600],
   casualLivingRailsSec: [15.5 * 3600, 23.5 * 3600],
   // the docs/05 §9 guard band for a greedy island under any accepted retune

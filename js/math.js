@@ -544,7 +544,7 @@ export function luxuryAmenityComfort(state, DATA) {
 // accScore is the baseline your digs give you for free — display Comfort relative to it, so
 // a soggy shed shows ~0, every amenity visibly adds, and a new check-in resets the meter
 // (new digs, higher expectations). Gates/math still use the raw sum; this is presentation.
-export function comfortFloor(state) { return accScore(state.accommodation.tier) * C.COMFORT.wAcc; }
+export function comfortFloor(state) { return accScore(state.accommodation?.tier ?? 0) * C.COMFORT.wAcc; }
 export function displayComfort(state) { return Math.max(0, (state.resources.comfort || 0) - comfortFloor(state)); }
 
 export function accUnlockComfort(tier) {
@@ -604,8 +604,18 @@ export function ascCashNorm(state) {
   return Math.pow(C.ASCEND_GATE.base, ascGateScale(state.ascension.count));
 }
 export function comfortMultiplier(state) {
+  // The income multiplier reads ABOVE-FLOOR Comfort: the raw sum minus a floorFrac fraction of
+  // the accommodation backbone (comfortFloor = accScore(tier)·wAcc) the player gets free with
+  // every tier. This separates Comfort's two roles: the GATE (accUnlockComfort/accUnlocked)
+  // keeps reading TOTAL Comfort (bridgeability preserved — see config.ACC), while the INCOME
+  // multiplier tracks player-EARNED Comfort (amenities + Body). floorFrac 0 ⇒ effective ==
+  // total ⇒ bit-identical to the pre-refit multiplier (the escape hatch); floorFrac 1 ⇒
+  // effective == displayComfort exactly (what the UI shows). max(0, …) so a fresh check-in that
+  // momentarily lifts the floor past the raw sum reads 0, never a negative log argument. See
+  // config.COMFORT.floorFrac for the full rationale (and why φ=1 has no check-in penalty).
   const comfort = state._comfortCache ?? 0;
-  const raw = C.COMFORT.MULT * Math.log10(1 + comfort / C.COMFORT.C0);
+  const eff = Math.max(0, comfort - C.COMFORT.floorFrac * comfortFloor(state));
+  const raw = C.COMFORT.MULT * Math.log10(1 + eff / C.COMFORT.C0);
   // Ascension Challenges' Rainy Season (Living-World W3, docs/08 point 7): halves the
   // multiplier's EFFECT (the excess over 1), not the log term itself — L_comfort →
   // 1 + 0.5·(L−1). challengeMod defaults to 1 with no active challenge (the identity fast

@@ -244,11 +244,31 @@ Comfort = w_acc·accScore + w_amen·Σ amenityScore + w_body·bodyLevel      // 
 > unbounded Comfort never feeds back super-linearly. There is no `comfortCap` lever. Comfort then:
 
 1. **Gates story** (`beat` requires Comfort ≥ threshold, see `docs/02-storyline.md`).
-2. Feeds `L_comfort = 1 + COMFORT_MULT·log10(1 + Comfort/C0)` (global income `×`).
+2. Feeds `L_comfort = 1 + COMFORT_MULT·log10(1 + effectiveComfort/C0)` (global income `×`).
 3. Unlocks the next accommodation tier (`Comfort ≥ tierUnlock[t]`).
 
 `accScore` for accommodation tier `t`: `ACC_BASE · ACC_GROWTH^t` (`ACC_GROWTH≈2.6`) so each
 step up the shed→island ladder is a big, felt jump.
+
+> **Above-floor Comfort — the income multiplier's base is player-EARNED Comfort (2026-07-24
+> refit, `docs/05 §9.3`, `math.comfortMultiplier`).** Comfort has two roles that were pulling
+> apart: **gating** and the **income multiplier**. The *gate* (item 1 & 3) reads **TOTAL** Comfort
+> — including `w_acc·accScore`, the backbone every tier purchase grants for free — which is
+> load-bearing for late-tier bridgeability (`accScore` self-satisfies each gate,
+> `unlockFrac 0.33 < 1/growth 0.385`, so the tier-~15 unbridgeable wall can never return). But
+> feeding that same accScore-dominated total into the *income multiplier* made amenities
+> economically inert: at high tiers `accScore` dwarfs earned Comfort by ~1000×, so a real
+> amenity moved income by ~0.002%. The fix separates the roles: the income multiplier reads
+> **effectiveComfort = max(0, Comfort − floorFrac·comfortFloor)** with
+> `comfortFloor = accScore(tier)·w_acc` and `floorFrac = 1` — i.e. the accScore backbone is
+> subtracted out, so `L_comfort` tracks **exactly** the above-baseline Comfort the UI already
+> displays (amenities + Body). `floorFrac` is a continuous knob (`0` ⇒ bit-identical to the
+> pre-refit total-Comfort multiplier — the regression escape hatch; `1` ⇒ pure active
+> participation). Because the accScore increment appears in *both* the total and the subtracted
+> floor, a check-in is exactly **neutral** to the income multiplier (never a penalty); the
+> recurring loop is that `L_comfort` now grows **only** from amenity/Body investment, never from
+> climbing the rented ladder for free. `COMFORT_MULT`/`C0` were re-fitted (0.4/100 → 0.47/8) to
+> compensate for the income the subtraction removes.
 
 ### 6.1 Amenities = the "small wins" engine
 Amenities are cheap, frequent, flavored micro-upgrades (pool floatie → flamingo floatie →
