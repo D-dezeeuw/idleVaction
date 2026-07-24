@@ -457,17 +457,12 @@ div.iv-passport-stamp.iv-stamp-empty { padding: 5px 2px; border-radius: 8px; }
 .iv-wallet-chip.iv-wallet-full { border-color: var(--iv-red-text); }
 .iv-wallet-chip.iv-wallet-full .iv-wallet-bar i { background: var(--iv-red-text); }
 
-/* the story + next-step row: two columns EVERYWHERE, mobile included — "where am I" and
-   "what's next" share the first screen (per design direction). */
-.iv-story-row { display: grid; grid-template-columns: 1fr minmax(120px, 150px); gap: 10px; align-items: stretch; }
-.iv-next-square { display: flex; flex-direction: column; text-align: center; padding: 10px 8px; }
-.iv-next-label { font-size: .68rem; letter-spacing: .12em; color: var(--iv-pink-text); font-weight: 800; }
-.iv-next-scene { font-size: 1.7rem; margin: 4px 0 2px; }
-.iv-next-name { font-weight: 700; font-size: .82rem; line-height: 1.15; margin-bottom: 6px; }
-.iv-next-meter { height: 8px; border-radius: 999px; background: var(--iv-well); overflow: hidden; margin-bottom: 4px; }
-.iv-next-meter i { display: block; height: 100%; border-radius: 999px; background: var(--iv-sun); transition: width .3s; }
-.iv-next-meter i.iv-next-cash { background: var(--iv-green); }
-.iv-next-square .iv-btn { margin-top: auto; }
+/* the story + accommodation row: two columns EVERYWHERE, mobile included — "where am I"
+   and "where I live / what's next" share the first screen (per design direction). The old
+   narrow NEXT square is gone; the accommodation card (postcard + ladder) sits right. */
+.iv-story-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; align-items: stretch; }
+/* the ladder's cash-toward-cost meter (shown once the Comfort gate is met) */
+.iv-cash-meter i { background: var(--iv-green); }
 
 /* animated generator tiles: progress-to-afford bars; milestone level deepens the color band
    and speeds the sheen (--gen-anim, set per tile from bought/upgrades). */
@@ -500,7 +495,6 @@ div.iv-passport-stamp.iv-stamp-empty { padding: 5px 2px; border-radius: 8px; }
 @media (max-width: 720px) {
   .iv-topbar-row { align-items: center; }
   .iv-wallet-chip { min-width: 104px; padding: 6px 10px; }
-  .iv-story-row { grid-template-columns: 1fr minmax(108px, 126px); }
 }
 
 /* the golden frame (Clout shop, pure pride) */

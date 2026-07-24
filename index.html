@@ -33,11 +33,12 @@
 
   <div id="notifs" class="iv-notifs"></div>
 
-  <!-- Story row (redesign): the narrative left, the NEXT STEP square right — two columns
-       even on mobile, so "where am I" and "what's next" share the first screen. -->
+  <!-- Story row (redesign v2): the narrative left, the accommodation panel right — two columns
+       even on mobile, so "where am I" and "where I live / what's next" share the first screen.
+       (The old NEXT STEP square is gone; its progress + Check-in live in the ladder here.) -->
   <div class="iv-story-strip iv-story-row">
     <section class="iv-card" id="storyCard"><h3>📖 Story</h3><div id="story"></div></section>
-    <section class="iv-card iv-next-square" id="nextStepCard" aria-label="Your next step"><div id="nextStep"></div></section>
+    <section class="iv-card" id="accCard"><h3 id="accTitle">🏨 Accommodation</h3><div id="accommodation"></div></section>
   </div>
 
   <!-- Splurge Moments (Living-World W2): sits outside the tab system, like the story strip, so a
@@ -78,7 +79,6 @@
         <h3>🧳 Petra</h3>
         <div id="petra"></div>
       </section>
-      <section class="iv-card" id="accCard"><h3 id="accTitle">🏨 Accommodation</h3><div id="accommodation"></div></section>
       <section class="iv-card iv-wide" id="amenitiesCard"><h3>🛎️ Amenities <small>(small wins)</small></h3><div id="amenities"></div></section>
       <section class="iv-card iv-wide" id="poolCard" hidden>
         <h3>🏊 Poolside</h3>

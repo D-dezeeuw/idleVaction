@@ -5563,5 +5563,38 @@ console.log('\n[116] backlog close-out: GEN_UPGRADE hoist, save-backup rotation,
   ok(Math.abs(passive - 4 * C.SAVVY_YIELD * 1000) < 1e-9, 'savvyPassive = level·YIELD·sqrt(lifetimeCash), unchanged, with no L_comfort coupling');
 }
 
+// [117] landed on main as "[111]" concurrently with the Living-World chain — renumbered in
+// this merge (the Living-World waves own [111]-[116]); the tests are byte-identical otherwise.
+console.log('\n[117] hostel-bunks fix: beat 4 gates on the ACTUAL check-in (accTier 2), not Comfort');
+{
+  // ---- the regression: Comfort well past the old 200 gate, still living at the motel —
+  // the diary must NOT narrate a hostel check-in that hasn't happened.
+  const st = ST.newGame();
+  st.accommodation.tier = 1; st.story.seen = [1, 2, 3]; st.story.beat = 3;
+  st.stats.runSec = 9999; st._comfortCache = 350;
+  E.checkStory(st);
+  ok(!st.story.seen.includes(4), 'beat 4 (The Hostel Bunk) does NOT fire at tier 1, even with Comfort ≥ 200');
+  // ---- and it fires the moment tier 2 is genuinely owned — the same tick the NPC roster
+  // reveals (checkNpcUnlocks, tier ≥ 2), the cast this beat exists to introduce.
+  st.accommodation.tier = 2;
+  E.checkStory(st); E.checkNpcUnlocks(st);
+  ok(st.story.seen.includes(4), 'beat 4 fires on the tier-2 check-in');
+  ok(DATA.npcs.every(n => st.npcsMet[n.id]), 'the NPC roster reveals the same moment beat 4 fires');
+
+  // ---- mid-gap save healing: a save where the old Comfort gate already fired beat 4 at the
+  // motel gets the entry handed back on load; it re-fires legitimately at the real check-in.
+  const old = ST.newGame();
+  old.accommodation.tier = 1; old.story.seen = [1, 2, 3, 4]; old.story.beat = 4;
+  old.story.seenAt = { 1: 0, 2: 90, 3: 6854, 4: 10225 };
+  const healed = ST.migrate(old);
+  ok(!healed.story.seen.includes(4) && healed.story.beat === 3 && healed.story.seenAt[4] === undefined,
+    'migrate retracts a prematurely-fired beat 4 from a tier <2 save (seen/beat/seenAt all healed)');
+  // a save that genuinely reached the hostel keeps its entry untouched.
+  const kept = ST.newGame();
+  kept.accommodation.tier = 2; kept.story.seen = [1, 2, 3, 4]; kept.story.beat = 4;
+  const kept2 = ST.migrate(kept);
+  ok(kept2.story.seen.includes(4) && kept2.story.beat === 4, 'a tier ≥2 save keeps beat 4 (no over-retraction)');
+}
+
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);
 process.exit(fails === 0 ? 0 : 1);

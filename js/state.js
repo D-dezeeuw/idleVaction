@@ -358,6 +358,16 @@ export function migrate(s) {
   if (bulkWasMax) s.ui.bulkMode = 'max';
   const BRANCHES = ['neutral', 'traveler', 'vlogger', 'crypto', 'connoisseur'];
   if (!BRANCHES.includes(s.story.branch)) s.story.branch = 'neutral';
+  // beat-4 retraction (the Hostel Bunk gate fix): beat 4 used to fire on Comfort alone,
+  // narrating a hostel check-in while the save was still paying off the motel. It now gates
+  // on accTier ≥ 2, so a mid-gap save (tier < 2, beat 4 already seen) hands the entry back —
+  // it re-fires legitimately at the actual check-in. Safe because tier gates are hard:
+  // tier < 2 means beat 5 (accTier 3) can never have fired, so seen ⊆ {1..4}.
+  if (s.accommodation.tier < 2 && s.story.seen.includes(4)) {
+    s.story.seen = s.story.seen.filter(id => id !== 4);
+    if (s.story.seenAt) delete s.story.seenAt[4];
+    s.story.beat = s.story.seen.reduce((m, id) => Math.max(m, id), 0);
+  }
   if (s.market.phase !== 'calm' && s.market.phase !== 'event') s.market.phase = 'calm';
   if (!hadInvestorSnap) s.ascension.investorAtRunStart = s.ascension.tree.legacy_investor || 0;
   // combo floors to the idle baseline on every load (E12-S9-T2/T6): there are no

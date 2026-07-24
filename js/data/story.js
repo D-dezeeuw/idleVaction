@@ -10,7 +10,11 @@ export const STORY = [
     text: 'The motel roaches have a rota. You are not on it. Time to change that.' },
   { id: 3,  title: 'Checkout Time', requires: { accTier: 1 },
     text: 'You leave the shed. It does not wave goodbye. Sheds never do.' },
-  { id: 4,  title: 'The Hostel Bunk', requires: { comfort: 200 },
+  // An arrival beat, so it gates on the tier actually being OWNED (like beats 3/5/7) — the
+  // old comfort:200 gate fired mid-motel while still saving for the bunk, narrating a
+  // check-in that hadn't happened. accTier:2 also lands it the same tick the NPC roster
+  // reveals (engine.checkNpcUnlocks, tier ≥ 2) — the cast beat 4 exists to introduce.
+  { id: 4,  title: 'The Hostel Bunk', requires: { accTier: 2 },
     text: 'Eleven strangers snore in shifts and one of them sleep-talks in German. You would pay double for a door. One day you will.' },
   { id: 5,  title: 'First Passport Stamp', requires: { accTier: 3 },
     text: 'The border guard stamps your passport without looking up. You admire the ink for the whole train ride.' },

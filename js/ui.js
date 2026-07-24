@@ -19,7 +19,7 @@ let hooks = {};               // { save, exportSave, importSave, hardReset }
 // future stays hidden). The player sees one focused screen at a time. activeTab/seenTabs are
 // transient (reset to Home on reload) — a deliberate light touch, no save-schema change.
 const TABS = [
-  { id: 'home',   label: 'Home',   icon: '🏨', cards: ['eventsCard', 'boostsCard', 'petraCard', 'accCard', 'amenitiesCard', 'poolCard', 'beachCard', 'wellnessCard', 'conciergeCard', 'propertyCard', 'islandListingCard', 'souvenirCard'] },
+  { id: 'home',   label: 'Home',   icon: '🏨', cards: ['eventsCard', 'boostsCard', 'petraCard', 'amenitiesCard', 'poolCard', 'beachCard', 'wellnessCard', 'conciergeCard', 'propertyCard', 'islandListingCard', 'souvenirCard'] },
   { id: 'income', label: 'Income', icon: '💶', cards: ['generatorsCard', 'creatorCard', 'cryptoCard', 'collectionCard', 'staffCard'] },
   { id: 'travel', label: 'Travel', icon: '🌍', cards: ['destCard', 'transportCard', 'garageCard', 'marinaCard', 'hangarCard'] },
   { id: 'growth', label: 'Growth', icon: '💪', cards: ['skillsCard', 'pathsCard'] },
@@ -85,7 +85,7 @@ const el = id => document.getElementById(id);
 // writes (the built string IS the card's state signature) and never replaces a subtree the
 // player is currently typing in.
 const CARD_RENDERERS = {
-  accCard: renderAccommodation, destCard: renderDestinations,
+  destCard: renderDestinations,
   transportCard: renderTransport, generatorsCard: renderGenerators, amenitiesCard: renderAmenities,
   poolCard: renderPoolside, beachCard: renderBeachfront, wellnessCard: renderWellness,
   conciergeCard: renderConcierge, creatorCard: renderCreator, cryptoCard: renderCrypto,
@@ -102,7 +102,6 @@ export function render(state) {
   document.body.dataset.era = eraFor(state.accommodation.tier);
   renderHeader(state);
   renderWalletChip(state);
-  renderNextStep(state);
   const wm = el('walletModal');
   if (wm && !wm.hidden) renderBank(state);
   renderOnboarding(state);
@@ -114,6 +113,9 @@ export function render(state) {
   // Legacy Honeymoon (Living-World W3, docs/08 point 8): same "never missed regardless of tab"
   // treatment as the splurge card above.
   renderHoneymoon(state);
+  // The accommodation card lives in the always-visible story row (not a tab panel), so it
+  // renders every frame like the story card — setHTML's identical-write guard keeps it cheap.
+  renderAccommodation(state);
   checkArrivalModals(state);
   const now = performance.now();
   const full = now - lastFullSweep > 2000;
@@ -247,35 +249,6 @@ function openWallet() {
 function closeWallet() {
   const m = el('walletModal'); if (m) m.hidden = true;
   if (modalOpener) { try { modalOpener.focus(); } catch (_) {} modalOpener = null; }
-}
-// The NEXT STEP square (redesign): the single most useful answer on the first screen —
-// what am I working toward, how close am I, and the button the moment it's ready.
-function renderNextStep(s) {
-  const box = el('nextStep');
-  if (!box) return;
-  const t = E.nextAccTier(s);
-  if (t >= DATA.accommodation.length) {
-    setHTML(box, `<div class="iv-next-label">NEXT</div><div class="iv-next-scene">🏝️</div>
-      <div class="iv-next-name">The horizon</div><div class="iv-sub">Top tier owned. Legacy awaits.</div>`);
-    return;
-  }
-  const gate = M.accUnlockComfort(t);
-  const floor = M.comfortFloor(s);
-  const comfortPct = clamp(100 * (s.resources.comfort - floor) / Math.max(1, gate - floor), 0, 100);
-  const gateOk = s.resources.comfort >= gate;
-  const cost = E.accCost(s);
-  const cashPct = clamp(100 * s.resources.cash / cost, 0, 100);
-  const name = DATA.accommodation[t].name;
-  const ready = gateOk && s.resources.cash >= cost;
-  setHTML(box, `<div class="iv-next-label">NEXT</div>
-    <div class="iv-next-scene">${(TIER_SCENES[t] || '🏨').slice(0, 4)}</div>
-    <div class="iv-next-name">${name}</div>
-    ${gateOk
-      ? `<div class="iv-next-meter" role="progressbar" aria-valuenow="${cashPct.toFixed(0)}" aria-valuemin="0" aria-valuemax="100" aria-label="Cash toward ${name}"><i class="iv-next-cash" style="width:${cashPct.toFixed(1)}%"></i></div>
-         <div class="iv-sub">💶 ${fmt(s.resources.cash)} / ${fmt(cost)}</div>`
-      : `<div class="iv-next-meter" role="progressbar" aria-valuenow="${comfortPct.toFixed(0)}" aria-valuemin="0" aria-valuemax="100" aria-label="Comfort toward ${name}"><i style="width:${comfortPct.toFixed(1)}%"></i></div>
-         <div class="iv-sub">😌 comfort ${comfortPct.toFixed(0)}%</div>`}
-    ${ready ? btn('buy-acc', '', 'Check in!', true, 'btn-primary') : ''}`);
 }
 function reducedMotion() {
   return typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -915,15 +888,24 @@ function renderAccommodation(s) {
     if (isNext) {
       // the ONLY tier that can ever be bought right now — gate is E.accUnlocked(s)
       // itself, so this can never disagree with engine.buyAccommodation's own check.
+      // Once the gate is met the meter switches to cash-toward-cost (the job the old
+      // NEXT STEP square did before this card moved up into the story row).
       const gateOk = E.accUnlocked(s);
       const pct = clamp(100 * s.resources.comfort / need, 0, 100);
+      const cashPct = clamp(100 * s.resources.cash / cost, 0, 100);
       html += `<div class="iv-acc-row iv-acc-next" title="${acc.flavor}">
         <div>➡️ Next: <b>${acc.name}</b> <small>${fmt(cost)}</small></div>
-        <div class="iv-comfort-meter" role="progressbar" aria-valuemin="0" aria-valuemax="100"
-          aria-valuenow="${pct.toFixed(0)}" aria-label="Comfort progress toward ${acc.name}">
-          <i style="width:${pct.toFixed(1)}%"></i>
-        </div>
-        <div class="iv-sub">needs Comfort ≥ ${fmt(need)} — you: ${fmt(s.resources.comfort)}${gateOk ? ' ✅' : ''}</div>
+        ${gateOk
+          ? `<div class="iv-comfort-meter iv-cash-meter" role="progressbar" aria-valuemin="0" aria-valuemax="100"
+              aria-valuenow="${cashPct.toFixed(0)}" aria-label="Cash toward ${acc.name}">
+              <i style="width:${cashPct.toFixed(1)}%"></i>
+            </div>
+            <div class="iv-sub">💶 ${fmt(s.resources.cash)} / ${fmt(cost)}</div>`
+          : `<div class="iv-comfort-meter" role="progressbar" aria-valuemin="0" aria-valuemax="100"
+              aria-valuenow="${pct.toFixed(0)}" aria-label="Comfort progress toward ${acc.name}">
+              <i style="width:${pct.toFixed(1)}%"></i>
+            </div>
+            <div class="iv-sub">needs Comfort ≥ ${fmt(need)} — you: ${fmt(s.resources.comfort)}</div>`}
         ${acc.tasteGate ? `<div class="iv-sub">🎩 velvet rope: Taste L${acc.tasteGate}${s.skills.taste.level < acc.tasteGate ? ` — you: L${s.skills.taste.level}` : ' ✅'}${acc.exclRec ? ` <small>(exclusivity ${fmt(acc.exclRec)} recommended)</small>` : ''}</div>` : ''}
         ${gateOk ? btn('buy-acc', '', `Check in — ${fmt(cost)}`, afford(cost), 'btn-primary') : ''}
       </div>`;
