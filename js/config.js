@@ -188,11 +188,36 @@ export const CONFIG = {
     growth: 2.6,            // each tier's comfort weight ~2.6× the previous
     cashMult: 160,
     costExp: 1.08,          // late-anchored pricing: cost ∝ accScore^costExp (1 = legacy flat)           // cash cost of a tier = accScore(tier)·cashMult
-    // Next tier unlocks when Comfort ≥ accScore(nextTier)·unlockFrac.
-    // unlockFrac < 1/growth (0.385) guarantees owning a tier nearly unlocks the
-    // next on its own — amenities/Body just bring it sooner. Never a hard stall.
+    // Next tier unlocks when Comfort ≥ accScore(nextTier)·frac(nextTier), where frac is the
+    // TIER-FADED fraction in math.accUnlockComfort (unlockFracEarly on the early plateau,
+    // fading to the legacy unlockFrac). The headroom that matters is the ratio
+    //   Comfort_from_owning_tier_t_alone / gate(t+1) = wAcc/(growth·frac) = 1/(2.6·frac),
+    // i.e. how much of the next gate owning the current tier already supplies for free.
+    // LATE tiers MUST keep frac ≤ 1/growth (0.385) — accScore is the ONLY term that can
+    // bridge the ×growth gap once tier gaps dwarf the fixed amenity catalog (a flat higher
+    // frac was measured as an unbridgeable wall at tier ~15, island unreached in 40h), so
+    // unlockFrac stays 0.33 (ratio 1.166, gate auto-satisfied) and math.accUnlockComfort
+    // fades back to it. EARLY tiers, where accScore is tiny (50…2285) and amenity/Body
+    // Comfort is a large multiple of it, can carry a HIGHER frac: the raise below makes the
+    // early ratio 0.699 (was 0.855) — owning the tier supplies only ~70% of the next gate,
+    // and the check-in meter's fill band (gate − floor = accScore·(growth·frac − 1)) widens
+    // ×2.53, so the meter visibly fills instead of being born near-full. MEASURED LIMIT of
+    // this knob (verifier gate-lead sweep, 2026-07-24): for every amenity-BUYING persona the
+    // gate still never binds — bridging any early gate costs ≤ ~9% of that tier's cash cost,
+    // so overshoot at check-in stays ~2.5-6.5× and the change is presentational, and this
+    // value is also the knob's practical ceiling: frac(4) ≥ 0.569 breaks the star1
+    // bracket-the-gate data invariant (selftest [23]), and unlockFracEarly ≥ 0.65 makes the
+    // casual-tourist persona comfort-STALL ~8h at tier 5 (its amenity catalog band exhausts)
+    // then chain-burst 5 tiers in one 20-min check-in — strictly worse pacing, invisible to
+    // the island-time guard. A genuinely binding Comfort game needs more tier-4–8 amenity
+    // SUPPLY (content + rebracketed unlockComfort + re-pins), not a bigger frac. Fitted
+    // (js/dev/harness.mjs + the casual-tourist scenario): greedy and every branch/casual
+    // persona are bit-identical (BOTH goldens: greedy 39440s, casual 76800s), no playstyle
+    // stalls — only the amenity-IGNORING cash-grinder (vlogger-genrush) walls one tier
+    // earlier (t4 → t3; its only Comfort drip is passive Body leveling, which the gate delta
+    // outruns either way). Bridgeability re-validated end-to-end across tiers 0–20.
     unlockFrac: 0.33,
-    unlockFracEarly: 0.45, fracEarlyTiers: 6, fracFadeTiers: 4,
+    unlockFracEarly: 0.55, fracEarlyTiers: 4, fracFadeTiers: 5,
   },
 
   // ---- personal-growth skills ----
