@@ -93,6 +93,26 @@ export function laneVisits(s) {
   }
 }
 
+// traveler (Phase 0 calibration only): once the Garage/Marina open (tier ≥ 11 or beats 15/16),
+// buy the cheapest unowned car, then boat, while each is a small slice of cash — the ONE thing
+// makeGreedyAct never touches (it buys DATA.transport comms slots, never DATA.vehicles). Needed so
+// the traveler persona actually exercises vehicleClass (car=1 / boat=2 / jet=3), the goal the docs/10
+// traveler S3/S4 rows gate on. Bounded: at most one car + one boat per act, never sells, upkeep is
+// paid by the engine. Cars/boats also credit a traveler path nudge (engine.buyCar/checkFirstCar), so
+// this nudges the staged track exactly as an engaged traveler's own purchases would.
+export function laneVehicles(s) {
+  if (E.garageUnlocked(s)) {
+    for (const c of DATA.vehicles) {
+      if ((s.vehicles.owned[c.id]?.count || 0) === 0 && E.carCost(s, c.id) <= s.resources.cash * 0.15) { E.buyCar(s, c.id); break; }
+    }
+  }
+  if (E.marinaUnlocked(s)) {
+    for (const b of DATA.boats) {
+      if ((s.vehicles.boats[b.id]?.count || 0) === 0 && E.boatCost(s, b.id) <= s.resources.cash * 0.15) { E.buyBoat(s, b.id); break; }
+    }
+  }
+}
+
 // crypto: buy-and-hold. Hedges first (one-time crash insurance), then the cheapest coin
 // while it stays a small slice of cash. No selling — drift + the branch's yieldMult
 // stages make holding the sane baseline strategy.
@@ -193,7 +213,7 @@ export const SCENARIOS = [
       'budget) walking the traveler stage track: destination-heavy budget + revisits. The engaged ' +
       'persona for the traveler branch\'s Phase 0 calibration (docs/10 §1.3).',
     branch: 'traveler', cadenceSec: 1200,
-    act: makeGreedyAct({ branch: 'traveler', destFrac: 0.6, transportFrac: 0.3, amenityROI: false, amenBudgetFrac: 0.10, lanes: [laneVisits] }),
+    act: makeGreedyAct({ branch: 'traveler', destFrac: 0.6, transportFrac: 0.3, amenityROI: false, amenBudgetFrac: 0.10, lanes: [laneVisits, laneVehicles] }),
   },
   {
     id: 'casual-crypto',
