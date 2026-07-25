@@ -27,10 +27,6 @@ import { writeFileSync } from 'node:fs';
 
 const CHECKPOINT_HOURS = [1, 2, 5, 10, 20, 40];
 
-// D2's generator index (resolved by id, not hardcoded — a future roster reorder can't
-// silently point this at the wrong tier). Module-level: doesn't depend on state.
-const D2_IDX = DATA.generators.findIndex(g => g.id === 'd2');
-
 // ---- one scenario, one full run ----
 // Loop shape (tick → act → commit) mirrors harness.runCurve exactly so the baseline
 // scenario stays bit-identical to `npm run harness` (locked by selftest [106]).
@@ -205,39 +201,24 @@ function sig4(x) {
 function snapshotTransition(s, t, kind) {
   const branch = s.story.branch !== 'neutral' ? s.story.branch : null;
   const points = branch ? (s.paths[branch]?.points || 0) : 0;
-  let contentFormats = 0;
-  for (const c of DATA.content) if ((s.content[c.id]?.level || 0) > 0) contentFormats++;
-  let coinSpread = 0;
-  for (const c of DATA.crypto.coins) if ((s.crypto.holdings[c.id] || 0) > 0) coinSpread++;
-  let destinations = 0;
-  for (const d of DATA.destinations) if (s.destinations[d.id].owned) destinations++;
-  // vehicleClass: highest logistics class owned — 0 none / 1 car / 2 boat / 3 jet (jets/boats
-  // strictly supersede cars in the E15→E16→E17 arc, so "highest owned" is just "own any of
-  // the higher class").
-  let vehicleClass = 0;
-  if (DATA.jets.some(j => (s.vehicles.jets[j.id]?.count || 0) > 0)) vehicleClass = 3;
-  else if (DATA.boats.some(b => (s.vehicles.boats[b.id]?.count || 0) > 0)) vehicleClass = 2;
-  else if (DATA.vehicles.some(c => (s.vehicles.owned[c.id]?.count || 0) > 0)) vehicleClass = 1;
-  // luxAmenities: the SAME tag set math.luxuryAmenityComfort reads for the connoisseur's
-  // Comfort base ('luxury' + the E16-S7-T2 'yacht' extension) — the canonical "luxury-ish"
-  // vocabulary already baked into the connoisseur path bonus, not a re-invented one.
-  let luxAmenities = 0;
-  for (const a of DATA.amenities)
-    if ((a.tag === 'luxury' || a.tag === 'yacht') && (s.amenities[a.id]?.level || 0) > 0) luxAmenities++;
+  // every goal-vocabulary resource EXCEPT earnedComfort now has one shared reader
+  // (math.pathGoalResources) — the single source of truth for both this instrumentation
+  // and engine.checkPathStages/math.stageGoalProgress, so the two can never drift.
+  const res = M.pathGoalResources(s, DATA);
   // earnedComfort: the exact above-floor quantity math.comfortMultiplier reads (its `eff`
-  // local) — reusing math.js's own exported comfortFloor rather than re-deriving the formula.
+  // local) — reusing math.js's own exported comfortFloor rather than re-deriving the
+  // formula. Kept local (not in pathGoalResources): no shipped stage goal reads it yet —
+  // see data/paths.js PATH_GOAL_KEYS' comment.
   const earnedComfort = Math.max(0, s.resources.comfort - C.COMFORT.floorFrac * M.comfortFloor(s));
-  let collectionPieces = 0;
-  for (const arr of [DATA.collections.art, DATA.collections.wine])
-    for (const a of arr) if ((s.collections[a.id]?.count || 0) > 0) collectionPieces++;
   return {
     kind, t, accTier: s.accommodation.tier, stageIdx: firedStageCount(s),
     branch, points: sig4(points),
-    d2Count: sig4(s.generators[D2_IDX].count),
-    clout: sig4(s.resources.clout),
-    contentFormats, portfolioValue: sig4(M.cryptoHoldingsValue(s, DATA)),
-    coinSpread, destinations, vehicleClass, luxAmenities,
-    earnedComfort: sig4(earnedComfort), collectionPieces,
+    d2Count: sig4(res.d2Count),
+    clout: sig4(res.clout),
+    contentFormats: res.contentFormats, portfolioValue: sig4(res.portfolioValue),
+    coinSpread: res.coinSpread, destinations: res.destinations, vehicleClass: res.vehicleClass,
+    luxAmenities: res.luxAmenities,
+    earnedComfort: sig4(earnedComfort), collectionPieces: res.collectionPieces,
   };
 }
 

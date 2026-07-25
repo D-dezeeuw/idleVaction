@@ -809,14 +809,38 @@ export function addPathPoints(state, id, n) {
 // ascension hard reset, so every life re-walks its track), announces the path's story
 // continuation (`desc`), and its flat bonus is live via the recomputed _pathBonus.
 // Iterates every road the life has opened (the branch + Jack side-roads).
+//
+// PATH_GATE.enabled === false (the shipped default, docs/10 §1 / .claude/context/
+// path-story-implementation-plan.md): points-only, byte-for-byte the pre-gate behavior
+// — a stage fires the moment points reach its `at` threshold, and the ascending-order
+// `break` above is what already keeps stages firing in order (points only ever grow, so
+// a stage can never be skippable-then-reachable out of order).
+//
+// PATH_GATE.enabled === true: a stage additionally needs every one of its `goals` met
+// (math.stageGoalProgress), and — because goals can lag points arbitrarily far behind —
+// stages must fire STRICTLY in order: scanning stops at the first unfired stage whose
+// goals aren't (yet) all met, even if a LATER stage's points+goals already qualify.
 export function checkPathStages(state) {
   for (const p of DATA.paths) {
     if (!pathReceives(state, p.id)) continue;
-    const pts = state.paths[p.id].points;
-    for (const st of p.stages) {
-      if (pts < st.at) break;
+    if (!C.PATH_GATE.enabled) {
+      const pts = state.paths[p.id].points;
+      for (const st of p.stages) {
+        if (pts < st.at) break;
+        const flagKey = `pathStage_${p.id}_${st.at}`;
+        if (state.story.flags[flagKey]) continue;
+        state.story.flags[flagKey] = true;
+        state._pathBonus = M.computePathBonuses(state, DATA);
+        notify(state, 'story', `📜 ${st.name} — ${st.desc}`);
+      }
+      continue;
+    }
+    const progress = M.stageGoalProgress(state, DATA, p.id);
+    for (let i = 0; i < p.stages.length; i++) {
+      const st = p.stages[i];
       const flagKey = `pathStage_${p.id}_${st.at}`;
       if (state.story.flags[flagKey]) continue;
+      if (!progress[i].allMet) break;   // strictly in order — a later stage can't leapfrog this one
       state.story.flags[flagKey] = true;
       state._pathBonus = M.computePathBonuses(state, DATA);
       notify(state, 'story', `📜 ${st.name} — ${st.desc}`);
@@ -2314,20 +2338,49 @@ export function accCostForTier(state, tier) {
 export function accCost(state) {
   return accCostForTier(state, nextAccTier(state));
 }
-export function accUnlocked(state) {
-  const t = nextAccTier(state);
-  if (t >= DATA.accommodation.length) return false;
+// One truth for every clause that gates the NEXT accommodation tier — Phase 3's harness
+// policy and Phase 4's UI both read this instead of re-deriving accUnlocked's checks
+// (docs/10 §1.2/§1.3), so "comfort-unlocked but path-gated" is legible in one place.
+// pathOk logic (docs/10 §1.2, only engages when PATH_GATE.enabled AND this tier is a
+// checkpoint): an uncommitted player (branch 'neutral') always fails — "choose your
+// road" is itself the first requirement, no exemption for refusing the crossroads. A
+// committed player needs the PRIMARY branch's FIRED-stage count (story.flags, the same
+// monotonic bookkeeping checkPathStages writes) ≥ the checkpoint's required stage —
+// Jack of All Trades side-roads deliberately don't count (primary branch only).
+export function accGateStatus(state) {
+  const tier = nextAccTier(state);
+  const comfortOk = state._comfortCache >= M.accUnlockComfort(tier);
   // E18 "The Sail-Shaped Hotel": tiers 12/13 add a real Taste-level gate on top of the Comfort
   // gate (the velvet rope). Every build accrues passive Taste, so it's an emphasis not a wall —
   // the greedy harness has taste 44 at tier 12, well past the gate, so island stays 29705s. The
   // exclusivity requirement is a SOFT/recommended velvet-rope (display only, never a hard block —
   // a non-connoisseur has exclusivity 0 and must still be able to enter).
-  const gate = DATA.accommodation[t]?.tasteGate;
-  if (gate && state.skills.taste.level < gate) return false;
+  const tasteGate = DATA.accommodation[tier]?.tasteGate;
+  const tasteOk = !tasteGate || state.skills.taste.level >= tasteGate;
   // E28 tier 21 (Island Resort Empire): a hard gate on OWNING the island (E27). The harness never
   // buys the island, so it stops at tier 20 — the "island (tier 20)" harness metric is untouched.
-  if (DATA.accommodation[t]?.requiresIsland && !state.island?.owned) return false;
-  return state._comfortCache >= M.accUnlockComfort(t);
+  const islandOk = !DATA.accommodation[tier]?.requiresIsland || !!state.island?.owned;
+  const branch = state.story.branch;
+  let pathOk = true, pathNeedStage = null;
+  const needStage = C.PATH_GATE.enabled ? C.PATH_GATE.checkpoints[tier] : undefined;
+  if (needStage) {
+    if (branch === 'neutral') {
+      pathOk = false; pathNeedStage = needStage;
+    } else {
+      const path = DATA.paths.find(p => p.id === branch);
+      let fired = 0;
+      if (path) for (const st of path.stages) if (state.story.flags[`pathStage_${branch}_${st.at}`]) fired++;
+      pathOk = fired >= needStage;
+      if (!pathOk) pathNeedStage = needStage;
+    }
+  }
+  return { tier, comfortOk, tasteOk, islandOk, pathOk, pathNeedStage, branch };
+}
+export function accUnlocked(state) {
+  const t = nextAccTier(state);
+  if (t >= DATA.accommodation.length) return false;
+  const status = accGateStatus(state);
+  return status.comfortOk && status.tasteOk && status.islandOk && status.pathOk;
 }
 export function buyAccommodation(state) {
   const t = nextAccTier(state);
