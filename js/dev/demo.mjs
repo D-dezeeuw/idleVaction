@@ -19,12 +19,17 @@ import { CONFIG as C } from '../config.js';
 import { DATA } from '../data/index.js';
 import * as ST from '../state.js';
 import * as E from '../engine.js';
+import * as M from '../math.js';
 import * as P from '../prestige.js';
 import { fmt, fmtTime } from '../util.js';
 import { SCENARIOS, getScenario, spendLegacy, spendLegendPoints } from './scenarios.mjs';
 import { writeFileSync } from 'node:fs';
 
 const CHECKPOINT_HOURS = [1, 2, 5, 10, 20, 40];
+
+// D2's generator index (resolved by id, not hardcoded — a future roster reorder can't
+// silently point this at the wrong tier). Module-level: doesn't depend on state.
+const D2_IDX = DATA.generators.findIndex(g => g.id === 'd2');
 
 // ---- one scenario, one full run ----
 // Loop shape (tick → act → commit) mirrors harness.runCurve exactly so the baseline
@@ -44,8 +49,12 @@ export function runScenario(sc, { dt = 5, maxHours = 40, snapshotSec = 600, cade
   }
   const wall0 = Date.now();
   const s = ST.newGame();
-  const series = [], events = [];
+  const series = [], events = [], transitions = [];
   const prev = { beats: 0, tier: s.accommodation.tier, branch: s.story.branch, asc: 0, legend: 0, islandOwned: false, lifetime: s.stats.lifetimeCash };
+  // transition-snapshot tracking (Phase 0 instrumentation, docs/10 §1.1): mirrors prev.tier's
+  // own walk-up-by-one convention, kept separate from `prev` so a hard reset's resync (see
+  // syncPrev) never has to know about this instrumentation.
+  let prevTransTier = s.accommodation.tier, prevTransStages = firedStageCount(s);
   let earned = 0, lastSnapT = 0, lastSnapEarned = 0, nextSnapAt = 0, acts = 0;
   let lastProgressT = 0, lastEventCount = 0, stalled = null, islandSeen = false;
   const stallSec = stallHours > 0 ? stallHours * 3600 : Infinity;
@@ -65,6 +74,15 @@ export function runScenario(sc, { dt = 5, maxHours = 40, snapshotSec = 600, cade
     // detect BEFORE the prestige decisions below: an ascension on the very step tier 20
     // is bought would otherwise wipe the tier-20 event (and the island time) unseen.
     detectEvents(s, prev, events, t);
+    // transition snapshots (Phase 0 instrumentation, docs/10 §1.1): one flat record per
+    // tier-up and per path-stage-fire, walked up one at a time exactly like detectEvents'
+    // own tier loop (so a coarse macro-step that crosses several in one dt still emits one
+    // record each) — and BEFORE the prestige decisions below for the same reason as above.
+    if (s.accommodation.tier < prevTransTier) prevTransTier = s.accommodation.tier;   // hard-reset rewind — resync, no fake transition
+    while (prevTransTier < s.accommodation.tier) { prevTransTier++; transitions.push(snapshotTransition(s, t, 'tier')); }
+    const stageCount = firedStageCount(s);
+    if (stageCount < prevTransStages) prevTransStages = stageCount;   // hard-reset rewind — resync
+    while (prevTransStages < stageCount) { prevTransStages++; transitions.push(snapshotTransition(s, t, 'stage')); }
     // prestige is a decision too — it rides the same cadence gate as buying.
     if (due && sc.ascension && P.canAscend(s) && sc.ascension.when(s, ctx)) {
       const gained = P.legacyPreview(s);
@@ -109,7 +127,7 @@ export function runScenario(sc, { dt = 5, maxHours = 40, snapshotSec = 600, cade
   return {
     id: sc.id, name: sc.name,
     params: { dt, maxHours, snapshotSec, cadenceSec: cadence, stallHours, seed },
-    series, events, final: series[series.length - 1],
+    series, events, transitions, final: series[series.length - 1],
     islandAt: island ? island.t : null,
     stalled,
     tree: { ...s.ascension.tree }, legendPerks: { ...(s.legend.perks || {}) },
@@ -153,6 +171,74 @@ function snapshot(s, t, incomePerSec) {
   for (const sk of DATA.skills) row['sk_' + sk.id] = s.skills[sk.id]?.level || 0;
   for (const p of DATA.paths) row['pp_' + p.id] = s.paths[p.id]?.points || 0;
   return row;
+}
+
+// # of the COMMITTED branch's stages that have fired this life — reads the SAME flag key
+// engine.checkPathStages writes (`pathStage_<id>_<at>`), so this is a pure readout, never a
+// second source of truth. Uncommitted (branch 'neutral') ⇒ 0. Jack of All Trades' secondary
+// roads are deliberately ignored — Phase 0 measures the primary branch only (docs/10 §1.2).
+function firedStageCount(s) {
+  const branch = s.story.branch;
+  if (branch === 'neutral') return 0;
+  const path = DATA.paths.find(p => p.id === branch);
+  if (!path) return 0;
+  let n = 0;
+  for (const st of path.stages) if (s.story.flags[`pathStage_${branch}_${st.at}`]) n++;
+  return n;
+}
+
+// 4-significant-digit rounding — a local twin of report.mjs's own sig4 (report.mjs imports
+// THIS file, so importing back would cycle; the body is tiny and stable enough to duplicate,
+// same call as harness.mjs/scenarios.mjs's amenityWorthBuying comment about single-sourcing
+// vs. small stable copies — here it's the latter, not the former).
+function sig4(x) {
+  if (!Number.isFinite(x) || x === 0) return x;
+  const m = Math.pow(10, 3 - Math.floor(Math.log10(Math.abs(x))));
+  return Math.round(x * m) / m;
+}
+
+// One flat transition record (Phase 0 instrumentation, docs/10 §1.1) — a snapshot of every
+// goal-vocabulary resource (docs/10 §1.1's fixed table) at the moment an accommodation tier
+// or a path stage fires. Flat scalars only, mirrors snapshot()'s own discipline — never
+// clone state. `kind` distinguishes the two trigger types; stageIdx/points read the
+// COMMITTED branch only (0 when uncommitted, matching firedStageCount above).
+function snapshotTransition(s, t, kind) {
+  const branch = s.story.branch !== 'neutral' ? s.story.branch : null;
+  const points = branch ? (s.paths[branch]?.points || 0) : 0;
+  let contentFormats = 0;
+  for (const c of DATA.content) if ((s.content[c.id]?.level || 0) > 0) contentFormats++;
+  let coinSpread = 0;
+  for (const c of DATA.crypto.coins) if ((s.crypto.holdings[c.id] || 0) > 0) coinSpread++;
+  let destinations = 0;
+  for (const d of DATA.destinations) if (s.destinations[d.id].owned) destinations++;
+  // vehicleClass: highest logistics class owned — 0 none / 1 car / 2 boat / 3 jet (jets/boats
+  // strictly supersede cars in the E15→E16→E17 arc, so "highest owned" is just "own any of
+  // the higher class").
+  let vehicleClass = 0;
+  if (DATA.jets.some(j => (s.vehicles.jets[j.id]?.count || 0) > 0)) vehicleClass = 3;
+  else if (DATA.boats.some(b => (s.vehicles.boats[b.id]?.count || 0) > 0)) vehicleClass = 2;
+  else if (DATA.vehicles.some(c => (s.vehicles.owned[c.id]?.count || 0) > 0)) vehicleClass = 1;
+  // luxAmenities: the SAME tag set math.luxuryAmenityComfort reads for the connoisseur's
+  // Comfort base ('luxury' + the E16-S7-T2 'yacht' extension) — the canonical "luxury-ish"
+  // vocabulary already baked into the connoisseur path bonus, not a re-invented one.
+  let luxAmenities = 0;
+  for (const a of DATA.amenities)
+    if ((a.tag === 'luxury' || a.tag === 'yacht') && (s.amenities[a.id]?.level || 0) > 0) luxAmenities++;
+  // earnedComfort: the exact above-floor quantity math.comfortMultiplier reads (its `eff`
+  // local) — reusing math.js's own exported comfortFloor rather than re-deriving the formula.
+  const earnedComfort = Math.max(0, s.resources.comfort - C.COMFORT.floorFrac * M.comfortFloor(s));
+  let collectionPieces = 0;
+  for (const arr of [DATA.collections.art, DATA.collections.wine])
+    for (const a of arr) if ((s.collections[a.id]?.count || 0) > 0) collectionPieces++;
+  return {
+    kind, t, accTier: s.accommodation.tier, stageIdx: firedStageCount(s),
+    branch, points: sig4(points),
+    d2Count: sig4(s.generators[D2_IDX].count),
+    clout: sig4(s.resources.clout),
+    contentFormats, portfolioValue: sig4(M.cryptoHoldingsValue(s, DATA)),
+    coinSpread, destinations, vehicleClass, luxAmenities,
+    earnedComfort: sig4(earnedComfort), collectionPieces,
+  };
 }
 
 // cheap scalar diffing per step — full log lands in --json; the reporter prints the big

@@ -86,6 +86,11 @@ function summarize(r, seed) {
     final: r.final ? Object.fromEntries(Object.entries(r.final).map(([k, v]) => [k, typeof v === 'number' ? sig4(v) : v])) : null,
     tree: r.tree, legendPerks: r.legendPerks,
     events: r.events,
+    // transitions (Phase 0 instrumentation, docs/10 §1.1): tier-up + path-stage-fire resource
+    // snapshots from runScenario — already flat scalars, already sig4-rounded at the source
+    // (demo.mjs), and a few dozen per run at most, so this is a plain pass-through, no
+    // re-compacting needed (unlike `series`, which is hundreds of rows).
+    transitions: r.transitions,
     series: compactSeries(r.series),
   };
 }

@@ -93,6 +93,26 @@ export function laneVisits(s) {
   }
 }
 
+// traveler (Phase 0 calibration only): once the Garage/Marina open (tier ≥ 11 or beats 15/16),
+// buy the cheapest unowned car, then boat, while each is a small slice of cash — the ONE thing
+// makeGreedyAct never touches (it buys DATA.transport comms slots, never DATA.vehicles). Needed so
+// the traveler persona actually exercises vehicleClass (car=1 / boat=2 / jet=3), the goal the docs/10
+// traveler S3/S4 rows gate on. Bounded: at most one car + one boat per act, never sells, upkeep is
+// paid by the engine. Cars/boats also credit a traveler path nudge (engine.buyCar/checkFirstCar), so
+// this nudges the staged track exactly as an engaged traveler's own purchases would.
+export function laneVehicles(s) {
+  if (E.garageUnlocked(s)) {
+    for (const c of DATA.vehicles) {
+      if ((s.vehicles.owned[c.id]?.count || 0) === 0 && E.carCost(s, c.id) <= s.resources.cash * 0.15) { E.buyCar(s, c.id); break; }
+    }
+  }
+  if (E.marinaUnlocked(s)) {
+    for (const b of DATA.boats) {
+      if ((s.vehicles.boats[b.id]?.count || 0) === 0 && E.boatCost(s, b.id) <= s.resources.cash * 0.15) { E.buyBoat(s, b.id); break; }
+    }
+  }
+}
+
 // crypto: buy-and-hold. Hedges first (one-time crash insurance), then the cheapest coin
 // while it stays a small slice of cash. No selling — drift + the branch's yieldMult
 // stages make holding the sane baseline strategy.
@@ -185,6 +205,33 @@ export const SCENARIOS = [
     desc: 'Checks in every 20 game-min and spends like a person: ROI-aware core plus a 10% flavor budget that buys ANY affordable amenity. This is docs/05\'s "casual play lands the ~20h arc" made measurable — the Phase-C refit fits THIS run to 18-22h (selftest [109]).',
     branch: 'vlogger', cadenceSec: 1200,
     act: makeGreedyAct({ branch: 'vlogger', amenityROI: false, amenBudgetFrac: 0.10 }),
+  },
+  {
+    id: 'casual-traveler',
+    name: 'Casual world traveler',
+    desc: 'The casual-tourist spending discipline (checks in every 20 game-min, ROI-blind 10% flavor ' +
+      'budget) walking the traveler stage track: destination-heavy budget + revisits. The engaged ' +
+      'persona for the traveler branch\'s Phase 0 calibration (docs/10 §1.3).',
+    branch: 'traveler', cadenceSec: 1200,
+    act: makeGreedyAct({ branch: 'traveler', destFrac: 0.6, transportFrac: 0.3, amenityROI: false, amenBudgetFrac: 0.10, lanes: [laneVisits, laneVehicles] }),
+  },
+  {
+    id: 'casual-crypto',
+    name: 'Casual crypto lounger',
+    desc: 'The casual-tourist spending discipline (checks in every 20 game-min, ROI-blind 10% flavor ' +
+      'budget) plus hedged buy-and-hold coin stacking once the desk opens. The engaged persona for ' +
+      'the crypto branch\'s Phase 0 calibration (docs/10 §1.3).',
+    branch: 'crypto', cadenceSec: 1200,
+    act: makeGreedyAct({ branch: 'crypto', amenityROI: false, amenBudgetFrac: 0.10, lanes: [laneCrypto] }),
+  },
+  {
+    id: 'casual-connoisseur',
+    name: 'Casual old-money aesthete',
+    desc: 'The casual-tourist spending discipline (checks in every 20 game-min, ROI-blind 10% flavor ' +
+      'budget) plus appreciating art/wine collections. The engaged persona for the connoisseur ' +
+      'branch\'s Phase 0 calibration (docs/10 §1.3).',
+    branch: 'connoisseur', cadenceSec: 1200,
+    act: makeGreedyAct({ branch: 'connoisseur', amenFrac: 0.35, amenityROI: false, amenBudgetFrac: 0.10, lanes: [laneCollections] }),
   },
   {
     id: 'greedy-traveler',
