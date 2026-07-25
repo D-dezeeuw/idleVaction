@@ -43,7 +43,7 @@
         2026-07-25, this entry
   - [ ] P5-T3 (verifier) full `/verify` pass + AGENTS.md §3 merge flow
 - [ ] Merged to main (per phase; final phase closes the feature)
-- [ ] **Phase 6 — path-exclusive world content** (approved 2026-07-25; see section below)
+- [x] **Phase 6 — path-exclusive world content** (landed 2026-07-25: 6A/6B/6C all merged; harness bit-identical 10h15m50s; selftest [121])
 
 ## Execution notes
 
@@ -339,14 +339,14 @@ existing generic system.
 
 ### Sub-checklist
 
-- [ ] **6A** (implementer + balance-tuner) — data: 12 destination rows + 2–3 exclusive
+- [x] **6A** (implementer + balance-tuner) — data: 12 destination rows + 2–3 exclusive
       amenities per path in `data/destinations.js`/`data/amenities.js`; engine: branch-gated
       visibility/purchase wiring reusing the existing commitment check (no new bespoke gate
       logic); balance: reward-currency sizing per the design rules, harness/selftest re-pin.
-- [ ] **6B** (implementer, art) — stamp art: `genart.mjs stamps` for the 12 destinations +
+- [x] **6B** (implementer, art) — stamp art: `genart.mjs stamps` for the 12 destinations +
       `artpost.py stamps` ink-keying. **Underway in parallel** with 6A/6C per the 2026-07-25
       directive.
-- [ ] **6C** (implementer, art) — icon set: tab icons (home/income/growth/legacy), money,
+- [x] **6C** (implementer, art) — icon set: tab icons (home/income/growth/legacy), money,
       wallet, next, comfort, clout, story book; amenity category icons.
 
 **Exit criteria:** 12 exclusive destinations + 6–12 exclusive amenities shipped, each
