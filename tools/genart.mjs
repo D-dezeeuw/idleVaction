@@ -137,9 +137,26 @@ const STAMPS = [   // one per destination id; shapes varied like a real well-tra
   { id: 'dest_maldives',  premium: true, shape: 'oval',      motif: 'an overwater bungalow on stilts above wavy water' },
   { id: 'dest_aspen',     premium: true, shape: 'hexagonal', motif: 'a large snowflake above two mountain peaks' },
   { id: 'dest_st_barths', premium: true, shape: 'round',     motif: 'a star above a harbour with a moored sailboat' },
+  // --- Path-exclusive destinations (Phase 6B, E?? paths — data lands separately in
+  // data/destinations.js): three per path, ink locked to that path's signature color so a
+  // glance at the passport tells you which road a stamp came from — vlogger hot pink, crypto
+  // sky blue, traveler apple green, connoisseur a warm sepia (old-money brown, distinct from
+  // the metallic gold reserved for the premium set above). ---
+  { id: 'dest_bali_content_house',  ink: 'hot pink',    shape: 'oval',        motif: 'a tropical villa with a ring light beside a camera on a tripod' },
+  { id: 'dest_santorini_goldenhour',ink: 'hot pink',    shape: 'round',       motif: 'two blue domes above a setting sun' },
+  { id: 'dest_iceland_drone',       ink: 'hot pink',    shape: 'hexagonal',   motif: 'a waterfall beside a tiny hovering drone' },
+  { id: 'dest_zug',                 ink: 'sky blue',    shape: 'rectangular', motif: 'a quiet alpine lake town skyline with one small coin glint above it' },
+  { id: 'dest_miami_cryptoweek',    ink: 'sky blue',    shape: 'shield',      motif: 'an art-deco skyline strip with a palm tree and crossed laser beams' },
+  { id: 'dest_taxhaven_atoll',      ink: 'sky blue',    shape: 'round',       motif: 'a tiny ring-shaped atoll with one very serious office hut under two palms' },
+  { id: 'dest_transsiberian',       ink: 'apple green', shape: 'oval',        motif: 'a long train winding across open steppe' },
+  { id: 'dest_kathmandu',           ink: 'apple green', shape: 'hexagonal',   motif: 'a string of prayer flags above jagged snow peaks' },
+  { id: 'dest_patagonia',           ink: 'apple green', shape: 'round',       motif: 'jagged mountain peaks above a lone hiking pack' },
+  { id: 'dest_bordeaux_chateau',    ink: 'warm sepia',  shape: 'shield',      motif: 'a château tower above rows of vineyard trellises' },
+  { id: 'dest_kyoto_ryokan',        ink: 'warm sepia',  shape: 'rectangular', motif: 'a wooden ryokan gate beside a maple leaf' },
+  { id: 'dest_como',                ink: 'warm sepia',  shape: 'oval',        motif: 'a lakeside villa beside a tall cypress tree' },
 ];
 function stampPrompt(s, i) {
-  const ink = s.premium ? 'warm metallic gold' : INKS[i % INKS.length];
+  const ink = s.ink || (s.premium ? 'warm metallic gold' : INKS[i % INKS.length]);
   return `A single passport rubber stamp impression, ${s.shape} border, printed entirely in ` +
     `${ink} ink — one single ink color only, slightly distressed and unevenly inked like a ` +
     `real rubber stamp: ${s.motif}. Bold simplified flat shapes, thick lines, playful holiday ` +
