@@ -34,16 +34,17 @@ export const STORY = [
     text: 'A POOL. With floaties. The soggy Netherlands feels very far away.' },
   { id: 10, title: 'Poolside Persona', requires: { charisma: 5 },
     text: 'You have a poolside laugh now. It tests well.' },
-  { id: 11, title: 'Fork in the Lobby', requires: { comfort: 2.2e5 },
+  { id: 11, title: 'Fork in the Lobby', requires: { comfort: 3.0e4 },
     text: 'The concierge slides four brochures across the marble and waits. Apparently you look like someone with a direction now.' },
-  { id: 12, title: 'The Body You Travel In', requires: { body: 8 },
+  { id: 12, title: 'The Body You Travel In', requires: { body: 43 },
     text: 'Tan, gym, spa. Strangers assume you were always like this.' },
   { id: 13, title: 'Five-Star Frame of Mind', requires: { accTier: 9 },
     text: 'Your towel arrives before you think to ask for it. You could get used to this, and that worries you for about a second.' },
-  { id: 14, title: 'Going Viral', requires: { comfort: 1.3e6 },
+  { id: 14, title: 'Going Viral', requires: { comfort: 2.0e5 },
     text: 'One of your holiday clips takes off overnight. The internet has decided you are worth money. You do not argue.',
     // Branch-flavored variant (E13 "Money Works While You Tan" — Task D): the beat's
-    // GATE/requires stay exactly as shipped (E12) so every branch — crypto included —
+    // GATE/requires are SHARED across every branch (one gate — value re-spaced in
+    // docs/05 §9.5) so every branch — crypto included —
     // still fires beat 14 on the same Comfort threshold (E13-S7-T10: no build is ever
     // stranded); this only swaps the TITLE/TEXT shown when story.branch==='crypto' (see
     // engine.beatCopy / ui.js's renderStory, which read this the same way as the
@@ -93,10 +94,10 @@ export const STORY = [
       "out of necessity becomes trivia. If you're also deep in StroopCoin, the chart " +
       'paid for the coupe while you were parking it badly outside a bakery. There was ' +
       'a marina brochure in the glovebox. It stays there. For now.' } } },
-  { id: 16, title: 'Sea Legs', requires: { comfort: 5e6 },
+  { id: 16, title: 'Sea Legs', requires: { comfort: 1.2e6 },
     text: 'The boat has a small pool on the deck. You swim in the pool, on the sea. Nobody on board finds this as funny as you do.',
-    // Branch-flavored variants (E16 "Sea Legs" — S1/S7-T8). The gate/requires stay comfort:5e6
-    // for EVERY branch (incl. the harness — the 26-beat pin); this only swaps the shown text
+    // Branch-flavored variants (E16 "Sea Legs" — S1/S7-T8). The gate/requires stay comfort:1.2e6
+    // (re-spaced, docs/05 §9.5) for EVERY branch (incl. the harness — the 26-beat pin); this only swaps the shown text
     // for a traveler/connoisseur, mirroring beats 14/15. engine.checkFirstBoat layers the
     // one-time boat bonus on top, gated on actually owning a hull.
     variants: {
@@ -109,7 +110,7 @@ export const STORY = [
         'cellar holds its temperature, and there is a pool on the sea, which should be ridiculous ' +
         'and somehow is not. You catch yourself wondering how it all looks from the air.' },
     } },
-  { id: 17, title: 'Wheels Up', requires: { comfort: 2e7 },
+  { id: 17, title: 'Wheels Up', requires: { comfort: 1.5e6 },
     variants: {
       traveler: { title: 'Wheels Up', text:
         'Car, boat, and now the sky. You buy a jet and every city becomes a nap away. Ten years ' +
@@ -125,14 +126,14 @@ export const STORY = [
         'your taste like a wine list and unhooks the rope before you reach it. Gold on the taps, ' +
         'sea under the glass, and the shed is a story you tell at dinner now. You made it.' },
     } },
-  { id: 19, title: 'At Your Service', requires: { comfort: 4e7 },
+  { id: 19, title: 'At Your Service', requires: { comfort: 9.0e6 },
     text: 'A butler. You ring a small bell and reality rearranges itself.' },
-  { id: 20, title: 'The Whole Household', requires: { comfort: 1.2e8 },
+  { id: 20, title: 'The Whole Household', requires: { comfort: 1.1e7 },
     text: 'Chef, driver, trainer, social manager. You are now a small, tanned economy.' },
   // Beats 21/22 (E21 "Seven Stars"): the Act-II close and reconvergence hub. Beat 21 introduces
   // "the patron" — an unnervingly at-ease figure who owns "a place with no front desk at all"
   // (the island foreshadow, E27). Beat 22 is the reconvergence HUB: every branch's variant text
-  // differs, but all pass through the same neutral default gate (comfort:3e8) so no build is ever
+  // differs, but all pass through the same neutral default gate (comfort:6e7, re-spaced docs/05 §9.5) so no build is ever
   // stranded (the 26-beat harness pin / neutral fallback). The patron's invitation seeds the
   // island explicitly enough to intrigue, vaguely enough to withhold.
   { id: 21, title: 'Seven Stars', requires: { accTier: 14 },
@@ -158,7 +159,7 @@ export const STORY = [
         'worth like a weather report: mildly interesting, changes nothing. "Numbers get you the ' +
         'suite," he says. "There is a place numbers cannot get you into. It has no front desk at all."' },
     } },
-  { id: 22, title: 'The Invitation', requires: { comfort: 3e8 },
+  { id: 22, title: 'The Invitation', requires: { comfort: 6.0e7 },
     text: 'A card with no return address: "The island is ready when you are." You recognise the ' +
       'handwriting. You read it twice and pack nothing. Yet.',
     variants: {
@@ -192,7 +193,7 @@ export const STORY = [
       'collected hostel stamps, and notice the stamps have stopped impressing you. Somewhere ' +
       'behind all five doors, you suspect, is a sixth door. The patron has never mentioned it. ' +
       'That is how you know it exists.' },
-  { id: 26, title: 'Letting Go', requires: { comfort: 1e9 },
+  { id: 26, title: 'Letting Go', requires: { comfort: 3.0e9 },
     text: 'One evening, on the best balcony you have ever rented, you understand what has to ' +
       'go: not the money — the money was never the point — but the going itself. The next ' +
       'traveler in your family will start where you started, bus stop and all, carrying only ' +

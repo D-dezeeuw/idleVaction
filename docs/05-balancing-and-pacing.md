@@ -251,8 +251,11 @@ Note destination `mult` values were kept well below the E04 epic's suggested 1.0
 still warrants review when new destination epics land.
 
 **Remaining polish (tracked in E30, not blocking):**
-- A few beats still *cluster* (a single tier-unlock satisfies 2–3 gate thresholds at once);
-  re-spacing the `STORY_GATES` thresholds smooths this.
+- ~~A few beats still *cluster* (a single tier-unlock satisfies 2–3 gate thresholds at once);
+  re-spacing the `STORY_GATES` thresholds smooths this.~~ **Closed 2026-07-25 (§9.5).** (The
+  "`STORY_GATES` thresholds" wording was always stale — there is no such constant; beat gates
+  are inline `requires` per beat in `js/data/story.js`. The clustering is fixed by re-spacing
+  those inline `requires`.)
 - High tiers (D5–D8) are intentionally *late-relevance* under this fit (tiny `perUnit`); the
   cleaner long-term model is discrete finite upgrades per tier (`docs/math-proof.md` P1-alt).
 - The meta-layer and precision items (P3/P5 in the math-proof) still apply for the ascension
@@ -429,3 +432,50 @@ island +0.0% (worst tier +1.6% @T19), casual-traveler +0.0% (0.0% every tier), c
 ~17h40m (well before T19), so T19 only moves +1.6% (one 20-min check-in) — inside ±5%. Re-pinned
 in selftest ([68]/[87]/[88]/[105]/[106]/[109]/[111]/[115] + the E11–E29 quiet-foundation
 invariance asserts, all 37445→37435) and report.mjs GOLDEN, one coordinated commit.
+
+### §9.5 — Story-beat re-spacing (2026-07-25): the clustering closed, DATA-only
+
+The §9 "Remaining polish" beat-cluster item is closed by re-spacing the beat gates. **First,
+a terminology fix:** there is no `STORY_GATES` constant (the old §9/docs/02 wording was always
+stale) — each beat's gate is an inline `requires` object in `js/data/story.js` (keys `comfort`,
+`accTier`, `charisma`, `body`, `taste`, `ascensions`, `legacy`, `flag`). The re-space is nine
+edits to those inline values; **no mechanic, no gate type, no config constant changed.**
+
+**Why beats clustered.** `engine.checkStory` releases at most one beat per `STORY_VALVE_SEC`
+(90s) in strict narrative order, so a "cluster" is several beats whose gates are satisfied at
+the **same tier-arrival**, dribbled out 90s apart. Three structural causes, all measured:
+1. The `comfort` gate reads **total** Comfort ≈ `accScore(tier)=50·2.6^tier` (earned Comfort is
+   negligible from ~t7), so a comfort gate `V` fires at the smallest tier with
+   `accScore(tier) ≥ V` — beats effectively fire **at tier arrivals**, and several gates aimed
+   into the same 2.6× tier band land together.
+2. The skill gates (`charisma:5`/`body:8`/`taste:25`) were **trivially pre-satisfied** (at t1:
+   cha 13 / body 21 / taste 8), so those beats fired the instant their predecessor did — pure
+   free clusters (the two triples 11-12-13 and 24-25-26).
+3. Several comfort gates were set **above** the `accScore` of the tier-anchored beat that
+   *follows* them, **delaying the anchor**: "The Sail-Shaped Hotel" (beat 18, tier 12) fired
+   ~3h20m after the actual 6-star check-in on the casual arc.
+
+**The fix (nine inline `requires` edits).** Each free comfort gate re-aimed at a distinct
+tier's `accScore` window; two skill gates raised to the level reached at their target tier
+(`body:8→43`, others unchanged). Because skills grow **continuously through a tier's dwell**, a
+skill gate also buys **sub-tier resolution**: `body:43` fires beat 12 ~14–25 min *after* beat
+11, so the checkpoint tier t8 stays clean and 11/12 separate without sharing an arrival.
+Tier-anchored beats (checkout/1-star/pool/5-star/cars/6-star/7-star/bungalow/villa/island) and
+the branch-commit beat 6 are **untouched** — the 5-star beat still fires at the 5-star, the pool
+beat at the pool. Full old→new table in `.claude/context/telemetry-and-pacing-plan.md` (Track B).
+
+**Measured, casual-tourist (the ~20h reference arc):** clusters 11 → **7** (all deliberate
+thematic pairs — 5-star/viral, boats/jets, butler/household, villa/rich-hide), **two triples →
+zero**, longest dead gap **4h38m → 2h40m** (now just the structural t12→t13 tier gap), and every
+tier-anchored arrival beat fires on its own tier (beat 18 at 13h40m, was 17h01m). **Checkpoint
+interaction:** the path checkpoints (tiers 8/12/16/19) each carry **≤ 1** beat — no "you're
+blocked" + beat-burst double-up.
+
+**Economy neutrality.** `math.js` reads no story state, so re-spacing is provably income-neutral;
+the only economic coupling (beat 6 = branch commit) was left in place. All island guards held:
+greedy quiet **37435** and greedy-living **36950** (= pins), casual-tourist **76800** (= pin),
+26 monotone beats, peak log10 **12.9** (≪ 290). Two branch islands drift within tolerance
+(connoisseur −40s, crypto +35s — beat 14's branch-coupled provenance/whale-watch grants fire a
+tier earlier; both stay inside [109]'s ±300s / [0.80,1.25]× parity band). Four selftest beat-gate
+value pins move with the gates ([42] beat 11 comfort, [50] beat 12 body, [60] beat 13 body-setup,
+[4163] `beat22.requires.comfort`) — coordinated re-pin, values in the Track B plan.

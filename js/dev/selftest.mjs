@@ -1492,14 +1492,14 @@ console.log('\n[42] E09 Charm Offensive: skills curve, scope, training, tier-8 +
   const b11 = ST.newGame();
   b11.skills.charisma.level = 5;
   b11.accommodation.tier = 7;
-  b11._comfortCache = 2.2e5 - 1;
+  b11._comfortCache = 3.0e4 - 1;
   fireStory(b11);
-  ok(!b11.story.seen.includes(11), 'beat 11 has NOT fired just below its Comfort gate (2.2e5)');
+  ok(!b11.story.seen.includes(11), 'beat 11 has NOT fired just below its Comfort gate (3.0e4)');
 
-  b11._comfortCache = 2.2e5;
+  b11._comfortCache = 3.0e4;
   fireStory(b11);
   ok(b11.story.seen.includes(10), 'beat 10 fires first (narrative monotonicity)');
-  ok(b11.story.seen.includes(11), 'beat 11 (Fork in the Lobby) fires once Comfort reaches 2.2e5');
+  ok(b11.story.seen.includes(11), 'beat 11 (Fork in the Lobby) fires once Comfort reaches 3.0e4');
   ok(b11.story.seen.filter(x => x === 11).length === 1, 'beat 11 is recorded exactly once');
   fireStory(b11); fireStory(b11);
   ok(b11.story.seen.filter(x => x === 11).length === 1, 'repeated checkStory calls do not re-fire beat 11');
@@ -1809,22 +1809,22 @@ console.log('\n[49] E10 Body path-flavor cosmetics (photogenic/sunKissed/hybrid)
   ok(reloadedHybrid.story.flags.hybridBodyVlogger, 'the hybrid flag survives a save/reload round-trip');
 }
 
-// ---------- 50. E10 beat 12 (The Body You Travel In) fires once skills.body.level >= 8
+// ---------- 50. E10 beat 12 (The Body You Travel In) fires once skills.body.level >= 43
 // (after beat 11), persists across reload ("confirm beat 12 fires", epic Task D). ----------
-console.log('\n[50] E10 beat 12 (The Body You Travel In) fires at Body level 8');
+console.log('\n[50] E10 beat 12 (The Body You Travel In) fires at Body level 43');
 {
   const b12 = ST.newGame();
   b12.accommodation.tier = 7;     // satisfies every accTier-gated beat up through 9
   b12.skills.charisma.level = 5;  // satisfies beat 10's own gate
   b12._comfortCache = 2.2e5;      // satisfies beat 11's own gate
-  b12.skills.body.level = 7;
+  b12.skills.body.level = 42;
   fireStory(b12);
   ok(b12.story.seen.includes(11), "beat 11 fires first (its own Comfort gate is met)");
-  ok(!b12.story.seen.includes(12), 'beat 12 has NOT fired at Body level 7, one short of the gate');
+  ok(!b12.story.seen.includes(12), 'beat 12 has NOT fired at Body level 42, one short of the gate');
 
-  b12.skills.body.level = 8;
+  b12.skills.body.level = 43;
   fireStory(b12);
-  ok(b12.story.seen.includes(12), 'beat 12 fires the moment Body reaches level 8');
+  ok(b12.story.seen.includes(12), 'beat 12 fires the moment Body reaches level 43');
   ok(b12.story.seen.filter(x => x === 12).length === 1, 'beat 12 is recorded exactly once');
   fireStory(b12); fireStory(b12);
   ok(b12.story.seen.filter(x => x === 12).length === 1, 'repeated checkStory calls do not re-fire beat 12');
@@ -2198,7 +2198,7 @@ console.log('\n[60] E11 tier 9/10 arrival: celebrate flashes, beat 13, and the C
   const b13 = ST.newGame();
   b13._comfortCache = 1e9;
   b13.skills.charisma.level = 5;
-  b13.skills.body.level = 8;
+  b13.skills.body.level = 43;
   b13.accommodation.tier = 8;
   fireStory(b13);
   ok(!b13.story.seen.includes(13), 'beat 13 does NOT fire before accTier 9, even with every other gate already met');
@@ -4160,7 +4160,7 @@ console.log('\n[96] E21 Seven Stars: Seven-Star Touches cluster, gated exclusivi
   const neutral = ST.newGame();   // story.branch === 'neutral'
   ok(E.beatCopy(neutral, beat22) === beat22, 'a neutral (unstranded) build gets the DEFAULT beat-22 copy, not a branch variant');
   ok(E.beatCopy(con, beat22) === beat22.variants.connoisseur, 'a connoisseur build gets the connoisseur beat-22 variant');
-  ok(beat21.requires.accTier === 14 && beat22.requires.comfort === 3e8, 'beats 21/22 keep their neutral gates (the 26-beat harness pin is untouched)');
+  ok(beat21.requires.accTier === 14 && beat22.requires.comfort === 6e7, 'beats 21/22 keep their neutral gates (the 26-beat harness pin is untouched)');
 
   // ---- harness invariance: E21's content is neutral (the baseline island moved 39440→37435
   // for the whole suite in the above-floor Comfort refit, docs/05 §9.3 — not from E21).
