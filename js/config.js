@@ -252,6 +252,23 @@ export const CONFIG = {
   // ---- build paths ----
   PATH: { rate: 0.02, softcapExp: 0.85 },
 
+  // ---- path stage goals & checkpoint gates (docs/10 §1, .claude/context/
+  // path-story-implementation-plan.md "Calibration table") ----
+  // checkpoints: accommodation TIER → the committed branch's required FIRED-stage count
+  // (1-indexed: stage 1 = S1, …) before that tier's Comfort gate is allowed to also open.
+  // Read by engine.accGateStatus/accUnlocked. `enabled: false` ships this feature fully
+  // DARK: checkPathStages fires stages on points alone (data/paths.js `goals` are inert)
+  // and accUnlocked never consults `checkpoints` — the game is bit-identical to pre-gate
+  // behavior (greedy harness 37445s, every selftest pin unmoved). Phase 3 teaches the
+  // harness's greedy policy to buy the cheapest missing goal resource and flips this flag
+  // WITH a coordinated re-pin in the same change — flipping it today would stall the
+  // (unmodified) greedy harness at tier 12, since it never buys content/coins/collections.
+  // GRANDFATHERING: no new save field is needed — fired-stage flags already live in
+  // story.flags (`pathStage_<id>_<at>`), so a pre-feature save that fired a stage on
+  // points alone stays fired forever (the gate only ever blocks a stage from firing, it
+  // never un-fires one already recorded).
+  PATH_GATE: { enabled: false, checkpoints: { 8: 1, 12: 2, 16: 3, 19: 4 } },
+
   // ---- destinations & transport (World Traveler backbone; E04) ----
   // costGrowth: extra × per ADDITIONAL destination already owned (compounds with each
   //   row's own costBase spacing) — paces "collect them all" toward the ~10-20min/place

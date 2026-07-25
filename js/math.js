@@ -218,6 +218,68 @@ export function pathBonus(state, key) {
   return (state._pathBonus && state._pathBonus[key]) || 0;
 }
 
+// ---- path stage GOALS (docs/10 §1.1 / PATH_GATE, .claude/context/path-story-
+// implementation-plan.md "Calibration table") ----
+// pathGoalResources: ONE pure reader for every resource the goal vocabulary
+// (data/paths.js PATH_GOAL_KEYS) can point at, mirroring js/dev/demo.mjs's
+// snapshotTransition definitions EXACTLY (that file's Phase 0 instrumentation is the
+// calibration source, so a drift here would silently shift every threshold). `earnedComfort`
+// is deliberately NOT included — it's read locally by demo.mjs (needs config.COMFORT +
+// comfortFloor) and no shipped stage goal uses it yet (see PATH_GOAL_KEYS' comment).
+// DATA passed explicitly (house convention: math.js stays data-free). Cheap loops over
+// small data arrays — computed on demand like computePathBonuses, no new cache field.
+export function pathGoalResources(state, DATA) {
+  const d2Idx = DATA.generators.findIndex(g => g.id === 'd2');
+  const d2Count = d2Idx >= 0 ? (state.generators[d2Idx]?.count || 0) : 0;
+  let contentFormats = 0;
+  for (const c of DATA.content) if ((state.content[c.id]?.level || 0) > 0) contentFormats++;
+  let coinSpread = 0;
+  for (const c of DATA.crypto.coins) if ((state.crypto.holdings[c.id] || 0) > 0) coinSpread++;
+  let destinations = 0;
+  for (const d of DATA.destinations) if (state.destinations[d.id].owned) destinations++;
+  // vehicleClass: highest logistics class owned — 0 none / 1 car / 2 boat / 3 jet (jets/boats
+  // strictly supersede cars in the E15→E16→E17 arc, so "highest owned" is just "own any of
+  // the higher class") — same order as demo.mjs's snapshotTransition.
+  let vehicleClass = 0;
+  if (DATA.jets.some(j => (state.vehicles.jets[j.id]?.count || 0) > 0)) vehicleClass = 3;
+  else if (DATA.boats.some(b => (state.vehicles.boats[b.id]?.count || 0) > 0)) vehicleClass = 2;
+  else if (DATA.vehicles.some(c => (state.vehicles.owned[c.id]?.count || 0) > 0)) vehicleClass = 1;
+  // luxAmenities: the SAME tag set luxuryAmenityComfort reads ('luxury' + the E16-S7-T2
+  // 'yacht' extension) — the canonical "luxury-ish" vocabulary, not a re-invented one.
+  let luxAmenities = 0;
+  for (const a of DATA.amenities)
+    if ((a.tag === 'luxury' || a.tag === 'yacht') && (state.amenities[a.id]?.level || 0) > 0) luxAmenities++;
+  let collectionPieces = 0;
+  for (const arr of [DATA.collections.art, DATA.collections.wine])
+    for (const a of arr) if ((state.collections[a.id]?.count || 0) > 0) collectionPieces++;
+  return {
+    d2Count, clout: state.resources.clout || 0, contentFormats,
+    portfolioValue: cryptoHoldingsValue(state, DATA), coinSpread, destinations, vehicleClass,
+    luxAmenities, collectionPieces,
+  };
+}
+
+// stageGoalProgress: per-stage progress readout for one path (the committed branch or a
+// Jack of All Trades side-road), in stage order. Pure — never mutates state. `allMet` =
+// pointsMet AND every listed goal met; a stage with no `goals` object is goal-vacuous
+// (allMet === pointsMet). Used by engine.checkPathStages (when PATH_GATE.enabled) and,
+// later, the Your Road UI panel (docs/10 §2.1) — one source of truth for both.
+export function stageGoalProgress(state, DATA, pathId) {
+  const path = DATA.paths.find(p => p.id === pathId);
+  if (!path) return [];
+  const res = pathGoalResources(state, DATA);
+  const pts = state.paths[pathId]?.points || 0;
+  return path.stages.map(st => {
+    const pointsMet = pts >= st.at;
+    const goals = Object.entries(st.goals || {}).map(([key, need]) => {
+      const have = res[key] ?? 0;
+      return { key, need, have, met: have >= need };
+    });
+    const allMet = pointsMet && goals.every(g => g.met);
+    return { at: st.at, pointsMet, goals, allMet };
+  });
+}
+
 // ---- bank account ladder: the wallet cap (offline-lump control) ----
 // Capacity of a given bank tier: base·growth^tier, except the LAST configured tier,
 // which is uncapped (Infinity) so endgame D6–D8 purchases and NG+ magnitudes are never
