@@ -1,9 +1,14 @@
 # 10 — Path Milestones & the Path-First UI (design + delivery plan)
 
-**Status:** approved design, not yet built. This doc is the final plan agreed in the
-2026-07-25 design session; it supersedes the "soft gate only" caution in earlier drafts.
-Phases below are delivery-ordered; every number marked `fit` is set by measurement
-(Phase 0/3), never by hand.
+**Status:** SHIPPED. Phases 0–4 (measure → data/schema → engine → balance → UI) landed
+2026-07-25; Phase 5 (verify & docs, this amendment included) is in flight the same day. This
+doc is the design agreed in the 2026-07-25 design session, updated in place as delivery
+confirmed or revised the provisional numbers (see the §1.1 note and
+`.claude/context/path-story-implementation-plan.md` for the measured calibration table and
+Phase 3 results). It supersedes the "soft gate only" caution in earlier drafts. Phases below
+are delivery-ordered; every number marked `fit` was set by measurement (Phase 0/3), not by
+hand — see the plan file for the actual fitted values where they differ from the provisional
+shapes below.
 
 ---
 
@@ -74,6 +79,18 @@ Provisional goal shapes (thresholds all `fit` from Phase 0 measurement):
 | S2 (at 15) | Followers ≥ fit, Clout ≥ fit, 2 content formats | portfolio ≥ fit, spread ≥ 2 | destinations ≥ fit | luxAmenities ≥ fit, earnedComfort ≥ fit |
 | S3 (at 30) | Followers ≥ fit, Clout ≥ fit, 3 content formats | portfolio ≥ fit, spread ≥ 3 | destinations ≥ fit, own a car | collectionPieces ≥ fit |
 | S4 (at 50) | Followers ≥ fit, Clout ≥ fit, 4 content formats | portfolio ≥ fit, spread ≥ 4 | destinations ≥ fit, own a boat | collectionPieces ≥ fit, earnedComfort ≥ fit |
+
+> **Connoisseur row above is superseded — the Phase 0 calibration measured the opposite
+> assignment.** `luxAmenities` reads 0 until ~tier 10 (the first luxury-tagged amenity needs
+> total Comfort 40k), so it cannot gate S1/S2 as drafted; `collectionPieces` caps at 12 by
+> tier 12, so it's a clean S1/S2 differentiator (8→12) but flat (12=12) and useless at S3/S4.
+> The shipped connoisseur assignment is **inverted vs this table: `collectionPieces` gates
+> S1/S2, `luxAmenities` gates S3/S4** (`earnedComfort` dropped as a hard gate — it resets to
+> ~0 at every tier-up, a tier-up artifact, not a bug — see the reasoning inline in
+> `data/paths.js`). Full measured p35 table, the recommended thresholds actually shipped, and
+> the per-path rationale: `.claude/context/path-story-implementation-plan.md` ("Calibration
+> table" + "Phase 3 results" sections). The other three paths' shapes above matched
+> measurement and shipped as drafted.
 
 Keep it to **2–3 goals per stage** — the checklist must read at a glance as "your
 road's next challenge," not homework.
