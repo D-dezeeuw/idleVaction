@@ -388,3 +388,44 @@ amenity ROI model (engine.conciergeAmenityGainPerSec) prices against the same ab
 the shipped multiplier, so automation budgets the lane the way the income math actually pays it.
 Ascended-run band ([86]) holds (run2 = 0.90× run1). Pins re-pinned in selftest
 [26]/[26b]/[62]…[115] with inline rationale; the pre-refit 39440s curve remains in git history.
+
+### 9.4 Phase 3 — path milestones become a real gate (`PATH_GATE.enabled: true`, docs/10 §1.3)
+
+The path stage goals are now a live requirement layer on the checkpoint accommodation tiers
+(8→S1, 12→S2, 16→S3, 19→S4): `accUnlocked` additionally needs the committed branch's checkpoint
+stage FIRED, and a stage fires only when its points AND every `data/paths.js` goal are met. The
+one deliberate amendment to the "harness never touches clout/crypto" doctrine (docs/10 §1.3):
+the greedy `play()` / `makeGreedyAct` / `playStep` learn ONE step — `harness.satisfyPathGate`:
+when the next tier is Comfort-ready but path-gated (`accGateStatus` `comfortOk && !pathOk`), buy
+the cheapest missing goal resource of the blocking stage. Every goal is a direct cash buy (clout
+bridges via a content buy), so a gate is a SHORT spend, never a wall.
+
+**The one carve-out that keeps the gate neutral: `d2Count` is never force-bought.** The primary
+"Followers" bar reads the D2 generator — the *core income backbone* (D2→D1→cash). Force-buying a
+single early D2 at a low count (2→3 is +50% of the driver of the whole tier chain) compounds into
+a large pacing swing (measured casual-tourist **−15%** before the carve-out). So the satisfier
+returns null for `d2Count` and lets the tier gate wait, neutrally, for the natural economy to
+reach the count — the calibration set the d2 ladder (3/7/18/60) below the engaged p35 precisely so
+it self-satisfies. Every other goal (content/coins/destinations/vehicles/luxury amenities/
+collections) is a side-lane resource the satisfier may buy as a bridge.
+
+Re-pinned goldens (deterministic, events-off unless noted), old → new:
+
+| metric | pre-gate | Phase 3 (gate live) |
+|---|--:|--:|
+| greedy island (quiet) | 37445s | **37435s** (−10s: gate buys the S2/S3/S4 content formats) |
+| greedy-living (default stream) | 36960s | **36950s** |
+| casual-tourist island (quiet) | 76800s | **76800s** — unchanged (gate neutral for the engaged vlogger) |
+| greedy-traveler (quiet) | 36080s | **35455s** (−1.7%: gate buys the S3/S4 car+boat it never bought) |
+| greedy-connoisseur (quiet) | 30900s | **30900s** — unchanged |
+| greedy-crypto (quiet) | 41495s | **41495s** — unchanged |
+| peak log10(cash) / 26 monotone beats | 12.9 / yes | 12.9 / yes |
+
+**±5% no-lengthening contract held** (four engaged casual personas, per-tier flag-on vs flag-off,
+every delta ≥ 0 — the gate only ever *lengthens* on neglect, never speeds up): casual-tourist
+island +0.0% (worst tier +1.6% @T19), casual-traveler +0.0% (0.0% every tier), casual-crypto
++2.3% (worst +2.9% @T15), casual-connoisseur +0.0%. No persona stalls. The calibration's
+**vlogger-T19 watch item** resolved with no threshold change: the casual-tourist fires S4 at
+~17h40m (well before T19), so T19 only moves +1.6% (one 20-min check-in) — inside ±5%. Re-pinned
+in selftest ([68]/[87]/[88]/[105]/[106]/[109]/[111]/[115] + the E11–E29 quiet-foundation
+invariance asserts, all 37445→37435) and report.mjs GOLDEN, one coordinated commit.

@@ -25,7 +25,7 @@ import * as ST from '../state.js';
 import * as E from '../engine.js';
 import * as M from '../math.js';
 import * as P from '../prestige.js';
-import { play, amenityWorthBuying } from './harness.mjs';
+import { play, amenityWorthBuying, satisfyPathGate } from './harness.mjs';
 
 // ---- ROI-aware amenity test — copied from harness.mjs (private there; harness must stay
 // untouched because selftest pins its exports). See the long rationale comment there.
@@ -50,6 +50,10 @@ export function makeGreedyAct({
     if (M.tierProd(s, 0) <= 0 && E.genCost(s, 0, 1) <= s.resources.cash) E.buyGenerator(s, 0, 1);
     let bg = 0;
     while (!E.bankMaxed(s) && E.bankUpgradeCost(s) <= s.resources.cash * bankFrac && bg++ < 4) E.buyBankUpgrade(s);
+    // path gate (docs/10 §1.3): buy the cheapest missing goal resource when the next tier is
+    // Comfort-ready but path-gated — single-sourced from harness.mjs so every persona shares
+    // the one policy step (no-op when PATH_GATE is off or the gate isn't binding).
+    satisfyPathGate(s);
     let g = 0;
     while (E.accUnlocked(s) && E.accCost(s) <= s.resources.cash * accFrac && g++ < 6) E.buyAccommodation(s);
     const cashRate = M.tierProd(s, 0) + M.savvyPassive(s);

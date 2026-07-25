@@ -31,10 +31,10 @@ import { fmt, fmtTime, rng } from '../util.js';
 // E11 harness-invariance guard ([62] below): importing runCurve does NOT auto-run the
 // harness's own report() — that's guarded behind `process.argv[1].endsWith('harness.mjs')`,
 // which is false when node's entry point is THIS file.
-import { runCurve, play } from './harness.mjs';
+import { runCurve, play, satisfyPathGate } from './harness.mjs';
 
 // ---- QUIET FOUNDATION MODE (Living-World W5, docs/08) ------------------------------------
-// Every historical pin in this suite (the 37445s greedy golden, the 76800s casual contract,
+// Every historical pin in this suite (the 37435s greedy golden, the 76800s casual contract,
 // the [86] ascended bands, the [106]/[109] instruments, every per-section "goldens exact"
 // assert) measures the QUIET foundation — the deterministic fitted economy with the Trip
 // Events layer off. Shipping default is EVENTS.enabled:true (the living world), so the suite
@@ -69,6 +69,12 @@ function playStep(s) {
   //     ⇔ the wallet is ~70% full — upgrade before income overflows (mirrors harness).
   let bg = 0;
   while (!E.bankMaxed(s) && E.bankUpgradeCost(s) <= s.resources.cash * 0.5 && bg++ < 4) E.buyBankUpgrade(s);
+
+  // 0c) path gate (docs/10 §1.3): buy the cheapest missing goal resource when the next tier
+  //     is Comfort-ready but path-gated — single-sourced from harness.mjs so this reference
+  //     policy climbs the checkpoint tiers exactly as the harness/personas do (no-op when
+  //     PATH_GATE is off or the gate isn't binding).
+  satisfyPathGate(s);
 
   // 1) accommodation: big Comfort jumps — always worth it when unlocked+affordable
   let guard = 0;
@@ -1455,6 +1461,9 @@ console.log('\n[42] E09 Charm Offensive: skills curve, scope, training, tier-8 +
   // tier-8 (Boutique Retreat): gate + distinct celebrate flash, mirroring tier 4/5/6/7.
   const t8 = ST.newGame();
   t8.accommodation.tier = 7; t8.accommodation.owned = [0, 1, 2, 3, 4, 5, 6, 7];
+  // tier 8 is a path checkpoint (S1, PATH_GATE live) — satisfy the path clause so this test
+  // isolates the COMFORT gate (the path gate itself is exercised by the harness/personas).
+  t8.story.branch = 'vlogger'; t8.story.flags.pathStage_vlogger_5 = true;
   t8._comfortCache = M.accUnlockComfort(8) - 1;
   t8.resources.cash = 1e18;
   ok(!E.accUnlocked(t8), 'tier 8 (Boutique Retreat) is locked just below its Comfort gate');
@@ -2288,7 +2297,7 @@ console.log('\n[62] E11 harness invariance: concierge OFF by default never moves
   // plausible number".
   const { islandAt, peakLog } = runCurve({ dt: 5, maxHours: 40 });
   ok(islandAt !== null, 'the harness still reaches the island (tier 20) within the cap');
-  ok(Math.abs(islandAt - 37445) < 1, `harness island time is UNCHANGED by E11 (got ${fmtTime(islandAt)}, expected ~10h24m05s / 37445s)`);
+  ok(Math.abs(islandAt - 37435) < 1, `harness island time is UNCHANGED by E11 (got ${fmtTime(islandAt)}, expected ~10h23m55s / 37435s)`);
   ok(peakLog < 290, `peak log10(cash) (${peakLog.toFixed(1)}) stays far under the double-overflow ceiling (~308)`);
 }
 
@@ -2476,10 +2485,17 @@ console.log('\n[67] E12 sponsor deals: offer -> accept -> timed multiplier -> ex
 console.log('\n[68] E12 harness invariance: content/sponsors never touched by the max-speed harness, island unchanged');
 {
   const { s, beatTime, islandAt, peakLog } = runCurve({ dt: 5, maxHours: 40 });
-  ok(DATA.content.every(c => s.content[c.id].level === 0 && s.content[c.id].boosts === 0),
-    "the harness never buys/boosts any content tier (not in its greedy policy) — Clout stays on the pre-E12 baseline formula");
+  // PATH-GATE AMENDMENT (docs/10 §1.3, Phase 3): content is no longer fully off the harness's
+  // critical path — the gate satisfier now buys the ≤4 `contentFormats` the vlogger S2/S3/S4
+  // gates require (each a single NEW format level), and the re-pinned 37435 island accounts for
+  // it. What stays untouched: the Clout-priced BOOST sink (buyContentBoost) is never called, and
+  // content is bounded to exactly the gate's requirement, never a free-spending lane.
+  ok(DATA.content.every(c => s.content[c.id].boosts === 0)
+      && DATA.content.filter(c => s.content[c.id].level > 0).length <= 4
+      && DATA.content.every(c => s.content[c.id].level <= 1),
+    "the harness buys ONLY the path gate's ≤4 content formats (one level each), never the Clout boost sink");
   ok(s.sponsors.active === null, 'the harness never accepts a sponsor deal — no active multiplier ever appears in the max-speed run');
-  ok(Math.abs(islandAt - 37445) < 1, `harness island time is UNCHANGED by E12 (got ${fmtTime(islandAt)}, expected ~10h24m05s / 37445s — the committed-path baseline)`);
+  ok(Math.abs(islandAt - 37435) < 1, `harness island time is UNCHANGED by E12 (got ${fmtTime(islandAt)}, expected ~10h23m55s / 37435s — the committed-path baseline)`);
   ok(peakLog < 290, `peak log10(cash) (${peakLog.toFixed(1)}) stays far under the double-overflow ceiling`);
 
   ok(beatTime[14] !== undefined, 'Beat 14 (Going Viral) still fires within the harness run');
@@ -2842,7 +2858,7 @@ console.log('\n[80] E13 harness invariance: crypto gated off by default, fitted 
 
   const { islandAt, peakLog } = runCurve({ dt: 5, maxHours: 40 });
   ok(islandAt !== null, 'the harness still reaches the island (tier 20) within the cap');
-  ok(Math.abs(islandAt - 37445) < 1, `harness island time is UNCHANGED by E13 (got ${fmtTime(islandAt)}, expected ~10h24m05s / 37445s — the committed-path baseline)`);
+  ok(Math.abs(islandAt - 37435) < 1, `harness island time is UNCHANGED by E13 (got ${fmtTime(islandAt)}, expected ~10h23m55s / 37435s — the committed-path baseline)`);
   ok(peakLog < 290, `peak log10(cash) (${peakLog.toFixed(1)}) stays far under the double-overflow ceiling (~308)`);
 }
 
@@ -3171,9 +3187,15 @@ console.log('\n[87] staged path tracks: thresholds, stage reveals, unique per-pa
   ok(validatePaths(), 'validatePaths passes: unique ids, ascending stage thresholds, known bonus vocabulary');
   ok(DATA.paths.every(p => p.stages.length >= 4), 'every path has a full staged track (≥4 stages)');
 
-  // stage firing + threshold gating (vlogger)
+  // stage firing + threshold gating (vlogger). PATH_GATE is live (config): a stage fires on
+  // points AND its data/paths.js goals, so pre-satisfy the vlogger S1/S2 goals (Followers d2≥7,
+  // clout≥2e5, 2 content formats) — this isolates the POINTS threshold + bonus mechanics here;
+  // the goal/checkpoint gating itself is exercised by the harness/personas and Phase 5's sweep.
   const v = ST.newGame();
   v.story.branch = 'vlogger';
+  v.generators[1].count = 10;                                        // d2Count (Followers) ≥ 7
+  v.resources.clout = 1e6;                                           // clout ≥ 2e5
+  v.content.selfie_post.level = 1; v.content.story_reel.level = 1;   // contentFormats ≥ 2
   E.addPathPoints(v, 'vlogger', 4);
   ok(!v.story.flags.pathStage_vlogger_5, 'one point shy of the threshold: the stage has NOT fired');
   ok(M.pathBonus(v, 'comboMax') === 0, 'no bonus before the threshold');
@@ -3261,9 +3283,14 @@ console.log('\n[88] Jack of All Trades: earned path mixing, slot caps, depth, re
   E.buyCoin(n, DATA.crypto.coins[0].id, 1);
   ok(n.paths.crypto.points > ptsBefore, '…after which nudges credit the opened side-road too');
 
-  // the side-road's staged track + bonuses genuinely apply (the mixing payoff)
+  // the side-road's staged track + bonuses genuinely apply (the mixing payoff). PATH_GATE live:
+  // stages fire on points AND goals, so pre-satisfy the primary (vlogger S1: d2≥3, clout≥5e4) and
+  // side-road (traveler S1: d2≥3, destinations≥4) goals — the parallel-track firing is the payoff
+  // under test here.
   const m = ST.newGame();
   m.story.branch = 'vlogger'; m.resources.cash = 1e12; m.bank.tier = C.BANK.tiers - 1;
+  m.generators[1].count = 5; m.resources.clout = 1e5;
+  for (const d of DATA.destinations.slice(0, 4)) m.destinations[d.id].owned = true;
   m.ascension.tree.jack_of_trades = 1;
   E.buyPathFocus(m, 'traveler');
   E.addPathPoints(m, 'traveler', 4);            // 5 total → traveler stage 1
@@ -3298,7 +3325,7 @@ console.log('\n[89] E14 connoisseur: exclusivity ×, luxury discount, appreciati
   // ---- harness invariance: the committed-vlogger harness never engages the connoisseur
   // system, so the exclusivity/discount/appreciation/perk are all no-ops → island UNCHANGED.
   const { s: hs, islandAt, peakLog } = runCurve({ dt: 5, maxHours: 40 });
-  ok(Math.abs(islandAt - 37445) < 1, `harness island time is UNCHANGED by E14 (got ${fmtTime(islandAt)}, expected ~10h24m05s / 37445s — the committed-path baseline)`);
+  ok(Math.abs(islandAt - 37435) < 1, `harness island time is UNCHANGED by E14 (got ${fmtTime(islandAt)}, expected ~10h23m55s / 37435s — the committed-path baseline)`);
   ok(peakLog < 290, `peak log10(cash) (${peakLog.toFixed(1)}) stays far under the double-overflow ceiling`);
   ok([...DATA.collections.art, ...DATA.collections.wine].every(a => hs.collections[a.id].count === 0),
     'the harness never buys a single collection asset (not in its greedy policy)');
@@ -3550,7 +3577,7 @@ console.log('\n[90] E15 logistics: cars/slots/upkeep, logistics × gate invarian
   // ---- harness invariance: the committed-vlogger harness never buys/equips a car, so the
   // logistics ×, upkeep, fleet Comfort and traveler discount are all no-ops → island UNCHANGED.
   const { s: hs, islandAt, peakLog } = runCurve({ dt: 5, maxHours: 40 });
-  ok(Math.abs(islandAt - 37445) < 1, `harness island time is UNCHANGED by E15 (got ${fmtTime(islandAt)}, expected ~10h24m05s / 37445s — the committed-path baseline)`);
+  ok(Math.abs(islandAt - 37435) < 1, `harness island time is UNCHANGED by E15 (got ${fmtTime(islandAt)}, expected ~10h23m55s / 37435s — the committed-path baseline)`);
   ok(peakLog < 290, `peak log10(cash) (${peakLog.toFixed(1)}) stays far under the double-overflow ceiling`);
   ok(hs.vehicles.equipped.length === 0 && DATA.vehicles.every(c => hs.vehicles.owned[c.id].count === 0),
     'the harness never buys or equips a single car (not in its greedy policy)');
@@ -3718,7 +3745,7 @@ console.log('\n[91] E16 Sea Legs: boats/crew, sea-destination gating, marina inv
 
   // ---- harness invariance: the greedy vlogger never buys a boat/crew or a sea destination
   const { s: hs, islandAt, peakLog } = runCurve({ dt: 5, maxHours: 40 });
-  ok(Math.abs(islandAt - 37445) < 1, `harness island time is UNCHANGED by E16 (got ${fmtTime(islandAt)}, expected ~10h24m05s / 37445s — the committed-path baseline)`);
+  ok(Math.abs(islandAt - 37435) < 1, `harness island time is UNCHANGED by E16 (got ${fmtTime(islandAt)}, expected ~10h23m55s / 37435s — the committed-path baseline)`);
   ok(peakLog < 290, `peak log10(cash) (${peakLog.toFixed(1)}) stays far under the double-overflow ceiling`);
   ok(DATA.boats.every(b => hs.vehicles.boats[b.id].count === 0) && DATA.crew.every(c => hs.vehicles.crew[c.id].count === 0),
     'the harness never buys a boat or crew');
@@ -3813,7 +3840,7 @@ console.log('\n[92] E17 Wheels Up: jets, the logistics capstone, air-destination
 
   // ---- harness invariance: no jets, no capstone, no air destinations, no jet discount
   const { s: hs, islandAt, peakLog } = runCurve({ dt: 5, maxHours: 40 });
-  ok(Math.abs(islandAt - 37445) < 1, `harness island time is UNCHANGED by E17 (got ${fmtTime(islandAt)}, expected ~10h24m05s / 37445s — the committed-path baseline)`);
+  ok(Math.abs(islandAt - 37435) < 1, `harness island time is UNCHANGED by E17 (got ${fmtTime(islandAt)}, expected ~10h23m55s / 37435s — the committed-path baseline)`);
   ok(peakLog < 290, `peak log10(cash) (${peakLog.toFixed(1)}) stays under the ceiling`);
   ok(DATA.jets.every(j => hs.vehicles.jets[j.id].count === 0), 'the harness never buys a jet');
   ok(M.capstoneActive(hs, DATA) === false && M.jetTier(hs, DATA) === 0 && hs._logiCache === 1, 'the harness never lights the capstone (jetTier 0, _logiCache 1)');
@@ -3911,11 +3938,13 @@ console.log('\n[93] E18 Sail-Shaped Hotel: Taste gate on tiers 12/13, gold clust
 
   // ---- harness invariance: the Taste gate is cleared by the greedy player's passive Taste
   const { islandAt, peakLog } = runCurve({ dt: 5, maxHours: 40 });
-  ok(Math.abs(islandAt - 37445) < 1, `harness island time is UNCHANGED by E18 (got ${fmtTime(islandAt)}, expected 37445s — the Taste gate is cleared by passive Taste)`);
+  ok(Math.abs(islandAt - 37435) < 1, `harness island time is UNCHANGED by E18 (got ${fmtTime(islandAt)}, expected 37435s — the Taste gate is cleared by passive Taste)`);
   ok(peakLog < 290, `peak log10(cash) (${peakLog.toFixed(1)}) stays under the ceiling`);
 
   // ---- the Taste gate: tier 12 blocked below tasteGate even at huge Comfort; open at/above
   const g = ST.newGame(); g.accommodation.tier = 11; g.accommodation.owned = Array.from({ length: 12 }, (_, i) => i);
+  // tier 12 is a path checkpoint (S2, PATH_GATE live) — satisfy S1+S2 so this isolates the Taste gate
+  g.story.branch = 'vlogger'; g.story.flags.pathStage_vlogger_5 = true; g.story.flags.pathStage_vlogger_15 = true;
   g._comfortCache = 1e12;   // Comfort massively over the tier-12 unlock threshold
   g.skills.taste.level = 29;
   ok(E.accUnlocked(g) === false, 'tier 12 is LOCKED at taste 29 (below the gate) despite huge Comfort');
@@ -3926,10 +3955,13 @@ console.log('\n[93] E18 Sail-Shaped Hotel: Taste gate on tiers 12/13, gold clust
 
   // ---- entering fires the ceremony + a connoisseur nudge; owned tier never re-locks on excl drop
   const buy = ST.newGame(); buy.accommodation.tier = 11; buy.accommodation.owned = Array.from({ length: 12 }, (_, i) => i);
+  // committed vlogger with S1+S2 fired (tier 12 is the S2 checkpoint) so the path clause is met and
+  // this isolates the Taste-gated purchase; the connoisseur nudge still no-ops (branch is vlogger).
+  buy.story.branch = 'vlogger'; buy.story.flags.pathStage_vlogger_5 = true; buy.story.flags.pathStage_vlogger_15 = true;
   buy._comfortCache = 1e12; buy.skills.taste.level = 35; buy.resources.cash = 1e30; buy.bank.tier = C.BANK.tiers - 1;
   const pts = buy.paths.connoisseur.points;
   ok(E.buyAccommodation(buy) && buy.accommodation.tier === 12, 'buying tier 12 succeeds past the gate');
-  // (path nudge only credits a committed connoisseur; here branch is neutral so it no-ops — assert no crash + owned)
+  // (path nudge only credits a committed connoisseur; here branch is vlogger so it no-ops — assert no crash + owned)
   ok(buy.accommodation.owned.includes(12), 'tier 12 is owned after purchase');
   buy.skills.taste.level = 0;   // taste later collapses — the owned tier must not re-lock
   ok(buy.accommodation.tier === 12, 'an already-owned tier stays owned even if Taste later drops (no eviction)');
@@ -3956,7 +3988,7 @@ console.log('\n[94] E19 At Your Service: the butler, payroll sink, bounded auto-
 
   // ---- harness invariance: the greedy player never hires, so payroll 0 + no automation
   const { s: hs, islandAt, peakLog } = runCurve({ dt: 5, maxHours: 40 });
-  ok(Math.abs(islandAt - 37445) < 1, `harness island time is UNCHANGED by E19 (got ${fmtTime(islandAt)}, expected 37445s — the butler is off by default)`);
+  ok(Math.abs(islandAt - 37435) < 1, `harness island time is UNCHANGED by E19 (got ${fmtTime(islandAt)}, expected 37435s — the butler is off by default)`);
   ok(peakLog < 290, `peak log10(cash) (${peakLog.toFixed(1)}) stays under the ceiling`);
   ok(hs.staff.butler.hired === false && M.payrollTotal(hs, DATA) === 0, 'the harness never hires the butler (payroll 0 throughout)');
 
@@ -4020,7 +4052,7 @@ console.log('\n[95] E20 The Whole Household: staff roles, morale softcap, L_staf
 
   // ---- harness invariance: no staff hired ⇒ L_staff 1, payroll 0
   const { s: hs, islandAt } = runCurve({ dt: 5, maxHours: 40 });
-  ok(Math.abs(islandAt - 37445) < 1, `harness island time is UNCHANGED by E20 (got ${fmtTime(islandAt)}, expected 37445s — no staff hired)`);
+  ok(Math.abs(islandAt - 37435) < 1, `harness island time is UNCHANGED by E20 (got ${fmtTime(islandAt)}, expected 37435s — no staff hired)`);
   ok(hs._staffMult === 1 && DATA.staff.every(d => !hs.staff[d.id].hired), 'the harness hires no staff (L_staff 1 throughout)');
 
   // ---- morale softcap: bounded, monotone
@@ -4122,10 +4154,10 @@ console.log('\n[96] E21 Seven Stars: Seven-Star Touches cluster, gated exclusivi
   ok(E.beatCopy(con, beat22) === beat22.variants.connoisseur, 'a connoisseur build gets the connoisseur beat-22 variant');
   ok(beat21.requires.accTier === 14 && beat22.requires.comfort === 3e8, 'beats 21/22 keep their neutral gates (the 26-beat harness pin is untouched)');
 
-  // ---- harness invariance: E21's content is neutral (the baseline island moved 39440→37445
+  // ---- harness invariance: E21's content is neutral (the baseline island moved 39440→37435
   // for the whole suite in the above-floor Comfort refit, docs/05 §9.3 — not from E21).
   const { s: hs, islandAt } = runCurve({ dt: 5, maxHours: 40 });
-  ok(Math.abs(islandAt - 37445) < 1, `harness island time matches the refit baseline (got ${fmtTime(islandAt)}, expected 37445s)`);
+  ok(Math.abs(islandAt - 37435) < 1, `harness island time matches the refit baseline (got ${fmtTime(islandAt)}, expected 37435s)`);
   // Post-refit BEHAVIOR CHANGE: the Seven-Star Touches were "dominated cosmetics" (skipped by the
   // ROI payback test) only because Comfort income was accScore-swamped. With the income multiplier
   // now reading above-floor Comfort, their Comfort is ROI-positive, so the greedy bot DOES buy them.
@@ -4196,7 +4228,7 @@ console.log('\n[97] E22 A Bungalow of One\'s Own: owned property, persistent Com
 
   // ---- harness invariance: the greedy ROI player never buys a deed ⇒ island unchanged
   const { s: hs, islandAt } = runCurve({ dt: 5, maxHours: 40 });
-  ok(Math.abs(islandAt - 37445) < 1, `harness island time is UNCHANGED by E22 (got ${fmtTime(islandAt)}, expected 37445s — the deed is opt-in, ladder stays Comfort-gated)`);
+  ok(Math.abs(islandAt - 37435) < 1, `harness island time is UNCHANGED by E22 (got ${fmtTime(islandAt)}, expected 37435s — the deed is opt-in, ladder stays Comfort-gated)`);
   ok(M.ownedPropertyCount(hs) === 0 && M.propertyScore(hs, DATA) === 0, 'the harness ends owning no property (propertyScore 0 throughout)');
   ok(M.ownerPrideMult(hs) === 1, 'the harness income is never touched by owner-pride (×1 throughout)');
 }
@@ -4276,7 +4308,7 @@ console.log('\n[98] E23 Villa Vita: grounds mega-clusters, estate wing, property
 
   // ---- harness invariance: no property, no estate staff ⇒ L_estate 1, island unchanged
   const { s: hs, islandAt } = runCurve({ dt: 5, maxHours: 40 });
-  ok(Math.abs(islandAt - 37445) < 1, `harness island time is UNCHANGED by E23 (got ${fmtTime(islandAt)}, expected 37445s — the estate wing is opt-in)`);
+  ok(Math.abs(islandAt - 37435) < 1, `harness island time is UNCHANGED by E23 (got ${fmtTime(islandAt)}, expected 37435s — the estate wing is opt-in)`);
   ok(M.estateSynergy(hs, DATA) === 1 && (hs._estateMult ?? 1) === 1, 'the harness ends with L_estate 1 (grounds/estate never engaged)');
   ok(DATA.staff.filter(d => d.estate).every(d => !hs.staff[d.id].hired), 'the harness hires no estate staff');
 }
@@ -4332,7 +4364,7 @@ console.log('\n[99] E24 Where the Rich Hide: premium destinations, set-collectio
 
   // ---- harness invariance: never owns a premium destination ⇒ set bonus 1, island unchanged
   const { s: hs, islandAt } = runCurve({ dt: 5, maxHours: 40 });
-  ok(Math.abs(islandAt - 37445) < 1, `harness island time is UNCHANGED by E24 (got ${fmtTime(islandAt)}, expected 37445s — premium gate needs property/exclusivity)`);
+  ok(Math.abs(islandAt - 37435) < 1, `harness island time is UNCHANGED by E24 (got ${fmtTime(islandAt)}, expected 37435s — premium gate needs property/exclusivity)`);
   ok(M.premiumDestOwned(hs, DATA) === 0 && M.destSetMult(0) === 1, 'the harness owns no premium destination (set bonus 1 throughout)');
   ok(premiums.every(d => !E.destUnlocked(hs, d.id)), 'no premium destination ever unlocks for the harness (0 property, 0 exclusivity)');
 }
@@ -4461,7 +4493,7 @@ console.log('\n[101] E26 Who You Become: skill-tree audit — branches, requires
   const empty = ST.newGame();
   ok(M.treeIncomeMult(empty) === 1, 'an empty tree gives treeIncomeMult 1 (L_tree neutral)');
   const { s: hs, islandAt } = runCurve({ dt: 5, maxHours: 40 });
-  ok(Math.abs(islandAt - 37445) < 1, `harness island time is UNCHANGED by E26 (got ${fmtTime(islandAt)}, expected 37445s — run 1 has no tree)`);
+  ok(Math.abs(islandAt - 37435) < 1, `harness island time is UNCHANGED by E26 (got ${fmtTime(islandAt)}, expected 37435s — run 1 has no tree)`);
   ok(Object.keys(hs.ascension.tree).length === 0 && M.treeIncomeMult(hs) === 1, 'the harness (run 1) never buys a tree node');
 }
 
@@ -4525,7 +4557,7 @@ console.log('\n[102] E27 The Island Listing: multi-currency purchase, relocation
 
   // ---- harness invariance: never owns the island (0 legacy, never sees beat 28)
   const { s: hs, islandAt } = runCurve({ dt: 5, maxHours: 40 });
-  ok(Math.abs(islandAt - 37445) < 1, `harness island time is UNCHANGED by E27 (got ${fmtTime(islandAt)}, expected 37445s — the island needs Legacy the harness never has)`);
+  ok(Math.abs(islandAt - 37435) < 1, `harness island time is UNCHANGED by E27 (got ${fmtTime(islandAt)}, expected 37435s — the island needs Legacy the harness never has)`);
   ok(hs.island.owned === false && M.islandMult(hs) === 1, 'the harness never buys the island (L_island 1 throughout)');
   ok(E.islandListingUnlocked(hs) === false, 'the listing never even appears for the harness (0 legacy, no beat 28)');
 }
@@ -4582,7 +4614,7 @@ console.log('\n[103] E28 Building Paradise: island buildings, guest income, upke
 
   // ---- harness invariance: never owns the island ⇒ no buildings, no guest income
   const { s: hs, islandAt } = runCurve({ dt: 5, maxHours: 40 });
-  ok(Math.abs(islandAt - 37445) < 1, `harness island time is UNCHANGED by E28 (got ${fmtTime(islandAt)}, expected 37445s — no island ⇒ no resort)`);
+  ok(Math.abs(islandAt - 37435) < 1, `harness island time is UNCHANGED by E28 (got ${fmtTime(islandAt)}, expected 37435s — no island ⇒ no resort)`);
   ok(hs.island.owned === false && M.guestIncomeRaw(hs, DATA) === 0 && M.buildingComfortTotal(hs, DATA) === 0, 'the harness builds nothing (guest income + building Comfort 0)');
   ok(E.accUnlocked(hs) === false || hs.accommodation.tier < 21, 'the harness never climbs past tier 20 (tier 21 needs the island)');
 }
@@ -4648,7 +4680,7 @@ console.log('\n[104] E29 Empire of Leisure: Legend prestige-2, meta-meta shop, N
 
   // ---- harness invariance: never Legends or NG+s
   const { s: hs, islandAt } = runCurve({ dt: 5, maxHours: 40 });
-  ok(Math.abs(islandAt - 37445) < 1, `harness island time is UNCHANGED by E29 (got ${fmtTime(islandAt)}, expected 37445s — no Legend, no NG+)`);
+  ok(Math.abs(islandAt - 37435) < 1, `harness island time is UNCHANGED by E29 (got ${fmtTime(islandAt)}, expected 37435s — no Legend, no NG+)`);
   ok((hs.legend?.count || 0) === 0 && (hs.ngPlus || 0) === 0 && M.computeLegendMult(hs, DATA) === 1 && M.ngPlusIncomeMult(hs) === 1, 'the harness never Legends or NG+s (L_legend 1, NG+ mults 1)');
 }
 
@@ -4698,14 +4730,14 @@ console.log('\n[105] E30 Legends of Leisure: achievements/collections, seasonal,
   P.ascend(rec);
   ok(rec.achievements.unlocked.the_island === true, 'the trophy record survives ascension (permanent)');
 
-  // ---- THE GOLDEN FILE: the fitted greedy-optimal curve is locked (E30-S8). island 37445s, 26
+  // ---- THE GOLDEN FILE: the fitted greedy-optimal curve is locked (E30-S8). island 37435s, 26
   // beats monotone, peak log10 bounded, and every E30 layer neutral for the harness.
   const { s: hs, beatTime, islandAt, peakLog } = runCurve({ dt: 5, maxHours: 40 });
-  ok(Math.abs(islandAt - 37445) < 1, `GOLDEN: island (tier 20) at 37445s (got ${fmtTime(islandAt)})`);
+  ok(Math.abs(islandAt - 37435) < 1, `GOLDEN: island (tier 20) at 37435s (got ${fmtTime(islandAt)})`);
   const beats = Object.keys(beatTime).map(Number).sort((a, b) => a - b);
   ok(beats.length === 26 && beats[beats.length - 1] === 26, 'GOLDEN: the greedy harness reaches exactly 26 monotone beats');
   ok(peakLog < 13.5 && peakLog < 290, `GOLDEN: peak log10(cash) ${peakLog.toFixed(1)} stays well under the 1e290 BigNumber threshold (doubles suffice)`);
-  // golden beat-time snapshot (a few anchors — the whole curve is pinned by the 37445 island above)
+  // golden beat-time snapshot (a few anchors — the whole curve is pinned by the 37435 island above)
   ok(Math.abs(beatTime[1] - 0) < 1 && beatTime[18] < beatTime[22] && beatTime[22] < beatTime[26], 'GOLDEN: beat ordering is monotone (1 → 18 → 22 → 26)');
   ok(M.computeAchieveMult(hs, DATA) === 1 && M.seasonalMult(hs, DATA) === 1, 'GOLDEN: L_achieve + seasonal are 1 for the harness (E30 is fully opt-in)');
 }
@@ -4870,10 +4902,14 @@ console.log('\n[109] Phase B instruments: branch parity, casual band, beat spaci
   // parity contract. Rather than widening the band, the SAME lever Phase-C already used reins
   // it back: EXCLUSIVITY.rate 0.45→0.22 (branch-gated — exclusivity is 0 for every other
   // branch, so only the connoisseur pin moves). The branch keeps the full new comfort edge and
-  // stays fastest, at its pre-refit relative position. vlogger 37445 · traveler 36080 (0.96×) ·
-  // connoisseur 30900 (0.825×) · crypto 41495 (1.11×) — spread ×1.34 (was ×1.37).
-  ok(Math.abs(times.vlogger - 37445) <= 120, `vlogger pin ≈ golden 37445s / 10h24m05s (got ${times.vlogger})`);
-  ok(Math.abs(times.traveler - 36080) <= 300, `traveler fitted pin ~10h01m (got ${fmtTime(times.traveler)})`);
+  // stays fastest, at its pre-refit relative position. Phase 3 re-pin (path gate live): the
+  // traveler moves 36080 → 35455 (0.947×) — its greedy lane never bought vehicles, so the gate
+  // satisfier now buys the S3/S4 car+boat (vehicleClass goal), a small logistics-income nudge;
+  // vlogger −10s (content formats for S2/S3/S4), connoisseur/crypto unmoved (they meet their
+  // goals naturally). vlogger 37435 · traveler 35455 (0.95×) · connoisseur 30900 (0.826×) ·
+  // crypto 41495 (1.11×) — spread ×1.34.
+  ok(Math.abs(times.vlogger - 37435) <= 120, `vlogger pin ≈ golden 37435s / 10h23m55s (got ${times.vlogger})`);
+  ok(Math.abs(times.traveler - 35455) <= 300, `traveler fitted pin ~9h50m — path gate buys the S3/S4 vehicles (got ${fmtTime(times.traveler)})`);
   ok(Math.abs(times.connoisseur - 30900) <= 300, `connoisseur fitted pin ~8h35m — the comfort branch, fastest but inside the parity band (got ${fmtTime(times.connoisseur)})`);
   ok(Math.abs(times.crypto - 41495) <= 300, `crypto fitted pin ~11h32m (got ${fmtTime(times.crypto)})`);
   // Parity band: the Phase-C contract, unchanged — fast edge 0.80 (connoisseur 0.825×), slow
@@ -4961,7 +4997,7 @@ console.log('\n[111] Living-World W1: shared effects registry + Trip Events + Va
     'CONFIG.EVENTS.enabled:false alone keeps Trip Events fully dark — cursor 0, effects empty, goat null, even after heavy ticking');
   ok(neutral.weather.id === 'sunny' && neutral.weather.cursor === 0, 'Vacation Weather (same gate) never advances past its seeded sunny default either');
   const { islandAt: neutralIsland } = runCurve({ dt: 5, maxHours: 40 });
-  ok(Math.abs(neutralIsland - 37445) < 1, `harness island time is UNCHANGED by Living-World W1 (got ${fmtTime(neutralIsland)}, expected 37445s)`);
+  ok(Math.abs(neutralIsland - 37435) < 1, `harness island time is UNCHANGED by Living-World W1 (got ${fmtTime(neutralIsland)}, expected 37435s)`);
 
   // ---- (c) effectsMult cap property: several ×10 entries of the SAME kind still cap the
   // product at config.EFFECTS.maxMult (the registry works whether or not the scheduler is on).
@@ -5053,7 +5089,7 @@ console.log('\n[112] Living-World W2: Sunscreen Boosts + Splurge Moments — pla
 
   // ---- (a) goldens untouched: reuse the existing pin helpers ([109]'s runCurve/runScenario pattern)
   const { islandAt: greedyIsland } = runCurve({ dt: 5, maxHours: 40 });
-  ok(Math.abs(greedyIsland - 37445) < 1, `harness island time is UNCHANGED by Living-World W2 (got ${fmtTime(greedyIsland)}, expected 37445s)`);
+  ok(Math.abs(greedyIsland - 37435) < 1, `harness island time is UNCHANGED by Living-World W2 (got ${fmtTime(greedyIsland)}, expected 37435s)`);
   const { runScenario } = await import('./demo.mjs');
   const { getScenario } = await import('./scenarios.mjs');
   const cas = runScenario(getScenario('casual-tourist'), { dt: 5, maxHours: 26 });
@@ -5185,7 +5221,7 @@ console.log('\n[113] Living-World W3: Souvenir Stand + Ascension Challenges + Le
 
   // ---- (a) goldens untouched: reuse the existing pin helpers ([109]/[111]/[112]'s runCurve/runScenario pattern)
   const { islandAt: greedyIsland113 } = runCurve({ dt: 5, maxHours: 40 });
-  ok(Math.abs(greedyIsland113 - 37445) < 1, `harness island time is UNCHANGED by Living-World W3 (got ${fmtTime(greedyIsland113)}, expected 37445s)`);
+  ok(Math.abs(greedyIsland113 - 37435) < 1, `harness island time is UNCHANGED by Living-World W3 (got ${fmtTime(greedyIsland113)}, expected 37435s)`);
   const { runScenario: runScenario113 } = await import('./demo.mjs');
   const { getScenario: getScenario113, runAscensionChallenger } = await import('./scenarios.mjs');
   const cas113 = runScenario113(getScenario113('casual-tourist'), { dt: 5, maxHours: 26 });
@@ -5407,7 +5443,7 @@ console.log('\n[114] Living-World W4 (presentation): Trophy Road plumbing, Petra
 {
   // ---- (a) goldens exact: reuse the existing pin helpers ([109]/[111]/[112]/[113]'s pattern)
   const { islandAt: greedyIsland114 } = runCurve({ dt: 5, maxHours: 40 });
-  ok(Math.abs(greedyIsland114 - 37445) < 1, `harness island time is UNCHANGED by Living-World W4 (got ${fmtTime(greedyIsland114)}, expected 37445s)`);
+  ok(Math.abs(greedyIsland114 - 37435) < 1, `harness island time is UNCHANGED by Living-World W4 (got ${fmtTime(greedyIsland114)}, expected 37435s)`);
   const { runScenario: runScenario114 } = await import('./demo.mjs');
   const { getScenario: getScenario114 } = await import('./scenarios.mjs');
   const cas114 = runScenario114(getScenario114('casual-tourist'), { dt: 5, maxHours: 26 });
@@ -5533,13 +5569,13 @@ console.log('\n[115] Living-World W5: flip live, quiet pins unmoved, living band
 
     // (b) greedy-living: exact on the default stream; events can only help; tight across seeds.
     const gLive = runCurve({ dt: 5, maxHours: 30 });
-    ok(Math.abs(gLive.islandAt - 36960) < 1, `greedy-living island exactly 36960s / 10h16m00s on the default seed (got ${fmtTime(gLive.islandAt)})`);
-    ok(gLive.islandAt < 37445, 'greedy-living is FASTER than the quiet golden (events can only help a bot that never taps)');
-    ok(gLive.islandAt > 37445 * 0.90, 'greedy-living stays within 10% of the quiet golden (events help modestly, never explosively)');
+    ok(Math.abs(gLive.islandAt - 36950) < 1, `greedy-living island exactly 36950s / 10h15m50s on the default seed (got ${fmtTime(gLive.islandAt)})`);
+    ok(gLive.islandAt < 37435, 'greedy-living is FASTER than the quiet golden (events can only help a bot that never taps)');
+    ok(gLive.islandAt > 37435 * 0.90, 'greedy-living stays within 10% of the quiet golden (events help modestly, never explosively)');
     ok(gLive.peakLog < 290, `greedy-living peak log10 ${gLive.peakLog.toFixed(1)} far under the 1e290 policy ceiling`);
     for (const seed of [1, 2]) {
       const r = runScenario(getScenario('greedy-vlogger'), { dt: 10, maxHours: 30, snapshotSec: 7200, seed });
-      ok(r.islandAt !== null && Math.abs(r.islandAt - gLive.islandAt) < 37445 * 0.04,
+      ok(r.islandAt !== null && Math.abs(r.islandAt - gLive.islandAt) < 37435 * 0.04,
         `greedy-living seed ${seed} within ±4% of the default-stream pin (got ${fmtTime(r.islandAt)})`);
     }
 
@@ -5583,7 +5619,7 @@ console.log('\n[115] Living-World W5: flip live, quiet pins unmoved, living band
     // the foundation underneath the living world is bit-identical to the pre-W5 economy.
     C.EVENTS.enabled = false;
     const gQuiet = runCurve({ dt: 5, maxHours: 30 });
-    ok(Math.abs(gQuiet.islandAt - 37445) < 1, `quiet foundation still exactly 37445s under the flip (got ${fmtTime(gQuiet.islandAt)})`);
+    ok(Math.abs(gQuiet.islandAt - 37435) < 1, `quiet foundation still exactly 37435s under the flip (got ${fmtTime(gQuiet.islandAt)})`);
   } finally {
     C.EVENTS.enabled = false;   // the suite's quiet-mode contract (header note) holds to the end
   }

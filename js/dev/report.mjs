@@ -22,14 +22,17 @@ import { dirname } from 'node:path';
 export const GOLDEN = {
   // QUIET foundation pins (events off — the deterministic fitted economy, selftest [105]/[109]).
   // Re-pinned by the above-floor Comfort refit (docs/05 §9.3): greedy 39440→37445 (the income
-  // multiplier now reads player-earned above-floor Comfort); casual UNMOVED at 76800.
-  greedyIslandSec: 37445, greedyTolSec: 120,
+  // multiplier now reads player-earned above-floor Comfort); casual UNMOVED at 76800. Phase 3
+  // path-gate re-pin (docs/10 §1.3): greedy 37445→37435 (the gate satisfier buys the S2/S3/S4
+  // content formats the greedy vlogger otherwise never buys — a −10s path-nudge shift); casual
+  // UNMOVED at 76800 (d2Count self-satisfies so the gate is neutral for the engaged vlogger).
+  greedyIslandSec: 37435, greedyTolSec: 120,
   casualIslandSec: 76800, casualTolSec: 1200,
   // LIVING pins/bands (events on — the shipping default; selftest [115]): greedy is exactly
   // pinnable per stream (cadence-0 play is smooth); casual is DISTRIBUTIONAL — the persona's
   // 20-min cadence turns stream luck into ±1.5-3h of arrival spread, so its contract is a
-  // seed-panel median band, never a single-stream pin.
-  greedyLivingIslandSec: 36960,
+  // seed-panel median band, never a single-stream pin. Phase 3: greedy-living 36960→36950.
+  greedyLivingIslandSec: 36950,
   casualLivingMedianBandSec: [18 * 3600, 22 * 3600],
   casualLivingRailsSec: [15.5 * 3600, 23.5 * 3600],
   // the docs/05 §9 guard band for a greedy island under any accepted retune

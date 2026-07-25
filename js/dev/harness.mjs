@@ -85,6 +85,155 @@ export function amenityWorthBuying(s, a, cashRate) {
   return E.amenityCost(s, a.id) / gainPerSec <= AMENITY_PAYBACK_HORIZON_SEC;
 }
 
+// ---- path-gate satisfier (docs/10 §1.3 / PATH_GATE, Phase 3) ----
+// The one deliberate amendment to the "harness never touches clout/crypto" doctrine: with the
+// path gate live, a committed branch's stage goals sit on the accommodation ladder's critical
+// path. When the NEXT tier is Comfort-unlocked but blocked ONLY by the path gate
+// (accGateStatus: comfortOk && !pathOk), convert that gate into a SHORT, cheapest-first cash
+// spend toward the blocking (next-unfired) stage's still-missing goals — content/coins/
+// destinations/vehicles/luxury amenities/collections. Bounded + ROI-sane by construction:
+// - it fires ONLY when actually path-gated (never on the ~⅔ of engaged runs that sail through);
+// - it buys ONLY the blocking stage's unmet goals, cheapest resource first;
+// - every goal is a direct cash buy (clout is the sole exception — not purchasable, so it is
+//   bridged by ONE content buy that raises dClout/dt, then left to accrue), so a gate is a
+//   spend, never a wall.
+// SINGLE-SOURCED here: scenarios.mjs (makeGreedyAct) and selftest.mjs (playStep) import this,
+// exactly like amenityWorthBuying — one policy step, one definition, so the demo-baseline ≡
+// harness lock (selftest [106]) holds by construction, not by copy.
+
+// the single cheapest cash buy that advances goal `key` right now → { cost, do } | null.
+function cheapestGoalBuy(s, key) {
+  switch (key) {
+    case 'd2Count':
+      // d2Count (the primary "Followers" bar) is the CORE income backbone (D2 → D1 → cash),
+      // which the greedy/personas already buy through the normal generator loop. It is the ONE
+      // goal the satisfier must NOT force-buy: a single early D2 at a low count (2→3 is +50% of
+      // the D2 production driving the whole tier chain) compounds into a large pacing swing (a
+      // measured casual-tourist −15% before this carve-out). The calibration set the d2 ladder
+      // (3/7/18/60) BELOW the engaged p35 precisely so it self-satisfies — so we return null and
+      // let the tier gate wait, neutrally, for the natural economy to reach the count (bind only
+      // if genuinely behind on the backbone, never a perturbation of the fitted curve).
+      return null;
+    case 'contentFormats': {   // a NEW content format (level 0), respecting its clout unlock
+      let best = null, bestCost = Infinity;
+      for (const c of DATA.content) {
+        if ((s.content[c.id]?.level || 0) > 0 || !E.contentUnlocked(s, c.id)) continue;
+        const cost = E.contentCost(s, c.id);
+        if (cost < bestCost) { best = c.id; bestCost = cost; }
+      }
+      return best ? { cost: bestCost, do: () => E.buyContent(s, best) } : null;
+    }
+    case 'clout': {   // not purchasable — bridge by the cheapest UNLOCKED content tier (raises dClout/dt)
+      let best = null, bestCost = Infinity;
+      for (const c of DATA.content) {
+        if (!E.contentUnlocked(s, c.id)) continue;
+        const cost = E.contentCost(s, c.id);
+        if (cost < bestCost) { best = c.id; bestCost = cost; }
+      }
+      return best ? { cost: bestCost, do: () => E.buyContent(s, best) } : null;
+    }
+    case 'portfolioValue': {   // any coin raises holdings value — cheapest next unit
+      let best = null, bestCost = Infinity;
+      for (const c of DATA.crypto.coins) {
+        const cost = E.coinCost(s, c.id, 1);
+        if (cost < bestCost) { best = c.id; bestCost = cost; }
+      }
+      return best ? { cost: bestCost, do: () => E.buyCoin(s, best, 1) } : null;
+    }
+    case 'coinSpread': {   // a NEW distinct coin (none held yet) — cheapest
+      let best = null, bestCost = Infinity;
+      for (const c of DATA.crypto.coins) {
+        if ((s.crypto.holdings[c.id] || 0) > 0) continue;
+        const cost = E.coinCost(s, c.id, 1);
+        if (cost < bestCost) { best = c.id; bestCost = cost; }
+      }
+      return best ? { cost: bestCost, do: () => E.buyCoin(s, best, 1) } : null;
+    }
+    case 'destinations': {
+      let best = null, bestCost = Infinity;
+      for (const d of DATA.destinations) {
+        if (s.destinations[d.id].owned || !E.destUnlocked(s, d.id)) continue;
+        const cost = E.destCost(s, d.id);
+        if (cost < bestCost) { best = d.id; bestCost = cost; }
+      }
+      return best ? { cost: bestCost, do: () => E.buyDestination(s, best) } : null;
+    }
+    case 'vehicleClass': {   // climb one class at a time: car (1) → boat (2); no goal needs a jet
+      const cls = M.pathGoalResources(s, DATA).vehicleClass;
+      if (cls < 1 && E.garageUnlocked(s)) {
+        let best = null, bestCost = Infinity;
+        for (const c of DATA.vehicles) {
+          if ((s.vehicles.owned[c.id]?.count || 0) > 0) continue;
+          const cost = E.carCost(s, c.id);
+          if (cost < bestCost) { best = c.id; bestCost = cost; }
+        }
+        if (best) return { cost: bestCost, do: () => E.buyCar(s, best) };
+      }
+      if (cls < 2 && E.marinaUnlocked(s)) {
+        let best = null, bestCost = Infinity;
+        for (const b of DATA.boats) {
+          if ((s.vehicles.boats[b.id]?.count || 0) > 0) continue;
+          const cost = E.boatCost(s, b.id);
+          if (cost < bestCost) { best = b.id; bestCost = cost; }
+        }
+        if (best) return { cost: bestCost, do: () => E.buyBoat(s, best) };
+      }
+      return null;
+    }
+    case 'luxAmenities': {   // a NEW luxury/yacht-tag amenity (the SAME set luxuryAmenityComfort reads)
+      let best = null, bestCost = Infinity;
+      for (const a of DATA.amenities) {
+        if (!(a.tag === 'luxury' || a.tag === 'yacht')) continue;
+        if ((s.amenities[a.id]?.level || 0) > 0 || !E.amenityUnlocked(s, a.id)) continue;
+        const cost = E.amenityCost(s, a.id);
+        if (cost < bestCost) { best = a.id; bestCost = cost; }
+      }
+      return best ? { cost: bestCost, do: () => E.buyAmenity(s, best) } : null;
+    }
+    case 'collectionPieces': {   // a NEW distinct art/wine piece (count 0) — cheapest
+      let best = null, bestCost = Infinity;
+      for (const arr of [DATA.collections.art, DATA.collections.wine])
+        for (const a of arr) {
+          if ((s.collections[a.id]?.count || 0) > 0) continue;
+          const cost = E.assetCost(s, a.id);
+          if (cost < bestCost) { best = a.id; bestCost = cost; }
+        }
+      return best ? { cost: bestCost, do: () => E.buyAsset(s, best) } : null;
+    }
+    default: return null;
+  }
+}
+
+export function satisfyPathGate(s) {
+  if (!C.PATH_GATE.enabled) return;
+  const status = E.accGateStatus(s);
+  if (!status.comfortOk || status.pathOk) return;      // not blocked by the path gate → nothing to do
+  const branch = status.branch;
+  if (!branch || branch === 'neutral') return;          // uncommitted: committing is the runner's job
+  const path = DATA.paths.find(p => p.id === branch);
+  if (!path) return;
+  // blocking stage = the first not-yet-fired stage (stages fire strictly in order)
+  const blockIdx = path.stages.findIndex(st => !s.story.flags[`pathStage_${branch}_${st.at}`]);
+  if (blockIdx < 0) return;
+  const progress = M.stageGoalProgress(s, DATA, branch);
+  const unmet = progress[blockIdx].goals.filter(g => !g.met);
+  // cheapest bridge first — convert the smallest gap before the larger ones
+  unmet.sort((a, b) => (cheapestGoalBuy(s, a.key)?.cost ?? Infinity) - (cheapestGoalBuy(s, b.key)?.cost ?? Infinity));
+  for (const g of unmet) {
+    if (g.key === 'clout') {   // rate bridge: ONE content buy, then let clout accrue (never looped)
+      const buy = cheapestGoalBuy(s, 'clout');
+      if (buy && buy.cost <= s.resources.cash) buy.do();
+      continue;
+    }
+    // every other goal is a direct cash buy — buy cheapest units until met (bounded)
+    for (let guard = 0; guard < 500; guard++) {
+      if ((M.pathGoalResources(s, DATA)[g.key] ?? 0) >= g.need) break;
+      const buy = cheapestGoalBuy(s, g.key);
+      if (!buy || buy.cost > s.resources.cash || !buy.do()) break;   // unaffordable/unbuyable → a later act converts it
+    }
+  }
+}
+
 // ---- greedy "reasonable, keen" player ----
 export function play(s) {
   if (M.tierProd(s, 0) <= 0 && E.genCost(s, 0, 1) <= s.resources.cash) E.buyGenerator(s, 0, 1);
@@ -94,6 +243,10 @@ export function play(s) {
   // priority when it triggers: every other purchase below still fits in the new cap.
   let bg = 0;
   while (!E.bankMaxed(s) && E.bankUpgradeCost(s) <= s.resources.cash * 0.5 && bg++ < 4) E.buyBankUpgrade(s);
+  // path gate: if the next tier is Comfort-ready but path-gated, buy the cheapest missing
+  // goal resource so the blocking stage fires THIS act — the gate becomes a spend, not a wall
+  // (docs/10 §1.3). No-op when PATH_GATE is off or the gate isn't binding.
+  satisfyPathGate(s);
   let g = 0;
   while (E.accUnlocked(s) && E.accCost(s) <= s.resources.cash * 0.7 && g++ < 6) E.buyAccommodation(s);
   // amenities — ROI-aware (see amenityWorthBuying). cashRate is the current €/s cash income; the

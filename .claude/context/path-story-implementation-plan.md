@@ -27,11 +27,12 @@
   - [ ] P0-T1 snapshot instrumentation (tier-ups + stage fires → report.json)
   - [ ] P0-T2 dashboard "path trajectories" panel (minimal is fine)
   - [ ] P0-T3 calibration run (4 paths × runs 1–3) → table appended below
-- [ ] **Phase 1 — Data**: `goals` schema + vocabulary validation; `PATH_GATE` config; thresholds
-- [ ] **Phase 2 — Engine**: `math.stageGoalProgress`; stage firing (points AND goals);
+- [x] **Phase 1 — Data**: `goals` schema + vocabulary validation; `PATH_GATE` config; thresholds
+- [x] **Phase 2 — Engine**: `math.stageGoalProgress`; stage firing (points AND goals);
       `accUnlocked` checkpoint clause; migrate/grandfather
-- [ ] **Phase 3 — Balance**: harness gate-satisfier step; re-pin baselines; ±5% suite pass
-- [ ] **Phase 4 — UI**: Your Road panel; Overview merge; Personal Growth + ⓘ modal
+- [x] **Phase 3 — Balance**: harness gate-satisfier step; re-pin baselines; ±5% suite pass
+- [x] **Phase 4 — UI**: Your Road panel; Overview merge; Personal Growth + ⓘ modal
+      (uxcheck 52/52; visuals pending user review per 2026-07-25 directive)
 - [ ] **Phase 5 — Verify & docs**: selftest additions (bridgeability sweep, neglect-only
       assertion, flag-off invariance, reset audit); docs 01/02/05 amendments; final /verify
 - [ ] Merged to main (per phase; final phase closes the feature)
@@ -185,3 +186,65 @@ same tier (holds with margin here) — cheaper than a large multi-branch ascensi
 5. **Schema pin for Phase 2:** these numbers are calibrated against `d2Count = generators[D2].count`
    (the live produced/visible Follower count, monotone), NOT `.bought`. `math.stageGoalProgress`
    must read the same field or the ladder shifts. (Display can round the fractional count.)
+
+## Phase 3 results (balance-tuner, flag flipped `PATH_GATE.enabled: true`)
+
+**Satisfier design (`harness.satisfyPathGate`, single-sourced).** Lives in `js/dev/harness.mjs`,
+imported by `scenarios.mjs` (`makeGreedyAct`) and `selftest.mjs` (`playStep`) — one policy step,
+one definition (like `amenityWorthBuying`), so the demo-baseline ≡ harness lock ([106]) holds by
+construction. Wired right after the bank-upgrade block, before the accommodation loop, so a fired
+stage opens the tier the same act. It fires ONLY when `accGateStatus` reads `comfortOk && !pathOk`
+for the committed branch (never on the ~⅔ that sail through), finds the first not-yet-fired stage,
+and buys its unmet goals cheapest-bridge-first (bounded loop, each buy affordability-gated): a NEW
+content format per `contentFormats`; a new content level as the cash→rate bridge for `clout`;
+cheapest coin for `portfolioValue`, cheapest un-held coin for `coinSpread`; cheapest unlocked
+unowned destination; cheapest car→boat for `vehicleClass`; cheapest unlocked new luxury/yacht
+amenity for `luxAmenities`; cheapest new art/wine piece for `collectionPieces`.
+
+**The one carve-out — `d2Count` is NOT force-bought (returns null).** The primary Followers bar
+is the D2 core-income backbone; buying one early D2 at a low count (2→3 = +50% of the tier-chain
+driver) compounded into a measured **casual-tourist −15%** (the gate accidentally *accelerating*
+the engaged vlogger). The fix leaves d2Count to the natural economy — the tier gate simply waits
+(neutrally) for the count the calibration already put below the engaged p35 (3/7/18/60), so it
+self-satisfies at each checkpoint. `checkPathStages` runs every tick, so the stage fires the
+instant d2Count catches up.
+
+**Re-pinned baselines (old → new, selftest + report.mjs GOLDEN, one commit).**
+
+| pin | old | new |
+|---|--:|--:|
+| greedy island (quiet, events off) — GOLDEN + E11–E29 invariance asserts + [105]/[106]/[109]/[111]/[115] | 37445s | **37435s** |
+| greedy-living island (events on) — [115] | 36960s | **36950s** |
+| casual-tourist island (quiet) — [109] | 76800s | **76800s** (unchanged) |
+| greedy-traveler (quiet) — [109] | 36080s | **35455s** |
+| greedy-connoisseur (quiet) — [109] | 30900s | **30900s** (unchanged) |
+| greedy-crypto (quiet) — [109] | 41495s | **41495s** (unchanged) |
+| GOLDEN.greedyIslandSec / greedyLivingIslandSec (report.mjs) | 37445 / 36960 | **37435 / 36950** |
+
+**Per-tier ±5% no-lengthening (four engaged casual personas, flag-on vs flag-off).** Every delta
+is ≥ 0 (the gate only lengthens on neglect, never speeds up — the −15% speedup is gone):
+
+| persona | island Δ | worst per-tier Δ | stalls |
+|---|--:|--:|---|
+| casual-tourist | +0.0% | +1.6% @T19 | none |
+| casual-traveler | +0.0% | +0.0% | none |
+| casual-crypto | +2.3% | +2.9% @T15 | none |
+| casual-connoisseur | +0.0% | +0.0% | none |
+
+**vlogger-T19 watch item — resolved, no threshold/checkpoint change.** casual-tourist fires S4 at
+~17h40m (well before the T19 checkpoint), so T19 lengthens only +1.6% (one 20-min check-in),
+inside ±5%. The S4 goals (Followers 60, clout 750k, content 4) held; PATH_GATE.checkpoints
+19→S4 unchanged.
+
+**Test-fixture updates (gate went live, not engine bugs).** Unit tests that buy into a checkpoint
+tier or fire a stage on points alone were made gate-aware: tier-8 and tier-12 (Taste-gate)
+fixtures commit vlogger + set the checkpoint stage flags so they isolate the Comfort/Taste gate;
+[87]/[88] stage-firing fixtures pre-satisfy the branch goals; [68]'s "harness never buys content"
+became "buys ONLY the ≤4 gate content formats, never the Clout boost sink." No engine/math change
+was needed — the gate logic (Phases 1+2) and the satisfier carried the whole feature.
+
+**DoD status:** `npm test` green (0 fail); `npm run harness` island 10h15m50s (in 6–12h guard),
+peak log10 12.9 (<< 290), 26 beats; `npm run report -- --quick` clean. Left uncommitted in the
+working tree per instructions. (Note: a parallel Phase 4 UI change set — `ui.js`/`index.html`/
+`css/game.css`/`data/skills.js` — is also present in the tree; it does not affect the node
+harness/selftest and is out of scope for this Phase 3 balance pass.)
