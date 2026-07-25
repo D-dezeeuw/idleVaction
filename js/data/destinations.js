@@ -2,10 +2,15 @@
 // PERMANENT global ×, folded into L_dest) and tier-1 transport (bus/train — speeds
 // destination cost, small upkeep sink). Pure declarative data; math lives in math.js,
 // wiring in engine.js. No import of math/engine here (data sits above math in the
-// config→util→math→data chain — see AGENTS.md §4).
+// config→util→math→data chain — see AGENTS.md §4). The one sibling import below (PATHS)
+// mirrors the existing data→data precedent (data/splurges.js imports SKILLS, data/staff.js
+// imports GROUNDS) — used ONLY by validateDestinations to check `branch` against real path ids.
+//
+import { PATHS } from './paths.js';
+const PATH_IDS = PATHS.map(p => p.id);
 //
 // DESTINATIONS row shape: { id, name, region, costBase, mult, unlockAfter, unlockComfort,
-//   tag, pathAffinity, travelTime, flavor }. `travelTime` (E15-S1-T7) is the felt "cycling
+//   tag, pathAffinity, travelTime, flavor, branch? }. `travelTime` (E15-S1-T7) is the felt "cycling
 //   time" in seconds a destination takes to complete a round trip before it can be re-bought
 //   at its next tier of income — a car's `speed` field (data/vehicles.js) shortens this,
 //   the same way transport's own `speed` shortens destCost. Small for near places, larger
@@ -28,6 +33,31 @@
 // the 16-18h range with margin. If the full 1.08-1.20/row flavor is wanted later, it
 // needs a coordinated retune (GEN/COMFORT), not just a destinations-file edit — see the
 // sweep data referenced in the phase-4 build report.
+//
+// PHASE 6A — path-exclusive destinations (docs/10, .claude/context/path-story-
+// implementation-plan.md "Phase 6"): 12 rows, 3 per path (`branch: 'vlogger'|'crypto'|
+// 'traveler'|'connoisseur'`), interleaved below by costBase (validateDestinations enforces
+// strict ascending costBase across the WHOLE array, so these sit at the array position
+// matching their price band, not grouped as a block). Binding design rule: `mult` is
+// EXACTLY 1.0 — ZERO new global multiplier (see the BALANCE NOTE above: the destination
+// map's x-product budget is already spent). The reward is entirely path-scoped: pathAffinity
+// toward the OWNING branch only (a flat +3 points on purchase via the same addPathPoints/
+// pathReceives machinery every other destination uses — engine.buyDestination), plus
+// flavor. No Comfort-hook: this row shape has no field computeComfort reads (unlike
+// signature/property/collection rows, which hook Comfort through their OWN dedicated terms
+// in math.js) — adding one would mean a new math.js term, which is a balance-tuner change,
+// not a data-file one, so these rows carry pathAffinity + flavor only, matching the design
+// rule's "if the existing row schema supports one" clause. Visibility AND purchase are
+// gated to a life whose road includes the row's branch (engine.pathReceives — the SAME
+// commitment check used everywhere else, wired into destUnlocked so both the reveal/listing
+// layer and buyDestination inherit it for free — no bespoke gate). Costs are spread across
+// each path's arc, priced off the neighboring OPEN rows at the same unlockComfort band:
+// early (~S1/S2 era, between dest_brussels/dest_cologne), mid (~S3 era, between
+// sea_fjord_cruise/air_tokyo), late (~S4 era, between air_new_york/air_sydney). The greedy/
+// scenario dev bots deliberately skip `branch`-tagged rows (js/dev/harness.mjs, scenarios.mjs,
+// selftest.mjs — mirrors the existing amenityWorthBuying ROI philosophy: a mult:1.0 row is
+// zero-ROI for a max-speed policy, so a rational bot never buys one), so these rows never
+// move any pinned harness/selftest baseline; a real committed player sees/buys them via the UI.
 export const DESTINATIONS = [
   { id: 'dest_ardennes_daytrip', name: 'Ardennes Day Trip', region: 'Benelux',
     costBase: 800, mult: 1.025, unlockAfter: null, unlockComfort: 0, tag: 'daytrip',
@@ -53,6 +83,24 @@ export const DESTINATIONS = [
     costBase: 194400, mult: 1.035, unlockAfter: 'dest_amsterdam_return', unlockComfort: 5e4, tag: 'capital',
     pathAffinity: { traveler: 1.0 }, travelTime: 20,
     flavor: 'Waffles, fries, and a diplomatic quarter you accidentally wander into twice.' },
+  // --- Phase 6A path-exclusive destinations, early slot (~S1/S2 era) — see the PHASE 6A
+  // comment above the array for the full design contract. mult: 1.0, branch-gated. ---
+  { id: 'dest_transsiberian', name: 'Trans-Siberian Stretch', region: 'Russia', branch: 'traveler',
+    costBase: 260000, mult: 1.0, unlockAfter: null, unlockComfort: 90000, tag: 'exclusive',
+    pathAffinity: { traveler: 3 }, travelTime: 45,
+    flavor: 'Seven days, one train, a thousand identical pine trees. You run out of things to say to your cabin-mate by hour twelve and start explaining stroopwafels instead.' },
+  { id: 'dest_bali_content_house', name: 'The Content House, Bali', region: 'Indonesia', branch: 'vlogger',
+    costBase: 320000, mult: 1.0, unlockAfter: null, unlockComfort: 110000, tag: 'exclusive',
+    pathAffinity: { vlogger: 3 }, travelTime: 40,
+    flavor: 'A literal house, rented by the month, with three ring lights bolted to the ceiling and a rice-paddy view that exists purely for the thumbnail. You have never once eaten there. You have filmed there four hundred times.' },
+  { id: 'dest_zug', name: 'Zug, Very Quietly', region: 'Switzerland', branch: 'crypto',
+    costBase: 380000, mult: 1.0, unlockAfter: null, unlockComfort: 130000, tag: 'exclusive',
+    pathAffinity: { crypto: 3 }, travelTime: 35,
+    flavor: 'A town so quiet the Swiss themselves forget it exists, which is precisely why your entire portfolio is domiciled here. Nobody asks questions. Nobody says much of anything.' },
+  { id: 'dest_bordeaux_chateau', name: 'A Quiet Château, Bordeaux', region: 'France', branch: 'connoisseur',
+    costBase: 440000, mult: 1.0, unlockAfter: null, unlockComfort: 150000, tag: 'exclusive',
+    pathAffinity: { connoisseur: 3 }, travelTime: 40,
+    flavor: 'A quiet château, three rooms, one very patient sommelier who has stopped correcting your pronunciation. You have started noticing tannins. This alarms everyone who knew you before.' },
   { id: 'dest_cologne', name: 'Cologne', region: 'DACH',
     costBase: 583200, mult: 1.04, unlockAfter: 'dest_brussels', unlockComfort: 5e5, tag: 'city',
     pathAffinity: { traveler: 1.0 }, travelTime: 25,
@@ -77,6 +125,24 @@ export const DESTINATIONS = [
     costBase: 4.8e7, mult: 1.05, unlockAfter: 'sea_greek_islands', unlockComfort: 6e7, tag: 'sea',
     pathAffinity: { traveler: 1.0, connoisseur: 0.5 }, travelTime: 150, sea: true, requiresBoatTier: 3,
     flavor: 'Turns out the fjords do not care that it also rains in Rotterdam.' },
+  // --- Phase 6A path-exclusive destinations, mid slot (~S3 era) — see the PHASE 6A
+  // comment above the array. mult: 1.0, branch-gated. ---
+  { id: 'dest_kathmandu', name: 'Kathmandu Basecamp', region: 'Himalaya', branch: 'traveler',
+    costBase: 56000000, mult: 1.0, unlockAfter: null, unlockComfort: 55000000, tag: 'exclusive',
+    pathAffinity: { traveler: 3 }, travelTime: 140,
+    flavor: 'Basecamp for something much taller than you will ever climb. You buy the fleece. The fleece is the summit.' },
+  { id: 'dest_santorini_goldenhour', name: 'Santorini Golden Hour', region: 'Aegean', branch: 'vlogger',
+    costBase: 68000000, mult: 1.0, unlockAfter: null, unlockComfort: 65000000, tag: 'exclusive',
+    pathAffinity: { vlogger: 3 }, travelTime: 120,
+    flavor: 'Golden hour lasts eleven minutes. You have learned to sprint in flowing linen. The other forty content houses on the same cliff know your sprint by name.' },
+  { id: 'dest_miami_cryptoweek', name: 'Miami Crypto Week', region: 'USA', branch: 'crypto',
+    costBase: 82000000, mult: 1.0, unlockAfter: null, unlockComfort: 75000000, tag: 'exclusive',
+    pathAffinity: { crypto: 3 }, travelTime: 130,
+    flavor: 'A week of panels, yachts, and men in linen suits explaining tokenomics to each other, loudly, over a DJ nobody asked for. You network. You mean you stand near the shrimp.' },
+  { id: 'dest_kyoto_ryokan', name: 'Kyoto Ryokan, Off the Record', region: 'Japan', branch: 'connoisseur',
+    costBase: 98000000, mult: 1.0, unlockAfter: null, unlockComfort: 85000000, tag: 'exclusive',
+    pathAffinity: { connoisseur: 3 }, travelTime: 150,
+    flavor: 'Off the record, off the main street, off almost every map — the owner takes six guests a season and decided, inexplicably, you were one of them.' },
   // --- air destinations (E17 "Wheels Up"): air:true + requiresJetTier — intercontinental places a
   // jet collapses to a tap. engine.destUnlocked blocks them until the hangar owns a jet of the
   // needed tier; owning ANY jet also cuts destination cost (config.LOGISTICS.jetDiscount). Same
@@ -89,6 +155,24 @@ export const DESTINATIONS = [
     costBase: 4.2e8, mult: 1.05, unlockAfter: 'air_tokyo', unlockComfort: 4e8, tag: 'air',
     pathAffinity: { traveler: 1.0 }, travelTime: 220, air: true, requiresJetTier: 3,
     flavor: 'You land, you conquer, you complain about the bagels being wrong. Naturally.' },
+  // --- Phase 6A path-exclusive destinations, late slot (~S4 era) — see the PHASE 6A
+  // comment above the array. mult: 1.0, branch-gated. ---
+  { id: 'dest_patagonia', name: 'Patagonia End-to-End', region: 'Patagonia', branch: 'traveler',
+    costBase: 550000000, mult: 1.0, unlockAfter: null, unlockComfort: 500000000, tag: 'exclusive',
+    pathAffinity: { traveler: 3 }, travelTime: 220,
+    flavor: 'End to end, by bus, boat, and one deeply regretted hitchhike. The wind never stops. Neither, by now, do you.' },
+  { id: 'dest_iceland_drone', name: 'Iceland Drone Weekend', region: 'Nordic', branch: 'vlogger',
+    costBase: 700000000, mult: 1.0, unlockAfter: null, unlockComfort: 700000000, tag: 'exclusive',
+    pathAffinity: { vlogger: 3 }, travelTime: 210,
+    flavor: 'A long weekend, mostly airborne footage. The drone has seen more of Iceland than you have. It also has more followers.' },
+  { id: 'dest_taxhaven_atoll', name: 'Tax-Haven Atoll', region: 'Offshore', branch: 'crypto',
+    costBase: 900000000, mult: 1.0, unlockAfter: null, unlockComfort: 900000000, tag: 'exclusive',
+    pathAffinity: { crypto: 3 }, travelTime: 230,
+    flavor: 'A ring of sand with a very good lawyer and a very bad Wi-Fi signal. The paperwork took longer than the flight. Both were worth it, allegedly.' },
+  { id: 'dest_como', name: 'Lake Como, a Long Weekend', region: 'Italy', branch: 'connoisseur',
+    costBase: 1100000000, mult: 1.0, unlockAfter: null, unlockComfort: 1100000000, tag: 'exclusive',
+    pathAffinity: { connoisseur: 3 }, travelTime: 225,
+    flavor: 'A long weekend on water so still it looks staged. It is not staged. You are simply, finally, somewhere that photographs itself.' },
   { id: 'air_sydney', name: 'Sydney', region: 'Australia',
     costBase: 1.3e9, mult: 1.055, unlockAfter: 'air_new_york', unlockComfort: 1.2e9, tag: 'air',
     pathAffinity: { traveler: 1.0 }, travelTime: 240, air: true, requiresJetTier: 5,
@@ -165,6 +249,14 @@ export function validateDestinations() {
       if (!Number.isInteger(d.tasteGate) || d.tasteGate <= 0) errors.push(`${d.id}: premium destination needs a positive-integer tasteGate`);
       if (typeof d.signature !== 'string' || !d.signature) errors.push(`${d.id}: premium destination needs a signature amenity id`);
       if (!(d.mult > 1)) errors.push(`${d.id}: premium destination mult must be > 1 (got ${d.mult})`);
+    }
+    // Phase 6A path-exclusive destinations: branch, when present, must be a real path id
+    // (validatePaths' own vocabulary — checked against PATHS directly, no engine import), and
+    // the row's mult must be EXACTLY 1.0 — the binding "zero new global multiplier" rule, kept
+    // structural here so a future edit can't sneak a real × onto an exclusive row.
+    if (d.branch !== undefined) {
+      if (!PATH_IDS.includes(d.branch)) errors.push(`${d.id}: unknown branch "${d.branch}" (must be one of ${PATH_IDS.join(', ')})`);
+      if (d.mult !== 1.0) errors.push(`${d.id}: path-exclusive destination mult must be exactly 1.0 (got ${d.mult})`);
     }
   }
   if (errors.length) throw new Error('validateDestinations() failed:\n' + errors.join('\n'));

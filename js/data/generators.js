@@ -5,12 +5,23 @@
 // `names` (Phase E / audit 3.1): optional per-branch skin — the SAME economy wearing the
 // committed road's clothes, so an Old-Money Aesthete doesn't earn a living from "Followers."
 // Display-only (ui.genName); ids/math never change, saves and the harness are untouched.
+// `flavors` (Phase 6A, D2 identity deepening): the same per-branch skin idea, one layer
+// deeper — a per-branch FLAVOR LINE alongside the name (ui.genFlavor mirrors ui.genName
+// exactly). DISPLAY-ONLY: no new field is read by engine.js/math.js, no math changes.
 export const GENERATORS = [
   { id: 'd1', name: 'Postcard Snapshots', tags: ['content'],
     names: { crypto: 'Spare-Change Rounding', connoisseur: 'Sketches, Sold Shyly', traveler: 'Trail Notes' },
+    flavors: {
+      crypto: 'Spare change, rounded up on every trade, into a jar you will not open for a decade.',
+      connoisseur: "A sketchbook, a shy signature, sold to someone who insists it's 'promising'.",
+      traveler: 'A notebook of bus times and hostel names, sold to the next backpacker at the border.' },
     flavor: 'You sell grainy holiday photos. It is not much. It is a start.' },
   { id: 'd2', name: 'Followers', tags: ['social'],
     names: { crypto: 'Wallet Watchers', connoisseur: 'Admirers', traveler: 'Pen Pals' },
+    flavors: {
+      crypto: 'People who watch your wallet more closely than their own therapist watches them.',
+      connoisseur: 'People who ask, politely, where you find these things. You never quite answer.',
+      traveler: 'People who write back. Actual paper, actual stamps, actual patience.' },
     flavor: 'People who watched one video and never left.' },
   { id: 'd3', name: 'Sponsor Slides', tags: ['social'],
     names: { crypto: 'Referral Codes', connoisseur: 'Introductions', traveler: 'Guidebook Credits' },

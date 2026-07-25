@@ -578,6 +578,12 @@ export function destUnlocked(state, id) {
   const d = destData(id);
   if (!d) return false;
   if (state.destinations[id].owned) return true;
+  // Phase 6A path-exclusive destinations: visible only to a life whose road includes the
+  // row's branch — reuses pathReceives (the SAME commitment check used everywhere else:
+  // the committed branch, or a Jack of All Trades side-road once opened). Checked here so
+  // BOTH the reveal/listing layer (checkDestinationReveals/ui.js, which read destUnlocked)
+  // and buyDestination (which gates on destUnlocked first) inherit the guard for free.
+  if (d.branch && !pathReceives(state, d.branch)) return false;
   // E16 "Sea Legs": a sea:true destination stays locked until the marina owns a boat of the
   // required tier — a hull literally opens places you couldn't reach. The greedy-vlogger harness
   // owns no boat (boatTier 0), so sea destinations never unlock ⇒ L_dest / island are unmoved.
@@ -628,6 +634,10 @@ export function buyDestination(state, id) {
   // connoisseurs also read a premium collection as taste (E24 path flavor, harness-neutral: the
   // greedy vlogger never owns a premium destination, so this branch is never reached for it).
   if (d.premium) addPathPoints(state, 'connoisseur', (d.pathAffinity && d.pathAffinity.connoisseur) || 0);
+  // Phase 6A path-exclusive destinations: credit the row's OWNING branch — vlogger/crypto/
+  // connoisseur here (a traveler-exclusive's pathAffinity.traveler is already credited by the
+  // unconditional line above, so this only adds the other three branches, never double-credits).
+  if (d.branch && d.branch !== 'traveler') addPathPoints(state, d.branch, (d.pathAffinity && d.pathAffinity[d.branch]) || 0);
   notify(state, 'unlock', `🌍 New destination unlocked: ${d.name} (×${d.mult} global)`);
   if (d.premium) checkRichHide(state);
   return true;
@@ -810,7 +820,8 @@ export function addPathPoints(state, id, n) {
 // continuation (`desc`), and its flat bonus is live via the recomputed _pathBonus.
 // Iterates every road the life has opened (the branch + Jack side-roads).
 //
-// PATH_GATE.enabled === false (the shipped default, docs/10 §1 / .claude/context/
+// PATH_GATE.enabled === false (the escape hatch — the shipped default is TRUE since
+// Phase 3; selftest [119] pins the off-state, docs/10 §1 / .claude/context/
 // path-story-implementation-plan.md): points-only, byte-for-byte the pre-gate behavior
 // — a stage fires the moment points reach its `at` threshold, and the ascending-order
 // `break` above is what already keeps stages firing in order (points only ever grow, so
@@ -922,6 +933,11 @@ export function amenityCost(state, id) {
 export function amenityUnlocked(state, id) {
   const a = amenityData(id);
   if (state.amenities[id].level > 0) return true;   // already owned ⇒ always visible
+  // Phase 6A path-exclusive amenities: visible only to a life whose road includes the row's
+  // branch — the SAME pathReceives commitment check destUnlocked uses (no bespoke gate).
+  // Checked here so both the reveal layer (renderAmenities, which reads amenityUnlocked) and
+  // buyAmenity (which gates on amenityUnlocked first) inherit the guard for free.
+  if (a.branch && !pathReceives(state, a.branch)) return false;
   // E22 property-hosted amenities (tag:'property'): gated on OWNING the named property, on top of
   // the Comfort gate. The harness never owns a deed, so unlockProperty items stay locked for it
   // (unlockProperty is undefined for every pre-E22 amenity ⇒ bit-identical behaviour there).

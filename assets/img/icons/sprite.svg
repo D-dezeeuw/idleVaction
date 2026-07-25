@@ -202,4 +202,30 @@
     <rect x="11.3" y="3" width="1.4" height="11" fill="#2B1E16"/>
   </symbol>
 
+  <!-- Phase 6A path-exclusive amenity tags (js/data/amenities.js) -->
+
+  <symbol id="ic-am-vlogkit" viewBox="0 0 24 24"><!-- ring light + phone -->
+    <circle cx="12" cy="12" r="9" fill="none" stroke="#FF2E88" stroke-width="2.4"/>
+    <rect x="9" y="7" width="6" height="10" rx="1.5" fill="#2B1E16"/>
+    <circle cx="12" cy="15" r="1" fill="#45C4FF"/>
+  </symbol>
+
+  <symbol id="ic-am-cryptodesk" viewBox="0 0 24 24"><!-- framed candle chart -->
+    <rect x="3" y="4" width="18" height="14" rx="2" fill="#FFF6E9" stroke="#FFC800" stroke-width="2"/>
+    <path d="M6 14 L9 9 L12 12 L15 6 L18 10" fill="none" stroke="#2B1E16" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="9" y="18" width="6" height="3" rx="1" fill="#E8B979"/>
+  </symbol>
+
+  <symbol id="ic-am-wanderkit" viewBox="0 0 24 24"><!-- compass -->
+    <circle cx="12" cy="12" r="9" fill="#7ED957"/>
+    <path d="M15 8 L11 13 L9 16 L13 11 Z" fill="#FFF6E9"/>
+    <circle cx="12" cy="12" r="1.4" fill="#2B1E16"/>
+  </symbol>
+
+  <symbol id="ic-am-atelier" viewBox="0 0 24 24"><!-- framed canvas + easel -->
+    <rect x="3" y="3" width="18" height="14" rx="1.5" fill="#E8B979"/>
+    <rect x="5.5" y="5.5" width="13" height="9" fill="#45C4FF"/>
+    <path d="M9 21 L12 17 L15 21 Z" fill="#2B1E16"/>
+  </symbol>
+
 </svg>

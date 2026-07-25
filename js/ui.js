@@ -194,6 +194,9 @@ function afford(cost) { return S.resources.cash >= cost; }
 // Branch-skinned generator names (Phase E / audit 3.1): the committed road re-labels the SAME
 // economy — display-only, ids/math untouched (data/generators.js `names`).
 function genName(s, g) { return (g.names && g.names[s.story.branch]) || g.name; }
+// Branch-skinned generator flavor lines (Phase 6A, D2 identity deepening): mirrors genName
+// exactly — display-only, ids/math untouched (data/generators.js `flavors`).
+function genFlavor(s, g) { return (g.flavors && g.flavors[s.story.branch]) || g.flavor; }
 function btn(action, arg, label, enabled = true, cls = '', title = '') {
   return `<button class="btn btn-sm iv-btn ${cls}" data-action="${action}" data-arg="${arg ?? ''}" ${enabled ? '' : 'disabled'} ${title ? `title="${title}"` : ''}>${label}</button>`;
 }
@@ -1262,7 +1265,7 @@ function renderGenerators(s) {
     const pct = clamp(100 * s.resources.cash / Math.max(1e-9, cost), 0, 100);
     const speed = Math.max(0.9, 3.2 - 0.55 * lvl - 0.2 * Math.min(4, st.upgrades)).toFixed(2);
     const upgCost = E.genUpgradeCost(s, k);
-    const tip = `${g.flavor} — output ×${fmt(M.tierMultiplier(s, k))}, renovations ×${fmt(M.upgradeMult(st.upgrades))} (${st.upgrades}), next milestone in ${toDouble} buys`;
+    const tip = `${genFlavor(s, g)} — output ×${fmt(M.tierMultiplier(s, k))}, renovations ×${fmt(M.upgradeMult(st.upgrades))} (${st.upgrades}), next milestone in ${toDouble} buys`;
     rows += `<div class="iv-gen-tile iv-glvl-${lvl}${canBuy ? ' iv-can-buy' : ''}" style="--gen-anim:${speed}s" title="${tip}">
       <div class="iv-gen-head"><b>${genName(s, g)}</b> <small>×${fmt(st.count | 0)}</small>
         <span class="iv-gen-double" title="milestone: ×2 every ${C.MILESTONE_STEP} buys">⭐ ${toDouble} to ×2</span></div>
