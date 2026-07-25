@@ -14,6 +14,16 @@ let hooks = {};               // { save, exportSave, importSave, hardReset }
 // buy quantity (1 | 10 | 'max') now lives in state.ui.bulkMode (E03-S1-T6) so the
 // toggle survives reload instead of being lost as a transient module var.
 
+// ---- icon sprite (Phase 6C) ----
+// The <symbol> defs live inline in index.html (assets/img/icons/sprite.svg is the same
+// content, kept as the hand-edited source/reference copy — no build step to inline it
+// automatically). spriteIcon() just wraps a <use> ref; sized/aligned by the single .ic
+// rule in game.css. Distinct from the local `icon` vars elsewhere in this file (per-row
+// emoji lookups like STAFF_ICON) — this is chrome, those are flavor.
+function spriteIcon(id, cls = '') {
+  return `<svg class="ic${cls ? ' ' + cls : ''}" aria-hidden="true" focusable="false"><use href="#${id}"></use></svg>`;
+}
+
 // ---- tabbed navigation (UI declutter + progressive disclosure) ----
 // Panels are grouped into a few tabs; a tab only appears once ≥1 of its cards is unlocked (the
 // future stays hidden). The player sees one focused screen at a time. activeTab/seenTabs are
@@ -21,11 +31,11 @@ let hooks = {};               // { save, exportSave, importSave, hardReset }
 const TABS = [
   // Your Road (docs/10 §2.1) + Overview (docs/10 §2.2, income+amenities merged) lead the Home
   // tab now — the road that matters, then the everyday buys, then the rest of the systems below.
-  { id: 'home',   label: 'Home',   icon: '🏨', cards: ['yourRoadCard', 'overviewCard', 'eventsCard', 'boostsCard', 'petraCard', 'poolCard', 'beachCard', 'wellnessCard', 'conciergeCard', 'propertyCard', 'islandListingCard', 'souvenirCard'] },
+  { id: 'home',   label: 'Home',   icon: spriteIcon('ic-home'),   cards: ['yourRoadCard', 'overviewCard', 'eventsCard', 'boostsCard', 'petraCard', 'poolCard', 'beachCard', 'wellnessCard', 'conciergeCard', 'propertyCard', 'islandListingCard', 'souvenirCard'] },
   { id: 'income', label: 'Income', icon: '💶', cards: ['creatorCard', 'cryptoCard', 'collectionCard', 'staffCard'] },
   { id: 'travel', label: 'Travel', icon: '🌍', cards: ['destCard', 'transportCard', 'garageCard', 'marinaCard', 'hangarCard'] },
-  { id: 'growth', label: 'Growth', icon: '💪', cards: ['skillsCard', 'pathsCard'] },
-  { id: 'legacy', label: 'Legacy', icon: '👑', cards: ['ascensionCard', 'treeCard', 'legendCard', 'achievementsCard'] },
+  { id: 'growth', label: 'Growth', icon: spriteIcon('ic-growth'), cards: ['skillsCard', 'pathsCard'] },
+  { id: 'legacy', label: 'Legacy', icon: spriteIcon('ic-legacy'), cards: ['ascensionCard', 'treeCard', 'legendCard', 'achievementsCard'] },
 ];
 let activeTab = 'home';
 let seenTabs = new Set(['home']);
@@ -212,8 +222,8 @@ function renderHeader(s) {
   if (dispCash < 0 || !(cash > 0) || dispCash > cash * 3 || cash > dispCash * 3 || reducedMotion()) dispCash = cash;
   else dispCash += (cash - dispCash) * 0.35;
   const html = `
-    <span class="iv-res" title="Comfort above what your current digs provide — every amenity adds to it, and a new check-in raises the bar">😌 Comfort <b>+${fmt(M.displayComfort(s))}</b> <small>(bonus ×${fmt(lComfort)})</small></span>
-    ${showClout ? `<span class="iv-res">📣 Clout <b>${fmt(s.resources.clout)}</b></span>` : ''}
+    <span class="iv-res" title="Comfort above what your current digs provide — every amenity adds to it, and a new check-in raises the bar">${spriteIcon('ic-comfort')} Comfort <b>+${fmt(M.displayComfort(s))}</b> <small>(bonus ×${fmt(lComfort)})</small></span>
+    ${showClout ? `<span class="iv-res">${spriteIcon('ic-clout')} Clout <b>${fmt(s.resources.clout)}</b></span>` : ''}
     ${showLegacy ? `<span class="iv-res">🏆 Legacy <b>${fmt(s.resources.legacy)}</b></span>` : ''}
     ${lDest > 1.001 ? `<span class="iv-res" aria-label="World Traveler destination bonus, times ${fmt(lDest)}">🌍 <b>×${fmt(lDest)}</b></span>` : ''}
     ${combo > 1.01 ? `<span class="iv-res">🔥 Combo ×${combo.toFixed(2)}</span>` : ''}
@@ -234,7 +244,7 @@ function renderWalletChip(s) {
   const pct = Number.isFinite(cap) ? clamp(100 * cash / cap, 0, 100) : 0;
   const perSec = M.tierProd(s, 0) + M.savvyPassive(s);
   const full = Number.isFinite(cap) && cash >= cap * 0.98;
-  setHTML(b, `<span class="iv-wallet-cash">💶 <b>${fmt(dispCash)}</b>${full ? ' ⚠️' : ''}</span>
+  setHTML(b, `<span class="iv-wallet-cash">${spriteIcon('ic-wallet')} <b>${fmt(dispCash)}</b>${full ? ' ⚠️' : ''}</span>
     <span class="iv-wallet-rate">+${fmt(perSec)}/s</span>
     ${Number.isFinite(cap) ? `<span class="iv-wallet-bar"><i style="width:${pct.toFixed(1)}%"></i></span>` : ''}`);
   b.classList.toggle('iv-wallet-full', full);
@@ -595,7 +605,7 @@ function renderPetra(s) {
 function renderStory(s) {
   let html = `<div class="iv-story-bar-row">
     <button class="iv-story-bar" data-action="open-diary" aria-label="Open your travel diary">
-      <span aria-hidden="true">📖</span><span>The story so far…</span><span class="iv-story-bar-arrow" aria-hidden="true">›</span>
+      <span aria-hidden="true">${spriteIcon('ic-story')}</span><span>The story so far…</span><span class="iv-story-bar-arrow" aria-hidden="true">›</span>
     </button>
     ${btn('open-postcard', '', '📮', true, 'iv-story-postcard', 'Send a postcard')}
   </div>`;
@@ -915,7 +925,7 @@ function renderAccommodation(s) {
       const pct = clamp(100 * s.resources.comfort / need, 0, 100);
       const cashPct = clamp(100 * s.resources.cash / cost, 0, 100);
       html += `<div class="iv-acc-row iv-acc-next" title="${acc.flavor}">
-        <div>➡️ Next: <b>${acc.name}</b> <small>${fmt(cost)}</small></div>
+        <div>${spriteIcon('ic-next')} Next: <b>${acc.name}</b> <small>${fmt(cost)}</small></div>
         ${gateOk
           ? `<div class="iv-comfort-meter iv-cash-meter" role="progressbar" aria-valuemin="0" aria-valuemax="100"
               aria-valuenow="${cashPct.toFixed(0)}" aria-label="Cash toward ${acc.name}">
@@ -1358,7 +1368,7 @@ function renderAmenities(s) {
     const items = byTag[tag];
     const expanded = expandedAmenTags.has(tag);
     const shown = expanded ? items : items.slice(0, 3);
-    html += `<div class="iv-tag">${tag}</div><div class="iv-amenities">`;
+    html += `<div class="iv-tag">${spriteIcon('ic-am-' + tag)} ${tag}</div><div class="iv-amenities">`;
     for (const a of shown) {
       const cost = E.amenityCost(s, a.id);
       const lvl = s.amenities[a.id].level;
@@ -2508,7 +2518,7 @@ function pathTrackHtml(s, p) {
     } else if (!nextShown) {
       nextShown = true;
       const pct = clamp(100 * pts / st.at, 0, 100);
-      html += `<div class="iv-acc-row iv-acc-next">➡️ Next: <b>${st.name}</b> <small>needs ${st.at} pts — you: ${fmt(pts)}</small>
+      html += `<div class="iv-acc-row iv-acc-next">${spriteIcon('ic-next')} Next: <b>${st.name}</b> <small>needs ${st.at} pts — you: ${fmt(pts)}</small>
         <div class="iv-comfort-meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct.toFixed(0)}"
           aria-label="Progress toward ${st.name}"><i style="width:${pct.toFixed(1)}%"></i></div>
         <div class="iv-sub">${st.desc}</div></div>`;

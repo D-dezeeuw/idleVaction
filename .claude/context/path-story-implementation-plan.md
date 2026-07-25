@@ -35,7 +35,15 @@
       (uxcheck 52/52; visuals pending user review per 2026-07-25 directive)
 - [ ] **Phase 5 — Verify & docs**: selftest additions (bridgeability sweep, neglect-only
       assertion, flag-off invariance, reset audit); docs 01/02/05 amendments; final /verify
+  - [ ] P5-T1 (verifier) selftest additions — in progress (concurrent agent, `js/dev/selftest.mjs`)
+  - [x] P5-T2 (implementer) doc amendments — `docs/01 §5.1` (stage goals + brake framing),
+        `docs/02` (principle amended: story never blocks; path gates checkpoints, calibrated,
+        cash-bridgeable), `docs/05 §9.4` (already landed pre-task), `docs/10` (Status → shipped,
+        §1.1 connoisseur table corrected with pointer to the calibration outcome) — landed
+        2026-07-25, this entry
+  - [ ] P5-T3 (verifier) full `/verify` pass + AGENTS.md §3 merge flow
 - [ ] Merged to main (per phase; final phase closes the feature)
+- [ ] **Phase 6 — path-exclusive world content** (approved 2026-07-25; see section below)
 
 ## Execution notes
 
@@ -248,3 +256,101 @@ peak log10 12.9 (<< 290), 26 beats; `npm run report -- --quick` clean. Left unco
 working tree per instructions. (Note: a parallel Phase 4 UI change set — `ui.js`/`index.html`/
 `css/game.css`/`data/skills.js` — is also present in the tree; it does not affect the node
 harness/selftest and is out of scope for this Phase 3 balance pass.)
+
+---
+
+## Phase 6 — path-exclusive world content (approved 2026-07-25)
+
+**Directive.** Each of the four committed paths gets EXCLUSIVE content: destinations and
+amenities visible only to (or purchasable only by) the branch that committed to them. The
+point is a *positive* reason to commit — carrots, not another gate. This phase is additive
+content on top of the shipped Phase 0–5 gate; it does not touch the checkpoint mechanism
+itself.
+
+### Design rules (binding)
+
+- **Exclusives pay in path-scoped currency only** — path points, Clout, Comfort, or a
+  branch-tagged cost discount. They **never** add a new *global* income multiplier layer.
+  `data/destinations.js`'s own mult-sensitivity warning is the reason why: "the harness
+  showed this is far MORE sensitive than the epic anticipated... A product of ~1.29 (this
+  file's values) keeps island in the 16-18h range with margin" — the *entire* destination
+  map's global `×` product had to be squeezed to ~1.29 to hold the ~20h target. Twelve more
+  destinations each carrying their own `L_dest` slice would blow that budget immediately.
+  Exclusives sidestep this by design: they're worth having, but their reward lands in a
+  system that's already bounded (path points feed the sub-linear, softcapped `L_path`;
+  Clout is its own self-feeding, cash-multiplier-isolated economy per `docs/01 §5`; Comfort
+  is log-softcapped; a branch discount is a cost-side multiplier, not an income one).
+- **Exclusives are pure upside, never a new requirement.** The checkpoint gate (`docs/10
+  §1.2`, `PATH_GATE.checkpoints`) keeps counting **only openly-available items** — no
+  exclusive destination, amenity, or its resource contribution is ever required to clear a
+  checkpoint. A player who never sees or buys a single exclusive still clears every gate on
+  the existing calibrated thresholds (`.claude/context/path-story-implementation-plan.md`
+  calibration table, above). Exclusives sit entirely outside the goal vocabulary's
+  bridgeability contract — they don't need to be bridgeable because nothing requires them.
+- **Harness pins get re-verified after content lands**, not before. New destinations/
+  amenities are cash sinks/multiplier sources like any other data row — `npm run harness`
+  and the selftest goldens get one coordinated re-pin pass once 6A data is in, per the usual
+  `docs/05 §2` lever discipline (destinations are lever 6/`L_dest`, amenities lever 7).
+
+### The destination roster (canonical, 3 per path)
+
+| Path | id | Name |
+|---|---|---|
+| vlogger | `dest_bali_content_house` | The Content House, Bali |
+| vlogger | `dest_santorini_goldenhour` | Santorini Golden Hour |
+| vlogger | `dest_iceland_drone` | Iceland Drone Weekend |
+| crypto | `dest_zug` | Zug, Very Quietly |
+| crypto | `dest_miami_cryptoweek` | Miami Crypto Week |
+| crypto | `dest_taxhaven_atoll` | Tax-Haven Atoll |
+| traveler | `dest_transsiberian` | Trans-Siberian Stretch |
+| traveler | `dest_kathmandu` | Kathmandu Basecamp |
+| traveler | `dest_patagonia` | Patagonia End-to-End |
+| connoisseur | `dest_bordeaux_chateau` | A Quiet Château, Bordeaux |
+| connoisseur | `dest_kyoto_ryokan` | Kyoto Ryokan, Off the Record |
+| connoisseur | `dest_como` | Lake Como, a Long Weekend |
+
+12 rows total, 3 per branch, each gated to the committed path (visible/buyable only once
+`story.branch` matches, per the existing commitment contract in `docs/02`/`docs/01 §5`).
+Reward currency per row follows the design rules above — path points/Clout/Comfort/discount,
+never a fresh global `×` term; exact per-row shape is a 6A (balance-tuner) task.
+
+### Exclusive amenities
+
+2–3 per path, branch-tagged with **new tags** so the existing `luxAmenities` goal vocabulary
+(`docs/10 §1.1`, `data/paths.js`) stays untouched — an exclusive amenity must not silently
+start counting toward a checkpoint goal it was never calibrated against. Same cost/comfort
+discipline as their neighbors at the unlock band they land in (no special-cased curve).
+
+### D2 identity
+
+Per-branch deepening of the D2 tier's flavor (Followers / Wallet Watchers / Pen Pals /
+Admirers, `data/generators.js` `names`) is **display-only**: skins, flavor text, upgrade
+*names*. No new math, no new multiplier, no schema change — this is a copy/art pass on an
+existing generic system.
+
+### Art
+
+- **Stamps** via `tools/genart.mjs` (the style bible, §"style bible" comment block) in
+  `stamps` mode, keyed to the 12 new destination rows, then `python3 tools/artpost.py stamps`
+  to ink-key them into transparent WebP (same pipeline the existing destination stamps use).
+- **Icon set**: tab icons (home / income / growth / legacy), money, wallet, next, comfort,
+  clout, story book; amenity icons at **category level** (not per-row — one icon per amenity
+  category, matching the existing sprite economy).
+
+### Sub-checklist
+
+- [ ] **6A** (implementer + balance-tuner) — data: 12 destination rows + 2–3 exclusive
+      amenities per path in `data/destinations.js`/`data/amenities.js`; engine: branch-gated
+      visibility/purchase wiring reusing the existing commitment check (no new bespoke gate
+      logic); balance: reward-currency sizing per the design rules, harness/selftest re-pin.
+- [ ] **6B** (implementer, art) — stamp art: `genart.mjs stamps` for the 12 destinations +
+      `artpost.py stamps` ink-keying. **Underway in parallel** with 6A/6C per the 2026-07-25
+      directive.
+- [ ] **6C** (implementer, art) — icon set: tab icons (home/income/growth/legacy), money,
+      wallet, next, comfort, clout, story book; amenity category icons.
+
+**Exit criteria:** 12 exclusive destinations + 6–12 exclusive amenities shipped, each
+branch-gated and visible only to its committed path; no exclusive counts toward any
+checkpoint goal; `npm test` green with re-pinned goldens; `npm run harness` still lands the
+~20h target with peak `log10(cash)` safely under ~290; art (stamps + icons) landed via the
+existing style-bible pipeline.

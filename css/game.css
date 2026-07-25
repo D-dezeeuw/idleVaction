@@ -38,6 +38,11 @@ body { background: var(--iv-bg); color: var(--iv-ink); margin: 0; padding: 0 0 9
 h1, h2, h3, .iv-beattitle { font-family: 'Fredoka', 'Nunito', system-ui, sans-serif; font-weight: 600; }
 :focus-visible { outline: 2px solid var(--iv-sky); outline-offset: 2px; border-radius: 6px; }
 
+/* icon sprite (Phase 6C): <use href="#ic-..."> refs against the inline symbol defs at the
+   top of <body>. Icons carry their own flat palette fills (see the defs), so no color rule
+   is needed here — just size + baseline alignment against whatever text they sit beside. */
+.ic { width: 1.1em; height: 1.1em; vertical-align: -0.18em; flex: none; }
+
 #topbar { position: sticky; top: 0; z-index: 5; padding: 8px 14px;
   background: linear-gradient(180deg, var(--iv-sun-tint), var(--iv-bg)); box-shadow: var(--iv-shadow); }
 #topbar h1 { margin: 0 0 4px; font-size: 1.15rem; }

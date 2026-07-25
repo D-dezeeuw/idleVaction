@@ -140,9 +140,18 @@ a committed life open extra side-roads; the crossroads voice stays single.
 }
 ```
 
-Story never blocks the economy: if a player ignores story, beats still auto-satisfy from
-normal progression (gates are Comfort/tier/level based). Story is the **narrative skin** over
-the math spine — motivating, flavor-rich, branch-aware, and always completable.
+**Story never blocks the economy — amended, not repealed, by the path checkpoint gate
+(`docs/10-path-milestones-and-ui.md`, shipped).** If a player ignores story, beats still
+auto-satisfy from normal progression (gates are Comfort/tier/level based): the 30-beat spine
+and its own gates are untouched. What *does* now gate is the **committed path**: four
+checkpoint accommodation tiers (8/12/16/19 → path stages S1–S4) additionally require the
+matching path stage complete, so a committed player's road visibly has to be walked, not just
+declared. This is calibrated to bind **only on neglect** — thresholds are fitted below the
+p35 of engaged play at each checkpoint — and every stage goal is a direct cash (or Clout) buy,
+so the gate is always **cash-bridgeable**: worst case it converts into a short, on-brand spend
+("post two more content formats," "buy the boat already"), never a wait or a wall. Story is
+the **narrative skin** over the math spine — motivating, flavor-rich, branch-aware, and always
+completable; the path gate is the one place the chosen road is also load-bearing on the climb.
 
 ## Writing/tone guide (for all beat text)
 

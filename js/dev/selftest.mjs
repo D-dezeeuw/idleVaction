@@ -4958,7 +4958,13 @@ console.log('\n[110] 8.5-push: comfort progression gate, Clout shop, tree play-c
   ok(E.buyCloutVoucher(cv), 'a travel voucher is buyable with clout');
   ok(Math.abs(E.destCost(cv, d0) - before * (1 - C.CLOUT.voucherOff)) < 1e-6 * before, 'a held voucher discounts the next destination');
   ok(E.buyDestination(cv, d0) && cv.cloutPerks.vouchers === 0, 'buying the destination consumes the voucher');
-  ok(Math.abs(E.destCost(cv, DATA.destinations[1].id) / (E.destCost(cv, DATA.destinations[1].id))) === 1, 'sanity');
+  // was a tautological `x/x === 1` "sanity" line — replaced (P5 verify pass) with the check it
+  // clearly meant: after consumption the NEXT destination is undiscounted, and the discount
+  // re-arms only with a fresh voucher (a consumption leak would make this ratio 1, not 1−off).
+  const cAfterConsume = E.destCost(cv, DATA.destinations[1].id);
+  ok(E.buyCloutVoucher(cv), 'a second voucher is buyable (geometric clout cost)');
+  ok(Math.abs(E.destCost(cv, DATA.destinations[1].id) - cAfterConsume * (1 - C.CLOUT.voucherOff)) < 1e-6 * cAfterConsume,
+    'the next destination was UNDISCOUNTED after consumption — the discount re-arms only with a fresh voucher');
   ok(E.buyCloutFrame(cv) && cv.cloutPerks.frame, 'the golden frame is a one-time clout purchase');
 
   // ---- tree play-changers: exactly neutral at rank 0, real at rank 1+
@@ -5706,6 +5712,175 @@ console.log('\n[117] hostel-bunks fix: beat 4 gates on the ACTUAL check-in (accT
   kept.accommodation.tier = 2; kept.story.seen = [1, 2, 3, 4]; kept.story.beat = 4;
   const kept2 = ST.migrate(kept);
   ok(kept2.story.seen.includes(4) && kept2.story.beat === 4, 'a tier ≥2 save keeps beat 4 (no over-retraction)');
+}
+
+// ---------- [118] Path-gate Phase 5 (docs/10 §3 P5-T1a): the bridgeability sweep ----------
+// The design contract "a gate converts to a spend, never a wall" (docs/10 §1.1/§1.4),
+// proven the honest way — full committed runs, one per path, whose policy DELIBERATELY
+// neglects its own path systems until gated. The policy below is playStep minus every
+// path-system lane: no destinations/transport (the traveler's goal resources), no
+// luxury/yacht amenities (the connoisseur's), and — like playStep already — no content,
+// no coins, no collections, no vehicles. satisfyPathGate is the ONLY step allowed to
+// touch path systems, so every checkpoint (8/12/16/19) must be bridged purely by the
+// gate-satisfier's cash buys. Full runs (not cheap mid-game fixtures) because the wall
+// claim is about the REAL arc: unlock chains (content clout gates, garage/marina tiers,
+// luxury-amenity Comfort gates), wallet-cap affordability, and "no permanent stall" can
+// only be proven along the actual trajectory. dt 10 at max speed (acts every step)
+// keeps the four runs proportionate to the suite's other full-curve tests ([113g/h]).
+console.log('\n[118] path-gate bridgeability sweep: all four paths, neglect-until-gated, cash-only bridges');
+{
+  ok(C.PATH_GATE.enabled === true, 'precondition: PATH_GATE ships enabled (the sweep exercises live gates)');
+
+  // playStep minus the path-system lanes (see header). Mirrors playStep's order exactly:
+  // bootstrap → bank → satisfyPathGate → accommodation → (non-lux) amenities → training →
+  // path focus (the cash bridge for the `at` points threshold) → generators → upgrades.
+  const neglectStep = (s, branch) => {
+    if (M.tierProd(s, 0) <= 0 && E.genCost(s, 0, 1) <= s.resources.cash) E.buyGenerator(s, 0, 1);
+    let bg = 0;
+    while (!E.bankMaxed(s) && E.bankUpgradeCost(s) <= s.resources.cash * 0.5 && bg++ < 4) E.buyBankUpgrade(s);
+    satisfyPathGate(s);
+    let g = 0;
+    while (E.accUnlocked(s) && E.accCost(s) <= s.resources.cash * 0.7 && g++ < 5) E.buyAccommodation(s);
+    for (const a of DATA.amenities) {
+      if (a.tag === 'luxury' || a.tag === 'yacht') continue;   // connoisseur neglect: the satisfier must bridge luxAmenities
+      if (E.amenityUnlocked(s, a.id) && E.amenityCost(s, a.id) <= s.resources.cash * 0.3) E.buyAmenity(s, a.id);
+    }
+    for (const t of DATA.training) if (E.trainingCost(s, t.id) <= s.resources.cash * 0.08) E.buyTraining(s, t.id);
+    if (E.pathCost(s, branch) <= s.resources.cash * 0.08) E.buyPathFocus(s, branch);
+    for (let iter = 0; iter < 40; iter++) {
+      let k = -1;
+      for (let i = DATA.generators.length - 1; i >= 0; i--)
+        if (s.generators[i].unlocked && E.genCost(s, i, 1) <= s.resources.cash * 0.7) { k = i; break; }
+      if (k < 0) break;
+      E.buyGenerator(s, k, 1);
+    }
+    for (let k = 0; k < DATA.generators.length; k++)
+      if (s.generators[k].unlocked && E.genUpgradeCost(s, k) <= s.resources.cash * 0.1) E.buyGenUpgrade(s, k);
+    if (s.story.seen.includes(6) && s.story.branch === 'neutral') E.applyStoryChoice(s, 6, branch);
+  };
+
+  // per-branch proof that the SATISFIER (not the policy) did the bridging: these resources
+  // are untouched by neglectStep, monotone (never sold by any dev policy), and each is a
+  // hard goal of the branch's S4 (or S3/S4) stage — so a fired track implies the satisfier
+  // bought them. portfolioValue is deliberately NOT asserted at end-of-run (market drift).
+  const bridgedProof = {
+    vlogger: r => r.contentFormats >= 4,          // S2/S3/S4 content formats — playStep never buys content
+    crypto: r => r.coinSpread >= 4,               // S2/S3/S4 coin spread — playStep never buys coins
+    traveler: r => r.destinations >= 8 && r.vehicleClass >= 2,   // S1-S4 destinations + S3 car/S4 boat
+    connoisseur: r => r.collectionPieces >= 9 && r.luxAmenities >= 2,   // S1/S2 collections + S3/S4 lux amenities
+  };
+
+  for (const branch of ['vlogger', 'crypto', 'traveler', 'connoisseur']) {
+    const s = ST.newGame();
+    const tierAt = {};
+    let peakLog = 0;
+    const dt = 10, horizon = 40 * 3600;   // measured band: T19 lands ~26-32h — real headroom, still a stall trap
+    for (let t = 0; t <= horizon && s.accommodation.tier < 19; t += dt) {
+      E.tick(s, dt); neglectStep(s, branch);
+      const c = s.resources.cash;
+      if (Number.isFinite(c) && c > 1) peakLog = Math.max(peakLog, Math.log10(c));
+      for (let k = 0; k <= s.accommodation.tier; k++) if (tierAt[k] === undefined) tierAt[k] = t;
+    }
+    console.log(`    → neglect-${branch}: T8 ${fmtTime(tierAt[8])} · T12 ${fmtTime(tierAt[12])} · T16 ${fmtTime(tierAt[16])} · T19 ${fmtTime(tierAt[19])} (peak log10 ${peakLog.toFixed(1)})`);
+    ok(s.accommodation.tier >= 19, `${branch}: a neglect-until-gated run clears ALL checkpoints (8/12/16/19) to tier 19+ with no permanent stall (got tier ${s.accommodation.tier})`);
+    const path = DATA.paths.find(p => p.id === branch);
+    ok(path.stages.every(st => s.story.flags[`pathStage_${branch}_${st.at}`] === true),
+      `${branch}: every stage of the track fired along the way (the gates were passed, not skipped)`);
+    ok(bridgedProof[branch](M.pathGoalResources(s, DATA)),
+      `${branch}: the goal resources were bought by the gate-satisfier's cash bridges (the policy itself never touches them)`);
+    ok(peakLog < 290, `${branch}: peak log10(cash) ${peakLog.toFixed(1)} stays far under the 1e290 policy ceiling`);
+  }
+}
+
+// ---------- [119] Path-gate Phase 5 (docs/10 §3 P5-T1e): flag-off invariance ----------
+// The rollback lever / escape hatch (docs/10 §Risks): with PATH_GATE.enabled=false the
+// whole feature must be bit-identical to pre-gate behavior. The Phase 3 verification
+// reproduced the OLD pre-gate golden (37445s) bit-exactly with the flag off; this pins
+// that reproduction so the escape hatch can never silently rot. try/finally mirrors
+// [115]'s EVENTS flip discipline (restore even on throw).
+console.log('\n[119] path-gate flag-off invariance: the escape hatch reproduces the pre-gate golden exactly');
+{
+  ok(C.PATH_GATE.enabled === true, 'precondition: the shipped default is gates ON');
+  C.PATH_GATE.enabled = false;
+  try {
+    // off-state semantics, unit level: a stage fires on points ALONE (goals ignored)…
+    const pv = ST.newGame(); pv.story.branch = 'vlogger';
+    E.addPathPoints(pv, 'vlogger', 5);   // NO goals met (no d2, no clout)
+    ok(pv.story.flags.pathStage_vlogger_5 === true, 'flag off: a stage fires on its points threshold alone — goals are not consulted (pre-gate firing)');
+    // …and a checkpoint tier carries NO path clause (pathOk true even uncommitted, 0 stages fired).
+    const cp = ST.newGame(); cp.accommodation.tier = 7;   // next tier 8 = the S1 checkpoint
+    ok(E.accGateStatus(cp).pathOk === true, 'flag off: the checkpoint clause is dark — pathOk true with no branch and no stages');
+    // the end-to-end pin: the greedy quiet curve lands the OLD pre-gate golden second, exactly.
+    const { islandAt, peakLog } = runCurve({ dt: 5, maxHours: 40 });
+    ok(Math.abs(islandAt - 37445) < 1, `flag off: greedy quiet island is the OLD pre-gate golden 37445s bit-exactly (got ${islandAt}s / ${fmtTime(islandAt)})`);
+    ok(peakLog < 290, `flag off: peak log10(cash) ${peakLog.toFixed(1)} unchanged in bounds`);
+  } finally {
+    C.PATH_GATE.enabled = true;
+  }
+  ok(C.PATH_GATE.enabled === true, 'the flag is restored ON for the rest of the suite (and the shipped game)');
+}
+
+// ---------- [120] Path-gate Phase 5 (docs/10 §3 P5-T1b): binds only on neglect ----------
+// The engaged-persona proof as pinned assertions, from the runner's transition bookkeeping
+// (demo.mjs snapshotTransition — stage fires vs checkpoint tier-ups on one timeline).
+// Two runs, quiet, dt 10 (tick is dt-decomposition-invariant and the 1200s act cadence is
+// a multiple of dt, so the arc matches [109]'s dt-5 run — measured identical, 76800s):
+//  (a) the PINNED generic casual-tourist ([109]'s 76800s contract persona). It genuinely
+//      engages d2/clout but NEGLECTS content (no content lane) — so S1/S2/S4 fire strictly
+//      before their checkpoints, while at T16 the gate correctly BINDS on contentFormats
+//      and converts to a same-act bridge-spend (the Phase 3 "content is a pure bridge-
+//      spend" decision, .claude/context/path-story-implementation-plan.md): stage-fire
+//      t equals tier-up t, and the island pin is unmoved — a spend, never a wait.
+//  (b) an ENGAGED content-chasing vlogger (same persona + a content lane): every stage
+//      fires STRICTLY before its checkpoint tier-up — engagement removes every bind,
+//      which is the "binds only on neglect" contract stated positively.
+console.log('\n[120] path-gate binds-only-on-neglect: stage fires precede checkpoint tier-ups for engaged play');
+{
+  const { runScenario } = await import('./demo.mjs');
+  const { getScenario, makeGreedyAct } = await import('./scenarios.mjs');
+  const checkpointRecords = r => {
+    const tiers = r.transitions.filter(x => x.kind === 'tier');
+    const stages = r.transitions.filter(x => x.kind === 'stage');
+    return Object.entries(C.PATH_GATE.checkpoints).map(([tier, k]) =>
+      ({ tier: Number(tier), k, tierUp: tiers.find(x => x.accTier === Number(tier)), fire: stages[k - 1] }));
+  };
+
+  // (a) the pinned generic casual
+  const cas = runScenario(getScenario('casual-tourist'), { dt: 10, maxHours: 26 });
+  ok(cas.islandAt !== null && Math.abs(cas.islandAt - 76800) <= 1200, `casual-tourist (quiet, dt 10) holds [109]'s 76800s pin — the gate costs the engaged persona zero island time (got ${fmtTime(cas.islandAt)})`);
+  for (const { tier, k, tierUp, fire } of checkpointRecords(cas)) {
+    ok(!!tierUp && !!fire, `casual: checkpoint T${tier} and its S${k} fire are both on the transition record`);
+    if (!tierUp || !fire) continue;
+    ok(fire.t <= tierUp.t, `casual: S${k} fired at/before the T${tier} tier-up — the gate never delays a checkpoint past its own act (${fmtTime(fire.t)} vs ${fmtTime(tierUp.t)})`);
+    if (tier === 16) {
+      // the ONE goal this persona neglects (content) binds here by design: same-act bridge.
+      ok(fire.t === tierUp.t && fire.contentFormats >= 3,
+        `casual: T16 is the designed bridge-spend — S3 fires IN the tier-up act via the satisfier's content buy (t ${fire.t}, formats ${fire.contentFormats})`);
+    } else {
+      ok(fire.t < tierUp.t, `casual: S${k} fired STRICTLY before the T${tier} tier-up (margin ${fmtTime(tierUp.t - fire.t)}) — naturally-engaged goals never bind`);
+    }
+  }
+
+  // (b) the engaged content-chasing vlogger (the plan's "content lane on an UNPINNED
+  // persona" option): posts in every affordable new format — the one behavior the
+  // generic casual lacks. Strict precedence everywhere ⇒ the gate binds ONLY on neglect.
+  const laneContent = (s) => {
+    for (const c of DATA.content)
+      if ((s.content[c.id]?.level || 0) === 0 && E.contentUnlocked(s, c.id)
+          && E.contentCost(s, c.id) <= s.resources.cash * 0.05) E.buyContent(s, c.id);
+  };
+  const engaged = runScenario({
+    id: 'engaged-vlogger', name: 'Engaged content-chasing vlogger ([120] only)', branch: 'vlogger', cadenceSec: 1200,
+    act: makeGreedyAct({ branch: 'vlogger', amenityROI: false, amenBudgetFrac: 0.10, lanes: [laneContent] }),
+  }, { dt: 10, maxHours: 26 });
+  ok(engaged.islandAt !== null && engaged.islandAt >= 18 * 3600 && engaged.islandAt <= 22 * 3600,
+    `engaged vlogger stays on the casual 18-22h arc — chasing content is engagement, not a detour (got ${fmtTime(engaged.islandAt)})`);
+  for (const { tier, k, tierUp, fire } of checkpointRecords(engaged)) {
+    ok(!!tierUp && !!fire && fire.t < tierUp.t,
+      `engaged vlogger: S${k} fired STRICTLY before the T${tier} tier-up (${fire ? fmtTime(fire.t) : '—'} vs ${tierUp ? fmtTime(tierUp.t) : '—'}) — an engaged road never gates its own climb`);
+  }
+  console.log(`    → engaged vlogger island ${fmtTime(engaged.islandAt)}; strict stage→checkpoint margins: ` +
+    checkpointRecords(engaged).map(({ tier, tierUp, fire }) => `T${tier} ${fmtTime((tierUp?.t ?? 0) - (fire?.t ?? 0))}`).join(' · '));
 }
 
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);

@@ -227,6 +227,29 @@ sums of flat data constants from a fixed, validated vocabulary
 recent clicker taps (decays over ~30s) — this is the optional active-play hook that never
 gates idle progress (idle floor `comboMult≥1`).
 
+### 5.1 Stage goals & the checkpoint gate (shipped — `docs/10`, `docs/05 §9.4`)
+
+Each staged-track stage (thresholds 5/15/30/50 points, above) also carries a `goals` object:
+a small set of **concrete, diegetic requirements** drawn from a fixed, validated vocabulary
+(`d2Count`, `clout`, `contentFormats`, `portfolioValue`, `coinSpread`, `destinations`,
+`vehicleClass`, `luxAmenities`, `earnedComfort`, `collectionPieces` — a typo'd key throws, same
+discipline as `PATH_BONUS_KEYS`). A stage now fires only when **points ≥ its `at` threshold AND
+every goal is met, in order** (a later stage cannot fire before an earlier one) — points still
+feed `L_path` exactly as §5 describes; goals are the player-facing checklist layered on top.
+
+Four **checkpoint accommodation tiers** (8/12/16/19, mapped to stages S1–S4) read this: past
+the existing Comfort gate, `engine.accUnlocked` also requires the committed branch's matching
+stage complete. This is a **BRAKE, never an income term** — it adds no multiplier, no rate, no
+new stack layer; it only withholds a tier purchase until the stage fires, exactly like the
+existing Comfort gate withholds one until `accScore` clears its threshold. The no-cash-power
+rule (§10, `docs/math-proof.md`) is untouched by construction — nothing here feeds back into
+`M_k`. Thresholds are fitted from measured engaged play (p35 per goal at each checkpoint,
+rounded down for a neglect-only margin) so the gate binds only when a player ignores their
+chosen road; every goal is a direct cash (or Clout) buy, so it is always bridgeable. Full
+calibration method, the measured table, and the harness's `satisfyPathGate` step:
+`docs/05-balancing-and-pacing.md §9.4`. Full design (goal vocabulary rules, checkpoint mapping,
+UI): `docs/10-path-milestones-and-ui.md`.
+
 ---
 
 ## 6. Comfort — the progression spine & global multiplier
