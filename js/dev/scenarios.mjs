@@ -59,7 +59,12 @@ export function makeGreedyAct({
     const cashRate = M.tierProd(s, 0) + M.savvyPassive(s);
     const amenBudget = amenBudgetFrac !== null ? s.resources.cash * amenBudgetFrac : Infinity;
     let amenSpent = 0;
+    // Phase 6A path-exclusive rows (branch-gated, mult:1.0 / xMult:0) are skipped by every
+    // scripted policy below, same as harness.mjs's play() — never required, so the greedy/
+    // casual-persona baselines this file drives stay bit-identical now that this content
+    // exists (see the destinations.js/amenities.js file-header comments).
     for (const a of DATA.amenities) {
+      if (a.branch) continue;
       if (amenSpent >= amenBudget) break;
       const cost = E.amenityCost(s, a.id);
       if (E.amenityUnlocked(s, a.id) && cost <= s.resources.cash * amenFrac
@@ -67,7 +72,7 @@ export function makeGreedyAct({
           && E.buyAmenity(s, a.id)) amenSpent += cost;
     }
     for (const d of DATA.destinations)
-      if (!s.destinations[d.id].owned && E.destUnlocked(s, d.id) && E.destCost(s, d.id) <= s.resources.cash * destFrac) E.buyDestination(s, d.id);
+      if (!d.branch && !s.destinations[d.id].owned && E.destUnlocked(s, d.id) && E.destCost(s, d.id) <= s.resources.cash * destFrac) E.buyDestination(s, d.id);
     for (const t of DATA.transport)
       if (!s.transport.owned.includes(t.id) && t.costBase * M.commsCostMult(s) <= s.resources.cash * transportFrac) E.buyTransport(s, t.id);
     for (const t of DATA.training) if (E.trainingCost(s, t.id) <= s.resources.cash * trainFrac) E.buyTraining(s, t.id);

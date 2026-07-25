@@ -8,6 +8,7 @@ import * as E from '../engine.js';
 import * as M from '../math.js';
 import * as P from '../prestige.js';
 import { validateDestinations } from '../data/destinations.js';
+import { validateAmenities } from '../data/amenities.js';
 import { validateBank } from '../data/bank.js';
 import { validatePaths } from '../data/paths.js';
 import { validateCollections } from '../data/collections.js';
@@ -80,14 +81,16 @@ function playStep(s) {
   let guard = 0;
   while (E.accUnlocked(s) && E.accCost(s) <= s.resources.cash * 0.7 && guard++ < 5) E.buyAccommodation(s);
 
-  // 2) small-win amenities (each < 30% of current cash)
+  // 2) small-win amenities (each < 30% of current cash). Phase 6A path-exclusive rows
+  // (branch-gated) are skipped, mirroring harness.mjs's play() — never required, so this
+  // reference policy's pinned baselines stay bit-identical now that this content exists.
   for (const a of DATA.amenities)
-    if (E.amenityUnlocked(s, a.id) && E.amenityCost(s, a.id) <= s.resources.cash * 0.3) E.buyAmenity(s, a.id);
+    if (!a.branch && E.amenityUnlocked(s, a.id) && E.amenityCost(s, a.id) <= s.resources.cash * 0.3) E.buyAmenity(s, a.id);
 
   // 2b) destinations & transport (E04-S8-T6): mirrors the harness policy so this
   // simulated run also reflects L_dest instead of leaving it stuck at 1.
   for (const d of DATA.destinations)
-    if (!s.destinations[d.id].owned && E.destUnlocked(s, d.id) && E.destCost(s, d.id) <= s.resources.cash * 0.4) E.buyDestination(s, d.id);
+    if (!d.branch && !s.destinations[d.id].owned && E.destUnlocked(s, d.id) && E.destCost(s, d.id) <= s.resources.cash * 0.4) E.buyDestination(s, d.id);
   for (const t of DATA.transport)
     if (!s.transport.owned.includes(t.id) && t.costBase * M.commsCostMult(s) <= s.resources.cash * 0.2) E.buyTransport(s, t.id);
 
@@ -267,6 +270,10 @@ ok(s2.resources.cash > cashPre, 'offline increased cash');
 // ---------- 7. E02: amenity data QA (E02-S1-T10) ----------
 console.log('\n[7] amenity data validation');
 {
+  let threwAmen = false;
+  try { validateAmenities(); } catch (e) { threwAmen = true; }
+  ok(!threwAmen, 'validateAmenities() passes on the shipped AMENITIES array');
+
   const seenIds = new Set();
   for (const a of DATA.amenities) {
     ok(!seenIds.has(a.id), `amenity id is unique: ${a.id}`);
@@ -5881,6 +5888,88 @@ console.log('\n[120] path-gate binds-only-on-neglect: stage fires precede checkp
   }
   console.log(`    → engaged vlogger island ${fmtTime(engaged.islandAt)}; strict stage→checkpoint margins: ` +
     checkpointRecords(engaged).map(({ tier, tierUp, fire }) => `T${tier} ${fmtTime((tierUp?.t ?? 0) - (fire?.t ?? 0))}`).join(' · '));
+}
+
+// ---------- [121] Phase 6A path-exclusive world content: branch-gated visibility/purchase,
+// open-roster sufficiency, validator vocabulary ----------
+console.log('\n[121] Phase 6A path-exclusive world content: branch-gated visibility/purchase, open-roster sufficiency, validator vocabulary');
+{
+  // (a) off-branch invisibility AND buy-refusal — one exclusive destination + one exclusive
+  // amenity per path, from a life committed to a DIFFERENT branch with cash/Comfort high
+  // enough that the ONLY thing that could block a buy is the branch gate itself. A positive
+  // control (the OWNING branch, same cash/Comfort) proves the gate isn't just blocking everyone.
+  const exclusivePairs = [
+    { branch: 'vlogger',     dest: 'dest_bali_content_house', amen: 'vk_algorithm_charm', offBranch: 'crypto' },
+    { branch: 'crypto',      dest: 'dest_zug',                amen: 'cd_lucky_ledger',     offBranch: 'traveler' },
+    { branch: 'traveler',    dest: 'dest_transsiberian',      amen: 'wk_lucky_compass',    offBranch: 'connoisseur' },
+    { branch: 'connoisseur', dest: 'dest_bordeaux_chateau',   amen: 'at_monogram_case',    offBranch: 'vlogger' },
+  ];
+  for (const { branch, dest, amen, offBranch } of exclusivePairs) {
+    const off = ST.newGame();
+    off.story.branch = offBranch;
+    off.resources.cash = 1e15;
+    off._comfortCache = 1e15;
+    ok(E.destUnlocked(off, dest) === false, `${dest}: invisible to a committed ${offBranch} life`);
+    ok(E.buyDestination(off, dest) === false, `${dest}: buyDestination refuses a committed ${offBranch} life`);
+    ok(off.destinations[dest].owned === false, `${dest}: still unowned after the refused buy`);
+    ok(E.amenityUnlocked(off, amen) === false, `${amen}: invisible to a committed ${offBranch} life`);
+    ok(E.buyAmenity(off, amen) === false, `${amen}: buyAmenity refuses a committed ${offBranch} life`);
+    ok(off.amenities[amen].level === 0, `${amen}: still level 0 after the refused buy`);
+
+    // Separate states for the destination vs. amenity positive control: buyDestination's
+    // pathAffinity credit runs addPathPoints, which recomputes _comfortCache from the (near-
+    // zero, fresh-game) REAL Comfort sources — overwriting the artificially-high override
+    // above. Two states keep each check's Comfort override intact for its own assertion.
+    const onDest = ST.newGame();
+    onDest.story.branch = branch;
+    onDest.resources.cash = 1e15;
+    onDest._comfortCache = 1e15;
+    ok(E.destUnlocked(onDest, dest) === true, `${dest}: visible to a committed ${branch} life (positive control)`);
+    ok(E.buyDestination(onDest, dest) === true, `${dest}: buyDestination succeeds for a committed ${branch} life (positive control)`);
+
+    const onAmen = ST.newGame();
+    onAmen.story.branch = branch;
+    onAmen.resources.cash = 1e15;
+    onAmen._comfortCache = 1e15;
+    ok(E.amenityUnlocked(onAmen, amen) === true, `${amen}: visible to a committed ${branch} life (positive control)`);
+    ok(E.buyAmenity(onAmen, amen) === true, `${amen}: buyAmenity succeeds for a committed ${branch} life (positive control)`);
+  }
+
+  // (b) traveler checkpoint thresholds satisfiable from OPEN destinations alone — exclusives
+  // are pure upside, never required (the plan file's Phase 6 design rules).
+  const openDestCount = DATA.destinations.filter(d => !d.branch).length;
+  const travelerPath = DATA.paths.find(p => p.id === 'traveler');
+  const maxDestGoal = Math.max(...travelerPath.stages.map(st => st.goals?.destinations || 0));
+  ok(openDestCount >= maxDestGoal, `open (non-exclusive) destination roster (${openDestCount}) alone covers the traveler's highest destinations goal (${maxDestGoal}) — checkpoints never need an exclusive`);
+
+  // (c) validators throw on a bad branch value / a sneaked-in multiplier — mutate a real row
+  // temporarily, then restore (try/finally mirrors [115]'s EVENTS-flip discipline so a thrown
+  // assertion can never leave corrupted shared data behind for the rest of the suite).
+  {
+    const row = DATA.destinations.find(d => d.branch === 'vlogger');
+    const saved = row.branch;
+    row.branch = 'not_a_real_path';
+    let threw = false;
+    try { validateDestinations(); } catch (e) { threw = true; } finally { row.branch = saved; }
+    ok(threw, 'validateDestinations() throws on an unknown branch value');
+  }
+  {
+    const row = DATA.destinations.find(d => d.branch === 'crypto');
+    const saved = row.mult;
+    row.mult = 1.05;
+    let threw = false;
+    try { validateDestinations(); } catch (e) { threw = true; } finally { row.mult = saved; }
+    ok(threw, 'validateDestinations() throws when an exclusive destination mult is not exactly 1.0 (structural guard against a sneaked-in multiplier)');
+  }
+  {
+    const row = DATA.amenities.find(a => a.branch === 'connoisseur');
+    const saved = row.branch;
+    row.branch = 'not_a_real_path';
+    let threw = false;
+    try { validateAmenities(); } catch (e) { threw = true; } finally { row.branch = saved; }
+    ok(threw, 'validateAmenities() throws on an unknown branch value');
+  }
+  ok(validateDestinations() && validateAmenities(), 'both validators pass again once the temporary bad data is reverted');
 }
 
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);

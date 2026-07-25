@@ -12,6 +12,7 @@ import * as E from '../engine.js';
 import * as M from '../math.js';
 import * as P from '../prestige.js';
 import { validateDestinations } from '../data/destinations.js';
+import { validateAmenities } from '../data/amenities.js';
 import { validateBank } from '../data/bank.js';
 import { validatePaths } from '../data/paths.js';
 import { validateProperty } from '../data/property.js';
@@ -152,7 +153,10 @@ function cheapestGoalBuy(s, key) {
     case 'destinations': {
       let best = null, bestCost = Infinity;
       for (const d of DATA.destinations) {
-        if (s.destinations[d.id].owned || !E.destUnlocked(s, d.id)) continue;
+        // Phase 6A path-exclusive rows (branch-gated, mult:1.0) are skipped by every bridge —
+        // the destinations goal is satisfied entirely from the open roster (never required to
+        // touch an exclusive; see the destinations.js file-header comment for the full contract).
+        if (d.branch || s.destinations[d.id].owned || !E.destUnlocked(s, d.id)) continue;
         const cost = E.destCost(s, d.id);
         if (cost < bestCost) { best = d.id; bestCost = cost; }
       }
@@ -253,13 +257,19 @@ export function play(s) {
   // 0.3·cash cap stays as a belt-and-suspenders against a single oversized buy (rarely binds
   // now that the payback test already rejects expensive-for-their-Comfort amenities).
   const cashRate = M.tierProd(s, 0) + M.savvyPassive(s);
+  // Phase 6A path-exclusive rows (branch-gated destinations/amenities) are skipped by the
+  // greedy loops below — a max-speed, ROI-first player has zero reason to buy pure-flavor
+  // content that is never required (mirrors amenityWorthBuying's existing ROI philosophy;
+  // see the destinations.js/amenities.js file-header comments for the full contract). A real
+  // committed player still sees/buys them via the UI — this only keeps the fitted pacing
+  // curve/pinned baselines untouched now that this content exists.
   for (const a of DATA.amenities)
-    if (E.amenityUnlocked(s, a.id) && E.amenityCost(s, a.id) <= s.resources.cash * 0.3
+    if (!a.branch && E.amenityUnlocked(s, a.id) && E.amenityCost(s, a.id) <= s.resources.cash * 0.3
         && amenityWorthBuying(s, a, cashRate)) E.buyAmenity(s, a.id);
   // destinations (E04-S8-T6/harness accuracy): grab an affordable, unlocked place the
   // same way amenities are bought — otherwise L_dest stays 1 and mis-estimates pacing.
   for (const d of DATA.destinations)
-    if (!s.destinations[d.id].owned && E.destUnlocked(s, d.id) && E.destCost(s, d.id) <= s.resources.cash * 0.4) E.buyDestination(s, d.id);
+    if (!d.branch && !s.destinations[d.id].owned && E.destUnlocked(s, d.id) && E.destCost(s, d.id) <= s.resources.cash * 0.4) E.buyDestination(s, d.id);
   // transport (optional-ROI): grab a cheap ride once, it shrinks destination costs.
   for (const t of DATA.transport)
     if (!s.transport.owned.includes(t.id) && t.costBase * M.commsCostMult(s) <= s.resources.cash * 0.2) E.buyTransport(s, t.id);
@@ -303,6 +313,7 @@ export function runCurve({ dt = 5, maxHours = 30, ascend = false } = {}) {
 // ---- report ----
 function report() {
   validateDestinations();   // dev schema guard (E04-S1-T10) — fail loudly on malformed data
+  validateAmenities();      // dev schema guard (Phase 6A): amenity rows + branch vocabulary
   validateBank(C);          // dev schema guard: bank rows must match config.BANK.tiers
   validatePaths();          // dev schema guard: staged tracks (thresholds, bonus vocabulary)
   validateProperty();       // dev schema guard (E22): property tree ids/parents/costGrowth

@@ -2,6 +2,10 @@
 // Each: { id, name, tag, costBase, costGrowth, comfort, xMult, xScope, unlockComfort, flavor }
 // costGrowth defaults to CONFIG.AMENITY.growthDefault (~1.5). comfort feeds Comfort meter.
 // This is a representative slice — the full plan (docs/epics) defines hundreds more.
+// `branch?` (Phase 6A) marks a path-exclusive row — see the cluster comment near the bottom
+// of this file for the full design contract.
+import { PATHS } from './paths.js';
+const PATH_IDS = PATHS.map(p => p.id);
 
 export const AMENITIES = [
   // --- motel / early (E02) ---
@@ -437,4 +441,52 @@ export const AMENITIES = [
   { id: 'isl_goat_pen',    name: 'A Pen for the Goat',      tag: 'island', unlockIsland: true, costBase: 9e12,  costGrowth: 1.5, comfort: 7.8e8, xMult: 0.065,xScope: 'all', unlockComfort: 0, flavor: 'The one (1) confused goat from the listing now has a home. It remains confused, but housed. You have named it. You will not say the name.' },
   { id: 'isl_solar',       name: 'Solar Array',             tag: 'island', unlockIsland: true, costBase: 1.5e13,costGrowth: 1.5, comfort: 8.4e8, xMult: 0.07, xScope: 'all', unlockComfort: 0, flavor: 'The sun you crossed a continent to find now runs the whole island. The irony powers your fridge.' },
   { id: 'isl_jetty_bar',   name: 'Jetty Bar',               tag: 'island', unlockIsland: true, costBase: 2.6e13,costGrowth: 1.5, comfort: 9.0e8, xMult: 0.07, xScope: 'all', unlockComfort: 0, flavor: 'A bar at the end of your own jetty, over your own water. You pour one, sit, and understand you have arrived. Actually arrived.' },
+
+  // --- Phase 6A path-exclusive amenities (docs/10, .claude/context/path-story-implementation-
+  // plan.md "Phase 6"): 3 per path, `branch`-gated (visible/buyable only via engine.pathReceives,
+  // wired into amenityUnlocked — the SAME commitment check destinations use, no bespoke gate).
+  // Each carries a NEW tag (vlogkit/cryptodesk/wanderkit/atelier) — deliberately distinct from
+  // 'luxury'/'yacht', so the existing luxAmenities goal vocabulary (data/paths.js, docs/10 §1.1)
+  // stays untouched: an exclusive amenity must not silently start counting toward a checkpoint
+  // goal it was never calibrated against. xMult:0 throughout (mirrors the E21 Seven-Star Touches
+  // cluster's precedent — comfort + flavor is the identity here, not income); comfort/costBase
+  // follow the SAME cadence as the onestar/breakfast clusters at this unlockComfort band (a
+  // gentle 3-item ramp, ~4x costBase per step), so a committed life gets a small, real Comfort
+  // reward without adding a second income lane. Same greedy-bot-skips-branch-rows harness
+  // invariance as the destinations above (js/dev/harness.mjs, scenarios.mjs, selftest.mjs). ---
+  { id: 'vk_algorithm_charm', name: 'Algorithm Lucky Charm',        tag: 'vlogkit', branch: 'vlogger', costBase: 5000, comfort: 20, xMult: 0, xScope: 'all', unlockComfort: 300, flavor: 'A small plastic charm you tap before every upload. It has never once affected the algorithm. You are extremely superstitious about it regardless.' },
+  { id: 'vk_verified_frame',  name: 'Verified Badge Frame',         tag: 'vlogkit', branch: 'vlogger', costBase: 20000, comfort: 34, xMult: 0, xScope: 'all', unlockComfort: 3000, flavor: 'A little frame for the little blue checkmark, mounted on the wall like a diploma from a university that does not exist.' },
+  { id: 'vk_sponsor_binder',  name: 'The Sponsor Pitch Binder',     tag: 'vlogkit', branch: 'vlogger', costBase: 85000, comfort: 50, xMult: 0, xScope: 'all', unlockComfort: 20000, flavor: 'Laminated, tabbed, and entirely unnecessary — the brands find you now. You bring it to meetings anyway. It looks serious.' },
+  { id: 'cd_lucky_ledger',      name: 'Lucky Cold-Storage Ledger',        tag: 'cryptodesk', branch: 'crypto', costBase: 6000, comfort: 21, xMult: 0, xScope: 'all', unlockComfort: 350, flavor: 'The seed phrase does not live in it. It is, nonetheless, extremely lucky, and you will not be told otherwise.' },
+  { id: 'cd_candle_curtain',    name: 'Blackout Candle-Chart Curtains',   tag: 'cryptodesk', branch: 'crypto', costBase: 24000, comfort: 36, xMult: 0, xScope: 'all', unlockComfort: 3500, flavor: 'Red on one side, green on the other. You drew them once, at 3am, mid-crash. You have not needed to since.' },
+  { id: 'cd_whale_desk_plaque', name: 'Engraved "Diamond Hands" Plaque',  tag: 'cryptodesk', branch: 'crypto', costBase: 95000, comfort: 52, xMult: 0, xScope: 'all', unlockComfort: 22000, flavor: 'A small brass plaque, engraved, unbothered by volatility. You are not always this calm. The plaque helps.' },
+  { id: 'wk_lucky_compass', name: 'A Compass That Mostly Works',      tag: 'wanderkit', branch: 'traveler', costBase: 5500, comfort: 20, xMult: 0, xScope: 'all', unlockComfort: 320, flavor: 'North, roughly. Occasionally west. You have arrived everywhere anyway, eventually, on principle.' },
+  { id: 'wk_stamp_polisher', name: 'Passport Stamp Polishing Cloth',  tag: 'wanderkit', branch: 'traveler', costBase: 22000, comfort: 35, xMult: 0, xScope: 'all', unlockComfort: 3200, flavor: 'For buffing the ink so it photographs better. The border guards find this deeply, deeply strange.' },
+  { id: 'wk_atlas_case',     name: 'The Well-Worn Atlas Case',        tag: 'wanderkit', branch: 'traveler', costBase: 90000, comfort: 51, xMult: 0, xScope: 'all', unlockComfort: 21000, flavor: 'The spine cracked somewhere over the Andes. You have stopped needing the map. You have not stopped carrying it.' },
+  { id: 'at_monogram_case',    name: 'Monogrammed Tasting Case',      tag: 'atelier', branch: 'connoisseur', costBase: 6500, comfort: 22, xMult: 0, xScope: 'all', unlockComfort: 380, flavor: 'Six glasses, your initials, a velvet lining. You have used it twice. It has improved your posture regardless.' },
+  { id: 'at_provenance_ledger',name: 'The Provenance Ledger',        tag: 'atelier', branch: 'connoisseur', costBase: 26000, comfort: 37, xMult: 0, xScope: 'all', unlockComfort: 3800, flavor: 'Every piece, dated, sourced, sworn to. Mostly you just like writing in it, in what you hope is a discerning hand.' },
+  { id: 'at_private_viewing',  name: 'Private Viewing Appointment Card', tag: 'atelier', branch: 'connoisseur', costBase: 100000, comfort: 53, xMult: 0, xScope: 'all', unlockComfort: 23000, flavor: 'A card, a name, a knock on a door with no sign. You are shown things before the catalogue exists.' },
 ];
+
+// Dev schema guard (mirrors validateDestinations/validatePaths): every row has its required
+// keys, costBase/comfort/unlockComfort are sane, costGrowth (when present) is a real growth
+// factor, ids are unique, and `branch` (Phase 6A), when present, is a real path id. Throws
+// loudly on malformed data — called from dev/harness.mjs and dev/selftest.mjs.
+export function validateAmenities() {
+  const errors = [];
+  const seen = new Set();
+  for (const a of AMENITIES) {
+    if (seen.has(a.id)) errors.push(`duplicate amenity id: ${a.id}`);
+    seen.add(a.id);
+    for (const k of ['id', 'name', 'tag', 'costBase', 'comfort', 'unlockComfort', 'flavor']) {
+      if (a[k] === undefined) errors.push(`${a.id}: missing required key "${k}"`);
+    }
+    if (!(a.costBase > 0)) errors.push(`${a.id}: costBase must be > 0 (got ${a.costBase})`);
+    if (a.costGrowth !== undefined && !(a.costGrowth > 1)) errors.push(`${a.id}: costGrowth must be > 1 when present (got ${a.costGrowth})`);
+    if (!(a.comfort >= 0)) errors.push(`${a.id}: comfort must be >= 0 (got ${a.comfort})`);
+    if (!(a.unlockComfort >= 0)) errors.push(`${a.id}: unlockComfort must be >= 0 (got ${a.unlockComfort})`);
+    if (a.branch !== undefined && !PATH_IDS.includes(a.branch)) errors.push(`${a.id}: unknown branch "${a.branch}" (must be one of ${PATH_IDS.join(', ')})`);
+  }
+  if (errors.length) throw new Error('validateAmenities() failed:\n' + errors.join('\n'));
+  return true;
+}
