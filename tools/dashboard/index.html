@@ -559,6 +559,41 @@ function comparisonCard(runs, golden) {
   return card;
 }
 
+/* ---------- path trajectories (Phase 0 instrumentation, docs/10 §1.1): one small table per
+   run of its tier-up / path-stage-fire transitions — the raw material for the stage-goal
+   threshold calibration (docs/10 §1.3). No charting, a plain table is enough. ---------- */
+function pathTrajectoryTable(r) {
+  const card = el('section', 'card');
+  card.appendChild(el('h2', null, `Path trajectories — ${shortName(r)}`));
+  card.appendChild(el('div', 'sub', `${r.transitions.length} transitions (tier-ups + path-stage fires) — resource snapshot at each.`));
+  const tbl = el('table', 'data');
+  const headers = ['time', 'kind', 'tier', 'stage', 'branch', 'points', 'D2', 'clout',
+    'formats', 'portfolio', 'coins', 'dests', 'vehicle', 'luxAmen', 'comfort', 'pieces'];
+  const hr = el('tr'); headers.forEach(h => hr.appendChild(el('th', null, h))); tbl.appendChild(hr);
+  r.transitions.forEach(row => {
+    const tr = el('tr');
+    tr.appendChild(el('td', null, fmtTime(row.t)));
+    tr.appendChild(el('td', null, row.kind));
+    tr.appendChild(el('td', null, String(row.accTier)));
+    tr.appendChild(el('td', null, String(row.stageIdx)));
+    tr.appendChild(el('td', null, row.branch || '—'));
+    tr.appendChild(el('td', null, fmtNum(row.points)));
+    tr.appendChild(el('td', null, fmtNum(row.d2Count)));
+    tr.appendChild(el('td', null, fmtNum(row.clout)));
+    tr.appendChild(el('td', null, String(row.contentFormats)));
+    tr.appendChild(el('td', null, fmtNum(row.portfolioValue)));
+    tr.appendChild(el('td', null, String(row.coinSpread)));
+    tr.appendChild(el('td', null, String(row.destinations)));
+    tr.appendChild(el('td', null, String(row.vehicleClass)));
+    tr.appendChild(el('td', null, String(row.luxAmenities)));
+    tr.appendChild(el('td', null, fmtNum(row.earnedComfort)));
+    tr.appendChild(el('td', null, String(row.collectionPieces)));
+    tbl.appendChild(tr);
+  });
+  card.appendChild(tbl);
+  return card;
+}
+
 /* ---------- render ---------- */
 function render() {
   const rep = STATE.report;
@@ -646,6 +681,9 @@ function render() {
 
   // --- timeline
   content.appendChild(timelineCard(runs, tmax));
+
+  // --- path trajectories (Phase 0 instrumentation, docs/10 §1.1) — one table per run that has any
+  runs.filter(r => r.transitions && r.transitions.length).forEach(r => content.appendChild(pathTrajectoryTable(r)));
 
   // --- per-run small multiples: skills (physique & growth) + paths
   const skillKeys = runs.length ? Object.keys(runs[0].series[0] || {}).filter(k => k.startsWith('sk_')) : [];

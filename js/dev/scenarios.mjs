@@ -187,6 +187,33 @@ export const SCENARIOS = [
     act: makeGreedyAct({ branch: 'vlogger', amenityROI: false, amenBudgetFrac: 0.10 }),
   },
   {
+    id: 'casual-traveler',
+    name: 'Casual world traveler',
+    desc: 'The casual-tourist spending discipline (checks in every 20 game-min, ROI-blind 10% flavor ' +
+      'budget) walking the traveler stage track: destination-heavy budget + revisits. The engaged ' +
+      'persona for the traveler branch\'s Phase 0 calibration (docs/10 §1.3).',
+    branch: 'traveler', cadenceSec: 1200,
+    act: makeGreedyAct({ branch: 'traveler', destFrac: 0.6, transportFrac: 0.3, amenityROI: false, amenBudgetFrac: 0.10, lanes: [laneVisits] }),
+  },
+  {
+    id: 'casual-crypto',
+    name: 'Casual crypto lounger',
+    desc: 'The casual-tourist spending discipline (checks in every 20 game-min, ROI-blind 10% flavor ' +
+      'budget) plus hedged buy-and-hold coin stacking once the desk opens. The engaged persona for ' +
+      'the crypto branch\'s Phase 0 calibration (docs/10 §1.3).',
+    branch: 'crypto', cadenceSec: 1200,
+    act: makeGreedyAct({ branch: 'crypto', amenityROI: false, amenBudgetFrac: 0.10, lanes: [laneCrypto] }),
+  },
+  {
+    id: 'casual-connoisseur',
+    name: 'Casual old-money aesthete',
+    desc: 'The casual-tourist spending discipline (checks in every 20 game-min, ROI-blind 10% flavor ' +
+      'budget) plus appreciating art/wine collections. The engaged persona for the connoisseur ' +
+      'branch\'s Phase 0 calibration (docs/10 §1.3).',
+    branch: 'connoisseur', cadenceSec: 1200,
+    act: makeGreedyAct({ branch: 'connoisseur', amenFrac: 0.35, amenityROI: false, amenBudgetFrac: 0.10, lanes: [laneCollections] }),
+  },
+  {
     id: 'greedy-traveler',
     name: 'Greedy world traveler',
     desc: 'Destination-heavy budget + revisits; walks the traveler stage track.',
