@@ -85,9 +85,12 @@ reset (`docs/04 §1b` has the fiction↔mechanics mapping and the cosmetic-only 
 | 30 | *Empire of Leisure* | Comfort ≥ C30 | prestige layer 2; **New Game+** | 29–30 |
 | 30+ | *Legends of Leisure* | endless | recurring legend beats, seasonal destinations | 30 |
 
-`C1…C30` are the Comfort thresholds; they line up with the accommodation ladder and are
-listed in `config.STORY_GATES`. Beats 26–30 are the ascension/endgame loop and are
-**repeatable-with-variation** (New Game+ reshuffles destinations, raises gates).
+`C1…C30` above are shorthand for the Comfort thresholds; they line up with the accommodation
+ladder. In the shipped data there is **no central `STORY_GATES` constant** — each beat's gate
+is an inline `requires` object on the beat itself in `js/data/story.js` (keys `comfort`,
+`accTier`, `charisma`, `body`, `taste`, `ascensions`, `legacy`, `flag`), and those thresholds
+are re-spaced for even pacing (`docs/05 §9.5`). Beats 26–30 are the ascension/endgame loop and
+are **repeatable-with-variation** (New Game+ reshuffles destinations, raises gates).
 
 ---
 
