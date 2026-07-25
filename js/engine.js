@@ -810,7 +810,8 @@ export function addPathPoints(state, id, n) {
 // continuation (`desc`), and its flat bonus is live via the recomputed _pathBonus.
 // Iterates every road the life has opened (the branch + Jack side-roads).
 //
-// PATH_GATE.enabled === false (the shipped default, docs/10 §1 / .claude/context/
+// PATH_GATE.enabled === false (the escape hatch — the shipped default is TRUE since
+// Phase 3; selftest [119] pins the off-state, docs/10 §1 / .claude/context/
 // path-story-implementation-plan.md): points-only, byte-for-byte the pre-gate behavior
 // — a stage fires the moment points reach its `at` threshold, and the ascending-order
 // `break` above is what already keeps stages firing in order (points only ever grow, so
