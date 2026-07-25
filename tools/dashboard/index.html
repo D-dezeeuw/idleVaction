@@ -151,6 +151,8 @@ table.data th:first-child, table.data td:first-child { text-align: left; }
     <div style="display:flex; gap:8px; align-items:center;">
       <button class="filebtn" id="pickfile" type="button">Load report JSON…</button>
       <input type="file" id="filein" accept="application/json" style="display:none">
+      <button class="filebtn" id="pickhuman" type="button">👤 Load human playtest…</button>
+      <input type="file" id="humanfilein" accept="application/json" style="display:none">
       <button class="themebtn" id="themebtn" type="button" aria-label="Toggle color theme">Theme: auto</button>
     </div>
   </div>
@@ -770,6 +772,60 @@ function loadReport(rep, sourceLabel) {
   render();
 }
 
+/* ---------- human playtest overlay (Track A, .claude/context/telemetry-and-pacing-plan.md) ----
+   Adapts one exported playtest record ({ name, gameVersion, exportedAt, runSec, ascensions,
+   transitions }, from the Menu's "Export playtest data") into a run object shaped enough like
+   the simulated ones (js/dev/report.mjs summarize()) to ride the SAME charts/tables — `transitions`
+   is a verbatim pass-through (same field names the sim personas already use, js/engine.js's
+   recordPlaytest mirrors demo.mjs's snapshotTransition), so the path-trajectories table needs no
+   adapter at all; `series` reuses the transitions themselves (they carry t/accTier) so the
+   Accommodation-ladder-vs-golden chart plots the human tier climb too. Fields with no human-side
+   source (peakLog10, wallMs, legend/tree) are left null/0/empty — every reader above already
+   degrades gracefully on those (comparisonCard prints '—' for a null peakLog10, etc). Clearly
+   labeled: id/name are prefixed 👤 so shortName() (which is what every legend/chip/tooltip shows)
+   reads as human at a glance, distinct from the simulated personas' plain ids. ---------- */
+function adaptHumanRun(rec) {
+  const transitions = rec.transitions.slice().sort((a, b) => a.t - b.t);
+  const tierTimes = {}, beatTimes = {};
+  let beats = 0, ascendCount = 0, stamps = 0;
+  transitions.forEach(row => {
+    if (row.kind === 'tier' && !(row.accTier in tierTimes)) tierTimes[row.accTier] = row.t;
+    if (row.kind === 'beat') { beats++; if (row.beatId !== undefined && !(row.beatId in beatTimes)) beatTimes[row.beatId] = row.t; }
+    if (row.kind === 'ascend') ascendCount++;
+    if (typeof row.destinations === 'number') stamps = Math.max(stamps, row.destinations);
+  });
+  const islandRow = transitions.find(row => row.kind === 'tier' && row.accTier >= 20);
+  const events = transitions.map(row => {
+    if (row.kind === 'tier') return { t: row.t, type: 'tier', tier: row.accTier, detail: `Tier ${row.accTier} (human)` };
+    if (row.kind === 'beat') return { t: row.t, type: 'beat', beat: row.beatId, detail: `Beat ${row.beatId ?? '?'} (human)` };
+    if (row.kind === 'ascend') return { t: row.t, type: 'ascend', detail: `Ascension at tier ${row.accTier} (human)` };
+    return { t: row.t, type: 'stage', detail: `Path stage ${row.stageIdx} — ${row.branch || '—'} (human)` };
+  });
+  const label = rec.name || 'Human playtest';
+  return {
+    key: 'human-' + (rec.exportedAt || String(Date.now())),
+    id: '👤 ' + label, seed: null, name: label, human: true,
+    params: { runSec: rec.runSec, gameVersion: rec.gameVersion, ascensions: rec.ascensions },
+    islandAt: islandRow ? islandRow.t : null, stalled: null, peakLog10: null,
+    acts: transitions.length, wallMs: 0,
+    beatTimes, tierTimes,
+    final: { beats, ascensions: rec.ascensions ?? ascendCount, legendCount: 0, stamps, log10Cash: null },
+    tree: {}, legendPerks: {},
+    events, transitions, series: transitions,
+  };
+}
+function loadHumanRun(rec, sourceLabel) {
+  if (!rec || !Array.isArray(rec.transitions)) { alert('Not a playtest export (expected {..., transitions:[...]} from the Menu\'s "Export playtest data").'); return; }
+  if (!STATE.report) { alert('Load a (simulated) report first — npm run report, or serve the repo so data/report.json auto-loads.'); return; }
+  const run = adaptHumanRun(rec);
+  STATE.report.runs.push(run);
+  STATE.sel.add(run.key);
+  if (STATE.sel.size > 8) STATE.sel = new Set([...STATE.sel].slice(-8));   // keep the shared-chart palette cap; the new human run wins a slot
+  $('#metaline').textContent += ` · +👤 human run "${run.name}" (${sourceLabel})`;
+  buildFilters();
+  render();
+}
+
 /* ---------- theme toggle (auto → light → dark) ---------- */
 const themebtn = $('#themebtn');
 themebtn.addEventListener('click', () => {
@@ -784,6 +840,19 @@ $('#pickfile').addEventListener('click', () => $('#filein').click());
 $('#filein').addEventListener('change', ev => {
   const f = ev.target.files[0];
   if (f) f.text().then(tx => loadReport(JSON.parse(tx), f.name));
+});
+// human playtest overlay: FileReader only — reads the picked file straight off local disk,
+// no network call anywhere (the repo's zero-third-party-origin rule; see the plan doc).
+$('#pickhuman').addEventListener('click', () => $('#humanfilein').click());
+$('#humanfilein').addEventListener('change', ev => {
+  const f = ev.target.files[0];
+  if (!f) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try { loadHumanRun(JSON.parse(reader.result), f.name); }
+    catch (e) { alert('Could not parse that file as JSON.'); }
+  };
+  reader.readAsText(f);
 });
 const drop = $('#drop');
 ['dragover', 'dragenter'].forEach(evt => document.addEventListener(evt, ev => { ev.preventDefault(); drop.classList.add('over'); }));

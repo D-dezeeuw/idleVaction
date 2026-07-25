@@ -264,6 +264,18 @@ export function newGame() {
     // seenAt (Travel Diary, UX-plan §6): beatId → runSec when it was lived. Display-only.
     // lastBeatAt: the spacing valve's window anchor (engine.checkStory) — game-seconds.
     story: { beat: 1, seen: [1], seenAt: { 1: 0 }, branch: 'neutral', flags: {}, lastBeatAt: 0 },
+    // playtest (Track A instrumentation, .claude/context/telemetry-and-pacing-plan.md): a
+    // bounded, local-only log of run milestones — the SAME record vocabulary as js/dev/demo.mjs's
+    // snapshotTransition (kind/t/accTier/stageIdx/branch/points/the 9 goal resources), so an
+    // exported human run and a simulated persona's `transitions` are directly comparable on the
+    // dashboard. Pure observation: written ONLY by engine.recordPlaytest (buyAccommodation/
+    // checkPathStages/checkStory/prestige.ascend), NEVER read by any income/gate path — math.js
+    // never touches it. Survives ascension (prestige.ascend's fresh.playtest = state.playtest,
+    // like souvenirs/achievements) so a session that ascends mid-climb still exports its whole
+    // story; capped (PLAYTEST_CAP, engine.js) so an idle ascension loop can't balloon the save.
+    // Leaves the machine ONLY via the Menu's explicit "Export playtest data" click (ui.js) —
+    // never auto-uploaded, no network call, no identifiers.
+    playtest: { records: [] },
     // ui.bulkMode (E03-S1-T6): the ×1/×10/max buy-quantity toggle, persisted so the
     // choice survives reload instead of living in a transient ui.js module var.
     // activeTab/seenTabs (Phase D / audit 6.7): where the player was + which tabs they've

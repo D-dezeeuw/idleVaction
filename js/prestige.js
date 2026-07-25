@@ -6,7 +6,7 @@ import { newGame } from './state.js';
 // addEffect (Living-World W3's Legacy Honeymoon, docs/08 point 8): engine.js does not import
 // prestige.js, so this edge is one-directional — no cycle. Reused rather than forked, per house
 // style (the SAME shared timed-effects registry Trip Events/Sunscreen Boosts already ride).
-import { addEffect } from './engine.js';
+import { addEffect, recordPlaytest } from './engine.js';
 
 export function canAscend(state) {
   return state.stats.runSec >= C.ASCEND_MIN_RUN_SEC && M.legacyGain(state) >= 1;
@@ -113,6 +113,10 @@ export function ascend(state, heir, { challengeId } = {}) {
   state.stats.totalLegacyEverEarned = (state.stats.totalLegacyEverEarned || 0) + gained;
   state.ascension.count++;
   state.ascension.legacyBanked += M.legacyGain(state); // bank raw so re-ascend doesn't double-pay
+  // Track A instrumentation: log the ascension itself (this life's final tier/goal-resource
+  // snapshot) BEFORE the hard reset below wipes accommodation/story/etc. — mirrors the other
+  // three fire points (buyAccommodation/checkPathStages/checkStory), see engine.recordPlaytest.
+  recordPlaytest(state, 'ascend');
 
   const fresh = newGame();
   fresh.resources.legacy = state.resources.legacy;
@@ -127,6 +131,11 @@ export function ascend(state, heir, { challengeId } = {}) {
   // keepsake currency (and shelf) survive ascension (away time is never worthless again). NOT in
   // legendReset's keep-list (see below) — the meta-meta layer stays clean, mirroring the tree/Legacy.
   fresh.souvenirs = state.souvenirs;
+  // playtest telemetry (Track A): survives ascension like souvenirs/achievements above — the
+  // whole point is exporting a session's climb even if it ascends mid-story; the 'ascend' record
+  // just pushed onto state.playtest (above) rides along. PLAYTEST_CAP (engine.js) is the safety
+  // valve against an idle ascension-loop session, not this reset.
+  fresh.playtest = state.playtest;
   // Ascension Challenges (Living-World W3, docs/08 point 7): `completed` is META (the permanent
   // Keepsake record — survives ascension like souvenirs above); `active`/`mods` are RUN-scoped —
   // always cleared by this reset and re-set below from the NEW selection (or left null/{} for a

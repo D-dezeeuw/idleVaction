@@ -29,6 +29,7 @@ import { validatePetra } from '../data/petra.js';
 import { buildPostcard } from '../postcard.js';
 import * as AU from '../audio.js';
 import { fmt, fmtTime, rng } from '../util.js';
+import { readFileSync } from 'node:fs';
 // E11 harness-invariance guard ([62] below): importing runCurve does NOT auto-run the
 // harness's own report() — that's guarded behind `process.argv[1].endsWith('harness.mjs')`,
 // which is false when node's entry point is THIS file.
@@ -5970,6 +5971,72 @@ console.log('\n[121] Phase 6A path-exclusive world content: branch-gated visibil
     ok(threw, 'validateAmenities() throws on an unknown branch value');
   }
   ok(validateDestinations() && validateAmenities(), 'both validators pass again once the temporary bad data is reverted');
+}
+
+// ---------- [122] Track A playtest telemetry: recorder shape, buffer cap, save round-trip,
+// economy neutrality (.claude/context/telemetry-and-pacing-plan.md) ----------
+console.log('\n[122] Track A playtest telemetry: recorder shape, buffer cap, save round-trip, economy neutrality');
+{
+  // (a) a scripted run produces telemetry records of the right kinds/shape — the SAME greedy
+  // policy [86]'s hard-reset audit reuses, run long enough to pass several tier-ups and beats.
+  const s = ST.newGame();
+  for (let t = 0; t <= 3 * 3600; t += 5) { E.tick(s, 5); play(s); }
+  const recs = s.playtest.records;
+  ok(recs.length > 0, `a scripted run produces telemetry records (got ${recs.length})`);
+  ok(recs.every(r => ['tier', 'stage', 'beat', 'ascend'].includes(r.kind)), 'every record kind is one of tier|stage|beat|ascend');
+  const kinds = new Set(recs.map(r => r.kind));
+  ok(kinds.has('tier') && kinds.has('beat'), `a multi-hour greedy run fires both tier-up and beat records (got kinds: ${[...kinds].join(',')})`);
+  const REQUIRED_KEYS = ['kind', 't', 'accTier', 'stageIdx', 'branch', 'points', 'd2Count', 'clout',
+    'contentFormats', 'portfolioValue', 'coinSpread', 'destinations', 'vehicleClass', 'luxAmenities',
+    'earnedComfort', 'collectionPieces'];
+  ok(recs.every(r => REQUIRED_KEYS.every(k => k in r)), 'every record carries the full goal-vocabulary shape (mirrors demo.mjs snapshotTransition)');
+  ok(recs.every(r => (r.kind === 'beat') === (typeof r.beatId === 'number')), 'beatId is present on (only) beat records');
+  ok(recs.every((r, i) => i === 0 || r.t >= recs[i - 1].t), 'records are chronological (t non-decreasing)');
+
+  // (b) buffer cap holds when exceeded — push well past any reasonable cap directly.
+  const c = ST.newGame();
+  for (let i = 0; i < 500; i++) E.recordPlaytest(c, 'tier');
+  const capAt = c.playtest.records.length;
+  ok(capAt > 0 && capAt < 500, `the buffer caps well under 500 direct pushes (got ${capAt})`);
+  E.recordPlaytest(c, 'tier');
+  ok(c.playtest.records.length === capAt, 'pushing past the cap is a silent no-op — length stays put');
+
+  // (c) round-trip through save/load (Map-backed fake storage — [116]'s own pattern).
+  const store = new Map();
+  const fake = { getItem: k => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, v), removeItem: k => store.delete(k) };
+  const rtSrc = ST.newGame();
+  E.recordPlaytest(rtSrc, 'tier');
+  E.recordPlaytest(rtSrc, 'beat', { beatId: 3 });
+  ST.save(rtSrc, fake);
+  const rtLoaded = ST.load(fake);
+  ok(rtLoaded && Array.isArray(rtLoaded.playtest.records) && rtLoaded.playtest.records.length === 2,
+    'playtest.records round-trips through save/load (both records survive)');
+  ok(rtLoaded.playtest.records[1].kind === 'beat' && rtLoaded.playtest.records[1].beatId === 3,
+    'record fields (kind/beatId) survive the round-trip intact');
+
+  // (d) neutrality — recording must never perturb the economy. Run the SAME greedy policy from
+  // two identical fresh states: one records normally, the other starts with an already-"full"
+  // buffer so every recordPlaytest call is a guaranteed no-op — then compare every OTHER field
+  // bit-for-bit (mirrors [86]'s hard-reset field audit, applied here to "with vs without records").
+  const normal = ST.newGame();
+  const preFull = ST.newGame();
+  preFull.playtest.records = new Array(10000).fill(0);   // forces every recordPlaytest push to short-circuit
+  for (let t = 0; t <= 2 * 3600; t += 5) { E.tick(normal, 5); play(normal); E.tick(preFull, 5); play(preFull); }
+  const strip = st => JSON.stringify(st, (k, v) => (k === 'playtest' || k.startsWith('_')) ? undefined : v);
+  ok(normal.playtest.records.length > 0, 'fixture: the "normal" run actually recorded something (else the comparison below is vacuous)');
+  ok(strip(normal) === strip(preFull), 'recording vs. not recording produces a bit-identical economy — every other field matches');
+
+  // (e) the same neutrality holds across prestige.ascend's own fire point specifically.
+  const ascNorm = ST.newGame(); ascNorm.stats.runSec = 200; ascNorm.stats.lifetimeCashThisTree = 1e12;
+  const ascFull = ST.newGame(); ascFull.stats.runSec = 200; ascFull.stats.lifetimeCashThisTree = 1e12;
+  ascFull.playtest.records = new Array(10000).fill(0);
+  const ascOkNorm = P.ascend(ascNorm), ascOkFull = P.ascend(ascFull);
+  ok(ascOkNorm && ascOkFull, 'fixture: both ascend');
+  ok(strip(ascNorm) === strip(ascFull), "ascend()'s telemetry hook is neutral too — Legacy gained/tree/reset are unaffected");
+
+  // (f) grep-style source audit: math.js — the multiplier/cost/gate stack — never reads the buffer.
+  const mathSrc = readFileSync(new URL('../math.js', import.meta.url), 'utf8');
+  ok(!mathSrc.includes('playtest'), 'math.js (every income/cost/gate function) never references state.playtest');
 }
 
 console.log(`\n=== ${fails === 0 ? 'ALL PASS ✅' : fails + ' FAILURE(S) ❌'} ===\n`);

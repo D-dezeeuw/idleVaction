@@ -13,6 +13,57 @@ export function drainNotifications(state) {
   const n = state._notifications || []; state._notifications = []; return n;
 }
 
+// ---------- playtest telemetry (Track A instrumentation, .claude/context/telemetry-and-
+// pacing-plan.md) — pure observation, local-only, NEVER read by any income/gate path ----------
+// One flat record per run milestone (tier-up, path-stage-fire, story beat, ascension) — the
+// SAME vocabulary as js/dev/demo.mjs's snapshotTransition, so a human export and a simulated
+// persona's `transitions` are directly comparable on the dashboard (tools/dashboard/). Capped
+// so an idle/bot ascension loop can't balloon the save: once full, the first climb (0→island,
+// the informative one for pacing) is kept and later pushes are silent no-ops — a real single
+// life's worst-case count (21 tier-ups + 4 stage-fires + 30 beats = 55) fits comfortably under it.
+const PLAYTEST_CAP = 60;
+// 4-significant-digit rounding — a local twin of report.mjs/demo.mjs's own sig4 (same
+// small-stable-copy call those files already make: this one pure 6-line function is
+// duplicated rather than threaded through an import, math.js stays dev-tool-free).
+function sig4(x) {
+  if (!Number.isFinite(x) || x === 0) return x;
+  const m = Math.pow(10, 3 - Math.floor(Math.log10(Math.abs(x))));
+  return Math.round(x * m) / m;
+}
+// # of the COMMITTED branch's stages fired this life — reads the SAME flag key
+// checkPathStages writes (`pathStage_<id>_<at>`), mirroring demo.mjs's own firedStageCount
+// exactly (Jack of All Trades' secondary roads are deliberately excluded, same as there).
+function committedStageCount(state) {
+  const branch = state.story.branch;
+  if (branch === 'neutral') return 0;
+  const path = DATA.paths.find(p => p.id === branch);
+  if (!path) return 0;
+  let n = 0;
+  for (const st of path.stages) if (state.story.flags[`pathStage_${branch}_${st.at}`]) n++;
+  return n;
+}
+// recordPlaytest: the ONE writer for state.playtest.records — called from buyAccommodation,
+// checkPathStages (committed branch only), checkStory, and prestige.ascend (the four existing
+// fire points). `extra` carries kind-specific fields (beatId for 'beat'). Exported so ui.js can
+// read the buffer for export and selftest can exercise the cap directly.
+export function recordPlaytest(state, kind, extra = {}) {
+  const buf = state.playtest || (state.playtest = { records: [] });
+  if (buf.records.length >= PLAYTEST_CAP) return;
+  const branch = state.story.branch !== 'neutral' ? state.story.branch : null;
+  const points = branch ? (state.paths[branch]?.points || 0) : 0;
+  const res = M.pathGoalResources(state, DATA);
+  const earnedComfort = Math.max(0, state.resources.comfort - C.COMFORT.floorFrac * M.comfortFloor(state));
+  buf.records.push({
+    kind, t: Math.round(state.stats.runSec || 0),
+    accTier: state.accommodation.tier, stageIdx: committedStageCount(state), branch, points: sig4(points),
+    ...extra,
+    d2Count: sig4(res.d2Count), clout: sig4(res.clout), contentFormats: res.contentFormats,
+    portfolioValue: sig4(res.portfolioValue), coinSpread: res.coinSpread, destinations: res.destinations,
+    vehicleClass: res.vehicleClass, luxAmenities: res.luxAmenities,
+    earnedComfort: sig4(earnedComfort), collectionPieces: res.collectionPieces,
+  });
+}
+
 // ---------- the wallet: every cash INFLOW banks through here ----------
 // Single clamp point for the bank-account wallet cap (config.BANK / math.walletCap —
 // see config's comment for the offline-lump rationale, docs/math-proof.md §11). Banks
@@ -746,6 +797,7 @@ export function checkStory(state) {
       (state.story.seenAt ||= {})[beat.id] = Math.round(state.stats.runSec || 0);
       state.story.beat = Math.max(state.story.beat, beat.id);
       notify(state, 'story', `📖 Beat ${beat.id}: ${beatCopy(state, beat).title}`);
+      recordPlaytest(state, 'beat', { beatId: beat.id });
       state.story.lastBeatAt = state.stats.runSec;
       if (valve > 0) break;
     }
@@ -843,6 +895,7 @@ export function checkPathStages(state) {
         state.story.flags[flagKey] = true;
         state._pathBonus = M.computePathBonuses(state, DATA);
         notify(state, 'story', `📜 ${st.name} — ${st.desc}`);
+        if (p.id === state.story.branch) recordPlaytest(state, 'stage');
       }
       continue;
     }
@@ -855,6 +908,7 @@ export function checkPathStages(state) {
       state.story.flags[flagKey] = true;
       state._pathBonus = M.computePathBonuses(state, DATA);
       notify(state, 'story', `📜 ${st.name} — ${st.desc}`);
+      if (p.id === state.story.branch) recordPlaytest(state, 'stage');
     }
   }
 }
@@ -2472,6 +2526,7 @@ export function buyAccommodation(state) {
     addPathPoints(state, 'connoisseur', 1);
   }
   checkChallengeCompletion(state, t);
+  recordPlaytest(state, 'tier');
   return true;
 }
 

@@ -742,6 +742,24 @@ function closeEra() {
   if (modalOpener) { try { modalOpener.focus(); } catch (_) {} modalOpener = null; }
 }
 
+// ---------- playtest export (Track A instrumentation, .claude/context/telemetry-and-pacing-
+// plan.md) — shaped like ONE run record of tools/dashboard/data/report.json (report.mjs's
+// summarize(): `transitions` is the same key/shape the dashboard already reads, so this drops
+// straight into its human-run loader with no translation layer), plus enough meta to label the
+// series. Local-only: leaves the machine ONLY on the player's explicit "Export playtest data"
+// click below — no network call, no auto-upload, no identifiers (state.js's `playtest` field
+// comment has the full privacy rationale).
+function playtestExportData(state) {
+  return {
+    name: `Human playtest — ${new Date().toISOString().slice(0, 10)}`,
+    gameVersion: C.SAVE_VERSION,
+    exportedAt: new Date().toISOString(),
+    runSec: Math.round(state.stats.runSec || 0),
+    ascensions: state.ascension.count,
+    transitions: (state.playtest && state.playtest.records) || [],
+  };
+}
+
 // ---------- save dialogs (Phase D / audit 6.10): no more browser prompt()/confirm() ----------
 // The save string is base64 (no markup characters), safe to interpolate into the textarea.
 function showExportDialog() {
@@ -3236,6 +3254,15 @@ function handle(action, arg, btnEl) {
       a.download = `idleVaction-save-${new Date().toISOString().slice(0, 10)}.txt`;
       a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
     } break; }
+    // Track A instrumentation: a direct download (no dialog needed — there is nothing to
+    // edit/paste), same blob-download mechanics as 'download-save' above.
+    case 'export-playtest': {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([JSON.stringify(playtestExportData(S), null, 1)], { type: 'application/json' }));
+      a.download = `idleVaction-playtest-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      break;
+    }
     case 'do-import': { const t = el('saveImportText'); if (t && t.value.trim()) hooks.importSaveString(t.value.trim()); closeEra(); break; }
     case 'pick-import-file': { const f = el('saveImportFile'); if (f) f.click(); break; }
     case 'do-reset': { const t = el('resetConfirmText');
@@ -3335,6 +3362,7 @@ export function renderControls(state) {
     <span class="iv-devtools">
       <span class="iv-tag">save</span>
       ${btn('export', '', '📤 Export save')}
+      ${btn('export-playtest', '', '📊 Export playtest data', true, '', 'A local JSON of this run\'s milestones — for comparing your pace against the sim dashboard. Never uploaded automatically.')}
       ${btn('import', '', '📥 Import save')}
       ${btn('reset', '', 'Hard reset…', true, 'btn-error')}
       <span class="iv-tag">options</span>
