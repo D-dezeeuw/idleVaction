@@ -256,18 +256,24 @@ export const CONFIG = {
   // path-story-implementation-plan.md "Calibration table") ----
   // checkpoints: accommodation TIER → the committed branch's required FIRED-stage count
   // (1-indexed: stage 1 = S1, …) before that tier's Comfort gate is allowed to also open.
-  // Read by engine.accGateStatus/accUnlocked. `enabled: false` ships this feature fully
-  // DARK: checkPathStages fires stages on points alone (data/paths.js `goals` are inert)
-  // and accUnlocked never consults `checkpoints` — the game is bit-identical to pre-gate
-  // behavior (greedy harness 37445s, every selftest pin unmoved). Phase 3 teaches the
-  // harness's greedy policy to buy the cheapest missing goal resource and flips this flag
-  // WITH a coordinated re-pin in the same change — flipping it today would stall the
-  // (unmodified) greedy harness at tier 12, since it never buys content/coins/collections.
-  // GRANDFATHERING: no new save field is needed — fired-stage flags already live in
+  // Read by engine.accGateStatus/accUnlocked. `enabled: true` (Phase 3, docs/10 §1.3):
+  // the path gate is LIVE — checkPathStages fires a stage only when its points AND every
+  // data/paths.js `goal` are met, and accUnlocked additionally requires the committed
+  // branch's checkpoint stage at tiers 8/12/16/19. Calibrated (.claude/context/path-story-
+  // implementation-plan.md) to bind ONLY on neglect: the engaged persona of each path meets
+  // every gate at or before its Comfort gate, so per-tier times move within ±5% of the
+  // pre-gate baseline (the ±5% no-lengthening contract). The dev policies learn ONE step to
+  // match — harness.satisfyPathGate: when the next tier is Comfort-unlocked but path-gated
+  // (accGateStatus comfortOk && !pathOk), buy the cheapest missing goal resource of the
+  // blocking stage — so content/coins/collections/vehicles join the greedy's critical path
+  // for the first time (the deliberate harness-doctrine amendment, docs/10 §1.3). Every goal
+  // is a direct cash buy (clout bridges via content), so a gate is a SHORT spend, never a
+  // wall. GRANDFATHERING: no new save field is needed — fired-stage flags already live in
   // story.flags (`pathStage_<id>_<at>`), so a pre-feature save that fired a stage on
   // points alone stays fired forever (the gate only ever blocks a stage from firing, it
-  // never un-fires one already recorded).
-  PATH_GATE: { enabled: false, checkpoints: { 8: 1, 12: 2, 16: 3, 19: 4 } },
+  // never un-fires one already recorded). Rollback lever: flip back to false ⇒ bit-identical
+  // to pre-gate behavior (points-only stages, no checkpoint clause).
+  PATH_GATE: { enabled: true, checkpoints: { 8: 1, 12: 2, 16: 3, 19: 4 } },
 
   // ---- destinations & transport (World Traveler backbone; E04) ----
   // costGrowth: extra × per ADDITIONAL destination already owned (compounds with each
