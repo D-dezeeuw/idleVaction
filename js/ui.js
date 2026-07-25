@@ -19,8 +19,10 @@ let hooks = {};               // { save, exportSave, importSave, hardReset }
 // future stays hidden). The player sees one focused screen at a time. activeTab/seenTabs are
 // transient (reset to Home on reload) — a deliberate light touch, no save-schema change.
 const TABS = [
-  { id: 'home',   label: 'Home',   icon: '🏨', cards: ['eventsCard', 'boostsCard', 'petraCard', 'amenitiesCard', 'poolCard', 'beachCard', 'wellnessCard', 'conciergeCard', 'propertyCard', 'islandListingCard', 'souvenirCard'] },
-  { id: 'income', label: 'Income', icon: '💶', cards: ['generatorsCard', 'creatorCard', 'cryptoCard', 'collectionCard', 'staffCard'] },
+  // Your Road (docs/10 §2.1) + Overview (docs/10 §2.2, income+amenities merged) lead the Home
+  // tab now — the road that matters, then the everyday buys, then the rest of the systems below.
+  { id: 'home',   label: 'Home',   icon: '🏨', cards: ['yourRoadCard', 'overviewCard', 'eventsCard', 'boostsCard', 'petraCard', 'poolCard', 'beachCard', 'wellnessCard', 'conciergeCard', 'propertyCard', 'islandListingCard', 'souvenirCard'] },
+  { id: 'income', label: 'Income', icon: '💶', cards: ['creatorCard', 'cryptoCard', 'collectionCard', 'staffCard'] },
   { id: 'travel', label: 'Travel', icon: '🌍', cards: ['destCard', 'transportCard', 'garageCard', 'marinaCard', 'hangarCard'] },
   { id: 'growth', label: 'Growth', icon: '💪', cards: ['skillsCard', 'pathsCard'] },
   { id: 'legacy', label: 'Legacy', icon: '👑', cards: ['ascensionCard', 'treeCard', 'legendCard', 'achievementsCard'] },
@@ -86,7 +88,7 @@ const el = id => document.getElementById(id);
 // player is currently typing in.
 const CARD_RENDERERS = {
   destCard: renderDestinations,
-  transportCard: renderTransport, generatorsCard: renderGenerators, amenitiesCard: renderAmenities,
+  transportCard: renderTransport, yourRoadCard: renderYourRoad, overviewCard: renderOverview,
   poolCard: renderPoolside, beachCard: renderBeachfront, wellnessCard: renderWellness,
   conciergeCard: renderConcierge, creatorCard: renderCreator, cryptoCard: renderCrypto,
   collectionCard: renderCollection, garageCard: renderGarage, marinaCard: renderMarina,
@@ -905,6 +907,11 @@ function renderAccommodation(s) {
       // Once the gate is met the meter switches to cash-toward-cost (the job the old
       // NEXT STEP square did before this card moved up into the story row).
       const gateOk = E.accUnlocked(s);
+      // Path-gate deep link (docs/10 §2.1): Comfort-ready but the checkpoint's path stage
+      // isn't — mirrors the tasteGate hint just below (a plain iv-sub line, shown regardless
+      // of gateOk, same "extra unmet condition" convention). Inert whenever
+      // config.PATH_GATE.enabled is false (accGateStatus.pathOk is always true then).
+      const gate = E.accGateStatus(s);
       const pct = clamp(100 * s.resources.comfort / need, 0, 100);
       const cashPct = clamp(100 * s.resources.cash / cost, 0, 100);
       html += `<div class="iv-acc-row iv-acc-next" title="${acc.flavor}">
@@ -921,6 +928,7 @@ function renderAccommodation(s) {
             </div>
             <div class="iv-sub">needs Comfort ≥ ${fmt(need)} — you: ${fmt(s.resources.comfort)}</div>`}
         ${acc.tasteGate ? `<div class="iv-sub">🎩 velvet rope: Taste L${acc.tasteGate}${s.skills.taste.level < acc.tasteGate ? ` — you: L${s.skills.taste.level}` : ' ✅'}${acc.exclRec ? ` <small>(exclusivity ${fmt(acc.exclRec)} recommended)</small>` : ''}</div>` : ''}
+        ${gate.comfortOk && !gate.pathOk ? pathGateHintHtml(gate) : ''}
         ${gateOk ? btn('buy-acc', '', `Check in — ${fmt(cost)}`, afford(cost), 'btn-primary') : ''}
       </div>`;
     } else {
@@ -1131,6 +1139,91 @@ function renderTransport(s) {
   setHTML(el('transport'), html);
 }
 
+// ---------- Your Road (docs/10 §2.1 / .claude/context/path-story-implementation-plan.md
+// Phase 4): the committed path's staged goals, top of the Home tab. Uncommitted ⇒ a
+// spoiler-free teaser (no path names — those stay behind the beat-6 crossroads reveal,
+// same doctrine pathsCard's own compare view already follows). Committed ⇒ the NEXT
+// unfired stage's goal bars, skinned per branch, sourced entirely from math.stageGoalProgress
+// (the same reader engine.checkPathStages uses when PATH_GATE.enabled — one source of truth,
+// so this panel can never show a bar the gate itself disagrees with).
+function pathGoalLabel(s, key, need) {
+  switch (key) {
+    case 'd2Count': { const g = DATA.generators.find(x => x.id === 'd2'); return g ? genName(s, g) : 'Followers'; }
+    case 'clout': return 'Clout';
+    case 'contentFormats': return 'Content formats';
+    case 'portfolioValue': return 'Portfolio value';
+    case 'coinSpread': return 'Coin variety';
+    case 'destinations': return 'Destinations';
+    case 'vehicleClass': return need >= 2 ? 'Own a boat' : 'Own a car';
+    case 'luxAmenities': return 'Luxury amenities';
+    case 'collectionPieces': return 'Collection pieces';
+    default: return key;
+  }
+}
+// vehicleClass reads an ORDINAL (0 none/1 car/2 boat/3 jet), not a count toward `need` — a
+// plain have/need bar would misread "own a car" as "50% of the way to a boat", so this one
+// goal renders as a simple owned/not-yet check instead.
+function yourRoadBarHtml(b) {
+  const boolStyle = b.key === 'vehicleClass';
+  const pct = boolStyle ? (b.met ? 100 : 0) : (b.need > 0 ? clamp(100 * b.have / b.need, 0, 100) : (b.met ? 100 : 0));
+  const valueText = boolStyle ? (b.met ? 'owned ✓' : 'not yet') : `${fmt(b.have)} / ${fmt(b.need)}`;
+  return `<div class="iv-road-bar${b.met ? ' iv-road-bar-met' : ''}">
+    <div class="iv-road-bar-label">${b.met ? '✅ ' : ''}${esc(b.label)} <small>${valueText}</small></div>
+    <div class="iv-comfort-meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct.toFixed(0)}"
+      aria-label="${esc(b.label)} progress: ${valueText}"><i style="width:${pct.toFixed(1)}%"></i></div>
+  </div>`;
+}
+// The Accommodation panel's deep-link (docs/10 §2.1, task 2): reads the SAME accGateStatus
+// the checkpoint clause itself reads, so the hint can never claim a stage is missing that
+// engine.accUnlocked doesn't also require. `scroll-to-road` (below) hops to Home + the panel.
+function pathGateHintHtml(gate) {
+  const label = gate.branch === 'neutral'
+    ? 'Choose your road first'
+    : `Your road isn't ready — stage ${gate.pathNeedStage} of ${DATA.paths.find(p => p.id === gate.branch)?.name || gate.branch} needed`;
+  return `<div class="iv-sub">${btn('scroll-to-road', '', `🧭 ${label}`, true, 'iv-path-gate-hint')}</div>`;
+}
+// The pre-commitment teaser: deliberately names no path (uxcheck's spoiler sweep runs on the
+// very first, fresh-game render — see tools/uxcheck.mjs SPOILER_TERMS, which includes several
+// path-flavored words like "Crypto"). Points at the crossroads (the Story bar) without spoiling it.
+function yourRoadTeaserHtml() {
+  return `<div class="iv-sub">🧭 Your road hasn't forked yet — when the crossroads comes up in
+    the story, choosing one turns this into a live checklist toward your next milestone.</div>`;
+}
+function renderYourRoad(s) {
+  const box = el('yourRoad');
+  if (!box) return;
+  const branch = s.story.branch;
+  if (branch === 'neutral') { setHTML(box, yourRoadTeaserHtml()); return; }
+  const path = DATA.paths.find(p => p.id === branch);
+  if (!path) { setHTML(box, ''); return; }
+  const flagged = st => !!s.story.flags[`pathStage_${branch}_${st.at}`];
+  const nextIdx = path.stages.findIndex(st => !flagged(st));
+  const progress = M.stageGoalProgress(s, DATA, branch);
+  let html = '';
+  if (nextIdx === -1) {
+    const last = path.stages[path.stages.length - 1];
+    html += `<div class="iv-road-head"><b>${esc(path.name)}</b> — <span class="iv-road-complete">road complete</span></div>
+      <div class="iv-sub">Every stage walked. ${esc(last.desc)}</div>`;
+  } else {
+    const st = path.stages[nextIdx];
+    html += `<div class="iv-road-head"><b>${esc(path.name)}</b> — next: <span class="iv-road-next">${esc(st.name)}</span></div>`;
+    // Completed bars settle to the top with a check (docs/10 §2.1); the "Path focus" bar
+    // (the stage's own `at` points threshold) joins the goal bars as one more requirement.
+    const bars = progress[nextIdx].goals.map(g => ({
+      key: g.key, label: pathGoalLabel(s, g.key, g.need),
+      have: g.key === 'd2Count' ? Math.floor(g.have) : g.have, need: g.need, met: g.met,
+    }));
+    bars.push({ key: 'points', label: 'Path focus', have: s.paths[branch].points, need: st.at, met: progress[nextIdx].pointsMet });
+    bars.sort((a, b) => (b.met ? 1 : 0) - (a.met ? 1 : 0));
+    html += bars.map(yourRoadBarHtml).join('');
+  }
+  const fired = path.stages.filter(flagged);
+  if (fired.length) {
+    html += `<div class="iv-road-fired">${fired.map(st => `<div class="iv-sub">✅ ${esc(st.name)}</div>`).join('')}</div>`;
+  }
+  setHTML(box, html);
+}
+
 function renderGenerators(s) {
   const buyQty = s.ui.bulkMode;
   const qtyBtns = [1, 10, 'max'].map(q =>
@@ -1280,6 +1373,14 @@ function renderAmenities(s) {
   }
   if (!Object.keys(byTag).length) html += '<em>Get some Comfort to unlock little luxuries…</em>';
   setHTML(el('amenities'), html);
+}
+
+// ---------- Overview (docs/10 §2.2): income ladder + amenities under one shared header,
+// directly beneath Your Road. Layout only — renderGenerators/renderAmenities are untouched,
+// still writing into their own #generators/#amenities divs; this just wraps both in one card.
+function renderOverview(s) {
+  renderGenerators(s);
+  renderAmenities(s);
 }
 
 // ---------- Poolside panel (E07 "Making a Splash" — the fun showcase) ----------
@@ -2306,28 +2407,53 @@ function skillEffectReadout(s, sk, st) {
   return '';
 }
 
-function renderSkills(s) {
-  let html = '<div class="iv-skills">';
-  for (const sk of DATA.skills) {
-    const st = s.skills[sk.id];
-    const need = M.xpToNext(st.level);
-    const intoLevel = Math.max(0, st.xp - M.cumXpForLevel(st.level));
-    const pct = clamp(100 * intoLevel / need, 0, 100);
-    const justLeveled = skillFlash[sk.name] && Date.now() < skillFlash[sk.name];
-    html += `<div class="iv-skill${justLeveled ? ' iv-skill-flash' : ''}">
-      <b>${sk.name}</b> <span class="label">Lv ${st.level}</span>
-      <div class="iv-sub">${sk.effect}</div>
-      ${skillEffectReadout(s, sk, st)}
+// The ⓘ info modal (docs/10 §2.3, task 4): reuses the shared era-modal shell (showEra/'era-
+// close', same one save dialogs/big moments use) — one modal, content built fresh per skill
+// from live state. This is where every number the simplified card no longer shows still lives:
+// XP progress, the per-level formula (skillEffectReadout), and the technical `effect` blurb.
+function skillInfoModalHtml(s, sk) {
+  const st = s.skills[sk.id];
+  const need = M.xpToNext(st.level);
+  const intoLevel = Math.max(0, st.xp - M.cumXpForLevel(st.level));
+  const pct = clamp(100 * intoLevel / need, 0, 100);
+  return `
+    <h3>${esc(sk.name)}</h3>
+    <p class="iv-sub">${esc(sk.effect)}</p>
+    ${skillEffectReadout(s, sk, st)}
+    <div class="iv-skill">
       <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct.toFixed(0)}"
         aria-label="${sk.name} progress: ${fmt(intoLevel)} of ${fmt(need)} XP to level ${st.level + 1}">
         <i style="width:${pct.toFixed(1)}%"></i>
       </div>
+    </div>
+    <div class="iv-sub">${fmt(intoLevel)} / ${fmt(need)} XP to level ${st.level + 1}</div>
+    <div class="iv-era-actions">${btn('era-close', '', 'Close', true, 'btn-primary')}</div>`;
+}
+function openSkillInfo(id) {
+  const sk = DATA.skills.find(x => x.id === id);
+  if (!sk) return;
+  showEra(skillInfoModalHtml(S, sk));
+}
+
+// Simplified surface (docs/10 §2.3): title, level, ONE plain-language line (data.oneLiner),
+// and the skill's own train button — every number/curve/percentage moved behind the ⓘ above.
+function renderSkills(s) {
+  let html = '<div class="iv-skills">';
+  for (const sk of DATA.skills) {
+    const st = s.skills[sk.id];
+    const justLeveled = skillFlash[sk.name] && Date.now() < skillFlash[sk.name];
+    const training = DATA.training.find(t => t.skill === sk.id);
+    const cost = training ? E.trainingCost(s, training.id) : 0;
+    html += `<div class="iv-skill${justLeveled ? ' iv-skill-flash' : ''}">
+      <div class="iv-skill-head">
+        <b>${sk.name}</b> <span class="label">Lv ${st.level}</span>
+        ${btn('open-skill-info', sk.id, 'ⓘ', true, 'iv-skill-info-btn', `${sk.name} — how it works`)}
+      </div>
+      <div class="iv-sub">${esc(sk.oneLiner || sk.effect)}</div>
+      ${training ? btn('buy-training', training.id,
+        `${training.name || `Train ${sk.name}`}<br><small>${fmt(cost)} → +${training.xp}xp</small>`,
+        afford(cost), '', training.flavor || '') : ''}
     </div>`;
-  }
-  html += '</div><div class="iv-tag">training</div><div class="iv-amenities">';
-  for (const t of DATA.training) {
-    const cost = E.trainingCost(s, t.id);
-    html += btn('buy-training', t.id, `${t.name || `Train ${t.skill}`}<br><small>${fmt(cost)} → +${t.xp}xp</small>`, afford(cost), '', t.flavor || '');
   }
   html += '</div>';
   setHTML(el('skills'), html);
@@ -2781,6 +2907,16 @@ function handle(action, arg, btnEl) {
   switch (action) {
     // UI: switch the active tab (marks it seen ⇒ clears the "new" dot). render(S) below re-lays out.
     case 'switch-tab': activeTab = arg; seenTabs.add(arg); persistTabs(); lastTabSig = ''; break;
+    // Accommodation panel's path-gate deep link (docs/10 §2.1): hop Home, then scroll to
+    // Your Road once this frame's render (called right after handle() returns) has laid it out.
+    case 'scroll-to-road': {
+      activeTab = 'home'; seenTabs.add('home'); persistTabs(); lastTabSig = '';
+      requestAnimationFrame(() => {
+        const card = el('yourRoadCard');
+        if (card) { card.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'start' }); try { card.focus(); } catch (_) {} }
+      });
+      break;
+    }
     // the Travel Diary (UX-plan §6)
     case 'open-diary': openDiary(); break;
     case 'close-diary': { const m = el('diaryModal'); if (m) m.hidden = true; break; }
@@ -2843,6 +2979,7 @@ function handle(action, arg, btnEl) {
       if (E.buyTraining(S, arg)) showXpPopup(btnEl, `+${fmt(t.xp)}xp`);
       break;
     }
+    case 'open-skill-info': openSkillInfo(arg); break;
     case 'buy-path': E.buyPathFocus(S, arg); break;
     case 'buy-coin': E.buyCoin(S, arg, 1); break;
     case 'sell-coin': E.sellCoin(S, arg, 1); break;

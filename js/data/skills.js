@@ -1,22 +1,31 @@
 // data/skills.js — personal-growth attributes. XP→level via config.SKILL.
 // Effects are applied in math.js; this file is identity + flavor + training data.
 
+// oneLiner (docs/10 §2.3, Phase 4 UI): the plain-language line the simplified Personal
+// Growth card shows — display-only, no numbers, no curves. `effect` (the technical blurb)
+// and every rate/percentage/formula move behind the panel's ⓘ info modal instead; nothing
+// mechanical here changes.
 export const SKILLS = [
   { id: 'charisma', name: 'Charisma',
     effect: 'Boosts social-tier income (+3%/level).',
+    oneLiner: 'Better deals, warmer welcomes.',
     flavor: 'You make eye contact now. On purpose.' },
   { id: 'comms', name: 'Communication',
     effect: 'Reduces all purchase costs (−0.5%/level, floor 40%).',
+    oneLiner: 'Cheaper everything, easier haggling.',
     flavor: 'You can haggle in four languages and one mime.' },
   { id: 'body', name: 'Body',
     effect: 'Adds directly to Comfort (weight ×8/level) and fuels clicker combo.',
+    oneLiner: 'More Comfort, hotter tap combos.',
     flavor: 'Tan, fit, spa-buffed. The soggy is gone.' },
   { id: 'taste', name: 'Taste',
     effect: 'Unlocks luxury tiers and adds exclusivity multipliers.',
+    oneLiner: 'Opens the doors to the fancy rooms.',
     flavor: 'You send back the wine now. Correctly.' },
   { id: 'savvy', name: 'Savvy',
     effect: 'Passive cash trickle scaling with your wealth (√). XP also trickles in from ' +
       'crypto coin yield and from surviving market crashes (E13 "Money Works While You Tan").',
+    oneLiner: 'Money trickles in while you tan.',
     flavor: 'Money works while you tan.' },
 ];
 

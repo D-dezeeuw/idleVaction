@@ -557,3 +557,26 @@ div.iv-passport-stamp.iv-stamp-empty { padding: 5px 2px; border-radius: 8px; }
 .iv-splurge-card[hidden] { display: none; }
 .iv-splurge-head { font-size: .95rem; margin-bottom: 2px; }
 .iv-splurge-choices { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+
+/* ---- Your Road (docs/10 §2.1, Phase 4 UI): the committed path's staged goal bars, top of
+   the Home tab — reuses .iv-comfort-meter for the fill (same generic pill-track look every
+   other progress bar in the game already uses, not a new component). ---- */
+.iv-road-head { font-size: .92rem; margin-bottom: 6px; }
+.iv-road-next { color: var(--iv-pink-text); }
+.iv-road-complete { color: var(--iv-green-text); font-weight: 700; }
+.iv-road-bar { margin-bottom: 8px; }
+.iv-road-bar-label { font-size: .78rem; margin-bottom: 2px; }
+.iv-road-bar-met .iv-road-bar-label { color: var(--iv-green-text); }
+.iv-road-fired { margin-top: 6px; display: flex; flex-direction: column; gap: 2px; }
+
+/* Accommodation panel's path-gate deep link (docs/10 §2.1, task 2) — styled like a soft
+   warning chip (mirrors .iv-warn's palette), sits right where the taste-gate hint already does. */
+.iv-path-gate-hint.iv-btn { display: inline-block; background: var(--iv-red-tint);
+  border-color: var(--iv-red-text); color: var(--iv-red-text); font-weight: 700; margin: 4px 0 0; }
+.iv-path-gate-hint.iv-btn:hover { background: var(--iv-red-text); color: #fff; }
+
+/* ---- Personal Growth, simplified (docs/10 §2.3, Phase 4 UI): title/level/ⓘ on one row,
+   the plain-language line below, numbers moved behind the ⓘ → shared era modal. ---- */
+.iv-skill-head { display: flex; align-items: center; gap: 6px; }
+.iv-skill-info-btn { margin-left: auto; border-radius: 999px !important; padding: 2px 9px !important;
+  min-height: 0; font-weight: 800; color: var(--iv-sky-text); }

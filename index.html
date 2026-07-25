@@ -59,6 +59,24 @@
 
   <main id="tabpanels">
     <div class="iv-tabpanel iv-grid" data-tab="home" role="tabpanel">
+      <!-- Your Road (docs/10 §2.1, Phase 4 UI): the committed path's staged goals, top of
+           Home. Always present (no [hidden] — ui.renderYourRoad swaps in a spoiler-free
+           teaser before commitment, the live goal bars after). tabindex="-1" lets the
+           Accommodation panel's path-gate hint (ui.js 'scroll-to-road') focus it programmatically
+           without adding it to the tab order. -->
+      <section class="iv-card iv-wide" id="yourRoadCard" tabindex="-1">
+        <h3>🧭 Your Road</h3>
+        <div id="yourRoad"></div>
+      </section>
+      <!-- Overview (docs/10 §2.2): income ladder + amenities merged under one shared header,
+           directly beneath Your Road — the two everyday panels reading as one home screen. -->
+      <section class="iv-card iv-wide" id="overviewCard">
+        <h3>📋 Overview</h3>
+        <div class="iv-tag">💶 income tiers</div>
+        <div id="generators"></div>
+        <div class="iv-tag">🛎️ amenities <small>(small wins)</small></div>
+        <div id="amenities"></div>
+      </section>
       <!-- Trip Events banner (Living-World W1): hidden while CONFIG.EVENTS.enabled is false
            (this wave's shipped default) or before story beat 3 — see ui.eventsRevealed. -->
       <section class="iv-card iv-wide" id="eventsCard" hidden>
@@ -79,7 +97,6 @@
         <h3>🧳 Petra</h3>
         <div id="petra"></div>
       </section>
-      <section class="iv-card iv-wide" id="amenitiesCard"><h3>🛎️ Amenities <small>(small wins)</small></h3><div id="amenities"></div></section>
       <section class="iv-card iv-wide" id="poolCard" hidden>
         <h3>🏊 Poolside</h3>
         <div id="poolAnnounce" class="iv-sr-only" aria-live="polite"></div>
@@ -120,7 +137,8 @@
     </div>
 
     <div class="iv-tabpanel iv-grid" data-tab="income" role="tabpanel" hidden>
-      <section class="iv-card iv-wide" id="generatorsCard"><h3>💶 Income Tiers</h3><div id="generators"></div></section>
+      <!-- The income ladder itself moved into the Home tab's Overview section (docs/10 §2.2);
+           this tab now holds the advanced per-system income panels only. -->
       <section class="iv-card iv-wide" id="creatorCard" hidden>
         <h3>📸 Creator Dashboard</h3>
         <div id="creatorAnnounce" class="iv-sr-only" aria-live="polite"></div>
